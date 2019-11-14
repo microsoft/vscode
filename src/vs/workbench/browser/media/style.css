@@ -56,9 +56,8 @@ body.web {
 	width: 100vw;
 }
 
-.monaco-workbench.border {
-	height: calc(100vh - 2px);
-	width: calc(100vw - 2px);
+.monaco-workbench.border:not(.fullscreen) {
+	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
 }
 

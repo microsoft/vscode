@@ -22,6 +22,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
+import { pad } from 'vs/base/common/strings';
 
 const $ = dom.$;
 
@@ -76,17 +77,16 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const wrapper = dom.append(element, $('.wrapper'));
 		wrapper.tabIndex = -1;
 
-		const buttons = dom.append(wrapper, $('.buttons'));
-		const previous = dom.append(buttons, $('.button.previous'));
-		const next = dom.append(buttons, $('.button.next'));
+		const controls = dom.append(wrapper, $('.controls'));
+		const previous = dom.append(controls, $('.button.previous'));
+		const overloads = dom.append(controls, $('.overloads'));
+		const next = dom.append(controls, $('.button.next'));
 
 		const onPreviousClick = stop(domEvent(previous, 'click'));
 		this._register(onPreviousClick(this.previous, this));
 
 		const onNextClick = stop(domEvent(next, 'click'));
 		this._register(onNextClick(this.next, this));
-
-		const overloads = dom.append(wrapper, $('.overloads'));
 
 		const body = $('.body');
 		const scrollbar = new DomScrollableElement(body, {});
@@ -239,12 +239,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		dom.toggleClass(this.domNodes.signature, 'has-docs', hasDocs);
 		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
 
-		let currentOverload = String(hints.activeSignature + 1);
-		if (hints.signatures.length < 10) {
-			currentOverload += `/${hints.signatures.length}`;
-		}
-
-		this.domNodes.overloads.textContent = currentOverload;
+		this.domNodes.overloads.textContent =
+			pad(hints.activeSignature + 1, hints.signatures.length.toString().length) + '/' + hints.signatures.length;
 
 		if (activeParameter) {
 			const labelToAnnounce = this.getParameterLabel(signature, hints.activeParameter);

@@ -134,6 +134,10 @@ export class EmptyView extends ViewletPanel {
 		// no-op
 	}
 
+	focus(): void {
+		this.focusBody();
+	}
+
 	focusBody(): void {
 		if (this.button) {
 			this.button.element.focus();

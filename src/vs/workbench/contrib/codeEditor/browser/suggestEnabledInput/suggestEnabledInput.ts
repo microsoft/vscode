@@ -27,12 +27,13 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IStyleOverrides, IThemable, attachStyler } from 'vs/platform/theme/common/styler';
+import { IStyleOverrides, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { IThemable } from 'vs/base/common/styler';
 
 interface SuggestResultsProvider {
 	/**
@@ -245,6 +246,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		if (selectAll && this.inputWidget.getValue()) {
 			this.selectAll();
 		}
+	}
+
+	public onHide(): void {
+		this.inputWidget.onHide();
 	}
 
 	public layout(dimension: Dimension): void {

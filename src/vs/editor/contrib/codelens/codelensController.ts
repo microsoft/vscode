@@ -326,7 +326,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		this._currentResolveCodeLensSymbolsPromise = createCancelablePromise(token => {
+		const resolvePromise = createCancelablePromise(token => {
 
 			const promises = toResolve.map((request, i) => {
 
@@ -351,13 +351,21 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 			return Promise.all(promises);
 		});
+		this._currentResolveCodeLensSymbolsPromise = resolvePromise;
 
 		this._currentResolveCodeLensSymbolsPromise.then(() => {
+			if (this._currentCodeLensModel) { // update the cached state with new resolved items
+				this._codeLensCache.put(model, this._currentCodeLensModel);
+			}
 			this._oldCodeLensModels.clear(); // dispose old models once we have updated the UI with the current model
-			this._currentResolveCodeLensSymbolsPromise = undefined;
+			if (resolvePromise === this._currentResolveCodeLensSymbolsPromise) {
+				this._currentResolveCodeLensSymbolsPromise = undefined;
+			}
 		}, err => {
 			onUnexpectedError(err); // can also be cancellation!
-			this._currentResolveCodeLensSymbolsPromise = undefined;
+			if (resolvePromise === this._currentResolveCodeLensSymbolsPromise) {
+				this._currentResolveCodeLensSymbolsPromise = undefined;
+			}
 		});
 	}
 }

@@ -43,7 +43,15 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/codeActions",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/testCustomEditors",
 			"project": "vscode-workbench"
 		},
 		{
@@ -135,7 +143,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/stats",
+			"name": "vs/workbench/contrib/tags",
 			"project": "vscode-workbench"
 		},
 		{
@@ -192,6 +200,10 @@
 		},
 		{
 			"name": "vs/workbench/services/actions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/authToken",
 			"project": "vscode-workbench"
 		},
 		{

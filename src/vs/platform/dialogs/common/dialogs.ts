@@ -141,7 +141,6 @@ export interface IOpenDialogOptions {
 	availableFileSystems?: readonly string[];
 }
 
-
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
 export interface IDialogOptions {
@@ -241,9 +240,20 @@ export interface IFileDialogService {
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 
 	/**
+	 * Shows a confirm dialog for saving 1-N files.
+	 */
+	showSaveConfirm(fileNameOrResources: string | URI[]): Promise<ConfirmResult>;
+
+	/**
 	 * Shows a open file dialog and returns the chosen file URI.
 	 */
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
+}
+
+export const enum ConfirmResult {
+	SAVE,
+	DONT_SAVE,
+	CANCEL
 }
 
 const MAX_CONFIRM_FILES = 10;

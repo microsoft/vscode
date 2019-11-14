@@ -7,10 +7,10 @@ nan@^2.14.0:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
 
-onigasm-umd@^2.2.2:
-  version "2.2.2"
-  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.2.tgz#b989d762df61f899a3052ac794a50bd93fe20257"
-  integrity sha512-v2eMOJu7iE444L2iJN+U6s6s5S0y7oj/N0DAkrd6wokRtTVoq/v/yaDI1lIqFrTeJbNtqNzYvguDF5yNzW3Rvw==
+onigasm-umd@^2.2.4:
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.4.tgz#27ee87f7496c66ad40cebfbc0d418c19bb7db5ec"
+  integrity sha512-N9VqCUhl9KBuzm47vcK8T/xUnbYylIhMN45Rwltlo1sZc3QUDda6SxIlyVB8r0SJQwURv8JOHjyXjjCriGvzRg==
 
 oniguruma@^7.2.0:
   version "7.2.0"
@@ -31,17 +31,17 @@ vscode-textmate@^4.3.0:
   dependencies:
     oniguruma "^7.2.0"
 
-xterm-addon-search@0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.3.0.tgz#fc6843bebab1873eff0c89e31f7b74bb3c4d8947"
-  integrity sha512-ZvRmkNBSz2dT00w0qJ3Hd5cwYoOfkVZpHou7Xxy1kO34wQglU/8Ec4DNTvU27sS9BUzEg8kUcTTru0DxhJXrTA==
+xterm-addon-search@0.4.0-beta4:
+  version "0.4.0-beta4"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.4.0-beta4.tgz#7762ea342c6b4f5e824d83466bd93793c9d7d779"
+  integrity sha512-TIbEBVhydGIxcyu/CfKJbD+BKHisMGbkAfaWlCPaWis2Xmw8yE7CKrCPn+lhZYl1MdjDVEmb8lQI6WetbC2OZA==
 
 xterm-addon-web-links@0.2.1:
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.1.tgz#6d1f2ce613e09870badf17615e7a1170a31542b2"
   integrity sha512-2KnHtiq0IG7hfwv3jw2/jQeH1RBk2d5CH4zvgwQe00rLofSJqSfgnJ7gwowxxpGHrpbPr6Lv4AmH/joaNw2+HQ==
 
-xterm@4.2.0:
-  version "4.2.0"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.2.0.tgz#b9980b2ae18c64ed31bcc95eace3bcecffebbbd9"
-  integrity sha512-oNfLqt+LmghLPOt5UcskP5Km1fXpTBHsTZ99nxJKY2N0MNFXBKIVXUcNNhHCa74JGZFMGhLT58A/UN3HcPXSfg==
+xterm@4.3.0-beta17:
+  version "4.3.0-beta17"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.3.0-beta17.tgz#c038cc00cb5be33d2a5f083255c329d9ed186565"
+  integrity sha512-Lgz7vL12MBKJSgK/UXJF22Yw+uEXEE7YZDWfUD+/jbHAKN4geLQJ/Y/b3gxjLL020dnYZuayfKOr2KWdhKsmCA==

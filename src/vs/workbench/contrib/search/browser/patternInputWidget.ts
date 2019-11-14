@@ -16,6 +16,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { Delayer } from 'vs/base/common/async';
 
 export interface IOptions {
 	placeholder?: string;
@@ -23,6 +26,8 @@ export interface IOptions {
 	validation?: IInputValidator;
 	ariaLabel?: string;
 	history?: string[];
+	submitOnType?: boolean;
+	submitOnTypeDelay?: number;
 }
 
 export class PatternInputWidget extends Widget {
@@ -39,19 +44,24 @@ export class PatternInputWidget extends Widget {
 	protected inputBox!: HistoryInputBox;
 
 	private _onSubmit = this._register(new Emitter<boolean>());
-	onSubmit: CommonEvent<boolean> = this._onSubmit.event;
+	onSubmit: CommonEvent<boolean /* triggeredOnType */> = this._onSubmit.event;
 
-	private _onCancel = this._register(new Emitter<boolean>());
-	onCancel: CommonEvent<boolean> = this._onCancel.event;
+	private _onCancel = this._register(new Emitter<void>());
+	onCancel: CommonEvent<void> = this._onCancel.event;
+
+	private searchOnTypeDelayer: Delayer<void>;
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService protected themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
+
+		this._register(this.searchOnTypeDelayer = new Delayer(this.searchConfig.searchOnTypeDebouncePeriod));
 
 		this.render(options);
 
@@ -139,6 +149,12 @@ export class PatternInputWidget extends Widget {
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
+		this._register(this.inputBox.onDidChange(() => {
+			if (this.searchConfig.searchOnType) {
+				this._onCancel.fire();
+				this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(false), this.searchConfig.searchOnTypeDebouncePeriod);
+			}
+		}));
 
 		const controls = document.createElement('div');
 		controls.className = 'controls';
@@ -154,24 +170,32 @@ export class PatternInputWidget extends Widget {
 	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				this._onSubmit.fire(false);
+				this._onSubmit.fire(true);
 				return;
 			case KeyCode.Escape:
-				this._onCancel.fire(false);
+				this._onCancel.fire();
 				return;
 			default:
 				return;
 		}
 	}
+
+	private get searchConfig() {
+		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
+	}
 }
 
 export class ExcludePatternInputWidget extends PatternInputWidget {
 
+	private _onChangeIgnoreBoxEmitter = this._register(new Emitter<void>());
+	onChangeIgnoreBox = this._onChangeIgnoreBoxEmitter.event;
+
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService);
+		super(parent, contextViewProvider, options, themeService, configurationService, contextKeyService);
 	}
 
 	private useExcludesAndIgnoreFilesBox!: Checkbox;
@@ -200,6 +224,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			isChecked: true,
 		}));
 		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {
+			this._onChangeIgnoreBoxEmitter.fire();
 			if (!viaKeyboard) {
 				this.inputBox.focus();
 			}

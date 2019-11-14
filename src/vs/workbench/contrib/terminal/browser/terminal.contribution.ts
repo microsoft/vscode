@@ -35,6 +35,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalShellConfig';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 registerSingleton(ITerminalService, TerminalService, true);
 
@@ -344,10 +345,6 @@ Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERM
 const category = TERMINAL_ACTION_CATEGORY;
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), 'Terminal: Kill the Active Terminal Instance', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
-}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)), 'Terminal: Copy Selection', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
@@ -360,10 +357,6 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewInActiv
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusActiveTerminalAction, FocusActiveTerminalAction.ID, FocusActiveTerminalAction.LABEL), 'Terminal: Focus Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), 'Terminal: Focus Next Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), 'Terminal: Focus Previous Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL, {
 	// Don't use ctrl+a by default as that would override the common go to start
 	// of prompt shell binding
@@ -558,6 +551,20 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, Fi
 	secondary: [KeyCode.Enter],
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3, KeyCode.Enter] },
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find previous', category);
+
+// Commands miht be affected by Web restrictons
+if (BrowserFeatures.clipboard.writeText) {
+	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
+	}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)), 'Terminal: Copy Selection', category);
+}
+if (BrowserFeatures.clipboard.readText) {
+	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }
+	}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category);
+}
 
 (new SendSequenceTerminalCommand({
 	id: SendSequenceTerminalCommand.ID,

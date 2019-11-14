@@ -12,6 +12,7 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDimension } from 'vs/editor/common/editorCommon';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 //#region typed options
 
@@ -185,8 +186,8 @@ export interface IEditorOptions {
 	 */
 	fontLigatures?: boolean | string;
 	/**
-	 * Disable the use of `will-change` for the editor margin and lines layers.
-	 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
+	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
+	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
 	 * Defaults to false.
 	 */
 	disableLayerHinting?: boolean;
@@ -1323,7 +1324,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 			multipleImplemenations: 'peek',
 			multipleReferences: 'peek',
 		};
-		const jsonSubset = {
+		const jsonSubset: IJSONSchema = {
 			type: 'string',
 			enum: ['peek', 'gotoAndPeek', 'goto'],
 			default: defaults.multiple,
@@ -3154,10 +3155,10 @@ export const EditorOptions = {
 		['default', 'all'] as const,
 		{
 			enumDescriptions: [
-				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered from keyboard and api"),
+				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered via the keyboard or API."),
 				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
 			],
-			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced")
+			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced.")
 		}
 	)),
 	cursorWidth: register(new EditorIntOption(

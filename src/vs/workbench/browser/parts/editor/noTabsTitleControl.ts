@@ -248,7 +248,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 			// Editor Label
 			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
-			const name = editor.getName() || '';
+			const name = editor.getName();
 
 			const { labelFormat } = this.accessor.partOptions;
 			let description: string;

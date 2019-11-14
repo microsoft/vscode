@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -29,9 +29,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export interface IBackupMetaData {
 	mtime: number;
+	ctime: number;
 	size: number;
 	etag: string;
 	orphaned: boolean;
@@ -69,11 +72,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static saveParticipant: ISaveParticipant | null;
 	static setSaveParticipant(handler: ISaveParticipant | null): void { TextFileEditorModel.saveParticipant = handler; }
 
-	private readonly _onDidContentChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
-	readonly onDidContentChange: Event<StateChange> = this._onDidContentChange.event;
+	private readonly _onDidContentChange = this._register(new Emitter<StateChange>());
+	readonly onDidContentChange = this._onDidContentChange.event;
 
-	private readonly _onDidStateChange: Emitter<StateChange> = this._register(new Emitter<StateChange>());
-	readonly onDidStateChange: Event<StateChange> = this._onDidStateChange.event;
+	private readonly _onDidStateChange = this._register(new Emitter<StateChange>());
+	readonly onDidStateChange = this._onDidStateChange.event;
+
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	readonly capabilities = WorkingCopyCapabilities.AutoSave;
 
 	private contentEncoding: string | undefined; // encoding as reported from disk
 
@@ -100,7 +108,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private disposed = false;
 
 	constructor(
-		private readonly resource: URI,
+		public readonly resource: URI,
 		private preferredEncoding: string | undefined,	// encoding as chosen by the user
 		private preferredMode: string | undefined,		// mode as chosen by the user
 		@INotificationService private readonly notificationService: INotificationService,
@@ -113,19 +121,24 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(modelService, modeService);
 
-		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
+		this.updateAutoSaveConfiguration(filesConfigurationService.getAutoSaveConfiguration());
+
+		// Make known to working copy service
+		this._register(this.workingCopyService.registerWorkingCopy(this));
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this._register(this.textFileService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
-		this._register(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
+		this._register(this.filesConfigurationService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
 		this._register(this.onDidStateChange(e => this.onStateChange(e)));
 	}
 
@@ -224,6 +237,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (isEqual(target, this.resource) && this.lastResolvedFileStat) {
 				meta = {
 					mtime: this.lastResolvedFileStat.mtime,
+					ctime: this.lastResolvedFileStat.ctime,
 					size: this.lastResolvedFileStat.size,
 					etag: this.lastResolvedFileStat.etag,
 					orphaned: this.inOrphanMode
@@ -247,6 +261,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoSaveDisposable.clear();
 
 		// Unset flags
+		const wasDirty = this.dirty;
 		const undo = this.setDirty(false);
 
 		// Force read from disk unless reverting soft
@@ -264,6 +279,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit file change event
 		this._onDidStateChange.fire(StateChange.REVERTED);
+
+		// Emit dirty change event
+		if (wasDirty) {
+			this._onDidChangeDirty.fire();
+		}
 	}
 
 	async load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
@@ -313,6 +333,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			resource: this.resource,
 			name: basename(this.resource),
 			mtime: resolvedBackup.meta ? resolvedBackup.meta.mtime : Date.now(),
+			ctime: resolvedBackup.meta ? resolvedBackup.meta.ctime : Date.now(),
 			size: resolvedBackup.meta ? resolvedBackup.meta.size : 0,
 			etag: resolvedBackup.meta ? resolvedBackup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: resolvedBackup.value,
@@ -397,8 +418,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			resource: this.resource,
 			name: content.name,
 			mtime: content.mtime,
+			ctime: content.ctime,
 			size: content.size,
 			etag: content.etag,
+			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
 			isReadonly: content.isReadonly
@@ -523,6 +546,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Emit event
 			if (wasDirty) {
 				this._onDidStateChange.fire(StateChange.REVERTED);
+				this._onDidChangeDirty.fire();
 			}
 
 			return;
@@ -563,6 +587,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
 			this._onDidStateChange.fire(StateChange.DIRTY);
+			this._onDidChangeDirty.fire();
 		}
 	}
 
@@ -734,8 +759,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// Cancel any content change event promises as they are no longer valid
 				this.contentChangeEventScheduler.cancel();
 
-				// Emit File Saved Event
+				// Emit Events
 				this._onDidStateChange.fire(StateChange.SAVED);
+				this._onDidChangeDirty.fire();
 
 				// Telemetry
 				const settingsType = this.getTypeIfSettings();
@@ -1006,10 +1032,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.disposed;
 	}
 
-	getResource(): URI {
-		return this.resource;
-	}
-
 	getStat(): IFileStatWithMetadata | undefined {
 		return this.lastResolvedFileStat;
 	}
@@ -1120,6 +1142,6 @@ class DefaultSaveErrorHandler implements ISaveErrorHandler {
 	constructor(@INotificationService private readonly notificationService: INotificationService) { }
 
 	onSaveError(error: Error, model: TextFileEditorModel): void {
-		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(model.getResource()), toErrorMessage(error, false)));
+		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", basename(model.resource), toErrorMessage(error, false)));
 	}
 }

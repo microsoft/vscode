@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IUntitledResourceInput } from 'vs/workbench/common/editor';
+import { IUntitledTextResourceInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
@@ -29,7 +29,7 @@ class InspectKeyMap extends EditorAction {
 		const keybindingService = accessor.get(IKeybindingService);
 		const editorService = accessor.get(IEditorService);
 
-		editorService.openEditor({ contents: keybindingService._dumpDebugInfo(), options: { pinned: true } } as IUntitledResourceInput);
+		editorService.openEditor({ contents: keybindingService._dumpDebugInfo(), options: { pinned: true } } as IUntitledTextResourceInput);
 	}
 }
 
@@ -49,7 +49,7 @@ class InspectKeyMapJSON extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this._editorService.openEditor({ contents: this._keybindingService._dumpDebugInfoJSON(), options: { pinned: true } } as IUntitledResourceInput);
+		return this._editorService.openEditor({ contents: this._keybindingService._dumpDebugInfoJSON(), options: { pinned: true } } as IUntitledTextResourceInput);
 	}
 }
 

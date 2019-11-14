@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -32,7 +32,7 @@ import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -50,7 +50,7 @@ import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -128,10 +128,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService
 	) {
 		super(themeService);
 
@@ -255,7 +256,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (this.isEmpty) {
 				EventHelper.stop(e);
 
-				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
+				this.openEditor(this.untitledTextEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
 			}
 		}));
 
@@ -1260,7 +1261,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Switch to editor that we want to handle and confirm to save/revert
 		await this.openEditor(editor);
 
-		const res = await editor.confirmSave();
+		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+		const res = await this.fileDialogService.showSaveConfirm(editorResource ? [editorResource] : editor.getName());
 
 		// It could be that the editor saved meanwhile, so we check again
 		// to see if anything needs to happen before closing for good.

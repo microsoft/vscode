@@ -138,6 +138,32 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 		});
 	}
 
+	public asDebugSourceUri(src: vscode.DebugSource, session?: vscode.DebugSession): URI {
+
+		const source = <any>src;
+
+		if (typeof source.sourceReference === 'number') {
+			// src can be retrieved via DAP's "source" request
+
+			let debug = `debug:${encodeURIComponent(source.path || '')}`;
+			let sep = '?';
+
+			if (session) {
+				debug += `${sep}session=${encodeURIComponent(session.id)}`;
+				sep = '&';
+			}
+
+			debug += `${sep}ref=${source.sourceReference}`;
+
+			return URI.parse(debug);
+		} else if (source.path) {
+			// src is just a local file path
+			return URI.file(source.path);
+		} else {
+			throw new Error(`cannot create uri from DAP 'source' object; properties 'path' and 'sourceReference' are both missing.`);
+		}
+	}
+
 	private registerAllDebugTypes(extensionRegistry: ExtensionDescriptionRegistry) {
 
 		const debugTypes: string[] = [];

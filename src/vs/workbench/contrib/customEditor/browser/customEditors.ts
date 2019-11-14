@@ -301,6 +301,11 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			};
 		}
 
+		// If we have all optional editors, then open VS Code's standard editor
+		if (contributedEditors.every(editor => editor.priority === CustomEditorPriority.option)) {
+			return;
+		}
+
 		// Open VS Code's standard editor but prompt user to see if they wish to use a custom one instead
 		return {
 			override: (async () => {
@@ -337,7 +342,7 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			const editors = mergeSort(
 				distinct([
 					...this.customEditorService.getUserConfiguredCustomEditors(resource),
-					...this.customEditorService.getContributedCustomEditors(resource),
+					...this.customEditorService.getContributedCustomEditors(resource).filter(x => x.priority !== CustomEditorPriority.option),
 				], editor => editor.id),
 				(a, b) => {
 					return priorityToRank(a.priority) - priorityToRank(b.priority);

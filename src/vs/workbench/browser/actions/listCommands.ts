@@ -872,10 +872,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.scrollLeft',
+	id: '84256',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 	handler: accessor => {
 		const focused = accessor.get(IListService).lastFocusedList;
 
@@ -891,7 +890,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.scrollRight',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
 	handler: accessor => {
 		const focused = accessor.get(IListService).lastFocusedList;
 

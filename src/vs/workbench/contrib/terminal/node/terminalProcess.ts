@@ -65,7 +65,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: useConpty,
+			useConpty,
 			// This option will force conpty to not redraw the whole viewport on launch
 			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};

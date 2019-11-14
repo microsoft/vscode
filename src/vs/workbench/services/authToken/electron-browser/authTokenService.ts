@@ -9,6 +9,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
+import { IURLService } from 'vs/platform/url/common/url';
+import { URI } from 'vs/base/common/uri';
 
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 
@@ -16,13 +18,16 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	private readonly channel: IChannel;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Disabled;
+	private _status: AuthTokenStatus = AuthTokenStatus.Inactive;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
 
+	readonly _onDidGetCallback: Emitter<URI> = this._register(new Emitter<URI>());
+
 	constructor(
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
+		@IURLService private readonly urlService: IURLService
 	) {
 		super();
 		this.channel = sharedProcessService.getChannel('authToken');
@@ -30,22 +35,34 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 			this.updateStatus(status);
 			this._register(this.channel.listen<AuthTokenStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
 		});
+
+		this.urlService.registerHandler(this);
+	}
+
+	handleURL(uri: URI) {
+		if (uri.authority === 'vscode.login') {
+			this.channel.call('exchangeCodeForToken', uri);
+			return Promise.resolve(true);
+		} else {
+			return Promise.resolve(false);
+		}
 	}
 
 	getToken(): Promise<string> {
 		return this.channel.call('getToken');
 	}
 
-	updateToken(token: string): Promise<void> {
-		return this.channel.call('updateToken', [token]);
+	login(): Promise<void> {
+		const callbackUri = this.urlService.create({ authority: 'vscode.login ' });
+		return this.channel.call('login', callbackUri);
 	}
 
 	refreshToken(): Promise<void> {
 		return this.channel.call('getToken');
 	}
 
-	deleteToken(): Promise<void> {
-		return this.channel.call('deleteToken');
+	logout(): Promise<void> {
+		return this.channel.call('logout');
 	}
 
 	private async updateStatus(status: AuthTokenStatus): Promise<void> {

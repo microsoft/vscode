@@ -83,7 +83,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -449,6 +449,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		let availableHeight = contentAreaSize.height;
 		if (this.globalActivityActionBar) {
 			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
+		}
+		if (this.menubar) {
+			availableHeight -= this.menubar.clientHeight;
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}

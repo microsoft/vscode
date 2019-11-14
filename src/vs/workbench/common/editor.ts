@@ -205,11 +205,11 @@ export interface IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined;
 }
 
-export interface IUntitledResourceInput extends IBaseResourceInput {
+export interface IUntitledTextResourceInput extends IBaseResourceInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
-	 * Otherwise the untitled editor will have an associated path and use that when saving.
+	 * Otherwise the untitled text editor will have an associated path and use that when saving.
 	 */
 	resource?: URI;
 
@@ -294,7 +294,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display name of this input.
 	 */
-	getName(): string | undefined;
+	getName(): string;
 
 	/**
 	 * Returns the display description of this input.
@@ -360,8 +360,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
 	 * above the editor area when the input is shown.
 	 */
-	getName(): string | undefined {
-		return undefined;
+	getName(): string {
+		return `Editor ${this.getTypeId()}`;
 	}
 
 	/**
@@ -376,7 +376,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the title of this input that can be shown to the user. Examples include showing the title of
 	 * the input above the editor area as hover over the input label.
 	 */
-	getTitle(verbosity?: Verbosity): string | undefined {
+	getTitle(verbosity?: Verbosity): string {
 		return this.getName();
 	}
 
@@ -413,13 +413,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 */
 	isDirty(): boolean {
 		return false;
-	}
-
-	/**
-	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
-	 */
-	confirmSave(): Promise<ConfirmResult> {
-		return Promise.resolve(ConfirmResult.DONT_SAVE);
 	}
 
 	/**
@@ -474,12 +467,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 		super.dispose();
 	}
-}
-
-export const enum ConfirmResult {
-	SAVE,
-	DONT_SAVE,
-	CANCEL
 }
 
 export const enum EncodingMode {
@@ -571,10 +558,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 	isDirty(): boolean {
 		return this.master.isDirty();
-	}
-
-	confirmSave(): Promise<ConfirmResult> {
-		return this.master.confirmSave();
 	}
 
 	save(): Promise<boolean> {
@@ -1149,7 +1132,7 @@ export const Extensions = {
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledResourceInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledTextResourceInput)[]> {
 	if (!paths || !paths.length) {
 		return [];
 	}
@@ -1170,7 +1153,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			};
 		}
 
-		let input: IResourceInput | IUntitledResourceInput;
+		let input: IResourceInput | IUntitledTextResourceInput;
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {

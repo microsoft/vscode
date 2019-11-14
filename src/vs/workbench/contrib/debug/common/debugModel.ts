@@ -1093,6 +1093,9 @@ export class DebugModel implements IDebugModel {
 			}
 
 			element.enabled = enable;
+			if (enable) {
+				this.breakpointsActivated = true;
+			}
 
 			this._onDidChangeBreakpoints.fire({ changed: changed });
 		}
@@ -1119,6 +1122,9 @@ export class DebugModel implements IDebugModel {
 			}
 			dbp.enabled = enable;
 		});
+		if (enable) {
+			this.breakpointsActivated = true;
+		}
 
 		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}

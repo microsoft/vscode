@@ -93,6 +93,13 @@ export function isUndefinedOrNull(obj: any): obj is undefined | null {
 	return isUndefined(obj) || obj === null;
 }
 
+
+export function assertType(condition: any, type?: string): asserts condition {
+	if (!condition) {
+		throw new Error(type ? `Unexpected type, expected '${type}'` : 'Unexpected type');
+	}
+}
+
 /**
  * Asserts that the argument passed in is neither undefined nor null.
  */

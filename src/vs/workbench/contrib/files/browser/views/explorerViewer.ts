@@ -15,7 +15,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDisposable, Disposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -28,7 +28,7 @@ import { once } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
+import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -47,6 +47,9 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Emitter } from 'vs/base/common/event';
+import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
+import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
@@ -117,7 +120,7 @@ export interface IFileTemplateData {
 	container: HTMLElement;
 }
 
-export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IDisposable {
+export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IDisposable {
 	static readonly ID = 'file';
 
 	private config: IFilesConfiguration;
@@ -158,25 +161,7 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			const extraClasses = ['explorer-item'];
-			if (this.explorerService.isCut(stat)) {
-				extraClasses.push('cut');
-			}
-			templateData.label.setFile(stat.resource, {
-				hidePath: true,
-				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-				extraClasses,
-				fileDecorations: this.config.explorer.decorations,
-				matches: createMatches(node.filterData)
-			});
-
-			templateData.elementDisposable = templateData.label.onDidRender(() => {
-				try {
-					this.updateWidth(stat);
-				} catch (e) {
-					// noop since the element might no longer be in the tree, no update of width necessery
-				}
-			});
+			templateData.elementDisposable = this.renderStat(stat, stat.name, node.filterData, templateData);
 		}
 
 		// Input Box
@@ -184,6 +169,49 @@ export class FilesRenderer implements ITreeRenderer<ExplorerItem, FuzzyScore, IF
 			templateData.label.element.style.display = 'none';
 			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
 		}
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData, height: number | undefined): void {
+		templateData.elementDisposable.dispose();
+
+		const stat = node.element.elements[node.element.elements.length - 1];
+		const label = node.element.elements.map(e => e.name).join('/');
+		const editableData = this.explorerService.getEditableData(stat);
+
+		// File Label
+		if (!editableData) {
+			templateData.label.element.style.display = 'flex';
+			templateData.elementDisposable = this.renderStat(stat, label, node.filterData, templateData);
+		}
+
+		// Input Box
+		else {
+			templateData.label.element.style.display = 'none';
+			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
+		}
+	}
+
+	private renderStat(stat: ExplorerItem, label: string, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
+		templateData.label.element.style.display = 'flex';
+		const extraClasses = ['explorer-item'];
+		if (this.explorerService.isCut(stat)) {
+			extraClasses.push('cut');
+		}
+
+		templateData.label.setResource({ resource: stat.resource, name: label }, {
+			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+			extraClasses,
+			fileDecorations: this.config.explorer.decorations,
+			matches: createMatches(filterData)
+		});
+
+		return templateData.label.onDidRender(() => {
+			try {
+				this.updateWidth(stat);
+			} catch (e) {
+				// noop since the element might no longer be in the tree, no update of width necessery
+			}
+		});
 	}
 
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
@@ -685,7 +713,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (targetStat.children) {
 				const ignoreCase = hasToIgnoreCase(target.resource);
 				targetStat.children.forEach(child => {
-					targetNames.add(ignoreCase ? child.name : child.name.toLowerCase());
+					targetNames.add(ignoreCase ? child.name.toLowerCase() : child.name);
 				});
 			}
 
@@ -734,9 +762,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (confirmDragAndDrop) {
 			const confirmation = await this.dialogService.confirm({
 				message: items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
-					: items.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", items.length), items.map(s => s.resource))
+					: items.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files into '{1}'?", items.length, target.name), items.map(s => s.resource))
 						: items[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
-							: localize('confirmMove', "Are you sure you want to move '{0}'?", items[0].name),
+							: localize('confirmMove', "Are you sure you want to move '{0}' into '{1}'?", items[0].name, target.name),
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				},
@@ -837,5 +865,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				this.notificationService.error(error);
 			}
 		}
+	}
+}
+
+export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {
+
+	isIncompressible(stat: ExplorerItem): boolean {
+		return stat.isRoot || !stat.isDirectory || stat instanceof NewExplorerItem;
 	}
 }
