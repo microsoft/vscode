@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?ffbbbd998c09cc4af5af9e181bb08a70") format("truetype");
+	src: url("./codicon.ttf?b035097bd976825411d2c57142be0530") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -390,6 +390,7 @@
 .codicon-list-filter:before { content: "\eb83" }
 .codicon-list-flat:before { content: "\eb84" }
 .codicon-list-selection:before { content: "\eb85" }
+.codicon-selection:before { content: "\eb85" }
 .codicon-list-tree:before { content: "\eb86" }
 .codicon-debug-breakpoint-function-unverified:before { content: "\eb87" }
 .codicon-debug-breakpoint-function:before { content: "\eb88" }
