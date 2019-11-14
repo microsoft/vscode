@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/node/urlService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, IOpener } from 'vs/platform/opener/common/opener';
 import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
@@ -20,7 +20,7 @@ export interface IRelayOpenURLOptions extends IOpenURLOptions {
 	openExternal?: boolean;
 }
 
-export class RelayURLService extends URLService implements IURLHandler {
+export class RelayURLService extends URLService implements IURLHandler, IOpener {
 
 	private urlService: IURLService;
 
@@ -51,7 +51,12 @@ export class RelayURLService extends URLService implements IURLHandler {
 		return uri.with({ query });
 	}
 
-	async open(resource: URI, options?: IRelayOpenURLOptions): Promise<boolean> {
+	async open(resource: URI | URL, options?: IRelayOpenURLOptions): Promise<boolean> {
+
+		if (resource instanceof URL) {
+			resource = URI.from(resource);
+		}
+
 		if (resource.scheme !== product.urlProtocol) {
 			return false;
 		}

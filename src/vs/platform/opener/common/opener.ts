@@ -35,8 +35,7 @@ export interface IResolvedExternalUri extends IDisposable {
 }
 
 export interface IOpener {
-	open(resource: URI, options?: OpenInternalOptions): Promise<boolean>;
-	open(resource: URI, options?: OpenExternalOptions): Promise<boolean>;
+	open(resource: URI | URL, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
 }
 
 export interface IExternalOpener {
