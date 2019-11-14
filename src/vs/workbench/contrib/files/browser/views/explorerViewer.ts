@@ -190,14 +190,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			const disposables = new DisposableStore();
 			disposables.add(this.renderStat(stat, label, node.filterData, templateData));
 
-
-			// HACK IT IN
-			// const nodes = templateData.label.element.querySelectorAll('.label-name');
-			// nodes.forEach(labelName => {
-			// 	addClass(labelName
-			// });
-
-
 			templateData.elementDisposable = disposables;
 		}
 
