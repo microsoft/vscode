@@ -1262,7 +1262,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		await this.openEditor(editor);
 
 		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
-		const res = await this.fileDialogService.showSaveConfirm(editorResource ? [editorResource] : editor.getName()!);
+		const res = await this.fileDialogService.showSaveConfirm(editorResource ? [editorResource] : editor.getName());
 
 		// It could be that the editor saved meanwhile, so we check again
 		// to see if anything needs to happen before closing for good.

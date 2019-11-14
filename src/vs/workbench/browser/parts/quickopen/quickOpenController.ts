@@ -724,7 +724,7 @@ export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
 export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private input: IEditorInput | IResourceInput;
 	private resource: URI | undefined;
-	private label: string | undefined;
+	private label: string;
 	private description?: string;
 	private dirty: boolean;
 
@@ -745,7 +745,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 		if (input instanceof EditorInput) {
 			this.resource = resourceForEditorHistory(input, fileService);
-			this.label = types.withNullAsUndefined(input.getName());
+			this.label = input.getName();
 			this.description = input.getDescription();
 			this.dirty = input.isDirty();
 		} else {
@@ -765,7 +765,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return this.dirty ? 'dirty' : '';
 	}
 
-	getLabel(): string | undefined {
+	getLabel(): string {
 		return this.label;
 	}
 

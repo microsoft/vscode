@@ -7,7 +7,7 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { DataUri } from 'vs/base/common/resources';
+import { DataUri, basename } from 'vs/base/common/resources';
 
 /**
  * An editor input to present data URIs in a binary editor. Data URIs have the form of:
@@ -17,25 +17,31 @@ export class DataUriEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editors.dataUriEditorInput';
 
+	private readonly name: string;
+	private readonly description: string | undefined;
+
 	constructor(
-		private readonly name: string | undefined,
-		private readonly description: string | undefined,
+		name: string | undefined,
+		description: string | undefined,
 		private readonly resource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
-		if (!this.name || !this.description) {
+		if (!name || !description) {
 			const metadata = DataUri.parseMetaData(this.resource);
 
-			if (!this.name) {
-				this.name = metadata.get(DataUri.META_DATA_LABEL);
+			if (!name) {
+				name = metadata.get(DataUri.META_DATA_LABEL) || basename(resource);
 			}
 
-			if (!this.description) {
-				this.description = metadata.get(DataUri.META_DATA_DESCRIPTION);
+			if (!description) {
+				description = metadata.get(DataUri.META_DATA_DESCRIPTION);
 			}
 		}
+
+		this.name = name;
+		this.description = description;
 	}
 
 	getResource(): URI {
@@ -46,7 +52,7 @@ export class DataUriEditorInput extends EditorInput {
 		return DataUriEditorInput.ID;
 	}
 
-	getName(): string | undefined {
+	getName(): string {
 		return this.name;
 	}
 
