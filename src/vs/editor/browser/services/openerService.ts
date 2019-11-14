@@ -8,11 +8,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
-import { matchesScheme, normalizePath } from 'vs/base/common/resources';
+import { normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions, ResolveExternalUriOptions, IResolvedExternalUri, IExternalOpener } from 'vs/platform/opener/common/opener';
+import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions, ResolveExternalUriOptions, IResolvedExternalUri, IExternalOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
 
 
@@ -43,7 +43,7 @@ export class OpenerService implements IOpenerService {
 
 		// Default opener: maito, http(s), command, and catch-all-editors
 		this._openerAsExternal = {
-			open: async (target: URI | URL, options?: OpenOptions) => {
+			open: async (target: URI | string, options?: OpenOptions) => {
 				if (options?.openExternal || matchesScheme(target, Schemas.mailto) || matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {
 					// open externally
 					await this._doOpenExternal(target, options);
@@ -59,8 +59,8 @@ export class OpenerService implements IOpenerService {
 					return false;
 				}
 				// run command or bail out if command isn't known
-				if (!URI.isUri(target)) {
-					target = URI.from(target);
+				if (typeof target === 'string') {
+					target = URI.parse(target);
 				}
 				if (!CommandsRegistry.getCommand(target.path)) {
 					throw new Error(`command '${target.path}' NOT known`);
@@ -82,8 +82,8 @@ export class OpenerService implements IOpenerService {
 
 		this._openerAsEditor = {
 			open: async (target, options: OpenOptions) => {
-				if (!URI.isUri(target)) {
-					target = URI.from(target);
+				if (typeof target === 'string') {
+					target = URI.parse(target);
 				}
 				let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
 				const match = /^L?(\d+)(?:,(\d+))?/.exec(target.fragment);
@@ -132,7 +132,7 @@ export class OpenerService implements IOpenerService {
 		this._externalOpener = externalOpener;
 	}
 
-	async open(target: URI | URL, options?: OpenOptions): Promise<boolean> {
+	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
 
 		// check with contributed validators
 		for (const validator of this._validators.toArray()) {
@@ -169,7 +169,7 @@ export class OpenerService implements IOpenerService {
 		return { resolved: resource, dispose: () => { } };
 	}
 
-	private async _doOpenExternal(resource: URI | URL, options: OpenOptions | undefined): Promise<boolean> {
+	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
 		if (URI.isUri(resource)) {
 			const { resolved } = await this.resolveExternalUri(resource, options);
 			// TODO@Jo neither encodeURI nor toString(true) should be needed
@@ -177,7 +177,7 @@ export class OpenerService implements IOpenerService {
 			return this._externalOpener.openExternal(encodeURI(resolved.toString(true)));
 		} else {
 			//todo@joh what about resolveExternalUri?
-			return this._externalOpener.openExternal(resource.href);
+			return this._externalOpener.openExternal(resource);
 		}
 	}
 

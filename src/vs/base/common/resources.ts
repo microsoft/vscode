@@ -361,25 +361,3 @@ export function toLocalResource(resource: URI, authority: string | undefined): U
 
 	return resource.with({ scheme: Schemas.file });
 }
-
-export function matchesScheme(target: URI | URL, scheme: string) {
-	if (URI.isUri(target)) {
-		return equalsIgnoreCase(target.scheme, scheme);
-	} else {
-		return equalsIgnoreCase(target.protocol, scheme + ':');
-	}
-}
-
-/**
- * `true` when urls can be constructed via `new URL("string")`, should only be `false` in IE:
- * https://developer.mozilla.org/en-US/docs/Web/API/URL/URL#Browser_compatibility
- */
-export const hasURLCtor = (function () {
-	try {
-		// tslint:disable-next-line: no-unused-expression
-		new URL('some://thing');
-		return true;
-	} catch {
-		return false;
-	}
-})();

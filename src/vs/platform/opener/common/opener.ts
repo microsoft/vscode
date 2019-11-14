@@ -6,6 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
@@ -35,7 +36,7 @@ export interface IResolvedExternalUri extends IDisposable {
 }
 
 export interface IOpener {
-	open(resource: URI | URL, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
+	open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
 }
 
 export interface IExternalOpener {
@@ -43,7 +44,7 @@ export interface IExternalOpener {
 }
 
 export interface IValidator {
-	shouldOpen(resource: URI | URL): Promise<boolean>;
+	shouldOpen(resource: URI | string): Promise<boolean>;
 }
 
 export interface IExternalUriResolver {
@@ -82,7 +83,7 @@ export interface IOpenerService {
 	 * @param resource A resource
 	 * @return A promise that resolves when the opening is done.
 	 */
-	open(resource: URI | URL, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
+	open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
 
 	/**
 	 * Resolve a resource to its external form.
@@ -99,3 +100,11 @@ export const NullOpenerService: IOpenerService = Object.freeze({
 	async open() { return false; },
 	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
 });
+
+export function matchesScheme(target: URI | string, scheme: string) {
+	if (URI.isUri(target)) {
+		return equalsIgnoreCase(target.scheme, scheme);
+	} else {
+		return startsWithIgnoreCase(target, scheme + ':');
+	}
+}

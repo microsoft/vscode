@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
+import { matchesScheme } from 'vs/platform/opener/common/opener';
 
 suite('OpenerService', function () {
 	const editorService = new TestCodeEditorService();
@@ -198,5 +199,19 @@ suite('OpenerService', function () {
 		assert.equal(openCount, 0);
 		assert.equal(v1, 2);
 		assert.equal(v2, 0);
+	});
+
+	test('matchesScheme', function () {
+		assert.ok(matchesScheme('https://microsoft.com', 'https'));
+		assert.ok(matchesScheme('http://microsoft.com', 'http'));
+		assert.ok(matchesScheme('hTTPs://microsoft.com', 'https'));
+		assert.ok(matchesScheme('httP://microsoft.com', 'http'));
+		assert.ok(matchesScheme(URI.parse('https://microsoft.com'), 'https'));
+		assert.ok(matchesScheme(URI.parse('http://microsoft.com'), 'http'));
+		assert.ok(matchesScheme(URI.parse('hTTPs://microsoft.com'), 'https'));
+		assert.ok(matchesScheme(URI.parse('httP://microsoft.com'), 'http'));
+		assert.ok(!matchesScheme(URI.parse('https://microsoft.com'), 'http'));
+		assert.ok(!matchesScheme(URI.parse('htt://microsoft.com'), 'http'));
+		assert.ok(!matchesScheme(URI.parse('z://microsoft.com'), 'http'));
 	});
 });

@@ -13,7 +13,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { isDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
-import { hasURLCtor } from 'vs/base/common/resources';
 
 export class Link implements ILink {
 
@@ -45,19 +44,9 @@ export class Link implements ILink {
 		return this._link.tooltip;
 	}
 
-	async resolve(token: CancellationToken): Promise<URI | URL> {
+	async resolve(token: CancellationToken): Promise<URI | string> {
 		if (this._link.url) {
-			try {
-				if (URI.isUri(this._link.url)) {
-					return this._link.url;
-				} else if (!hasURLCtor) {
-					return URI.parse(this._link.url);
-				} else {
-					return new URL(this._link.url);
-				}
-			} catch (e) {
-				return Promise.reject(new Error('invalid'));
-			}
+			return this._link.url;
 		}
 
 		if (typeof this._provider.resolveLink === 'function') {
