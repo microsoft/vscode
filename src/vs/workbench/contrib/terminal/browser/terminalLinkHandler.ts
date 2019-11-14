@@ -266,8 +266,8 @@ export class TerminalLinkHandler {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		const uri = URI.parse(url);
-		this._openerService.open(uri, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
+		const urlObj = new URL(url);
+		this._openerService.open(urlObj, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
 	}
 
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
