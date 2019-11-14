@@ -1377,7 +1377,7 @@ export class TestElectronService implements IElectronService {
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }
-	async updateTouchBar(items: { id: string; title: string | { value: string; original: string; }; category?: string | { value: string; original: string; } | undefined; iconLocation?: { dark: UriComponents; light?: { readonly scheme: string; readonly authority: string; readonly path: string; readonly query: string; readonly fragment: string; readonly fsPath: string; with: {}; toString: {}; toJSON: {}; } | undefined; } | undefined; precondition?: { getType: {}; equals: {}; evaluate: {}; serialize: {}; keys: {}; map: {}; negate: {}; } | undefined; toggled?: { getType: {}; equals: {}; evaluate: {}; serialize: {}; keys: {}; map: {}; negate: {}; } | undefined; }[][]): Promise<void> { }
+	async updateTouchBar(items: { id: string; title: string | { value: string; original: string; }; category?: string | { value: string; original: string; } | undefined; iconLocation?: { dark?: UriComponents; light?: { readonly scheme: string; readonly authority: string; readonly path: string; readonly query: string; readonly fragment: string; readonly fsPath: string; with: {}; toString: {}; toJSON: {}; } | undefined; } | undefined; precondition?: { getType: {}; equals: {}; evaluate: {}; serialize: {}; keys: {}; map: {}; negate: {}; } | undefined; toggled?: { getType: {}; equals: {}; evaluate: {}; serialize: {}; keys: {}; map: {}; negate: {}; } | undefined; }[][]): Promise<void> { }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }
