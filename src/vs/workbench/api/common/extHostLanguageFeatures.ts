@@ -883,7 +883,7 @@ export class SemanticColoringAdapter {
 	private _saveResultAndEncode(areas: ISemanticColoringAreaPair[]): VSBuffer {
 		const myId = this._nextResultId++;
 		this._previousResults.set(myId, areas.map(a => a.data));
-		console.log(`_saveResultAndEncode: ${myId} --> ${areas.map(a => `${a.dto.line}-${a.dto.type}`)}`);
+		console.log(`_saveResultAndEncode: ${myId} --> ${areas.map(a => `${a.dto.line}-${a.dto.type}(${a.data.length / 5})`).join(', ')}`);
 		const dto: ISemanticTokensDto = {
 			id: myId,
 			areas: areas.map(a => a.dto)
