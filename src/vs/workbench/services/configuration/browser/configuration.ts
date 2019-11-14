@@ -30,7 +30,7 @@ export class UserConfiguration extends Disposable {
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
-	private readonly userConfiguration: MutableDisposable<UserConfigurationSettingsOnly | FileServiceBasedConfigurationWithNames> = this._register(new MutableDisposable<UserConfigurationSettingsOnly | FileServiceBasedConfigurationWithNames>());
+	private readonly userConfiguration: MutableDisposable<UserSettings | FileServiceBasedConfigurationWithNames> = this._register(new MutableDisposable<UserSettings | FileServiceBasedConfigurationWithNames>());
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(
@@ -39,12 +39,12 @@ export class UserConfiguration extends Disposable {
 		private readonly fileService: IFileService
 	) {
 		super();
-		this.userConfiguration.value = new UserConfigurationSettingsOnly(this.userSettingsResource, this.scopes, this.fileService);
+		this.userConfiguration.value = new UserSettings(this.userSettingsResource, this.scopes, this.fileService);
 		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 
 		runWhenIdle(() => this._onDidInitializeCompleteConfiguration.fire(), 5000);
-		this._register(Event.once(this._onDidInitializeCompleteConfiguration.event)(() => this.reload()));
+		this._register(Event.once(this._onDidInitializeCompleteConfiguration.event)(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -64,7 +64,7 @@ export class UserConfiguration extends Disposable {
 	}
 }
 
-class UserConfigurationSettingsOnly extends Disposable {
+class UserSettings extends Disposable {
 
 	private readonly parser: ConfigurationModelParser;
 	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
