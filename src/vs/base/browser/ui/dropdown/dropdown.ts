@@ -11,9 +11,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses } from 'vs/base/browser/dom';
+import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;
@@ -171,6 +172,20 @@ export class Dropdown extends BaseDropdown {
 	}
 
 	protected getAnchor(): HTMLElement | IAnchor {
+		// Shift macOS dropdown menus by a few pixels
+		// to account for extra padding on the top
+		// https://github.com/microsoft/vscode/issues/84231
+		if (isMacintosh) {
+			let elementPosition = getDomNodePagePosition(this.element);
+
+			const anchor: IAnchor = {
+				x: elementPosition.left,
+				y: elementPosition.top + elementPosition.height + 4
+			};
+
+			return anchor;
+		}
+
 		return this.element;
 	}
 
