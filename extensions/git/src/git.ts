@@ -1226,12 +1226,13 @@ export class Repository {
 		args.push('--');
 
 		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
+			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				await this.run([...args, ...chunk]);
+			}
 		} else {
 			args.push('.');
+			await this.run(args);
 		}
-
-		await this.run(args);
 	}
 
 	async rm(paths: string[]): Promise<void> {
@@ -1480,14 +1481,15 @@ export class Repository {
 			args = ['reset', '-q', treeish, '--'];
 		}
 
-		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
-		} else {
-			args.push('.');
-		}
-
 		try {
-			await this.run(args);
+			if (paths && paths.length > 0) {
+				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+					await this.run([...args, ...chunk]);
+				}
+			} else {
+				args.push('.');
+				await this.run(args);
+			}
 		} catch (err) {
 			// In case there are merge conflicts to be resolved, git reset will output
 			// some "needs merge" data. We try to get around that.
