@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
@@ -24,12 +24,14 @@ import { IConfigurationModel } from 'vs/platform/configuration/common/configurat
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
 
-class UserConfigurationSettingsOnly extends Disposable {
-
-	private readonly parser: ConfigurationModelParser;
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
+export class UserConfiguration extends Disposable {
+	
+	private readonly _onDidInitializeCompleteConfiguration: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+
+	private readonly userConfiguration: MutableDisposable<UserConfigurationSettingsOnly | FileServiceBasedConfigurationWithNames> = this._register(new MutableDisposable<UserConfigurationSettingsOnly | FileServiceBasedConfigurationWithNames>());
+	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(
 		private readonly userSettingsResource: URI,
@@ -37,17 +39,48 @@ class UserConfigurationSettingsOnly extends Disposable {
 		private readonly fileService: IFileService
 	) {
 		super();
-
-		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString(), this.scopes);
+		this.userConfiguration.value = new UserConfigurationSettingsOnly(this.userSettingsResource, this.scopes, this.fileService);
+		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.userSettingsResource))(() => this.reloadConfigurationScheduler.schedule()));
+
+		runWhenIdle(() => this._onDidInitializeCompleteConfiguration.fire(), 5000);
+		this._register(Event.once(this._onDidInitializeCompleteConfiguration.event)(() => this.reload()));
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
-		return this.reload();
+		return this.userConfiguration.value!.loadConfiguration();
 	}
 
 	async reload(): Promise<ConfigurationModel> {
+		if (!(this.userConfiguration.value instanceof FileServiceBasedConfigurationWithNames)) {
+			this.userConfiguration.value = new FileServiceBasedConfigurationWithNames(resources.dirname(this.userSettingsResource), [FOLDER_SETTINGS_NAME, TASKS_CONFIGURATION_KEY], this.scopes, this.fileService);
+			this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
+		}
+		return this.userConfiguration.value!.loadConfiguration();
+	}
+
+	reprocess(): ConfigurationModel {
+		return this.userConfiguration.value!.reprocess();
+	}
+}
+
+class UserConfigurationSettingsOnly extends Disposable {
+
+	private readonly parser: ConfigurationModelParser;
+	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	constructor(
+		private readonly userSettingsResource: URI,
+		private readonly scopes: ConfigurationScope[] | undefined,
+		private readonly fileService: IFileService
+	) {
+		super();
+		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString(), this.scopes);
+		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.userSettingsResource))(() => this._onDidChange.fire()));
+	}
+
+	async loadConfiguration(): Promise<ConfigurationModel> {
 		try {
 			const content = await this.fileService.readFile(this.userSettingsResource);
 			this.parser.parseContent(content.value.toString() || '{}');
@@ -60,61 +93,6 @@ class UserConfigurationSettingsOnly extends Disposable {
 	reprocess(): ConfigurationModel {
 		this.parser.parse();
 		return this.parser.configurationModel;
-	}
-}
-
-export class UserConfiguration extends Disposable {
-
-	private _userConfiguration: FileServiceBasedConfigurationWithNames | undefined;
-	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
-	private readonly _userConfigurationSettingsOnly: UserConfigurationSettingsOnly;
-
-	constructor(
-		private readonly userSettingsResource: URI,
-		private readonly scopes: ConfigurationScope[] | undefined,
-		private readonly fileService: IFileService
-	) {
-		super();
-		this._userConfigurationSettingsOnly = new UserConfigurationSettingsOnly(userSettingsResource, scopes, fileService);
-		runWhenIdle(() => {
-			this._userConfiguration = this.createAndRegisterConfiguration();
-			this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel));
-		}, 5000);
-	}
-
-	private createAndRegisterConfiguration(): FileServiceBasedConfigurationWithNames {
-		const userSettingsFolder = resources.dirname(this.userSettingsResource);
-		const userConfiguration = new FileServiceBasedConfigurationWithNames(userSettingsFolder, [FOLDER_SETTINGS_NAME, TASKS_CONFIGURATION_KEY], this.scopes, this.fileService);
-		this._register(userConfiguration.onDidChange(e => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel))));
-		this._userConfigurationSettingsOnly.dispose();
-		return userConfiguration;
-	}
-
-	async initialize(): Promise<ConfigurationModel> {
-		return this.load();
-	}
-
-	async load(): Promise<ConfigurationModel> {
-		if (this._userConfiguration) {
-			return this.reload();
-		}
-		return this._userConfigurationSettingsOnly.reload();
-	}
-
-	async reload(): Promise<ConfigurationModel> {
-		if (!this._userConfiguration) {
-			this._userConfiguration = this.createAndRegisterConfiguration();
-		}
-		return this._userConfiguration.loadConfiguration();
-	}
-
-	reprocess(): ConfigurationModel {
-		if (this._userConfiguration) {
-			return this._userConfiguration.reprocess();
-		} else {
-			return this._userConfigurationSettingsOnly.reprocess();
-		}
 	}
 }
 

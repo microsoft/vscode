@@ -47,6 +47,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { timeout } from 'vs/base/common/async';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -1075,17 +1076,16 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
-	test('no change event when there are no global tasks', () => {
+	test('no change event when there are no global tasks', async () => {
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
-		return setTimeout(() => assert.ok(target.notCalled), 500);
+		await timeout(500);
+		assert.ok(target.notCalled);
 	});
 
 	test('change event when there are global tasks', () => {
 		fs.writeFileSync(globalTasksFile, '{ "version": "1.0.0", "tasks": [{ "taskName": "myTask" }');
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		return setTimeout(() => assert.ok(target.called), 500);
+		return new Promise((c) => testObject.onDidChangeConfiguration(() => c()));
 	});
 });
 
@@ -1443,7 +1443,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			});
 	});
 
-	test('inspect tasks configuration', () => {
+	test('inspect tasks configuration', async () => {
 		const expectedTasksConfiguration = {
 			'version': '2.0.0',
 			'tasks': [
@@ -1458,12 +1458,10 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				}
 			]
 		};
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => {
-				const actual = testObject.inspect('tasks').workspaceValue;
-				assert.deepEqual(actual, expectedTasksConfiguration);
-			});
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true);
+		await testObject.reloadConfiguration();
+		const actual = testObject.inspect('tasks').workspaceValue;
+		assert.deepEqual(actual, expectedTasksConfiguration);
 	});
 
 	test('update user configuration', () => {
