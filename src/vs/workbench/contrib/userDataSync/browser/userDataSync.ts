@@ -26,6 +26,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Inactive);
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
@@ -128,6 +129,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING) && this.authTokenService.status === AuthTokenStatus.Inactive) {
 			badge = new NumberBadge(1, () => localize('sign in', "Sync: Sign in..."));
+		} else if (this.authTokenService.status === AuthTokenStatus.SigningIn) {
+			badge = new ProgressBadge(() => localize('signing in', "Signin in..."));
+			clazz = 'progress-badge';
 		} else if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			badge = new NumberBadge(1, () => localize('resolve conflicts', "Resolve Conflicts"));
 		} else if (this.userDataSyncService.status === SyncStatus.Syncing) {
@@ -151,7 +155,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (!result.confirmed) {
 				return;
 			}
-			await this.signIn();
+			try {
+				await this.signIn();
+			} catch (e) {
+				this.notificationService.error(e);
+				return;
+			}
 		}
 		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
 	}
@@ -225,13 +234,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				id: 'workbench.userData.actions.syncStart',
 				title: localize('start sync', "Sync: Turn On")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.notEqualsTo(AuthTokenStatus.SigningIn)),
 		};
 		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.turnOn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, startSyncMenuItem);
 
-		const signInCommandId = 'workbench.userData.actions.login';
+		const signInCommandId = 'workbench.userData.actions.signin';
 		const signInWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Inactive));
 		CommandsRegistry.registerCommand(signInCommandId, () => this.signIn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
@@ -248,6 +257,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				title: localize('sign in', "Sync: Sign in...")
 			},
 			when: signInWhenContext,
+		});
+
+		const signingInCommandId = 'workbench.userData.actions.signingin';
+		CommandsRegistry.registerCommand(signInCommandId, () => null);
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '5_sync',
+			command: {
+				id: signingInCommandId,
+				title: localize('signinig in', "Sync: Signing in..."),
+				precondition: FalseContext
+			},
+			when: CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.SigningIn)
 		});
 
 		const stopSycCommand = {
@@ -310,7 +331,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const signOutMenuItem: IMenuItem = {
 			group: '5_sync',
 			command: {
-				id: 'workbench.userData.actions.logout',
+				id: 'workbench.userData.actions.signout',
 				title: localize('sign out', "Sign Out")
 			},
 			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Active)),
