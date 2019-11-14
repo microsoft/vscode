@@ -22,7 +22,8 @@ export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-	iconLocation?: { dark: URI; light?: URI; };
+	iconClassName?: string;
+	iconLocation?: { dark?: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
 	toggled?: ContextKeyExpr;
 }

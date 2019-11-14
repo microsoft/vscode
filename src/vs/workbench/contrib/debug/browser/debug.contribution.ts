@@ -278,7 +278,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // Debug toolbar
 
-const registerDebugToolBarItem = (id: string, title: string, iconLightUri: URI, iconDarkUri: URI, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
+const registerDebugToolBarItem = (id: string, title: string, order: number, iconClassName?: string, iconLightUri?: URI, iconDarkUri?: URI, when?: ContextKeyExpr, precondition?: ContextKeyExpr) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',
 		when,
@@ -286,6 +286,7 @@ const registerDebugToolBarItem = (id: string, title: string, iconLightUri: URI, 
 		command: {
 			id,
 			title,
+			iconClassName,
 			iconLocation: {
 				light: iconLightUri,
 				dark: iconDarkUri
@@ -295,16 +296,16 @@ const registerDebugToolBarItem = (id: string, title: string, iconLightUri: URI, 
 	});
 };
 
-registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/continue-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/continue-dark.svg')), 10, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/pause-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/pause-dark.svg')), 10, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
-registerDebugToolBarItem(STOP_ID, STOP_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stop-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/stop-dark.svg')), 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
-registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/disconnect-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/disconnect-dark.svg')), 70, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
-registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-over-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-over-dark.svg')), 20, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-into-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-into-dark.svg')), 30, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-out-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-out-dark.svg')), 40, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/restart-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/restart-dark.svg')), 60);
-registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-back-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/step-back-dark.svg')), 50, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/reverse-continue-light.svg')), URI.parse(registerAndGetAmdImageURL('vs/workbench/contrib/debug/browser/media/reverse-continue-dark.svg')), 60, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, 'codicon-debug-continue', undefined, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 10, 'codicon-debug-pause', undefined, undefined, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
+registerDebugToolBarItem(STOP_ID, STOP_LABEL, 70, 'codicon-debug-stop', undefined, undefined, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
+registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, 70, 'codicon-debug-disconnect', undefined, undefined, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
+registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, 20, 'codicon-debug-step-over', undefined, undefined, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 30, 'codicon-debug-step-into', undefined, undefined, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, 'codicon-debug-step-out', undefined, undefined, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, 'codicon-debug-restart', undefined, undefined);
+registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), 50, 'codicon-debug-step-back', undefined, undefined, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 60, 'codicon-debug-continue', undefined, undefined, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 
 // Debug callstack context menu
 const registerDebugCallstackItem = (id: string, title: string, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr, group = 'navigation') => {
