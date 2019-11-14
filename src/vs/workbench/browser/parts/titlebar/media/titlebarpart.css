@@ -30,8 +30,6 @@
 	 * rendering.
 	 *
 	 * macOS: does not render LCD-anti-aliased.
-	 *
-	 * Related: https://github.com/microsoft/vscode/issues/84806
 	 */
 	transform: translate3d(0px, 0px, 0px);
 }
