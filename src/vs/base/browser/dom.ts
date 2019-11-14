@@ -16,6 +16,7 @@ import * as platform from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -492,8 +493,8 @@ export function getClientArea(element: HTMLElement): Dimension {
 		return new Dimension(element.clientWidth, element.clientHeight);
 	}
 
-	// If visual view port exits, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
-	if ((<any>window).visualViewport) {
+	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
+	if (BrowserFeatures.pointerEvents && (<any>window).visualViewport) {
 		return new Dimension((<any>window).visualViewport.width, (<any>window).visualViewport.height);
 	}
 
