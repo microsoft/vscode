@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, ConfirmResult, IRevertOptions, EditorOptions } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, IRevertOptions, EditorOptions } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -158,11 +158,6 @@ class TestCustomEditorInput extends EditorInput implements IWorkingCopy {
 
 	isDirty(): boolean {
 		return this.dirty;
-	}
-
-	confirmSave(): Promise<ConfirmResult> {
-		// TODO
-		return Promise.resolve(ConfirmResult.DONT_SAVE);
 	}
 
 	save(): Promise<boolean> {

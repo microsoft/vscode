@@ -82,7 +82,8 @@ namespace ServerState {
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${fileSchemes.walkThroughSnippet}:`;
 
-	private pathSeparator: string;
+	private readonly pathSeparator: string;
+	private readonly inMemoryResourcePrefix = '^';
 
 	private _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private _configuration: TypeScriptServiceConfiguration;
@@ -591,23 +592,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this.toPath(document.uri) || undefined;
 	}
 
-	private get inMemoryResourcePrefix(): string {
-		return this.apiVersion.gte(API.v270) ? '^' : '';
-	}
-
 	public toResource(filepath: string): vscode.Uri {
 		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
 		) {
 			let resource = vscode.Uri.parse(filepath);
-			if (this.inMemoryResourcePrefix) {
-				const dirName = path.dirname(resource.path);
-				const fileName = path.basename(resource.path);
-				if (fileName.startsWith(this.inMemoryResourcePrefix)) {
-					resource = resource.with({
-						path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length))
-					});
-				}
+			const dirName = path.dirname(resource.path);
+			const fileName = path.basename(resource.path);
+			if (fileName.startsWith(this.inMemoryResourcePrefix)) {
+				resource = resource.with({
+					path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length))
+				});
 			}
+
 			return this.bufferSyncSupport.toVsCodeResource(resource);
 		}
 

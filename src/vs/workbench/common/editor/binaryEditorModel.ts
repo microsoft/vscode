@@ -7,7 +7,7 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { DataUri, basename } from 'vs/base/common/resources';
+import { DataUri } from 'vs/base/common/resources';
 import { MIME_BINARY } from 'vs/base/common/mime';
 
 /**
@@ -20,7 +20,7 @@ export class BinaryEditorModel extends EditorModel {
 
 	constructor(
 		public readonly resource: URI,
-		private readonly name: string | undefined,
+		private readonly name: string,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
@@ -46,7 +46,7 @@ export class BinaryEditorModel extends EditorModel {
 	 * The name of the binary resource.
 	 */
 	getName(): string {
-		return this.name || basename(this.resource);
+		return this.name;
 	}
 
 	/**

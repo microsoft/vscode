@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, ConfirmResult, IRevertOptions, IModeSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport, IRevertOptions, IModeSupport } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult, FileOperation } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -129,16 +129,7 @@ export interface ITextFileService extends IDisposable {
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
 	 */
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
-
-	/**
-	 * Brings up the confirm dialog to either save, don't save or cancel.
-	 *
-	 * @param resources the resources of the files to ask for confirmation or null if
-	 * confirming for all dirty resources.
-	 */
-	confirmSave(resources?: URI[]): Promise<ConfirmResult>;
 }
-
 
 export class FileOperationWillRunEvent implements IWaitUntil {
 
@@ -157,7 +148,6 @@ export class FileOperationWillRunEvent implements IWaitUntil {
 	}
 }
 
-
 export class FileOperationDidRunEvent {
 
 	constructor(
@@ -166,7 +156,6 @@ export class FileOperationDidRunEvent {
 		readonly source?: URI | undefined
 	) { }
 }
-
 
 export interface IReadTextFileOptions extends IReadFileOptions {
 

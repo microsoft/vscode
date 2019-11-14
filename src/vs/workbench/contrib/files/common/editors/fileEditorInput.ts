@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
+import { EncodingMode, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
@@ -241,10 +241,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 
 		return model.isDirty();
-	}
-
-	confirmSave(): Promise<ConfirmResult> {
-		return this.textFileService.confirmSave([this.resource]);
 	}
 
 	save(): Promise<boolean> {

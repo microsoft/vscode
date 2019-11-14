@@ -56,7 +56,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		this.callbacks = callbacks;
 	}
 
-	getTitle() {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 

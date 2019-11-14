@@ -268,7 +268,7 @@ export class SearchView extends ViewletPanel {
 
 		this.inputPatternIncludes.setValue(patternIncludes);
 
-		this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true));
+		this.inputPatternIncludes.onSubmit(triggeredOnType => this.onQueryChanged(true, triggeredOnType));
 		this.inputPatternIncludes.onCancel(() => this.cancelSearch(false));
 		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
 
@@ -284,7 +284,7 @@ export class SearchView extends ViewletPanel {
 		this.inputPatternExcludes.setValue(patternExclusions);
 		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(useExcludesAndIgnoreFiles);
 
-		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true));
+		this.inputPatternExcludes.onSubmit(triggeredOnType => this.onQueryChanged(true, triggeredOnType));
 		this.inputPatternExcludes.onCancel(() => this.cancelSearch(false));
 		this.inputPatternExcludes.onChangeIgnoreBox(() => this.onQueryChanged(true));
 		this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocused);
@@ -386,7 +386,7 @@ export class SearchView extends ViewletPanel {
 			this.searchWidget.toggleReplace(true);
 		}
 
-		this._register(this.searchWidget.onSearchSubmit(() => this.onQueryChanged()));
+		this._register(this.searchWidget.onSearchSubmit(triggeredOnType => this.onQueryChanged(false, triggeredOnType)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.onQueryChanged(true)));
 
@@ -800,7 +800,7 @@ export class SearchView extends ViewletPanel {
 				}
 				this.searchWidget.setValue(selectedText, true);
 				updatedText = true;
-				this.onQueryChanged();
+				this.onQueryChanged(false);
 			}
 		}
 
@@ -1155,7 +1155,7 @@ export class SearchView extends ViewletPanel {
 		this.searchWidget.focus(false);
 	}
 
-	onQueryChanged(preserveFocus?: boolean): void {
+	onQueryChanged(preserveFocus: boolean, triggeredOnType = false): void {
 		if (!this.searchWidget.searchInput.inputBox.isInputValid()) {
 			return;
 		}
@@ -1221,7 +1221,7 @@ export class SearchView extends ViewletPanel {
 		}
 
 		this.validateQuery(query).then(() => {
-			this.onQueryTriggered(query, options, excludePatternText, includePatternText);
+			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType);
 
 			if (!preserveFocus) {
 				this.searchWidget.focus(false); // focus back to input field
@@ -1251,7 +1251,7 @@ export class SearchView extends ViewletPanel {
 		});
 	}
 
-	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): void {
+	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
 		this.addToSearchHistoryDelayer.trigger(() => this.searchWidget.searchInput.onSearchSubmit());
 		this.inputPatternExcludes.onSearchSubmit();
 		this.inputPatternIncludes.onSearchSubmit();
@@ -1259,13 +1259,13 @@ export class SearchView extends ViewletPanel {
 		this.viewModel.cancelSearch();
 
 		this.currentSearchQ = this.currentSearchQ
-			.then(() => this.doSearch(query, options, excludePatternText, includePatternText))
+			.then(() => this.doSearch(query, options, excludePatternText, includePatternText, triggeredOnType))
 			.then(() => undefined, () => undefined);
 	}
 
-	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string): Thenable<void> {
+	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
-		this.progressService.withProgress({ location: VIEWLET_ID, delay: 300 }, _progress => {
+		this.progressService.withProgress({ location: VIEWLET_ID, delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise(resolve => progressComplete = resolve);
 		});
 
@@ -1335,7 +1335,7 @@ export class SearchView extends ViewletPanel {
 					const searchAgainLink = dom.append(p, $('a.pointer.prominent', undefined, nls.localize('rerunSearch.message', "Search again")));
 					this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
-						this.onQueryChanged();
+						this.onQueryChanged(false);
 					}));
 				} else if (hasIncludes || hasExcludes) {
 					const searchAgainLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('rerunSearchInAll.message', "Search again in all files")));
@@ -1345,7 +1345,7 @@ export class SearchView extends ViewletPanel {
 						this.inputPatternExcludes.setValue('');
 						this.inputPatternIncludes.setValue('');
 
-						this.onQueryChanged();
+						this.onQueryChanged(false);
 					}));
 				} else {
 					const openSettingsLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.message', "Open Settings")));

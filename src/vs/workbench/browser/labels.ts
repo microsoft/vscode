@@ -368,7 +368,7 @@ class ResourceLabelWidget extends IconLabel {
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setResource({
 			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
-			name: withNullAsUndefined(editor.getName()),
+			name: editor.getName(),
 			description: editor.getDescription(options ? options.descriptionVerbosity : undefined)
 		}, options);
 	}

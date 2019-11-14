@@ -9,7 +9,7 @@ import { Emitter, AsyncEmitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService, FileOperationError, FileOperationResult, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
@@ -24,9 +24,9 @@ import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename, toLocalResource } from 'vs/base/common/resources';
-import { getConfirmMessage, IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { coalesce } from 'vs/base/common/arrays';
@@ -232,7 +232,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private async confirmBeforeShutdown(): Promise<boolean> {
-		const confirm = await this.confirmSave();
+		const confirm = await this.fileDialogService.showSaveConfirm(this.getDirty());
 
 		// Save
 		if (confirm === ConfirmResult.SAVE) {
@@ -494,30 +494,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		const result = await this.saveAll([resource], options);
 
 		return result.results.length === 1 && !!result.results[0].success;
-	}
-
-	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
-		}
-
-		const resourcesToConfirm = this.getDirty(resources);
-		if (resourcesToConfirm.length === 0) {
-			return ConfirmResult.DONT_SAVE;
-		}
-
-		return promptSave(this.dialogService, resourcesToConfirm);
-	}
-
-	async confirmOverwrite(resource: URI): Promise<boolean> {
-		const confirm: IConfirmation = {
-			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
-			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", basename(dirname(resource))),
-			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-			type: 'warning'
-		};
-
-		return (await this.dialogService.confirm(confirm)).confirmed;
 	}
 
 	saveAll(includeUntitled?: boolean, options?: ISaveOptions): Promise<ITextFileOperationResult>;
@@ -830,6 +806,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 	}
 
+	private async confirmOverwrite(resource: URI): Promise<boolean> {
+		const confirm: IConfirmation = {
+			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
+			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", basename(dirname(resource))),
+			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+			type: 'warning'
+		};
+
+		return (await this.dialogService.confirm(confirm)).confirmed;
+	}
+
 	private suggestFileName(untitledResource: URI): URI {
 		const untitledFileName = this.untitledTextEditorService.suggestFileName(untitledResource);
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
@@ -937,28 +924,5 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this._models.clear();
 
 		super.dispose();
-	}
-}
-
-export async function promptSave(dialogService: IDialogService, resourcesToConfirm: readonly URI[]) {
-	const message = resourcesToConfirm.length === 1
-		? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", basename(resourcesToConfirm[0]))
-		: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
-
-	const buttons: string[] = [
-		resourcesToConfirm.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-		nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
-		nls.localize('cancel', "Cancel")
-	];
-
-	const { choice } = await dialogService.show(Severity.Warning, message, buttons, {
-		cancelId: 2,
-		detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
-	});
-
-	switch (choice) {
-		case 0: return ConfirmResult.SAVE;
-		case 1: return ConfirmResult.DONT_SAVE;
-		default: return ConfirmResult.CANCEL;
 	}
 }

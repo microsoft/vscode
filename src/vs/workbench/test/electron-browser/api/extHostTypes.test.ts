@@ -527,6 +527,25 @@ suite('ExtHostTypes', function () {
 		string.appendVariable('BAR', b => { });
 		assert.equal(string.value, '${BAR}');
 
+		string = new types.SnippetString();
+		string.appendChoice(['b', 'a', 'r']);
+		assert.equal(string.value, '${1|b,a,r|}');
+
+		string = new types.SnippetString();
+		string.appendChoice(['b', 'a', 'r'], 0);
+		assert.equal(string.value, '${0|b,a,r|}');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendChoice(['far', 'boo']).appendText('bar');
+		assert.equal(string.value, 'foo${1|far,boo|}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
+		assert.equal(string.value, 'foo${1|far,\\$boo|}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
+		assert.equal(string.value, 'foo${1:farboo}${2|far,boo|}bar');
 	});
 
 	test('instanceof doesn\'t work for FileSystemError #49386', function () {
