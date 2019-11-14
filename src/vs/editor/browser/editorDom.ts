@@ -8,7 +8,6 @@ import { GlobalMouseMoveMonitor, GlobalPointerMoveMonitor } from 'vs/base/browse
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { isSafari } from 'vs/base/browser/browser';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
