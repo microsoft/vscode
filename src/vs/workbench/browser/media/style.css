@@ -42,6 +42,11 @@ body {
 
 body.web {
 	position: fixed; /* prevent bounce effect */
+	touch-action: none; /* prevent scrolling on body with touch */
+}
+
+.monaco-workbench.web {
+	touch-action: initial; /* reenable touch events on workbench */
 }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
