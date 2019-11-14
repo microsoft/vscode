@@ -286,7 +286,8 @@ export class NativeTextFileService extends AbstractTextFileService {
 	private async sudoPromptCopy(source: string, target: string, options?: IWriteTextFileOptions): Promise<void> {
 
 		// load sudo-prompt module lazy
-		const sudoPrompt = await import('sudo-prompt');
+		// @ts-ignore TODO@ben wait for update of sudo-prompt
+		const sudoPrompt: { exec(cmd: string, options: { name?: string, icns?: string }, callback: (error: string, stdout: string, stderr: string) => void): void } = await import('sudo-prompt');
 
 		return new Promise<void>((resolve, reject) => {
 			const promptOptions = {
