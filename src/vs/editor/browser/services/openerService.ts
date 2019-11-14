@@ -170,14 +170,17 @@ export class OpenerService implements IOpenerService {
 	}
 
 	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
-		if (URI.isUri(resource)) {
-			const { resolved } = await this.resolveExternalUri(resource, options);
-			// TODO@Jo neither encodeURI nor toString(true) should be needed
-			// once we go with URL and not URI
-			return this._externalOpener.openExternal(encodeURI(resolved.toString(true)));
-		} else {
-			//todo@joh what about resolveExternalUri?
+
+		//todo@joh IExternalUriResolver should support `uri: URI | string`
+		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
+		const { resolved } = await this.resolveExternalUri(uri, options);
+
+		if (typeof resource === 'string' && uri.toString() === resolved.toString()) {
+			// open the url-string AS IS
 			return this._externalOpener.openExternal(resource);
+		} else {
+			// open URI using the toString(noEncode)+encodeURI-trick
+			return this._externalOpener.openExternal(encodeURI(resolved.toString(true)));
 		}
 	}
 
