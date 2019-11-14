@@ -50,6 +50,8 @@ export interface IWorkingCopyService {
 
 	isDirty(resource: URI): boolean;
 
+	getDirty(...resources: URI[]): IWorkingCopy[];
+
 	//#endregion
 
 
@@ -68,6 +70,34 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IWorkingCopy>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	getDirty(...resources: URI[]): IWorkingCopy[] {
+		const dirtyWorkingCopies: IWorkingCopy[] = [];
+
+		// Specific resource(s)
+		if (resources.length > 0) {
+			for (const resource of resources) {
+				this.fillDirty(this.mapResourceToWorkingCopy.get(resource.toString()), dirtyWorkingCopies);
+			}
+		}
+
+		// All resources
+		else {
+			this.fillDirty(this.workingCopies, dirtyWorkingCopies);
+		}
+
+		return dirtyWorkingCopies;
+	}
+
+	private fillDirty(workingCopies: Set<IWorkingCopy> | undefined, target: IWorkingCopy[]): void {
+		if (workingCopies) {
+			for (const workingCopy of workingCopies) {
+				if (workingCopy.isDirty()) {
+					target.push(workingCopy);
+				}
+			}
+		}
+	}
 
 	isDirty(resource: URI): boolean {
 		const workingCopies = this.mapResourceToWorkingCopy.get(resource.toString());

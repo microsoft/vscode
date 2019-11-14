@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
+import { IUserHomeProvider } from 'vs/base/common/labels';
 
 export interface ParsedArgs {
 	_: string[];
@@ -100,7 +101,7 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 
 export const BACKUPS = 'Backups';
 
-export interface IEnvironmentService {
+export interface IEnvironmentService extends IUserHomeProvider {
 
 	_serviceBrand: undefined;
 

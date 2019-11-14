@@ -294,7 +294,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display name of this input.
 	 */
-	getName(): string | undefined;
+	getName(): string;
 
 	/**
 	 * Returns the display description of this input.
@@ -360,8 +360,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
 	 * above the editor area when the input is shown.
 	 */
-	getName(): string | undefined {
-		return undefined;
+	getName(): string {
+		return `Editor ${this.getTypeId()}`;
 	}
 
 	/**
@@ -376,7 +376,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the title of this input that can be shown to the user. Examples include showing the title of
 	 * the input above the editor area as hover over the input label.
 	 */
-	getTitle(verbosity?: Verbosity): string | undefined {
+	getTitle(verbosity?: Verbosity): string {
 		return this.getName();
 	}
 
@@ -413,13 +413,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 */
 	isDirty(): boolean {
 		return false;
-	}
-
-	/**
-	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
-	 */
-	confirmSave(): Promise<ConfirmResult> {
-		return Promise.resolve(ConfirmResult.DONT_SAVE);
 	}
 
 	/**
@@ -474,12 +467,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 		super.dispose();
 	}
-}
-
-export const enum ConfirmResult {
-	SAVE,
-	DONT_SAVE,
-	CANCEL
 }
 
 export const enum EncodingMode {
@@ -571,10 +558,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 	isDirty(): boolean {
 		return this.master.isDirty();
-	}
-
-	confirmSave(): Promise<ConfirmResult> {
-		return this.master.confirmSave();
 	}
 
 	save(): Promise<boolean> {

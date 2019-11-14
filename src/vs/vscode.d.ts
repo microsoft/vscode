@@ -2968,6 +2968,17 @@ declare module 'vscode' {
 		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
 
 		/**
+		 * Builder-function that appends a choice (`${1|a,b,c}`) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param values The values for choices - the array of strings
+		 * @param number The number of this tabstop, defaults to an auto-increment
+		 * value starting at 1.
+		 * @return This snippet string.
+		 */
+		appendChoice(values: string[], number?: number): SnippetString;
+
+		/**
 		 * Builder-function that appends a variable (`${VAR}`) to
 		 * the [`value`](#SnippetString.value) of this snippet string.
 		 *
@@ -7486,6 +7497,9 @@ declare module 'vscode' {
 		 * An event that when fired will write data to the terminal. Unlike
 		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_
 		 * (the pty "slave"), this will write the text to the terminal itself (the pty "master").
+		 *
+		 * Note writing `\n` will just move the cursor down 1 row, you need to write `\r` as well
+		 * to move the cursor to the left-most cell.
 		 *
 		 * **Example:** Write red text to the terminal
 		 * ```typescript

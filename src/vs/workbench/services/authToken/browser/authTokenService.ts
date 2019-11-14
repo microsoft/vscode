@@ -8,8 +8,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 
@@ -19,7 +17,7 @@ const ACCOUNT = 'MyAccount';
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Disabled;
+	private _status: AuthTokenStatus = AuthTokenStatus.Inactive;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
@@ -28,26 +26,18 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	constructor(
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
-		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
-		if (productService.settingsSyncStoreUrl && configurationService.getValue('configurationSync.enableAuth')) {
-			this._status = AuthTokenStatus.Inactive;
-			this.getToken().then(token => {
-				if (token) {
-					this.setStatus(AuthTokenStatus.Active);
-				}
-			});
-		}
+		this._status = AuthTokenStatus.Inactive;
+		this.getToken().then(token => {
+			if (token) {
+				this.setStatus(AuthTokenStatus.Active);
+			}
+		});
 	}
 
 	async getToken(): Promise<string | undefined> {
-		if (this.status === AuthTokenStatus.Disabled) {
-			throw new Error('Not enabled');
-		}
-
 		const token = await this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT);
 		if (token) {
 			return token;
@@ -65,16 +55,10 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 	async refreshToken(): Promise<void> {
-		if (this.status === AuthTokenStatus.Disabled) {
-			throw new Error('Not enabled');
-		}
 		await this.logout();
 	}
 
 	async logout(): Promise<void> {
-		if (this.status === AuthTokenStatus.Disabled) {
-			throw new Error('Not enabled');
-		}
 		await this.credentialsService.deletePassword(SERVICE_NAME, ACCOUNT);
 		this.setStatus(AuthTokenStatus.Inactive);
 	}

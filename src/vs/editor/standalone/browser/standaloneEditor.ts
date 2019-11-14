@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
+import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
@@ -125,13 +125,6 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			null
 		);
 	});
-}
-
-export interface IDiffNavigator {
-	canNavigate(): boolean;
-	next(): void;
-	previous(): void;
-	dispose(): void;
 }
 
 export interface IDiffNavigatorOptions {

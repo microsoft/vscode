@@ -84,7 +84,6 @@ interface QuickInputUI {
 	onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
-	keyDownSeenSinceShown: boolean;
 	isScreenReaderOptimized(): boolean;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
@@ -217,7 +216,6 @@ class QuickInput extends Disposable implements IQuickInput {
 				}
 			}),
 		);
-		this.ui.keyDownSeenSinceShown = false;
 		this.ui.show(this);
 		this.visible = true;
 		this.update();
@@ -556,7 +554,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				}
 			}));
 			this.visibleDisposables.add(this.ui.inputBox.onKeyDown(event => {
-				this.ui.keyDownSeenSinceShown = true;
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
 						this.ui.list.focus('Next');
@@ -655,7 +652,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	private registerQuickNavigation() {
 		return dom.addDisposableListener(this.ui.container, dom.EventType.KEY_UP, e => {
-			if (this.canSelectMany || !this.quickNavigate || !this.ui.keyDownSeenSinceShown) {
+			if (this.canSelectMany || !this.quickNavigate) {
 				return;
 			}
 
@@ -664,7 +661,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 			// Select element when keys are pressed that signal it
 			const quickNavKeys = this.quickNavigate.keybindings;
-			const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some(k => {
+			const wasTriggerKeyPressed = quickNavKeys.some(k => {
 				const [firstPart, chordPart] = k.getParts();
 				if (chordPart) {
 					return false;
@@ -1114,7 +1111,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 			inputBox.setFocus();
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			this.getUI().keyDownSeenSinceShown = true;
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Enter:
@@ -1176,7 +1172,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			keyMods: this.keyMods,
-			keyDownSeenSinceShown: false,
 			isScreenReaderOptimized: () => this.isScreenReaderOptimized(),
 			show: controller => this.show(controller),
 			hide: () => this.hide(),

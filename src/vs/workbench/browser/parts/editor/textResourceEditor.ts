@@ -24,7 +24,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IAutoSaveConfigurationService } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -43,9 +43,9 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IHostService hostService: IHostService,
-		@IAutoSaveConfigurationService autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, autoSaveConfigurationService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, filesConfigurationService);
 	}
 
 	getTitle(): string | undefined {
@@ -208,8 +208,8 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IHostService hostService: IHostService,
-		@IAutoSaveConfigurationService autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService, hostService, autoSaveConfigurationService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService, hostService, filesConfigurationService);
 	}
 }

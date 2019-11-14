@@ -5,13 +5,13 @@
 
 import * as assert from 'assert';
 import * as crypto from 'crypto';
-import { getDomainsOfRemotes, getRemotes, getHashedRemotesFromConfig } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
+import { getDomainsOfRemotes, getRemotes, getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
 
 function hash(value: string): string {
 	return crypto.createHash('sha1').update(value.toString()).digest('hex');
 }
 
-suite('Telemetry - WorkspaceStats', () => {
+suite('Telemetry - WorkspaceTags', () => {
 
 	const whitelist = [
 		'github.com',

@@ -23,6 +23,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { StandardMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IThemable } from 'vs/base/common/styler';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -92,7 +93,7 @@ const defaultStyles = {
 
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
 
-export class QuickOpenWidget extends Disposable implements IModelProvider {
+export class QuickOpenWidget extends Disposable implements IModelProvider, IThemable {
 
 	private static readonly MAX_WIDTH = 600;			// Max total width of quick open widget
 	private static readonly MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
@@ -134,7 +135,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	private styles: IQuickOpenStyles;
 	// @ts-ignore (legacy widget - to be replaced with quick input)
 	private renderer: Renderer;
-	private keyDownSeenSinceShown = false;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions) {
 		super();
@@ -171,7 +171,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.FOCUS, e => this.gainingFocus(), true));
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.BLUR, e => this.loosingFocus(e), true));
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.KEY_DOWN, e => {
-			this.keyDownSeenSinceShown = true;
 			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 			if (keyboardEvent.keyCode === KeyCode.Escape) {
 				DOM.EventHelper.stop(e, true);
@@ -222,7 +221,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 		this._register(DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.INPUT, (e: Event) => this.onType()));
 		this._register(DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			this.keyDownSeenSinceShown = true;
 			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 			const shouldOpenInBackground = this.shouldOpenInBackground(keyboardEvent);
 
@@ -303,7 +301,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}));
 
 		this._register(DOM.addDisposableListener(this.treeContainer, DOM.EventType.KEY_DOWN, e => {
-			this.keyDownSeenSinceShown = true;
 			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
 			// Only handle when in quick navigation mode
@@ -317,6 +314,16 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 				this.navigateInTree(keyboardEvent.keyCode);
 			}
+
+			// Support to open item with Enter still even in quick nav mode
+			else if (keyboardEvent.keyCode === KeyCode.Enter) {
+				DOM.EventHelper.stop(e, true);
+
+				const focus = this.tree.getFocus();
+				if (focus) {
+					this.elementSelected(focus, e);
+				}
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.treeContainer, DOM.EventType.KEY_UP, e => {
@@ -324,13 +331,13 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			const keyCode = keyboardEvent.keyCode;
 
 			// Only handle when in quick navigation mode
-			if (!this.quickNavigateConfiguration || !this.keyDownSeenSinceShown) {
+			if (!this.quickNavigateConfiguration) {
 				return;
 			}
 
 			// Select element when keys are pressed that signal it
 			const quickNavKeys = this.quickNavigateConfiguration.keybindings;
-			const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some(k => {
+			const wasTriggerKeyPressed = quickNavKeys.some(k => {
 				const [firstPart, chordPart] = k.getParts();
 				if (chordPart) {
 					return false;
@@ -599,7 +606,6 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		this.visible = true;
 		this.isLoosingFocus = false;
 		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : undefined;
-		this.keyDownSeenSinceShown = false;
 
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {

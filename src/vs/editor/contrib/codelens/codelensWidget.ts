@@ -5,7 +5,6 @@
 
 import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
-import { coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -66,7 +65,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	constructor(
 		editor: editorBrowser.ICodeEditor,
 		symbolRange: Range,
-		data: CodeLensItem[]
+		lenses: Array<CodeLens | undefined | null>
 	) {
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget._idPool);
 		this._editor = editor;
@@ -74,10 +73,9 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		this.setSymbolRange(symbolRange);
 
 		this._domNode = document.createElement('span');
-		this._domNode.innerHTML = '&nbsp;';
-		dom.addClass(this._domNode, 'codelens-decoration');
+		this._domNode.className = 'codelens-decoration';
 		this.updateHeight();
-		this.withCommands(data.map(data => data.symbol), false);
+		this.withCommands(lenses, false);
 	}
 
 	updateHeight(): void {
@@ -88,39 +86,45 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * 0.9)}px`;
 		this._domNode.style.paddingRight = `${Math.round(fontInfo.fontSize * 0.45)}px`;
-		this._domNode.innerHTML = '&nbsp;';
 	}
 
-	withCommands(inSymbols: Array<CodeLens | undefined | null>, animate: boolean): void {
+	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
 		this._commands.clear();
 
-		const symbols = coalesce(inSymbols);
-		if (isFalsyOrEmpty(symbols)) {
-			this._domNode.innerHTML = '<span>no commands</span>';
-			return;
-		}
-
-		let html: string[] = [];
-		for (let i = 0; i < symbols.length; i++) {
-			const command = symbols[i].command;
-			if (command) {
-				const title = renderCodicons(command.title);
-				let part: string;
-				if (command.id) {
-					part = `<a id=${i}>${title}</a>`;
-					this._commands.set(String(i), command);
+		let innerHtml = '';
+		let hasSymbol = false;
+		for (let i = 0; i < lenses.length; i++) {
+			const lens = lenses[i];
+			if (!lens) {
+				continue;
+			}
+			hasSymbol = true;
+			if (lens.command) {
+				const title = renderCodicons(lens.command.title);
+				if (lens.command.id) {
+					innerHtml += `<a id=${i}>${title}</a>`;
+					this._commands.set(String(i), lens.command);
 				} else {
-					part = `<span>${title}</span>`;
+					innerHtml += `<span>${title}</span>`;
 				}
-				html.push(part);
+				if (i + 1 < lenses.length) {
+					innerHtml += '<span>&nbsp;|&nbsp;</span>';
+				}
 			}
 		}
 
-		const wasEmpty = this._domNode.innerHTML === '' || this._domNode.innerHTML === '&nbsp;';
-		this._domNode.innerHTML = html.join('<span>&nbsp;|&nbsp;</span>');
-		this._editor.layoutContentWidget(this);
-		if (wasEmpty && animate) {
-			dom.addClass(this._domNode, 'fadein');
+		if (!hasSymbol) {
+			// symbols but no commands
+			this._domNode.innerHTML = '<span>no commands</span>';
+
+		} else {
+			// symbols and commands
+			const wasEmpty = this._domNode.innerHTML === '' || this._domNode.innerHTML === '&nbsp;';
+			this._domNode.innerHTML = innerHtml || '&nbsp;';
+			this._editor.layoutContentWidget(this);
+			if (wasEmpty && animate) {
+				dom.addClass(this._domNode, 'fadein');
+			}
 		}
 	}
 
@@ -213,7 +217,10 @@ export class CodeLensWidget {
 		this._decorationIds = new Array<string>(this._data.length);
 
 		let range: Range | undefined;
+		let lenses: CodeLens[] = [];
 		this._data.forEach((codeLensData, i) => {
+
+			lenses.push(codeLensData.symbol);
 
 			helper.addDecoration({
 				range: codeLensData.symbol.range,
@@ -229,7 +236,7 @@ export class CodeLensWidget {
 		});
 
 		if (range) {
-			this._contentWidget = new CodeLensContentWidget(editor, range, this._data);
+			this._contentWidget = new CodeLensContentWidget(editor, range, lenses);
 			this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallback);
 
 			this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);

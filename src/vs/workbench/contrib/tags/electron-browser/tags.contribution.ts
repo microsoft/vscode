@@ -5,8 +5,8 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { WorkspaceStats } from 'vs/workbench/contrib/stats/electron-browser/workspaceStats';
+import { WorkspaceTags } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-// Register Workspace Stats Contribution
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceStats, LifecyclePhase.Eventually);
+// Register Workspace Tags Contribution
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTags, LifecyclePhase.Eventually);
