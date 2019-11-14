@@ -14,6 +14,18 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { isDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 
+// in IE11 there is URL but a constructor
+// https://developer.mozilla.org/en-US/docs/Web/API/URL/URL#Browser_compatibility
+const canUseUrl = (function () {
+	try {
+		// tslint:disable-next-line: no-unused-expression
+		new URL('some://thing');
+		return true;
+	} catch {
+		return false;
+	}
+})();
+
 export class Link implements ILink {
 
 	private _link: ILink;
@@ -44,13 +56,15 @@ export class Link implements ILink {
 		return this._link.tooltip;
 	}
 
-	resolve(token: CancellationToken): Promise<URI> {
+	async resolve(token: CancellationToken): Promise<URI | URL> {
 		if (this._link.url) {
 			try {
-				if (typeof this._link.url === 'string') {
-					return Promise.resolve(URI.parse(this._link.url));
+				if (URI.isUri(this._link.url)) {
+					return this._link.url;
+				} else if (!canUseUrl) {
+					return URI.parse(this._link.url);
 				} else {
-					return Promise.resolve(this._link.url);
+					return new URL(this._link.url);
 				}
 			} catch (e) {
 				return Promise.reject(new Error('invalid'));
