@@ -134,9 +134,10 @@
 }
 
 .explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.active,
-.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover {
-	/* TODO@Joao: theme this */
-	background: rgb(210, 219, 228);
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover,
+.explorer-viewlet .monaco-list:focus .monaco-list-row.selected .explorer-item .monaco-icon-name-container.multiple > .label-name:last-child,
+.explorer-viewlet .monaco-list:focus .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name:last-child {
+	text-decoration: underline;
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
