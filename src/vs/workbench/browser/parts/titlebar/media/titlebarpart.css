@@ -22,7 +22,15 @@
 .monaco-workbench.windows .part.titlebar,
 .monaco-workbench.linux .part.titlebar,
 .monaco-workbench.web .part.titlebar {
-	/* put on own layer due to https://github.com/microsoft/vscode/issues/84806 */
+	/*
+	 * Explicitly put the part onto its own layer to help Chrome to
+	 * render the content with LCD-anti-aliasing. By partioning the
+	 * workbench into multiple layers, we can ensure that a bad
+	 * behaving part is not making another part fallback to greyscale
+	 * rendering.
+	 *
+	 * macOS: does not render LCD-anti-aliased.
+	 */
 	transform: translate3d(0px, 0px, 0px);
 }
 

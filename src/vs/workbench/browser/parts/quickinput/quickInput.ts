@@ -895,6 +895,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private idPrefix = 'quickInput_'; // Constant since there is still only one.
 	private ui: QuickInputUI | undefined;
+	private dimension?: dom.Dimension;
 	private comboboxAccessibility = false;
 	private enabled = true;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
@@ -1498,6 +1499,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	layout(dimension: dom.Dimension): void {
+		this.dimension = dimension;
 		this.updateLayout();
 	}
 
@@ -1512,7 +1514,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			style.marginLeft = '-' + (width / 2) + 'px';
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout();
+			this.ui.list.layout(this.dimension && this.dimension.height * 0.6);
 		}
 	}
 
