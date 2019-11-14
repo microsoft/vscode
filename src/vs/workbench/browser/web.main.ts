@@ -49,6 +49,7 @@ import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedD
 import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 class BrowserMain extends Disposable {
 
@@ -90,11 +91,10 @@ class BrowserMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
-
-		if ((<any>window).visualViewport) {
-			this._register(addDisposableListener((<any>window).visualViewport, EventType.RESIZE, () => workbench.layout()));
-		}
+		const viewport = BrowserFeatures.pointerEvents && (<any>window).visualViewport ? (<any>window).visualViewport /** Visual viewport */ : window /** Layout viewport */;
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			workbench.layout();
+		}));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
