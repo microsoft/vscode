@@ -3,16 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .sidebar > .content {
+.monaco-workbench.windows .part.sidebar,
+.monaco-workbench.linux .part.sidebar,
+.monaco-workbench.web .part.sidebar {
+	/*
+	 * Explicitly put the part onto its own layer to help Chrome to
+	 * render the content with LCD-anti-aliasing. By partioning the
+	 * workbench into multiple layers, we can ensure that a bad
+	 * behaving part is not making another part fallback to greyscale
+	 * rendering.
+	 *
+	 * macOS: does not render LCD-anti-aliased.
+	 */
+	transform: translate3d(0px, 0px, 0px);
+}
+
+.monaco-workbench .part.sidebar > .content {
 	overflow: hidden;
 }
 
-.monaco-workbench.nosidebar > .sidebar {
+.monaco-workbench.nosidebar > .part.sidebar {
 	display: none !important;
 	visibility: hidden !important;
 }
 
-.monaco-workbench .sidebar > .title > .title-label h2 {
+.monaco-workbench .part.sidebar > .title > .title-label h2 {
 	text-transform: uppercase;
 }
 

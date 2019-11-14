@@ -164,7 +164,7 @@ registerEditorAction(class extends EditorAction {
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib,
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
+				primary: undefined,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.DownArrow,
 				},
@@ -188,7 +188,7 @@ registerEditorAction(class extends EditorAction {
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib,
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
+				primary: undefined,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.UpArrow,
 				},

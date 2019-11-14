@@ -369,10 +369,10 @@ universalify@^0.1.0:
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
   integrity sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==
 
-vscode-minimist@^1.2.1:
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/vscode-minimist/-/vscode-minimist-1.2.1.tgz#e63d3f4a9bf3680dcb8f9304eed612323fd6926a"
-  integrity sha512-cmB72+qDoiCFJ1UKnGUBdGYfXzdpJ3bQM/D/+XhkVk5v7uZgLbYiCz5JcwVyk7NC7hSi5VGtQ4wihzmi12NeXw==
+vscode-minimist@^1.2.2:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/vscode-minimist/-/vscode-minimist-1.2.2.tgz#65403f44f0c6010d259b2271d36eb5c6f4ad8aab"
+  integrity sha512-DXMNG2QgrXn1jOP12LzjVfvxVkzxv/0Qa27JrMBj/XP2esj+fJ/wP2T4YUH5derj73Lc96dC8F25WyfDUbTpxQ==
 
 vscode-nsfw@1.2.8:
   version "1.2.8"

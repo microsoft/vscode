@@ -281,6 +281,21 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 	});
 }
 
+export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
+	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
+		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
+		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		while (toElement && toElement !== node) {
+			toElement = toElement.parentNode;
+		}
+		if (toElement === node) {
+			return;
+		}
+
+		handler(e);
+	});
+}
+
 interface IRequestAnimationFrame {
 	(callback: (time: number) => void): number;
 }
@@ -852,6 +867,8 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
+	POINTER_UP: 'pointerup',
+	POINTER_DOWN: 'pointerdown',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
