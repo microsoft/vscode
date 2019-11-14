@@ -51,6 +51,7 @@ import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -132,7 +133,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(themeService);
 
@@ -921,64 +923,74 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private async doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): Promise<void> {
 
-		// Report error only if this was not us restoring previous error state or
-		// we are told to ignore errors that occur from opening an editor
-		if (this.isRestored && !isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
+		// Report error only if we are not told to ignore errors that occur from opening an editor
+		if (!isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
 
-			// Extract possible error actions from the error
-			let errorActions: ReadonlyArray<IAction> | undefined = undefined;
-			if (isErrorWithActions(error)) {
-				errorActions = (error as IErrorWithActions).actions;
+			// Since it is more likely that errors fail to open when restoring them e.g.
+			// because files got deleted or moved meanwhile, we do not show any notifications
+			// if we are still restoring editors.
+			if (this.isRestored) {
+
+				// Extract possible error actions from the error
+				let errorActions: ReadonlyArray<IAction> | undefined = undefined;
+				if (isErrorWithActions(error)) {
+					errorActions = (error as IErrorWithActions).actions;
+				}
+
+				// If the context is USER, we try to show a modal dialog instead of a background notification
+				if (options?.context === EditorOpenContext.USER) {
+					const buttons: string[] = [];
+					if (Array.isArray(errorActions) && errorActions.length > 0) {
+						errorActions.forEach(action => buttons.push(action.label));
+					} else {
+						buttons.push(localize('ok', 'OK'));
+					}
+
+					let cancelId: number | undefined = undefined;
+					if (buttons.length === 1) {
+						buttons.push(localize('cancel', "Cancel"));
+						cancelId = 1;
+					}
+
+					const result = await this.dialogService.show(
+						Severity.Error,
+						localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+						buttons,
+						{
+							detail: toErrorMessage(error),
+							cancelId
+						}
+					);
+
+					// Make sure to run any error action if present
+					if (result.choice !== cancelId && Array.isArray(errorActions)) {
+						const errorAction = errorActions[result.choice];
+						if (errorAction) {
+							errorAction.run();
+						}
+					}
+				}
+
+				// Otherwise, show a background notification.
+				else {
+					const actions: INotificationActions = { primary: [] };
+					if (Array.isArray(errorActions)) {
+						actions.primary = errorActions;
+					}
+
+					const handle = this.notificationService.notify({
+						severity: Severity.Error,
+						message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
+						actions
+					});
+
+					Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+				}
 			}
 
-			// If the context is USER, we try to show a modal dialog instead of a background notification
-			if (options?.context === EditorOpenContext.USER) {
-				const buttons: string[] = [];
-				if (Array.isArray(errorActions) && errorActions.length > 0) {
-					errorActions.forEach(action => buttons.push(action.label));
-				} else {
-					buttons.push(localize('ok', 'OK'));
-				}
-
-				let cancelId: number | undefined = undefined;
-				if (buttons.length === 1) {
-					buttons.push(localize('cancel', "Cancel"));
-					cancelId = 1;
-				}
-
-				const result = await this.dialogService.show(
-					Severity.Error,
-					localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
-					buttons,
-					{
-						detail: toErrorMessage(error),
-						cancelId
-					}
-				);
-
-				// Make sure to run any error action if present
-				if (result.choice !== cancelId && Array.isArray(errorActions)) {
-					const errorAction = errorActions[result.choice];
-					if (errorAction) {
-						errorAction.run();
-					}
-				}
-			}
-
-			// Otherwise, show a background notification.
+			// Restoring: just log errors to console
 			else {
-				const actions: INotificationActions = { primary: [] };
-				if (Array.isArray(errorActions)) {
-					actions.primary = errorActions;
-				}
-
-				const handle = this.notificationService.notify({
-					severity: Severity.Error,
-					message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
-					actions
-				});
-
-				Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+				this.logService.error(error);
 			}
 		}
 
