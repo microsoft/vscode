@@ -234,6 +234,24 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 
+	const debugIconBreakpointDataColor = theme.getColor(debugIconBreakpointDataForeground);
+	if (debugIconBreakpointDataColor) {
+		collector.addRule(`
+		.monaco-workbench .codicon-debug-breakpoint-data {
+			color: ${debugIconBreakpointDataColor} !important;
+		}
+		`);
+	}
+
+	const debugIconBreakpointUnsupportedColor = theme.getColor(debugIconBreakpointUnsupportedForeground);
+	if (debugIconBreakpointUnsupportedColor) {
+		collector.addRule(`
+		.monaco-workbench .codicon-debug-breakpoint-unsupported {
+			color: ${debugIconBreakpointUnsupportedColor} !important;
+		}
+		`);
+	}
+
 	const debugIconBreakpointStackframeColor = theme.getColor(debugIconBreakpointStackframeForeground);
 	if (debugIconBreakpointStackframeColor) {
 		collector.addRule(`
@@ -264,5 +282,7 @@ const debugIconBreakpointUnverifiedForeground = registerColor('debugIcon.breakpo
 const debugIconBreakpointConditionalForeground = registerColor('debugIcon.breakpointConditionalForeground', { dark: debugIconBreakpointForeground, light: debugIconBreakpointForeground, hc: debugIconBreakpointForeground }, localize('debugIcon.breakpointConditionalForeground', 'Icon color for conditional breakpoints.'));
 const debugIconBreakpointLogForeground = registerColor('debugIcon.breakpointLogForeground', { dark: debugIconBreakpointForeground, light: debugIconBreakpointForeground, hc: debugIconBreakpointForeground }, localize('debugIcon.breakpointLogForeground', 'Icon color for log breakpoints.'));
 const debugIconBreakpointFunctionForeground = registerColor('debugIcon.breakpointFunctionForeground', { dark: debugIconBreakpointForeground, light: debugIconBreakpointForeground, hc: debugIconBreakpointForeground }, localize('debugIcon.breakpointFunctionForeground', 'Icon color for function breakpoints.'));
+const debugIconBreakpointDataForeground = registerColor('debugIcon.breakpointDataForeground', { dark: debugIconBreakpointForeground, light: debugIconBreakpointForeground, hc: debugIconBreakpointForeground }, localize('debugIcon.breakpointDataForeground', 'Icon color for data breakpoints.'));
+const debugIconBreakpointUnsupportedForeground = registerColor('debugIcon.breakpointUnsupportedForeground', { dark: debugIconBreakpointForeground, light: debugIconBreakpointForeground, hc: debugIconBreakpointForeground }, localize('debugIcon.breakpointUnsupportedForeground', 'Icon color for unsupported breakpoints.'));
 const debugIconBreakpointStackframeForeground = registerColor('debugIcon.breakpointStackframeForeground', { dark: '#FFCC00', light: '#FFCC00', hc: '#FFCC00' }, localize('debugIcon.breakpointStackframeForeground', 'Icon color for breakpoints.'));
 const debugIconBreakpointStackframeFocusedForeground = registerColor('debugIcon.breakpointStackframeFocusedForeground', { dark: '#89D185', light: '#89D185', hc: '#89D185' }, localize('debugIcon.breakpointStackframeFocusedForeground', 'Icon color for breakpoints.'));
