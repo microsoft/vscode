@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -49,7 +49,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IShowResult, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -93,7 +93,7 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { find } from 'vs/base/common/arrays';
 import { WorkingCopyService, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IAutoSaveConfigurationService, AutoSaveConfigurationService } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -192,7 +192,6 @@ export class TestTextFileService extends NativeTextFileService {
 	public cleanupBackupsBeforeShutdownCalled!: boolean;
 
 	private promptPath!: URI;
-	private confirmResult!: ConfirmResult;
 	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
@@ -201,7 +200,6 @@ export class TestTextFileService extends NativeTextFileService {
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -214,7 +212,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IElectronService electronService: IElectronService,
 		@IProductService productService: IProductService,
-		@IAutoSaveConfigurationService autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(
 			contextService,
@@ -222,7 +220,6 @@ export class TestTextFileService extends NativeTextFileService {
 			untitledTextEditorService,
 			lifecycleService,
 			instantiationService,
-			configurationService,
 			modeService,
 			modelService,
 			environmentService,
@@ -235,16 +232,12 @@ export class TestTextFileService extends NativeTextFileService {
 			textResourceConfigurationService,
 			electronService,
 			productService,
-			autoSaveConfigurationService
+			filesConfigurationService
 		);
 	}
 
 	public setPromptPath(path: URI): void {
 		this.promptPath = path;
-	}
-
-	public setConfirmResult(result: ConfirmResult): void {
-		this.confirmResult = result;
 	}
 
 	public setResolveTextContentErrorOnce(error: FileOperationError): void {
@@ -277,18 +270,6 @@ export class TestTextFileService extends NativeTextFileService {
 		return Promise.resolve(this.promptPath);
 	}
 
-	public confirmSave(_resources?: URI[]): Promise<ConfirmResult> {
-		return Promise.resolve(this.confirmResult);
-	}
-
-	public confirmOverwrite(_resource: URI): Promise<boolean> {
-		return Promise.resolve(true);
-	}
-
-	public onFilesConfigurationChange(configuration: any): void {
-		super.onFilesConfigurationChange(configuration);
-	}
-
 	protected cleanupBackupsBeforeShutdown(): Promise<void> {
 		this.cleanupBackupsBeforeShutdownCalled = true;
 		return Promise.resolve();
@@ -304,11 +285,13 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 	const configService = new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(IAutoSaveConfigurationService, new AutoSaveConfigurationService(contextKeyService, configService));
+	instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(contextKeyService, configService, TestEnvironmentService));
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, instantiationService.createInstance(UntitledTextEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkbenchLayoutService, new TestLayoutService());
+	instantiationService.stub(IDialogService, new TestDialogService());
+	instantiationService.stub(IFileDialogService, new TestFileDialogService());
 	instantiationService.stub(IElectronService, new TestElectronService());
 	instantiationService.stub(IModeService, instantiationService.createInstance(ModeServiceImpl));
 	instantiationService.stub(IHistoryService, new TestHistoryService());
@@ -426,6 +409,8 @@ export class TestFileDialogService implements IFileDialogService {
 
 	public _serviceBrand: undefined;
 
+	private confirmResult!: ConfirmResult;
+
 	public defaultFilePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
@@ -456,6 +441,12 @@ export class TestFileDialogService implements IFileDialogService {
 	public showOpenDialog(_options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		return Promise.resolve(undefined);
 	}
+	public setConfirmResult(result: ConfirmResult): void {
+		this.confirmResult = result;
+	}
+	public showSaveConfirm(resources: string | URI[]): Promise<ConfirmResult> {
+		return Promise.resolve(this.confirmResult);
+	}
 }
 
 export class TestLayoutService implements IWorkbenchLayoutService {
@@ -469,6 +460,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onZenModeChange: Event<boolean> = Event.None;
 	onCenteredLayoutChange: Event<boolean> = Event.None;
 	onFullscreenChange: Event<boolean> = Event.None;
+	onMaximizeChange: Event<boolean> = Event.None;
 	onPanelPositionChange: Event<string> = Event.None;
 	onPartVisibilityChange: Event<void> = Event.None;
 	onLayout = Event.None;
@@ -578,6 +570,12 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	public resizePart(_part: Parts, _sizeChange: number): void { }
 
 	public registerPart(part: Part): void { }
+
+	isWindowMaximized() {
+		return false;
+	}
+
+	public updateWindowMaximizedState(maximized: boolean): void { }
 }
 
 let activeViewlet: Viewlet = {} as any;
@@ -1471,3 +1469,10 @@ export class TestDialogMainService implements IDialogMainService {
 }
 
 export class TestWorkingCopyService extends WorkingCopyService { }
+
+export class TestFilesConfigurationService extends FilesConfigurationService {
+
+	onFilesConfigurationChange(configuration: any): void {
+		super.onFilesConfigurationChange(configuration);
+	}
+}

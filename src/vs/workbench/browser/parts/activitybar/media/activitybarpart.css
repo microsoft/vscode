@@ -7,6 +7,21 @@
 	width: 48px;
 }
 
+.monaco-workbench.windows .part.activitybar,
+.monaco-workbench.linux .part.activitybar,
+.monaco-workbench.web .part.activitybar {
+	/*
+	 * Explicitly put the part onto its own layer to help Chrome to
+	 * render the content with LCD-anti-aliasing. By partioning the
+	 * workbench into multiple layers, we can ensure that a bad
+	 * behaving part is not making another part fallback to greyscale
+	 * rendering.
+	 *
+	 * macOS: does not render LCD-anti-aliased.
+	 */
+	transform: translate3d(0px, 0px, 0px);
+}
+
 .monaco-workbench .activitybar > .content {
 	height: 100%;
 	display: flex;

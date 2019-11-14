@@ -6,7 +6,7 @@
 import 'vs/css!./colorPicker';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger, GlobalPointerMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color, HSVA, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -14,6 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 const $ = dom.$;
 
@@ -150,13 +151,17 @@ class SaturationBox extends Disposable {
 
 		this.layout();
 
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableListener(this.domNode, BrowserFeatures.pointerEvents ? dom.EventType.POINTER_DOWN : dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
 		this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
 		this.monitor = null;
 	}
 
 	private onMouseDown(e: MouseEvent): void {
-		this.monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+		this.monitor = this._register(
+			BrowserFeatures.pointerEvents
+				? new GlobalPointerMoveMonitor<IStandardMouseMoveEventData>()
+				: new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>()
+		);
 		const origin = dom.getDomNodePagePosition(this.domNode);
 
 		if (e.target !== this.selection) {
@@ -165,7 +170,7 @@ class SaturationBox extends Disposable {
 
 		this.monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
+		const mouseUpListener = dom.addDisposableListener(document, BrowserFeatures.pointerEvents ? dom.EventType.POINTER_UP : dom.EventType.MOUSE_UP, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			if (this.monitor) {
@@ -250,7 +255,7 @@ abstract class Strip extends Disposable {
 		this.slider = dom.append(this.domNode, $('.slider'));
 		this.slider.style.top = `0px`;
 
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableListener(this.domNode, BrowserFeatures.pointerEvents ? dom.EventType.POINTER_DOWN : dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
 		this.layout();
 	}
 
@@ -262,7 +267,11 @@ abstract class Strip extends Disposable {
 	}
 
 	private onMouseDown(e: MouseEvent): void {
-		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+		const monitor = this._register(
+			BrowserFeatures.pointerEvents
+				? new GlobalPointerMoveMonitor<IStandardMouseMoveEventData>()
+				: new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>()
+		);
 		const origin = dom.getDomNodePagePosition(this.domNode);
 		dom.addClass(this.domNode, 'grabbing');
 
@@ -272,7 +281,7 @@ abstract class Strip extends Disposable {
 
 		monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
+		const mouseUpListener = dom.addDisposableListener(document, BrowserFeatures.pointerEvents ? dom.EventType.POINTER_UP : dom.EventType.MOUSE_UP, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			monitor.stopMonitoring(true);

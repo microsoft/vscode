@@ -38,10 +38,10 @@ export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData, 
 
 export class GlobalMouseMoveMonitor<R> implements IDisposable {
 
-	private readonly hooks = new DisposableStore();
-	private mouseMoveEventMerger: IEventMerger<R> | null = null;
-	private mouseMoveCallback: IMouseMoveCallback<R> | null = null;
-	private onStopCallback: IOnStopCallback | null = null;
+	protected readonly hooks = new DisposableStore();
+	protected mouseMoveEventMerger: IEventMerger<R> | null = null;
+	protected mouseMoveCallback: IMouseMoveCallback<R> | null = null;
+	protected onStopCallback: IOnStopCallback | null = null;
 
 	public dispose(): void {
 		this.stopMonitoring(false);
@@ -114,5 +114,34 @@ export class GlobalMouseMoveMonitor<R> implements IDisposable {
 				this.stopMonitoring(true);
 			}));
 		}
+	}
+}
+
+export class GlobalPointerMoveMonitor<R> extends GlobalMouseMoveMonitor<R> {
+	public startMonitoring(
+		mouseMoveEventMerger: IEventMerger<R>,
+		mouseMoveCallback: IMouseMoveCallback<R>,
+		onStopCallback: IOnStopCallback
+	): void {
+		if (this.isMonitoring()) {
+			// I am already hooked
+			return;
+		}
+		this.mouseMoveEventMerger = mouseMoveEventMerger;
+		this.mouseMoveCallback = mouseMoveCallback;
+		this.onStopCallback = onStopCallback;
+
+		let windowChain = IframeUtils.getSameOriginWindowChain();
+		for (const element of windowChain) {
+			this.hooks.add(dom.addDisposableThrottledListener(element.window.document, 'pointermove',
+				(data: R) => {
+					this.mouseMoveCallback!(data);
+				},
+				(lastEvent: R, currentEvent) => this.mouseMoveEventMerger!(lastEvent, currentEvent as MouseEvent)
+			));
+			this.hooks.add(dom.addDisposableListener(element.window.document, 'pointerup', (e: MouseEvent) => this.stopMonitoring(true)));
+		}
+
+		// Currently we didn't test pointer events in iframe yet.
 	}
 }

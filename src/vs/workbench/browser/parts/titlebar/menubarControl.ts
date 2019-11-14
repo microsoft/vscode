@@ -42,6 +42,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 // tslint:disable-next-line: import-patterns layering TODO@sbatten
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export abstract class MenubarControl extends Disposable {
 
@@ -673,7 +674,7 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		this._register(DOM.addDisposableListener(window, DOM.EventType.RESIZE, () => {
-			if (this.menubar) {
+			if (this.menubar && !BrowserFeatures.pointerEvents) {
 				this.menubar.blur();
 			}
 		}));

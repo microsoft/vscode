@@ -185,6 +185,31 @@ function rimraf(dir) {
     return result;
 }
 exports.rimraf = rimraf;
+function _rreaddir(dirPath, prepend, result) {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            _rreaddir(path.join(dirPath, entry.name), `${prepend}/${entry.name}`, result);
+        }
+        else {
+            result.push(`${prepend}/${entry.name}`);
+        }
+    }
+}
+function rreddir(dirPath) {
+    let result = [];
+    _rreaddir(dirPath, '', result);
+    return result;
+}
+exports.rreddir = rreddir;
+function ensureDir(dirPath) {
+    if (fs.existsSync(dirPath)) {
+        return;
+    }
+    ensureDir(path.dirname(dirPath));
+    fs.mkdirSync(dirPath);
+}
+exports.ensureDir = ensureDir;
 function getVersion(root) {
     let version = process.env['BUILD_SOURCEVERSION'];
     if (!version || !/^[0-9a-f]{40}$/i.test(version)) {

@@ -24,7 +24,7 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IAutoSaveConfigurationService, AutoSaveMode } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -55,7 +55,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IHostService private readonly hostService: IHostService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(id, telemetryService, themeService, storageService);
 
@@ -167,7 +167,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	}
 
 	private maybeTriggerSaveAll(reason: SaveReason): void {
-		const mode = this.autoSaveConfigurationService.getAutoSaveMode();
+		const mode = this.filesConfigurationService.getAutoSaveMode();
 
 		// Determine if we need to save all. In case of a window focus change we also save if auto save mode
 		// is configured to be ON_FOCUS_CHANGE (editor focus change)

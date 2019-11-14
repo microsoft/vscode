@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
-import { IEditorInput, EditorInput, IEditorIdentifier, ConfirmResult, IEditorCommandsContext, CloseDirection } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -22,6 +22,8 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class ExecuteCommandAction extends Action {
 
@@ -597,6 +599,8 @@ export abstract class BaseCloseAllAction extends Action {
 		label: string,
 		clazz: string | undefined,
 		private textFileService: ITextFileService,
+		private workingCopyService: IWorkingCopyService,
+		private fileDialogService: IFileDialogService,
 		protected editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, clazz);
@@ -619,7 +623,7 @@ export abstract class BaseCloseAllAction extends Action {
 	async run(): Promise<any> {
 
 		// Just close all if there are no dirty editors
-		if (!this.textFileService.isDirty()) {
+		if (!this.workingCopyService.hasDirty) {
 			return this.doCloseAll();
 		}
 
@@ -636,7 +640,7 @@ export abstract class BaseCloseAllAction extends Action {
 			return undefined;
 		}));
 
-		const confirm = await this.textFileService.confirmSave();
+		const confirm = await this.fileDialogService.showSaveConfirm(this.workingCopyService.getDirty().map(copy => copy.resource));
 		if (confirm === ConfirmResult.CANCEL) {
 			return;
 		}
@@ -667,9 +671,11 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 		id: string,
 		label: string,
 		@ITextFileService textFileService: ITextFileService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'codicon-close-all', textFileService, editorGroupService);
+		super(id, label, 'codicon-close-all', textFileService, workingCopyService, fileDialogService, editorGroupService);
 	}
 
 	protected doCloseAll(): Promise<any> {
@@ -686,9 +692,11 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 		id: string,
 		label: string,
 		@ITextFileService textFileService: ITextFileService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, undefined, textFileService, editorGroupService);
+		super(id, label, undefined, textFileService, workingCopyService, fileDialogService, editorGroupService);
 	}
 
 	protected async doCloseAll(): Promise<any> {
@@ -1273,8 +1281,6 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 
 	run(): Promise<any> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
-
-
 
 		this.quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
 

@@ -18,7 +18,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { toResource, SideBySideEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 
@@ -38,8 +37,8 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		};
 	}
 
-	getLabel() {
-		return withNullAsUndefined(this.editor.getName());
+	getLabel(): string {
+		return this.editor.getName();
 	}
 
 	getIcon(): string {

@@ -227,6 +227,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		this.setModel(undefined);
 		this._callOnDispose.dispose();
 		this._disposeOnNewModel.dispose();
+		this._preview.setModel(null); // drop all view-zones, workaround for https://github.com/microsoft/vscode/issues/84726
 		dispose(this._preview);
 		dispose(this._previewNotAvailableMessage);
 		dispose(this._tree);

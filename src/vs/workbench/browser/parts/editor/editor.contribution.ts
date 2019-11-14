@@ -17,7 +17,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledText
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { ITextFileService, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
+import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -53,6 +53,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -113,12 +114,12 @@ interface ISerializedUntitledTextEditorInput {
 class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
-		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) { }
 
 	serialize(editorInput: EditorInput): string | undefined {
-		if (!this.textFileService.isHotExitEnabled) {
+		if (!this.filesConfigurationService.isHotExitEnabled) {
 			return undefined; // never restore untitled unless hot exit is enabled
 		}
 

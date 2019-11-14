@@ -243,6 +243,31 @@ export function rimraf(dir: string): () => Promise<void> {
 	return result;
 }
 
+function _rreaddir(dirPath: string, prepend: string, result: string[]): void {
+	const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+	for (const entry of entries) {
+		if (entry.isDirectory()) {
+			_rreaddir(path.join(dirPath, entry.name), `${prepend}/${entry.name}`, result);
+		} else {
+			result.push(`${prepend}/${entry.name}`);
+		}
+	}
+}
+
+export function rreddir(dirPath: string): string[] {
+	let result: string[] = [];
+	_rreaddir(dirPath, '', result);
+	return result;
+}
+
+export function ensureDir(dirPath: string): void {
+	if (fs.existsSync(dirPath)) {
+		return;
+	}
+	ensureDir(path.dirname(dirPath));
+	fs.mkdirSync(dirPath);
+}
+
 export function getVersion(root: string): string | undefined {
 	let version = process.env['BUILD_SOURCEVERSION'];
 

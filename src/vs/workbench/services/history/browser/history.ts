@@ -484,8 +484,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
 		const input = editor?.input;
 
-		// Ensure we have at least a name to show and not configured to exclude input
-		if (!input || !input.getName() || !this.include(input)) {
+		// Ensure we have not configured to exclude input
+		if (!input || !this.include(input)) {
 			return;
 		}
 

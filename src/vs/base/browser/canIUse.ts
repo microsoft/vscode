@@ -55,5 +55,6 @@ export const BrowserFeatures = {
 		return KeyboardSupport.None;
 	})(),
 
-	touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0
+	touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0,
+	pointerEvents: browser.isSafari && ('ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0)
 };
