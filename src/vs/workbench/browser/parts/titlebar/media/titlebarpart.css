@@ -19,6 +19,13 @@
 	display: flex;
 }
 
+.monaco-workbench.windows .part.titlebar,
+.monaco-workbench.linux .part.titlebar,
+.monaco-workbench.web .part.titlebar {
+	/* put on own layer due to https://github.com/microsoft/vscode/issues/84806 */
+	transform: translate3d(0px, 0px, 0px);
+}
+
 .monaco-workbench .part.titlebar > .titlebar-drag-region {
 	top: 0;
 	left: 0;
