@@ -8,6 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMatch } from 'vs/base/common/filters';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Range } from 'vs/base/common/range';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -199,6 +200,26 @@ class Label {
 	}
 }
 
+function splitMatches(labels: string[], separator: string, matches: IMatch[] | undefined): IMatch[][] | undefined {
+	if (!matches) {
+		return undefined;
+	}
+
+	let labelStart = 0;
+
+	return labels.map(label => {
+		const labelRange = { start: labelStart, end: labelStart + label.length };
+
+		const result = matches
+			.map(match => Range.intersect(labelRange, match))
+			.filter(range => !Range.isEmpty(range))
+			.map(({ start, end }) => ({ start: start - labelStart, end: end - labelStart }));
+
+		labelStart = labelRange.end + separator.length;
+		return result;
+	});
+}
+
 class LabelWithHighlights {
 
 	private label: string | string[] | undefined = undefined;
@@ -227,14 +248,18 @@ class LabelWithHighlights {
 			dom.addClass(this.container, 'multiple');
 			this.singleLabel = undefined;
 
+			const separator = options?.separator || '/';
+			const matches = splitMatches(label, separator, options?.matches);
+
 			for (let i = 0; i < label.length; i++) {
 				const l = label[i];
+				const m = matches ? matches[i] : undefined;
 
 				const highlightedLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { 'data-icon-label-index': label.length - i - 1 })), this.supportCodicons);
-				highlightedLabel.set(l, options?.matches, options?.title, options?.labelEscapeNewLines);
+				highlightedLabel.set(l, m, options?.title, options?.labelEscapeNewLines);
 
 				if (i < label.length - 1) {
-					dom.append(this.container, dom.$('span.label-separator', undefined, options?.separator || '/'));
+					dom.append(this.container, dom.$('span.label-separator', undefined, separator));
 				}
 			}
 		}
