@@ -323,7 +323,14 @@ export class URI implements UriComponents {
 		return new _URI('file', authority, path, _empty, _empty);
 	}
 
-	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
+	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string } | URL): URI {
+
+		if (components instanceof URL) {
+			const value = <_URI>_URI.parse(components.href);
+			value._formatted = components.href;
+			return value;
+		}
+
 		return new _URI(
 			components.scheme,
 			components.authority,
