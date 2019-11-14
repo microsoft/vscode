@@ -215,11 +215,11 @@ export class KeybindingResolver {
 		return this._defaultBoundCommands;
 	}
 
-	public getDefaultKeybindings(): ResolvedKeybindingItem[] {
+	public getDefaultKeybindings(): readonly ResolvedKeybindingItem[] {
 		return this._defaultKeybindings;
 	}
 
-	public getKeybindings(): ResolvedKeybindingItem[] {
+	public getKeybindings(): readonly ResolvedKeybindingItem[] {
 		return this._keybindings;
 	}
 

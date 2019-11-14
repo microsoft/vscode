@@ -25,7 +25,7 @@ namespace LightBulbState {
 		Showing,
 	}
 
-	export const Hidden = new class { readonly type = Type.Hidden; };
+	export const Hidden = { type: Type.Hidden } as const;
 
 	export class Showing {
 		readonly type = Type.Showing;

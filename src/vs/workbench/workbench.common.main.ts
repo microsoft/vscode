@@ -81,6 +81,9 @@ import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
 import 'vs/workbench/services/userDataSync/common/settingsMergeService';
 import 'vs/workbench/services/path/common/remotePathService';
+import 'vs/workbench/services/remote/common/remoteExplorerService';
+import 'vs/workbench/services/workingCopy/common/workingCopyService';
+import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -255,5 +258,8 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
 // Code Actions
 import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
+
+// Test Custom Editors
+import 'vs/workbench/contrib/testCustomEditors/browser/testCustomEditors';
 
 //#endregion

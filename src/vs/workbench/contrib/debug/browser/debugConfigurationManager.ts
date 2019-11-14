@@ -416,7 +416,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return candidates.then(debuggers => {
 			debuggers.sort((first, second) => first.label.localeCompare(second.label));
 			const picks = debuggers.map(c => ({ label: c.label, debugger: c }));
-			return this.quickInputService.pick<{ label: string, debugger: Debugger | undefined }>([...picks, { type: 'separator' }, { label: 'More...', debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+			return this.quickInputService.pick<{ label: string, debugger: Debugger | undefined }>([...picks, { type: 'separator' }, { label: nls.localize('more', "More..."), debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
 					if (picked && picked.debugger) {
 						return picked.debugger;

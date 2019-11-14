@@ -39,7 +39,7 @@ export async function getProxyAgent(rawRequestURL: string, options: IOptions = {
 
 	const opts = {
 		host: proxyEndpoint.hostname || '',
-		port: Number(proxyEndpoint.port),
+		port: proxyEndpoint.port || (proxyEndpoint.protocol === 'https' ? '443' : '80'),
 		auth: proxyEndpoint.auth,
 		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
 	};

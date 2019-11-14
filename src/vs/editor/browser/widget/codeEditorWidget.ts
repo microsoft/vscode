@@ -869,9 +869,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public onVisible(): void {
+		this._modelData?.view.refreshFocusState();
 	}
 
 	public onHide(): void {
+		this._modelData?.view.refreshFocusState();
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {

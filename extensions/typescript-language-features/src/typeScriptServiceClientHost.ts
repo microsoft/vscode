@@ -23,7 +23,7 @@ import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { flatten, coalease } from './utils/arrays';
+import { flatten, coalesce } from './utils/arrays';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -182,7 +182,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	private populateService(): void {
 		this.fileConfigurationManager.reset();
-		this.client.bufferSyncSupport.reOpenDocuments();
+		this.client.bufferSyncSupport.reset();
 		this.client.bufferSyncSupport.requestAllDiagnostics();
 
 		// See https://github.com/Microsoft/TypeScript/issues/5530
@@ -245,7 +245,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		}
 		const relatedInformation = diagnostic.relatedInformation;
 		if (relatedInformation) {
-			converted.relatedInformation = coalease(relatedInformation.map((info: any) => {
+			converted.relatedInformation = coalesce(relatedInformation.map((info: any) => {
 				const span = info.span;
 				if (!span) {
 					return undefined;

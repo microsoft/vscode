@@ -117,6 +117,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'inspect': { type: 'string' },
 	'inspect-brk': { type: 'string' },
 	'nolazy': { type: 'boolean' }, // node inspect
+	'force-device-scale-factor': { type: 'string' },
 	'_urls': { type: 'string[]' },
 
 	_: { type: 'string[]' } // main arguments

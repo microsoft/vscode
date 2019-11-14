@@ -29,7 +29,7 @@
 	position: absolute;
 	top: 0px;
 	bottom: 0;
-	right: 4px;
+	right: 0px;
 	display: flex;
 	align-items: center;
 }
@@ -43,6 +43,13 @@
 .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.hidden,
 .markers-panel-action-filter.small > .markers-panel-filter-controls > .markers-panel-filter-badge {
 	display: none;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters {
+	line-height: 20px;
+	height: 20px;
+	min-width: 22px;
+	margin-left: 4px;
 }
 
 .panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container {
@@ -140,7 +147,7 @@
 	margin-left: 6px;
 }
 
-.markers-panel .monaco-tl-contents .marker-icon {
+.markers-panel .monaco-tl-contents .codicon {
 	margin-right: 6px;
 	display: flex;
 	align-items: center;
@@ -163,7 +170,7 @@
 	font-weight: bold;
 }
 
-.markers-panel .monaco-tl-contents .marker-icon {
+.markers-panel .monaco-tl-contents .codicon {
 	height: 22px;
 }
 
@@ -186,9 +193,6 @@
 .markers-panel .monaco-tl-contents .multiline-actions .action-label,
 .markers-panel .monaco-tl-contents .actions .action-label {
 	width: 16px;
-	height: 100%;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .multiline-actions .action-label {

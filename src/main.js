@@ -148,10 +148,8 @@ function configureCommandlineSwitchesSync(cliArgs) {
 			if (argvKey === 'disable-hardware-acceleration') {
 				app.disableHardwareAcceleration(); // needs to be called explicitly
 			} else {
-				app.commandLine.appendArgument(argvKey);
+				app.commandLine.appendSwitch(argvKey);
 			}
-		} else {
-			app.commandLine.appendSwitch(argvKey, argvValue);
 		}
 	});
 

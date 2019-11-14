@@ -18,7 +18,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, IExplorerService, ExplorerResourceMoveableToTrash, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
+import { AutoSaveContext } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { URI } from 'vs/base/common/uri';
@@ -471,7 +471,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 		id: DOWNLOAD_COMMAND_ID,
 		title: DOWNLOAD_LABEL,
 	},
-	when: ContextKeyExpr.or(ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), IsWebContext.toNegated()), ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), ExplorerFolderContext.toNegated()))
+	when: ContextKeyExpr.or(ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), IsWebContext.toNegated()), ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file), ExplorerFolderContext.toNegated(), ExplorerRootContext.toNegated()))
 }));
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -495,7 +495,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: ADD_ROOT_FOLDER_LABEL
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext)
+	when: ExplorerRootContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {

@@ -9,10 +9,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceFolderProvider } from 'vs/base/common/labels';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
-export interface IWorkspaceContextService {
+export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
 	_serviceBrand: undefined;
 
 	/**

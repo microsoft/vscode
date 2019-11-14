@@ -8,7 +8,7 @@ import { suggestFilename } from 'vs/base/common/mime';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
+import { EditorInput, IEncodingSupport, EncodingMode, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
 import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -109,7 +109,7 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 		return this.labelService.getUriLabel(this.resource);
 	}
 
-	getTitle(verbosity: Verbosity): string | undefined {
+	getTitle(verbosity: Verbosity): string {
 		if (!this.hasAssociatedFilePath) {
 			return this.getName();
 		}
@@ -122,8 +122,6 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 			case Verbosity.LONG:
 				return this.longTitle;
 		}
-
-		return undefined;
 	}
 
 	isDirty(): boolean {
@@ -146,10 +144,6 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 		}
 
 		return false;
-	}
-
-	confirmSave(): Promise<ConfirmResult> {
-		return this.textFileService.confirmSave([this.resource]);
 	}
 
 	save(): Promise<boolean> {

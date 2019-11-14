@@ -18,6 +18,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
 
@@ -25,7 +26,8 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@ILogService logService: ILogService
 	) {
 		const connection = remoteAgentService.getConnection();
 		let channel: IChannel;
@@ -34,7 +36,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		} else {
 			channel = { call: async () => undefined, listen: () => Event.None } as any;
 			// TODO@weinand TODO@isidorn fallback?
-			console.warn('Extension Host Debugging not available due to missing connection.');
+			logService.warn('Extension Host Debugging not available due to missing connection.');
 		}
 
 		super(channel);
@@ -43,7 +45,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			this.workspaceProvider = environmentService.options.workspaceProvider;
 		} else {
 			this.workspaceProvider = { open: async () => undefined, workspace: undefined };
-			console.warn('Extension Host Debugging not available due to missing workspace provider.');
+			logService.warn('Extension Host Debugging not available due to missing workspace provider.');
 		}
 
 		// Reload window on reload request

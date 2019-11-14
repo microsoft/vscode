@@ -117,17 +117,17 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	private mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
-	private readonly _onDidChangeContent: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onDidChangeContent: Event<URI> = this._onDidChangeContent.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<URI>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeDirty: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onDidChangeDirty: Event<URI> = this._onDidChangeDirty.event;
+	private readonly _onDidChangeDirty = this._register(new Emitter<URI>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private readonly _onDidChangeEncoding: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onDidChangeEncoding: Event<URI> = this._onDidChangeEncoding.event;
+	private readonly _onDidChangeEncoding = this._register(new Emitter<URI>());
+	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
-	private readonly _onDidDisposeModel: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onDidDisposeModel: Event<URI> = this._onDidDisposeModel.event;
+	private readonly _onDidDisposeModel = this._register(new Emitter<URI>());
+	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

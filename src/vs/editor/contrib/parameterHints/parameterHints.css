@@ -13,12 +13,12 @@
 .monaco-editor .parameter-hints-widget > .wrapper {
 	max-width: 440px;
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
 }
 
 .monaco-editor .parameter-hints-widget.multiple {
 	min-height: 3.3em;
-	padding: 0 0 0 1.9em;
+	padding: 0;
 }
 
 .monaco-editor .parameter-hints-widget.visible {
@@ -62,20 +62,19 @@
 	padding: 0 0.4em;
 }
 
-.monaco-editor .parameter-hints-widget .buttons {
-	position: absolute;
+.monaco-editor .parameter-hints-widget .controls {
 	display: none;
-	bottom: 0;
-	left: 0;
+	flex-direction: column;
+	align-items: center;
+	min-width: 22px;
+	justify-content: flex-end;
 }
 
-.monaco-editor .parameter-hints-widget.multiple .buttons {
-	display: block;
+.monaco-editor .parameter-hints-widget.multiple .controls {
+	display: flex;
 }
 
 .monaco-editor .parameter-hints-widget.multiple .button {
-	position: absolute;
-	left: 2px;
 	width: 16px;
 	height: 16px;
 	background-repeat: no-repeat;
@@ -88,24 +87,14 @@
 }
 
 .monaco-editor .parameter-hints-widget .button.next {
-	bottom: 0;
 	background-image: url('arrow-down.svg');
 }
 
 .monaco-editor .parameter-hints-widget .overloads {
-	position: absolute;
-	display: none;
 	text-align: center;
-	bottom: 14px;
-	left: 0;
-	width: 22px;
 	height: 12px;
 	line-height: 12px;
 	opacity: 0.5;
-}
-
-.monaco-editor .parameter-hints-widget.multiple .overloads {
-	display: block;
 }
 
 .monaco-editor .parameter-hints-widget .signature .parameter.active {

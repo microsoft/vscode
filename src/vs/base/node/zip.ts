@@ -163,7 +163,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 
 function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
 	return new Promise((resolve, reject) => {
-		_openZip(zipFile, lazy ? { lazyEntries: true } : undefined, (error?: Error, zipfile?: ZipFile) => {
+		_openZip(zipFile, lazy ? { lazyEntries: true } : undefined!, (error?: Error, zipfile?: ZipFile) => {
 			if (error) {
 				reject(toExtractError(error));
 			} else {

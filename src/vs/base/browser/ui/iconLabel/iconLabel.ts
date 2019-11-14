@@ -116,7 +116,7 @@ export class IconLabel extends Disposable {
 		return this.domNode.element;
 	}
 
-	setLabel(label?: string, description?: string, options?: IIconLabelValueOptions): void {
+	setLabel(label: string, description?: string, options?: IIconLabelValueOptions): void {
 		const classes = ['monaco-icon-label'];
 		if (options) {
 			if (options.extraClasses) {
