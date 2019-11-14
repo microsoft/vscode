@@ -5751,6 +5751,10 @@ declare module 'vscode' {
 		mtime: number;
 		/**
 		 * The size in bytes.
+		 *
+		 * *Note:* If the file changed, it is important to provide an updated `size`. Otherwise there
+		 * may be optimizations in place that will not show the updated file contents in an editor for
+		 * example.
 		 */
 		size: number;
 	}
@@ -5866,9 +5870,9 @@ declare module 'vscode' {
 		 * by clients of this provider.
 		 *
 		 * *Note:* It is important that the metadata of the file that changed provides an
-		 * updated `mtime` that advanced from the previous value in the [stat](#FileStat).
-		 * Otherwise there may be optimizations in place that will not show the change in an editor
-		 * for example.
+		 * updated `mtime` that advanced from the previous value in the [stat](#FileStat) and a
+		 * correct `size` value. Otherwise there may be optimizations in place that will not show
+		 * the change in an editor for example.
 		 */
 		readonly onDidChangeFile: Event<FileChangeEvent[]>;
 
