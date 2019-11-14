@@ -140,13 +140,16 @@ export class OpenerService implements IOpenerService {
 		this._externalOpener = externalOpener;
 	}
 
-	async open(resource: URI, options?: OpenOptions): Promise<boolean> {
+	async open(target: URI | URL, options?: OpenOptions): Promise<boolean> {
+
+		const resource = URI.isUri(target) ? target : URI.from(target);
 
 		// no scheme ?!?
 		if (!resource.scheme) {
 			return Promise.resolve(false);
 		}
 
+		//todo@joh adopt validator
 		// check with contributed validators
 		for (const validator of this._validators.toArray()) {
 			if (!(await validator.shouldOpen(resource))) {
@@ -156,7 +159,7 @@ export class OpenerService implements IOpenerService {
 
 		// check with contributed openers
 		for (const opener of this._openers.toArray()) {
-			const handled = await opener.open(resource, options);
+			const handled = await opener.open(target, options);
 			if (handled) {
 				return true;
 			}
@@ -164,7 +167,7 @@ export class OpenerService implements IOpenerService {
 
 		// use default openers
 		for (const opener of [this._openerAsExternal, this._openerAsCommand, this._openerAsEditor]) {
-			if (await opener.open(resource, options)) {
+			if (await opener.open(target, options)) {
 				break;
 			}
 		}

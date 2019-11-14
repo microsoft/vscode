@@ -82,8 +82,7 @@ export interface IOpenerService {
 	 * @param resource A resource
 	 * @return A promise that resolves when the opening is done.
 	 */
-	open(resource: URI, options?: OpenInternalOptions): Promise<boolean>;
-	open(resource: URI, options?: OpenExternalOptions): Promise<boolean>;
+	open(resource: URI | URL, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
 
 	/**
 	 * Resolve a resource to its external form.
