@@ -10,7 +10,7 @@ import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/work
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
-import { IAutoSaveConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const AUTO_SAVE_AFTER_DELAY_DISABLED_TIME = CONTENT_CHANGE_EVENT_BUFFER_DELAY + 500;
 
@@ -22,7 +22,7 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -41,7 +41,7 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 		this._register(this.untitledTextEditorService.onDidDisposeModel(e => this.discardBackup(e)));
 
 		// Listen to auto save config changes
-		this._register(this.autoSaveConfigurationService.onAutoSaveConfigurationChange(c => this.onAutoSaveConfigurationChange(c)));
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(c => this.onAutoSaveConfigurationChange(c)));
 	}
 
 	private onAutoSaveConfigurationChange(configuration: IAutoSaveConfiguration): void {

@@ -29,7 +29,7 @@
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,tga,webp}",
+            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp}",
             "mime": "image/*"
           }
         ]
@@ -45,6 +45,11 @@
         "command": "imagePreview.zoomOut",
         "title": "%command.zoomOut%",
         "category": "Image Preview"
+      },
+      {
+        "command": "imagePreview.testing.makeEdit",
+        "title": "Make test edit",
+        "category": "Image Preview"
       }
     ],
     "menus": {
@@ -57,6 +62,11 @@
         {
           "command": "imagePreview.zoomOut",
           "when": "imagePreviewFocus",
+          "group": "1_imagePreview"
+        },
+        {
+          "command": "imagePreview.testing.makeEdit",
+          "when": "imagePreviewTestMode",
           "group": "1_imagePreview"
         }
       ]

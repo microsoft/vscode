@@ -9,8 +9,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { shell } from 'electron';
@@ -51,7 +49,7 @@ export interface IToken {
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Disabled;
+	private _status: AuthTokenStatus = AuthTokenStatus.Inactive;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
@@ -63,22 +61,17 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	constructor(
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
-		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		if (productService.settingsSyncStoreUrl && configurationService.getValue('configurationSync.enableAuth')) {
-			this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT).then(storedRefreshToken => {
-				if (storedRefreshToken) {
-					this.refresh(storedRefreshToken);
-				} else {
-					this._status = AuthTokenStatus.Inactive;
-				}
-			});
-		}
+		this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT).then(storedRefreshToken => {
+			if (storedRefreshToken) {
+				this.refresh(storedRefreshToken);
+			}
+		});
 	}
 
 	public async login(callbackUri: URI): Promise<void> {
+		this.setStatus(AuthTokenStatus.SigningIn);
 		const nonce = generateUuid();
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' || callbackUri.scheme === 'http' ? 443 : 80);
 		const state = `${callbackUri.scheme},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
@@ -96,6 +89,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 		const timeoutPromise = new Promise((resolve: (value: IToken) => void, reject) => {
 			const wait = setTimeout(() => {
+				this.setStatus(AuthTokenStatus.Inactive);
 				clearTimeout(wait);
 				reject('Login timed out.');
 			}, 1000 * 60 * 5);
@@ -107,17 +101,10 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 	public getToken(): Promise<string | undefined> {
-		if (this.status === AuthTokenStatus.Disabled) {
-			throw new Error('Not enabled');
-		}
 		return Promise.resolve(this._activeToken?.accessToken);
 	}
 
 	public async refreshToken(): Promise<void> {
-		if (this.status === AuthTokenStatus.Disabled) {
-			throw new Error('Not enabled');
-		}
-
 		if (!this._activeToken) {
 			throw new Error('No token to refresh');
 		}
@@ -247,9 +234,6 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 	async logout(): Promise<void> {
-		if (this.status === AuthTokenStatus.Disabled) {
-			throw new Error('Not enabled');
-		}
 		await this.credentialsService.deletePassword(SERVICE_NAME, ACCOUNT);
 		this._activeToken = undefined;
 		this.setStatus(AuthTokenStatus.Inactive);

@@ -11,6 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { request } from 'vs/base/parts/request/browser/request';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { isEqual } from 'vs/base/common/resources';
+import { isStandalone } from 'vs/base/browser/browser';
 
 interface ICredential {
 	service: string;
@@ -222,17 +223,13 @@ class WorkspaceProvider implements IWorkspaceProvider {
 			if (options?.reuse) {
 				window.location.href = targetHref;
 			} else {
-				if (this.isRunningInPWA()) { // TODO@ben figure out why browser.isStandalone would not work?
+				if (isStandalone) {
 					window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
 				} else {
 					window.open(targetHref);
 				}
 			}
 		}
-	}
-
-	private isRunningInPWA(): boolean {
-		return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 	}
 
 	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): string | undefined {

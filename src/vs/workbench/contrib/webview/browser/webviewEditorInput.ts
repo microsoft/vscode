@@ -101,7 +101,7 @@ export class WebviewInput extends EditorInput {
 		return this._name;
 	}
 
-	public getTitle(_verbosity?: Verbosity) {
+	public getTitle(_verbosity?: Verbosity): string {
 		return this.getName();
 	}
 

@@ -34,5 +34,20 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('imagePreview.zoomOut', () => {
 		previewManager.activePreview?.zoomOut();
 	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('imagePreview.testing.makeEdit', () => {
+		previewManager.activePreview?.test_makeEdit();
+	}));
+
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('imagePreview.customEditorTestMode')) {
+			updateTestMode();
+		}
+	}));
+	updateTestMode();
 }
 
+function updateTestMode() {
+	const isInTestMode = vscode.workspace.getConfiguration('imagePreview').get<boolean>('customEditorTestMode', false);
+	vscode.commands.executeCommand('setContext', 'imagePreviewTestMode', isInTestMode);
+}

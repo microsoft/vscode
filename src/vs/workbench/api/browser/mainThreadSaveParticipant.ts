@@ -282,6 +282,10 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 			return undefined;
 		}
 
+		const excludedActions = Object.keys(setting)
+			.filter(x => setting[x] === false)
+			.map(x => new CodeActionKind(x));
+
 		const tokenSource = new CancellationTokenSource();
 
 		const timeout = this._configurationService.getValue<number>('editor.codeActionsOnSaveTimeout', settingsOverrides);
@@ -292,15 +296,15 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 					tokenSource.cancel();
 					reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout));
 				}, timeout)),
-			this.applyOnSaveActions(model, codeActionsOnSave, tokenSource.token)
+			this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, tokenSource.token)
 		]).finally(() => {
 			tokenSource.cancel();
 		});
 	}
 
-	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: CodeActionKind[], token: CancellationToken): Promise<void> {
+	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], token: CancellationToken): Promise<void> {
 		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, token);
+			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, token);
 			try {
 				await this.applyCodeActions(actionsToRun.actions);
 			} catch {
@@ -317,10 +321,10 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		}
 	}
 
-	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, token: CancellationToken) {
+	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], token: CancellationToken) {
 		return getCodeActions(model, model.getFullModelRange(), {
 			type: 'auto',
-			filter: { kind: codeActionKind, includeSourceActions: true },
+			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
 		}, token);
 	}
 }

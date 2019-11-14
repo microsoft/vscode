@@ -121,8 +121,8 @@ export class SearchWidget extends Widget {
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
 
-	private _onSearchSubmit = this._register(new Emitter<void>());
-	readonly onSearchSubmit: Event<void> = this._onSearchSubmit.event;
+	private _onSearchSubmit = this._register(new Emitter<boolean>());
+	readonly onSearchSubmit: Event<boolean /* triggeredOnType */> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<{ focus: boolean }>());
 	readonly onSearchCancel: Event<{ focus: boolean }> = this._onSearchCancel.event;
@@ -454,7 +454,7 @@ export class SearchWidget extends Widget {
 				this.temporarilySkipSearchOnChange = false;
 			} else {
 				this._onSearchCancel.fire({ focus: false });
-				this._searchDelayer.trigger((() => this.submitSearch()), this.searchConfiguration.searchOnTypeDebouncePeriod);
+				this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
 			}
 		}
 	}
@@ -563,7 +563,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private submitSearch(): void {
+	private submitSearch(triggeredOnType = false): void {
 		this.searchInput.validate();
 		if (!this.searchInput.inputBox.isInputValid()) {
 			return;
@@ -574,7 +574,7 @@ export class SearchWidget extends Widget {
 		if (value && useGlobalFindBuffer) {
 			this.clipboardServce.writeFindText(value);
 		}
-		this._onSearchSubmit.fire();
+		this._onSearchSubmit.fire(triggeredOnType);
 	}
 
 	dispose(): void {

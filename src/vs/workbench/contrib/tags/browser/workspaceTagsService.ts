@@ -6,9 +6,9 @@
 import { WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspaceStatsService, Tags } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 
-export class NoOpWorkspaceStatsService implements IWorkspaceStatsService {
+export class NoOpWorkspaceTagsService implements IWorkspaceTagsService {
 
 	_serviceBrand: undefined;
 
@@ -25,4 +25,4 @@ export class NoOpWorkspaceStatsService implements IWorkspaceStatsService {
 	}
 }
 
-registerSingleton(IWorkspaceStatsService, NoOpWorkspaceStatsService, true);
+registerSingleton(IWorkspaceTagsService, NoOpWorkspaceTagsService, true);

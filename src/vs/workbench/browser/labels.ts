@@ -164,7 +164,7 @@ export class ResourceLabels extends Disposable {
 		const label: IResourceLabel = {
 			element: widget.element,
 			onDidRender: widget.onDidRender,
-			setLabel: (label?: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
+			setLabel: (label: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
 			setResource: (label: IResourceLabelProps, options?: IResourceLabelOptions) => widget.setResource(label, options),
 			setEditor: (editor: IEditorInput, options?: IResourceLabelOptions) => widget.setEditor(editor, options),
 			setFile: (resource: URI, options?: IFileLabelOptions) => widget.setFile(resource, options),
@@ -367,7 +367,7 @@ class ResourceLabelWidget extends IconLabel {
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setResource({
 			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
-			name: withNullAsUndefined(editor.getName()),
+			name: editor.getName(),
 			description: editor.getDescription(options ? options.descriptionVerbosity : undefined)
 		}, options);
 	}
@@ -404,7 +404,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 
-		this.setLabel();
+		this.setLabel('');
 	}
 
 	private render(clearIconCache: boolean): void {
@@ -493,7 +493,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		this.setLabel(label, this.label.description, iconLabelOptions);
+		this.setLabel(label || '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
 	}

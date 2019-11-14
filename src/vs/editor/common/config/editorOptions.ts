@@ -186,8 +186,8 @@ export interface IEditorOptions {
 	 */
 	fontLigatures?: boolean | string;
 	/**
-	 * Disable the use of `will-change` for the editor margin and lines layers.
-	 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
+	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
+	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
 	 * Defaults to false.
 	 */
 	disableLayerHinting?: boolean;

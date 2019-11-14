@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'sudo-prompt' {
+import { Color } from 'vs/base/common/color';
 
-	export function exec(cmd: string, options: { name?: string, icns?: string }, callback: (error: string, stdout: string, stderr: string) => void): void;
+export type styleFn = (colors: { [name: string]: Color | undefined }) => void;
+
+export interface IThemable {
+	style: styleFn;
 }

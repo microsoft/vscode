@@ -66,7 +66,7 @@ export function getCodeActions(
 	const filter = trigger.filter || {};
 
 	const codeActionContext: CodeActionContext = {
-		only: filter.kind?.value,
+		only: filter.include?.value,
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
@@ -146,7 +146,7 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 	const codeActionSet = await getCodeActions(
 		model,
 		validatedRangeOrSelection,
-		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
+		{ type: 'manual', filter: { includeSourceActions: true, include: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 
 	setTimeout(() => codeActionSet.dispose(), 100);

@@ -9,8 +9,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { equals } from 'vs/base/common/objects';
 
 export const AutoSaveContext = new RawContextKey<string>('config.files.autoSave', undefined);
 
@@ -28,11 +30,13 @@ export const enum AutoSaveMode {
 	ON_WINDOW_CHANGE
 }
 
-export const IAutoSaveConfigurationService = createDecorator<IAutoSaveConfigurationService>('autoSaveConfigurationService');
+export const IFilesConfigurationService = createDecorator<IFilesConfigurationService>('filesConfigurationService');
 
-export interface IAutoSaveConfigurationService {
+export interface IFilesConfigurationService {
 
 	_serviceBrand: undefined;
+
+	//#region Auto Save
 
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 
@@ -41,14 +45,25 @@ export interface IAutoSaveConfigurationService {
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
 
 	toggleAutoSave(): Promise<void>;
+
+	//#endregion
+
+	readonly onFilesAssociationChange: Event<void>;
+
+	readonly isHotExitEnabled: boolean;
+
+	readonly hotExitConfiguration: string | undefined;
 }
 
-export class AutoSaveConfigurationService extends Disposable implements IAutoSaveConfigurationService {
+export class FilesConfigurationService extends Disposable implements IFilesConfigurationService {
 
 	_serviceBrand: undefined;
 
 	private readonly _onAutoSaveConfigurationChange = this._register(new Emitter<IAutoSaveConfiguration>());
 	readonly onAutoSaveConfigurationChange = this._onAutoSaveConfigurationChange.event;
+
+	private readonly _onFilesAssociationChange = this._register(new Emitter<void>());
+	readonly onFilesAssociationChange = this._onFilesAssociationChange.event;
 
 	private configuredAutoSaveDelay?: number;
 	private configuredAutoSaveOnFocusChange: boolean | undefined;
@@ -56,15 +71,24 @@ export class AutoSaveConfigurationService extends Disposable implements IAutoSav
 
 	private autoSaveContext: IContextKey<string>;
 
+	private currentFilesAssociationConfig: { [key: string]: string; };
+
+	private currentHotExitConfig: string;
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
 		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
 
 		const configuration = configurationService.getValue<IFilesConfiguration>();
+
+		this.currentFilesAssociationConfig = configuration?.files?.associations;
+		this.currentHotExitConfig = configuration?.files?.hotExit || HotExitConfiguration.ON_EXIT;
+
 		this.onFilesConfigurationChange(configuration);
 
 		this.registerListeners();
@@ -80,7 +104,9 @@ export class AutoSaveConfigurationService extends Disposable implements IAutoSav
 		}));
 	}
 
-	private onFilesConfigurationChange(configuration: IFilesConfiguration): void {
+	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
+
+		// Auto Save
 		const autoSaveMode = configuration?.files?.autoSave || AutoSaveConfiguration.OFF;
 		this.autoSaveContext.set(autoSaveMode);
 		switch (autoSaveMode) {
@@ -111,6 +137,21 @@ export class AutoSaveConfigurationService extends Disposable implements IAutoSav
 
 		// Emit as event
 		this._onAutoSaveConfigurationChange.fire(this.getAutoSaveConfiguration());
+
+		// Check for change in files associations
+		const filesAssociation = configuration?.files?.associations;
+		if (!equals(this.currentFilesAssociationConfig, filesAssociation)) {
+			this.currentFilesAssociationConfig = filesAssociation;
+			this._onFilesAssociationChange.fire();
+		}
+
+		// Hot exit
+		const hotExitMode = configuration?.files?.hotExit;
+		if (hotExitMode === HotExitConfiguration.OFF || hotExitMode === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+			this.currentHotExitConfig = hotExitMode;
+		} else {
+			this.currentHotExitConfig = HotExitConfiguration.ON_EXIT;
+		}
 	}
 
 	getAutoSaveMode(): AutoSaveMode {
@@ -153,6 +194,14 @@ export class AutoSaveConfigurationService extends Disposable implements IAutoSav
 
 		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue, ConfigurationTarget.USER);
 	}
+
+	get isHotExitEnabled(): boolean {
+		return !this.environmentService.isExtensionDevelopment && this.currentHotExitConfig !== HotExitConfiguration.OFF;
+	}
+
+	get hotExitConfiguration(): string {
+		return this.currentHotExitConfig;
+	}
 }
 
-registerSingleton(IAutoSaveConfigurationService, AutoSaveConfigurationService);
+registerSingleton(IFilesConfigurationService, FilesConfigurationService);
