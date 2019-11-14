@@ -24,6 +24,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 	private changedRepositoryRoots = new Set<string>();
 	private cache = new Map<string, CacheRow>();
+	private mtime = new Date().getTime();
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
@@ -47,6 +48,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		}
 
 		const gitUri = toGitUri(uri, '', { replaceFileExtension: true });
+		this.mtime = new Date().getTime();
 		this._onDidChangeFile.fire([{ type: FileChangeType.Changed, uri: gitUri }]);
 	}
 
@@ -76,6 +78,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		}
 
 		if (events.length > 0) {
+			this.mtime = new Date().getTime();
 			this._onDidChangeFile.fire(events);
 		}
 
@@ -114,7 +117,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			throw FileSystemError.FileNotFound();
 		}
 
-		return { type: FileType.File, size: 0, mtime: 0, ctime: 0 };
+		return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0 };
 	}
 
 	readDirectory(): Thenable<[string, FileType][]> {
