@@ -993,6 +993,12 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 		}
 	}
 
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T>>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
+		if (this.renderer.disposeCompressedElements) {
+			this.renderer.disposeCompressedElements(this.compressibleNodeMapperProvider().map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, height);
+		}
+	}
+
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
 		this.renderer.disposeTemplate(templateData.templateData);
 	}

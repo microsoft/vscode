@@ -365,6 +365,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		templateData.elementDisposable.dispose();
 	}
 
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: IFileTemplateData): void {
+		templateData.elementDisposable.dispose();
+	}
+
 	disposeTemplate(templateData: IFileTemplateData): void {
 		templateData.elementDisposable.dispose();
 		templateData.label.dispose();
