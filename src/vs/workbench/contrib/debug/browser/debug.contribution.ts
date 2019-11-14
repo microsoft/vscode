@@ -47,7 +47,6 @@ import { WatchExpressionsView } from 'vs/workbench/contrib/debug/browser/watchEx
 import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 import { DebugCallStackContribution } from 'vs/workbench/contrib/debug/browser/debugCallStackContribution';
 
 class OpenDebugViewletAction extends ShowViewletAction {
