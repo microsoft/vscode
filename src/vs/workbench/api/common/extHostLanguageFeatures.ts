@@ -623,12 +623,6 @@ const enum SemanticColoringConstants {
 	DesiredTokensPerArea = 400,
 
 	/**
-	 * If the semantic coloring result contains a single area and the area contains
-	 * more than 600 tokens, then split the area into mulitple areas.
-	 */
-	SplitSingleAreaTokenCountThreshold = 600,
-
-	/**
 	 * Try to keep the total number of areas under 1024 if possible,
 	 * simply compensate by having more tokens per area...
 	 */
@@ -640,15 +634,21 @@ interface ISemanticColoringAreaPair {
 	dto: ISemanticTokensAreaDto;
 }
 
-class SemanticColoringAdapter {
+export class SemanticColoringAdapter {
 
-	private readonly _previousResults = new Map<number, Uint32Array[]>();
+	private readonly _previousResults: Map<number, Uint32Array[]>;
+	private readonly _splitSingleAreaTokenCountThreshold: number;
 	private _nextResultId = 1;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.SemanticColoringProvider,
-	) { }
+		private readonly _desiredTokensPerArea = SemanticColoringConstants.DesiredTokensPerArea,
+		private readonly _desiredMaxAreas = SemanticColoringConstants.DesiredMaxAreas
+	) {
+		this._previousResults = new Map<number, Uint32Array[]>();
+		this._splitSingleAreaTokenCountThreshold = Math.round(1.5 * this._desiredTokensPerArea);
+	}
 
 	provideSemanticColoring(resource: URI, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
 		const doc = this._documents.getDocument(resource);
@@ -736,7 +736,6 @@ class SemanticColoringAdapter {
 	}
 
 	private _deltaEncodeArea(oldAreas: Uint32Array[], newArea: SemanticColoringArea): VSBuffer {
-		console.log(`_deltaEncodeArea`);
 		const newAreaData = newArea.data;
 		const prependAreas: ISemanticColoringAreaPair[] = [];
 		const appendAreas: ISemanticColoringAreaPair[] = [];
@@ -748,7 +747,7 @@ class SemanticColoringAdapter {
 			const oldAreaData = oldAreas[i];
 			const oldAreaTokenCount = (oldAreaData.length / 5) | 0;
 			if (newTokenEndIndex - newTokenStartIndex < oldAreaTokenCount) {
-				// thre are too many old tokens, this cannot work
+				// there are too many old tokens, this cannot work
 				break;
 			}
 
@@ -786,7 +785,7 @@ class SemanticColoringAdapter {
 			}
 			newTokenEndIndex -= oldAreaTokenCount;
 
-			appendAreas.push({
+			appendAreas.unshift({
 				data: oldAreaData,
 				dto: {
 					type: 'delta',
@@ -798,17 +797,13 @@ class SemanticColoringAdapter {
 
 		if (prependAreas.length === 0 && appendAreas.length === 0) {
 			// There is no reuse possibility!
-			console.log(`no reuse possibility`);
 			return this._fullEncodeAreas([newArea]);
 		}
 
 		if (newTokenStartIndex === newTokenEndIndex) {
 			// 100% reuse!
-			console.log(`100% reuse`);
 			return this._saveResultAndEncode(prependAreas.concat(appendAreas));
 		}
-
-		console.log(`some reuse`);
 
 		// Extract the mid area
 		const newTokenStartDeltaLine = newAreaData[5 * newTokenStartIndex];
@@ -830,7 +825,7 @@ class SemanticColoringAdapter {
 		}
 
 		const newMidArea = new SemanticColoringArea(newArea.line + newTokenStartDeltaLine, newMidAreaData);
-		const newMidAreas = SemanticColoringAdapter._splitAreaIntoMultipleAreasIfNecessary(newMidArea);
+		const newMidAreas = this._splitAreaIntoMultipleAreasIfNecessary(newMidArea);
 		const newMidAreasPairs: ISemanticColoringAreaPair[] = newMidAreas.map(a => {
 			return {
 				data: a.data,
@@ -869,9 +864,8 @@ class SemanticColoringAdapter {
 	// }
 
 	private _fullEncodeAreas(areas: SemanticColoringArea[]): VSBuffer {
-		console.log(`_fullEncodeAreas`);
 		if (areas.length === 1) {
-			areas = SemanticColoringAdapter._splitAreaIntoMultipleAreasIfNecessary(areas[0]);
+			areas = this._splitAreaIntoMultipleAreasIfNecessary(areas[0]);
 		}
 
 		return this._saveResultAndEncode(areas.map(a => {
@@ -897,15 +891,15 @@ class SemanticColoringAdapter {
 		return encodeSemanticTokensDto(dto);
 	}
 
-	private static _splitAreaIntoMultipleAreasIfNecessary(area: vscode.SemanticColoringArea): SemanticColoringArea[] {
+	private _splitAreaIntoMultipleAreasIfNecessary(area: vscode.SemanticColoringArea): SemanticColoringArea[] {
 		const srcAreaLine = area.line;
 		const srcAreaData = area.data;
 		const tokenCount = (srcAreaData.length / 5) | 0;
-		if (tokenCount <= SemanticColoringConstants.SplitSingleAreaTokenCountThreshold) {
+		if (tokenCount <= this._splitSingleAreaTokenCountThreshold) {
 			return [area];
 		}
 
-		const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
+		const tokensPerArea = Math.max(Math.ceil(tokenCount / this._desiredMaxAreas), this._desiredTokensPerArea);
 
 		let result: SemanticColoringArea[] = [];
 		let tokenIndex = 0;

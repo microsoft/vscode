@@ -617,7 +617,7 @@ class MainThreadSemanticColoringCacheEntry implements modes.SemanticColoring {
 	}
 }
 
-class MainThreadSemanticColoringProvider implements modes.SemanticColoringProvider {
+export class MainThreadSemanticColoringProvider implements modes.SemanticColoringProvider {
 
 	private readonly _cache = new Map<string, MainThreadSemanticColoringCacheEntry>();
 
