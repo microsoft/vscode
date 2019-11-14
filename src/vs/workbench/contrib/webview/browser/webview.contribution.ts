@@ -85,6 +85,6 @@ function registerWebViewCommands(editorId: string): void {
 registerWebViewCommands(WebviewEditor.ID);
 
 actionRegistry.registerWorkbenchAction(
-	new SyncActionDescriptor(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
+	SyncActionDescriptor.create(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
 	'Reload Webviews',
 	webviewDeveloperCategory);

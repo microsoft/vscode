@@ -219,7 +219,7 @@ if (ENABLE) {
 
 	const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
-	registry.registerWorkbenchAction(new SyncActionDescriptor(TestCustomEditorsAction, TestCustomEditorsAction.ID, TestCustomEditorsAction.LABEL), 'Test Open Custom Editor');
+	registry.registerWorkbenchAction(SyncActionDescriptor.create(TestCustomEditorsAction, TestCustomEditorsAction.ID, TestCustomEditorsAction.LABEL), 'Test Open Custom Editor');
 
 	class TestCustomEditorInputFactory implements IEditorInputFactory {
 
