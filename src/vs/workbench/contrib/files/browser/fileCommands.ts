@@ -247,24 +247,27 @@ async function saveAll(saveAllArguments: any, editorService: IEditorService, unt
 
 CommandsRegistry.registerCommand({
 	id: REVERT_FILE_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
+	handler: async accessor => {
 		const notificationService = accessor.get(INotificationService);
 		const listService = accessor.get(IListService);
-		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 
-		const editors = getMultiSelectedEditors(listService, editorService);
+		const editors = getMultiSelectedEditors(listService, editorGroupsService);
 		if (editors.length) {
 			try {
-				await Promise.all(editors.map(async editor => {
+				await Promise.all(editors.map(async ({ groupId, editor }) => {
 					const resource = editor.getResource();
 					if (resource && resource.scheme === Schemas.untitled) {
 						return; // we do not allow to revert untitled files
 					}
 
+					// Use revert as a hint to pin the editor
+					editorGroupsService.getGroup(groupId)?.pinEditor(editor);
+
 					return editor.revert({ force: true });
 				}));
 			} catch (error) {
-				notificationService.error(nls.localize('genericRevertResourcesError', "Failed to revert '{0}': {1}", editors.map(e => e.getName()).join(', '), toErrorMessage(error, false)));
+				notificationService.error(nls.localize('genericRevertResourcesError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 			}
 		}
 	}

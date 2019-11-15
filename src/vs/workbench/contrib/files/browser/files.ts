@@ -6,12 +6,13 @@
 import { URI } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { OpenEditor } from 'vs/workbench/contrib/files/common/files';
-import { toResource, SideBySideEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 function getFocus(listService: IListService): unknown | undefined {
 	let list = listService.lastFocusedList;
@@ -52,13 +53,15 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 	return editorService.activeEditor ? toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : undefined;
 }
 
-export function getEditorForCommand(listService: IListService, editorService: IEditorService): IEditorInput | undefined {
+export function getEditorForCommand(listService: IListService, editorGroupService: IEditorGroupsService): IEditorIdentifier | undefined {
 	const focus = getFocus(listService);
 	if (focus instanceof OpenEditor) {
-		return focus.editor;
+		return focus;
 	}
 
-	return editorService.activeEditor ? editorService.activeEditor : undefined;
+	const activeGroup = editorGroupService.activeGroup;
+
+	return activeGroup.activeEditor ? { groupId: activeGroup.id, editor: activeGroup.activeEditor } : undefined;
 }
 
 export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService): Array<URI> {
@@ -100,17 +103,17 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 	return !!result ? [result] : [];
 }
 
-export function getMultiSelectedEditors(listService: IListService, editorService: IEditorService): Array<IEditorInput> {
+export function getMultiSelectedEditors(listService: IListService, editorGroupsService: IEditorGroupsService): Array<IEditorIdentifier> {
 	const list = listService.lastFocusedList;
 	if (list?.getHTMLElement() === document.activeElement) {
 		// Open editors view
 		if (list instanceof List) {
-			const selection = coalesce(list.getSelectedElements().filter(s => s instanceof OpenEditor).map((oe: OpenEditor) => oe.editor));
+			const selection = coalesce(list.getSelectedElements().filter(s => s instanceof OpenEditor));
 			const focusedElements = list.getFocusedElements();
 			const focus = focusedElements.length ? focusedElements[0] : undefined;
-			let mainEditor: IEditorInput | undefined = undefined;
+			let mainEditor: IEditorIdentifier | undefined = undefined;
 			if (focus instanceof OpenEditor) {
-				mainEditor = focus.editor;
+				mainEditor = focus;
 			}
 			// We only respect the selection if it contains the main element.
 			if (selection.some(s => s === mainEditor)) {
@@ -119,6 +122,6 @@ export function getMultiSelectedEditors(listService: IListService, editorService
 		}
 	}
 
-	const result = getEditorForCommand(listService, editorService);
+	const result = getEditorForCommand(listService, editorGroupsService);
 	return !!result ? [result] : [];
 }
