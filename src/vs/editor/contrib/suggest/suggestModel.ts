@@ -10,16 +10,17 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
+import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
 import { CompletionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport, SnippetSortOrder, CompletionOptions } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -28,6 +29,7 @@ export interface ICancelEvent {
 export interface ITriggerEvent {
 	readonly auto: boolean;
 	readonly shy: boolean;
+	readonly position: IPosition;
 }
 
 export interface ISuggestEvent {
@@ -92,8 +94,8 @@ export const enum State {
 export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
-	private _quickSuggestDelay: number;
-	private _triggerCharacterListener: IDisposable;
+	private _quickSuggestDelay: number = 10;
+	private _triggerCharacterListener?: IDisposable;
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
 	private _state: State = State.Idle;
 
@@ -161,7 +163,8 @@ export class SuggestModel implements IDisposable {
 	}
 
 	dispose(): void {
-		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerCharacterListener, this._triggerQuickSuggest]);
+		dispose(this._triggerCharacterListener);
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerQuickSuggest]);
 		this._toDispose.dispose();
 		this._completionDisposables.dispose();
 		this.cancel();
@@ -170,7 +173,7 @@ export class SuggestModel implements IDisposable {
 	// --- handle configuration & precondition changes
 
 	private _updateQuickSuggest(): void {
-		this._quickSuggestDelay = this._editor.getConfiguration().contribInfo.quickSuggestionsDelay;
+		this._quickSuggestDelay = this._editor.getOption(EditorOption.quickSuggestionsDelay);
 
 		if (isNaN(this._quickSuggestDelay) || (!this._quickSuggestDelay && this._quickSuggestDelay !== 0) || this._quickSuggestDelay < 0) {
 			this._quickSuggestDelay = 10;
@@ -181,9 +184,9 @@ export class SuggestModel implements IDisposable {
 
 		dispose(this._triggerCharacterListener);
 
-		if (this._editor.getConfiguration().readOnly
+		if (this._editor.getOption(EditorOption.readOnly)
 			|| !this._editor.hasModel()
-			|| !this._editor.getConfiguration().contribInfo.suggestOnTriggerCharacters) {
+			|| !this._editor.getOption(EditorOption.suggestOnTriggerCharacters)) {
 
 			return;
 		}
@@ -275,7 +278,7 @@ export class SuggestModel implements IDisposable {
 
 		if (this._state === State.Idle) {
 
-			if (this._editor.getConfiguration().contribInfo.quickSuggestions === false) {
+			if (this._editor.getOption(EditorOption.quickSuggestions) === false) {
 				// not enabled
 				return;
 			}
@@ -285,7 +288,7 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			if (this._editor.getConfiguration().contribInfo.suggest.snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
+			if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
 				// no quick suggestion when in snippet mode
 				return;
 			}
@@ -305,7 +308,7 @@ export class SuggestModel implements IDisposable {
 				const model = this._editor.getModel();
 				const pos = this._editor.getPosition();
 				// validate enabled now
-				const { quickSuggestions } = this._editor.getConfiguration().contribInfo;
+				const quickSuggestions = this._editor.getOption(EditorOption.quickSuggestions);
 				if (quickSuggestions === false) {
 					return;
 				} else if (quickSuggestions === true) {
@@ -364,7 +367,7 @@ export class SuggestModel implements IDisposable {
 		// Cancel previous requests, change state & update UI
 		this.cancel(retrigger);
 		this._state = auto ? State.Auto : State.Manual;
-		this._onDidTrigger.fire({ auto, shy: context.shy });
+		this._onDidTrigger.fire({ auto, shy: context.shy, position: this._editor.getPosition() });
 
 		// Capture context when request was sent
 		this._context = ctx;
@@ -385,10 +388,9 @@ export class SuggestModel implements IDisposable {
 		this._requestToken = new CancellationTokenSource();
 
 		// kind filter and snippet sort rules
-		const { contribInfo } = this._editor.getConfiguration();
-		let itemKindFilter = new Set<CompletionItemKind>();
+		const snippetSuggestions = this._editor.getOption(EditorOption.snippetSuggestions);
 		let snippetSortOrder = SnippetSortOrder.Inline;
-		switch (contribInfo.suggest.snippets) {
+		switch (snippetSuggestions) {
 			case 'top':
 				snippetSortOrder = SnippetSortOrder.Top;
 				break;
@@ -399,19 +401,9 @@ export class SuggestModel implements IDisposable {
 			case 'bottom':
 				snippetSortOrder = SnippetSortOrder.Bottom;
 				break;
-			case 'none':
-				itemKindFilter.add(CompletionItemKind.Snippet);
-				break;
 		}
 
-		// kind filter
-		for (const key in contribInfo.suggest.filteredTypes) {
-			const kind = completionKindFromString(key, true);
-			if (typeof kind !== 'undefined' && contribInfo.suggest.filteredTypes[key] === false) {
-				itemKindFilter.add(kind);
-			}
-		}
-
+		let itemKindFilter = SuggestModel._createItemKindFilter(this._editor);
 		let wordDistance = WordDistance.create(this._editorWorker, this._editor);
 
 		let items = provideSuggestionItems(
@@ -447,7 +439,8 @@ export class SuggestModel implements IDisposable {
 				characterCountDelta: ctx.column - this._context!.column
 			},
 				wordDistance,
-				this._editor.getConfiguration().contribInfo.suggest
+				this._editor.getOption(EditorOption.suggest),
+				this._editor.getOption(EditorOption.snippetSuggestions)
 			);
 
 			// store containers so that they can be disposed later
@@ -460,6 +453,48 @@ export class SuggestModel implements IDisposable {
 			this._onNewContext(ctx);
 
 		}).catch(onUnexpectedError);
+	}
+
+	private static _createItemKindFilter(editor: ICodeEditor): Set<CompletionItemKind> {
+		// kind filter and snippet sort rules
+		const result = new Set<CompletionItemKind>();
+
+		// snippet setting
+		const snippetSuggestions = editor.getOption(EditorOption.snippetSuggestions);
+		if (snippetSuggestions === 'none') {
+			result.add(CompletionItemKind.Snippet);
+		}
+
+		// type setting
+		const suggestOptions = editor.getOption(EditorOption.suggest);
+		if (!suggestOptions.showMethods) { result.add(CompletionItemKind.Method); }
+		if (!suggestOptions.showFunctions) { result.add(CompletionItemKind.Function); }
+		if (!suggestOptions.showConstructors) { result.add(CompletionItemKind.Constructor); }
+		if (!suggestOptions.showFields) { result.add(CompletionItemKind.Field); }
+		if (!suggestOptions.showVariables) { result.add(CompletionItemKind.Variable); }
+		if (!suggestOptions.showClasses) { result.add(CompletionItemKind.Class); }
+		if (!suggestOptions.showStructs) { result.add(CompletionItemKind.Struct); }
+		if (!suggestOptions.showInterfaces) { result.add(CompletionItemKind.Interface); }
+		if (!suggestOptions.showModules) { result.add(CompletionItemKind.Module); }
+		if (!suggestOptions.showProperties) { result.add(CompletionItemKind.Property); }
+		if (!suggestOptions.showEvents) { result.add(CompletionItemKind.Event); }
+		if (!suggestOptions.showOperators) { result.add(CompletionItemKind.Operator); }
+		if (!suggestOptions.showUnits) { result.add(CompletionItemKind.Unit); }
+		if (!suggestOptions.showValues) { result.add(CompletionItemKind.Value); }
+		if (!suggestOptions.showConstants) { result.add(CompletionItemKind.Constant); }
+		if (!suggestOptions.showEnums) { result.add(CompletionItemKind.Enum); }
+		if (!suggestOptions.showEnumMembers) { result.add(CompletionItemKind.EnumMember); }
+		if (!suggestOptions.showKeywords) { result.add(CompletionItemKind.Keyword); }
+		if (!suggestOptions.showWords) { result.add(CompletionItemKind.Text); }
+		if (!suggestOptions.showColors) { result.add(CompletionItemKind.Color); }
+		if (!suggestOptions.showFiles) { result.add(CompletionItemKind.File); }
+		if (!suggestOptions.showReferences) { result.add(CompletionItemKind.Reference); }
+		if (!suggestOptions.showColors) { result.add(CompletionItemKind.Customcolor); }
+		if (!suggestOptions.showFolders) { result.add(CompletionItemKind.Folder); }
+		if (!suggestOptions.showTypeParameters) { result.add(CompletionItemKind.TypeParameter); }
+		if (!suggestOptions.showSnippets) { result.add(CompletionItemKind.Snippet); }
+
+		return result;
 	}
 
 	private _onNewContext(ctx: LineContext): void {

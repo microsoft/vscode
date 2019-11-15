@@ -6,7 +6,7 @@
 import 'vs/css!./media/keybindings';
 import * as nls from 'vs/nls';
 import { OS } from 'vs/base/common/platform';
-import { Disposable, dispose, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -36,7 +36,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	private _chordPart: ResolvedKeybinding | null;
 	private _inputValue: string;
 
-	private recordDisposables: IDisposable[] = [];
+	private readonly recordDisposables = this._register(new DisposableStore());
 
 	private _onKeybinding = this._register(new Emitter<[ResolvedKeybinding | null, ResolvedKeybinding | null]>());
 	readonly onKeybinding: Event<[ResolvedKeybinding | null, ResolvedKeybinding | null]> = this._onKeybinding.event;
@@ -59,6 +59,9 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		super(parent, options, contextViewService, instantiationService, themeService);
 		this._register(attachInputBoxStyler(this.inputBox, themeService));
 		this._register(toDisposable(() => this.stopRecordingKeys()));
+		this._firstPart = null;
+		this._chordPart = null;
+		this._inputValue = '';
 
 		this._reset();
 	}
@@ -69,9 +72,9 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	}
 
 	startRecordingKeys(): void {
-		this.recordDisposables.push(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => this._onKeyDown(new StandardKeyboardEvent(e))));
-		this.recordDisposables.push(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.BLUR, () => this._onBlur.fire()));
-		this.recordDisposables.push(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.INPUT, () => {
+		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => this._onKeyDown(new StandardKeyboardEvent(e))));
+		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.BLUR, () => this._onBlur.fire()));
+		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.INPUT, () => {
 			// Prevent other characters from showing up
 			this.setInputValue(this._inputValue);
 		}));
@@ -79,7 +82,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 	stopRecordingKeys(): void {
 		this._reset();
-		dispose(this.recordDisposables);
+		this.recordDisposables.clear();
 	}
 
 	setInputValue(value: string): void {
@@ -161,12 +164,50 @@ export class DefineKeybindingWidget extends Widget {
 	readonly onShowExistingKeybidings: Event<string | null> = this._onShowExistingKeybindings.event;
 
 	constructor(
-		parent: HTMLElement,
+		parent: HTMLElement | null,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
-		this.create();
+
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setDisplay('none');
+		this._domNode.setClassName('defineKeybindingWidget');
+		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
+		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
+
+		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
+		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
+
+		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, editorWidgetForeground, widgetShadow }, colors => {
+			if (colors.editorWidgetBackground) {
+				this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground.toString();
+			} else {
+				this._domNode.domNode.style.backgroundColor = '';
+			}
+			if (colors.editorWidgetForeground) {
+				this._domNode.domNode.style.color = colors.editorWidgetForeground.toString();
+			} else {
+				this._domNode.domNode.style.color = null;
+			}
+
+			if (colors.widgetShadow) {
+				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
+			} else {
+				this._domNode.domNode.style.boxShadow = '';
+			}
+		}));
+
+		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message }));
+		this._keybindingInputWidget.startRecordingKeys();
+		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
+		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
+		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
+		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
+
+		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
+		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
+
 		if (parent) {
 			dom.append(parent, this._domNode.domNode);
 		}
@@ -215,46 +256,6 @@ export class DefineKeybindingWidget extends Widget {
 			existingElement.onmouseup = (e) => { e.preventDefault(); };
 			existingElement.onclick = () => { this._onShowExistingKeybindings.fire(this.getUserSettingsLabel()); };
 		}
-	}
-
-	private create(): void {
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setDisplay('none');
-		this._domNode.setClassName('defineKeybindingWidget');
-		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
-		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
-
-		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
-		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
-
-		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, editorWidgetForeground, widgetShadow }, colors => {
-			if (colors.editorWidgetBackground) {
-				this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground.toString();
-			} else {
-				this._domNode.domNode.style.backgroundColor = null;
-			}
-			if (colors.editorWidgetForeground) {
-				this._domNode.domNode.style.color = colors.editorWidgetForeground.toString();
-			} else {
-				this._domNode.domNode.style.color = null;
-			}
-
-			if (colors.widgetShadow) {
-				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
-			} else {
-				this._domNode.domNode.style.boxShadow = null;
-			}
-		}));
-
-		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message }));
-		this._keybindingInputWidget.startRecordingKeys();
-		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
-		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
-		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
-		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
-
-		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
-		this._showExistingKeybindingsNode = dom.append(this._domNode.domNode, dom.$('.existing'));
 	}
 
 	private onKeybinding(keybinding: [ResolvedKeybinding | null, ResolvedKeybinding | null]): void {

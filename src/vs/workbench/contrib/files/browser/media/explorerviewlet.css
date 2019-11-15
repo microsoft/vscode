@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Activity Bar */
-.monaco-workbench .activitybar .monaco-action-bar .action-label.explore {
-	-webkit-mask: url('files-activity-bar.svg') no-repeat 50% 50%;
-}
-
 /* --- Explorer viewlet --- */
 .explorer-viewlet,
 .explorer-folders-view {
@@ -62,10 +57,15 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar {
 	visibility: hidden;
+	display: flex;
+	align-items: center;
 }
 
 .explorer-viewlet .panel-header .count {
 	min-width: fit-content;
+	min-width: -moz-fit-content;
+	display: flex;
+	align-items: center;
 }
 
 .explorer-viewlet .panel-header .monaco-count-badge.hidden {
@@ -82,9 +82,16 @@
 	display: block;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .close-editor-action {
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon {
+	color: inherit;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon-close {
 	width: 8px;
 	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
@@ -102,8 +109,9 @@
 }
 
 .explorer-viewlet .monaco-count-badge {
-	padding: 1px 6px;
+	padding: 1px 6px 2px;
 	margin-left: 6px;
+	min-height: auto;
 	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
 }
 
@@ -150,4 +158,17 @@
 .hc-black .monaco-workbench .explorer-viewlet .open-editor,
 .hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
+}
+
+/* TODO @misolori convert these to use icon font, for the debug viewlet */
+.monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-light.svg") 50% no-repeat;
+}
+
+.vs-dark .monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-dark.svg") 50% no-repeat;
+}
+
+.hc-black .monaco-workbench .explorer-action.collapse-explorer {
+	background: url("collapse-all-hc.svg") 50% no-repeat;
 }

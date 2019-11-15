@@ -9,9 +9,21 @@ import * as dom from 'vs/base/browser/dom';
 import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {
+	let linkDetector: LinkDetector;
+
+	/**
+	 * Instantiate services for use by the functions being tested.
+	 */
+	setup(() => {
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		linkDetector = instantiationService.createInstance(LinkDetector);
+	});
 
 	test('replace whitespace', () => {
 		assert.equal(replaceWhitespace('hey there'), 'hey there');
@@ -36,7 +48,7 @@ suite('Debug - Base Debug View', () => {
 		expression.available = true;
 		expression.value = '"string value"';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true });
+		renderExpressionValue(expression, container, { colorize: true, linkDetector });
 		assert.equal(container.className, 'value string');
 		assert.equal(container.textContent, '"string value"');
 
@@ -48,8 +60,14 @@ suite('Debug - Base Debug View', () => {
 
 		expression.value = 'this is a long string';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, maxValueLength: 4 });
+		renderExpressionValue(expression, container, { colorize: true, maxValueLength: 4, linkDetector });
 		assert.equal(container.textContent, 'this...');
+
+		expression.value = process.platform === 'win32' ? 'C:\\foo.js:5' : '/foo.js:5';
+		container = $('.container');
+		renderExpressionValue(expression, container, { colorize: true, linkDetector });
+		assert.ok(container.querySelector('a'));
+		assert.equal(container.querySelector('a')!.textContent, expression.value);
 	});
 
 	test('render variable', () => {
@@ -58,7 +76,7 @@ suite('Debug - Base Debug View', () => {
 		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined!, endColumn: undefined! }, 0);
 		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		let variable = new Variable(session, scope, 2, 'foo', 'bar.foo', undefined!, 0, 0, {}, 'string');
+		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined!, 0, 0, {}, 'string');
 		let expression = $('.');
 		let name = $('.');
 		let value = $('.');
@@ -73,16 +91,24 @@ suite('Debug - Base Debug View', () => {
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value, label }, false, []);
+		renderVariable(variable, { expression, name, value, label }, false, [], linkDetector);
 		assert.equal(value.textContent, 'hey');
 		assert.equal(label.element.textContent, 'foo:');
 		assert.equal(label.element.title, 'string');
 
-		variable = new Variable(session, scope, 2, 'console', 'console', '5', 0, 0, { kind: 'virtual' });
+		variable.value = process.platform === 'win32' ? 'C:\\foo.js:5' : '/foo.js:5';
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value, label }, false, []);
+		renderVariable(variable, { expression, name, value, label }, false, [], linkDetector);
+		assert.ok(value.querySelector('a'));
+		assert.equal(value.querySelector('a')!.textContent, variable.value);
+
+		variable = new Variable(session, 1, scope, 2, 'console', 'console', '5', 0, 0, { kind: 'virtual' });
+		expression = $('.');
+		name = $('.');
+		value = $('.');
+		renderVariable(variable, { expression, name, value, label }, false, [], linkDetector);
 		assert.equal(name.className, 'virtual');
 		assert.equal(label.element.textContent, 'console:');
 		assert.equal(label.element.title, 'console');

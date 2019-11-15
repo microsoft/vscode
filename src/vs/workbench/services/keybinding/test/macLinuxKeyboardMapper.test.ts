@@ -752,9 +752,9 @@ suite('keyboardMapper - LINUX de_ch', () => {
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
 			mapper, [
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
-			],
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+		],
 			[{
 				label: 'Ctrl+, Ctrl+Shift+7',
 				ariaLabel: 'Control+, Control+Shift+7',
@@ -1135,9 +1135,9 @@ suite('keyboardMapper - LINUX en_us', () => {
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
 			mapper, [
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-				new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
-			],
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+		],
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
@@ -1153,8 +1153,8 @@ suite('keyboardMapper - LINUX en_us', () => {
 	test('resolveUserBinding Ctrl+[Comma]', () => {
 		assertResolveUserBinding(
 			mapper, [
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma)
-			],
+			new ScanCodeBinding(true, false, false, false, ScanCode.Comma)
+		],
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',

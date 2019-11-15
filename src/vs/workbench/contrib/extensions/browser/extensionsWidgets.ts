@@ -18,9 +18,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
-	private _extension: IExtension;
-	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+	private _extension: IExtension | null = null;
+	get extension(): IExtension | null { return this._extension; }
+	set extension(extension: IExtension | null) { this._extension = extension; this.update(); }
 	update(): void { this.render(); }
 	abstract render(): void;
 }
@@ -81,7 +81,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			installLabel = installCount.toLocaleString(platform.locale);
 		}
 
-		append(this.container, $('span.octicon.octicon-cloud-download'));
+		append(this.container, $('span.codicon.codicon-cloud-download'));
 		const count = append(this.container, $('span.count'));
 		count.textContent = installLabel;
 	}
@@ -121,18 +121,18 @@ export class RatingsWidget extends ExtensionWidget {
 		const rating = Math.round(this.extension.rating * 2) / 2;
 
 		if (this.small) {
-			append(this.container, $('span.full.star'));
+			append(this.container, $('span.codicon.codicon-star-full'));
 
 			const count = append(this.container, $('span.count'));
 			count.textContent = String(rating);
 		} else {
 			for (let i = 1; i <= 5; i++) {
 				if (rating >= i) {
-					append(this.container, $('span.full.star'));
+					append(this.container, $('span.codicon.codicon-star-full'));
 				} else if (rating >= i - 0.5) {
-					append(this.container, $('span.half.star'));
+					append(this.container, $('span.codicon.codicon-star-half'));
 				} else {
-					append(this.container, $('span.empty.star'));
+					append(this.container, $('span.codicon.codicon-star-empty'));
 				}
 			}
 		}
@@ -170,8 +170,8 @@ export class TooltipWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return '';
 		}
-		if (this.tooltipAction.tooltip) {
-			return this.tooltipAction.tooltip;
+		if (this.tooltipAction.label) {
+			return this.tooltipAction.label;
 		}
 		return this.recommendationWidget.tooltip;
 	}
@@ -183,7 +183,7 @@ export class RecommendationWidget extends ExtensionWidget {
 	private element?: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
 
-	private _tooltip: string;
+	private _tooltip: string = '';
 	get tooltip(): string { return this._tooltip; }
 	set tooltip(tooltip: string) {
 		if (this._tooltip !== tooltip) {
@@ -224,7 +224,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		if (extRecommendations[this.extension.identifier.id.toLowerCase()]) {
 			this.element = append(this.parent, $('div.bookmark'));
 			const recommendation = append(this.element, $('.recommendation'));
-			append(recommendation, $('span.octicon.octicon-star'));
+			append(recommendation, $('span.codicon.codicon-star'));
 			const applyBookmarkStyle = (theme: ITheme) => {
 				const bgColor = theme.getColor(extensionButtonProminentBackground);
 				const fgColor = theme.getColor(extensionButtonProminentForeground);
@@ -290,7 +290,7 @@ class RemoteBadge extends Disposable {
 	}
 
 	private render(): void {
-		append(this.element, $('span.octicon.octicon-remote'));
+		append(this.element, $('span.codicon.codicon-remote'));
 
 		const applyBadgeStyle = () => {
 			if (!this.element) {

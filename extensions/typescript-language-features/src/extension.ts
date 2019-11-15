@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { registerCommands } from './commands/index';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
-import TypeScriptTaskProviderManager from './features/task';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { flatten } from './utils/arrays';
 import * as electron from './utils/electron';
@@ -21,6 +20,7 @@ import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
 import { Surveyor } from './utils/surveyor';
+import TscTaskProvider from './features/task';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -39,7 +39,7 @@ export function activate(
 	});
 
 	registerCommands(commandManager, lazyClientHost, pluginManager);
-	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
+	context.subscriptions.push(vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(lazyClientHost.map(x => x.serviceClient))));
 	context.subscriptions.push(new LanguageConfigurationManager());
 
 	import('./features/tsconfig').then(module => {

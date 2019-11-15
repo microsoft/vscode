@@ -17,7 +17,7 @@ import {
 import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/electron-browser/extensionTipsService';
+import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -27,14 +27,13 @@ import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestWindowService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { URLService } from 'vs/platform/url/common/urlService';
+import { URLService } from 'vs/platform/url/node/urlService';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
@@ -61,7 +60,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
-		instantiationService.stub(IWindowService, TestWindowService);
 		instantiationService.stub(IProgressService, ProgressService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
@@ -121,17 +119,17 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			rating: 4,
 			ratingCount: 100
 		}, {
-				dependencies: ['pub.1', 'pub.2'],
-			}, {
-				manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-				readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-				changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-				download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-				icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-				license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-				repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-				coreTranslations: []
-			});
+			dependencies: ['pub.1', 'pub.2'],
+		}, {
+			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
+			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+			coreTranslations: []
+		});
 
 		testObject = await aWorkbenchService();
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(expected));
@@ -176,21 +174,21 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			icon: 'localIcon1',
 			extensionDependencies: ['pub.1', 'pub.2'],
 		}, {
-				type: ExtensionType.User,
-				readmeUrl: 'localReadmeUrl1',
-				changelogUrl: 'localChangelogUrl1',
-				location: URI.file('localPath1')
-			});
+			type: ExtensionType.User,
+			readmeUrl: 'localReadmeUrl1',
+			changelogUrl: 'localChangelogUrl1',
+			location: URI.file('localPath1')
+		});
 		const expected2 = aLocalExtension('local2', {
 			publisher: 'localPublisher2',
 			version: '1.2.0',
 			displayName: 'localDisplayName2',
 			description: 'localDescription2',
 		}, {
-				type: ExtensionType.System,
-				readmeUrl: 'localReadmeUrl2',
-				changelogUrl: 'localChangelogUrl2',
-			});
+			type: ExtensionType.System,
+			readmeUrl: 'localReadmeUrl2',
+			changelogUrl: 'localChangelogUrl2',
+		});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [expected1, expected2]);
 		testObject = await aWorkbenchService();
 
@@ -244,21 +242,21 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			icon: 'localIcon1',
 			extensionDependencies: ['pub.1', 'pub.2'],
 		}, {
-				type: ExtensionType.User,
-				readmeUrl: 'localReadmeUrl1',
-				changelogUrl: 'localChangelogUrl1',
-				location: URI.file('localPath1')
-			});
+			type: ExtensionType.User,
+			readmeUrl: 'localReadmeUrl1',
+			changelogUrl: 'localChangelogUrl1',
+			location: URI.file('localPath1')
+		});
 		const local2 = aLocalExtension('local2', {
 			publisher: 'localPublisher2',
 			version: '1.2.0',
 			displayName: 'localDisplayName2',
 			description: 'localDescription2',
 		}, {
-				type: ExtensionType.System,
-				readmeUrl: 'localReadmeUrl2',
-				changelogUrl: 'localChangelogUrl2',
-			});
+			type: ExtensionType.System,
+			readmeUrl: 'localReadmeUrl2',
+			changelogUrl: 'localChangelogUrl2',
+		});
 		const gallery1 = aGalleryExtension(local1.manifest.name, {
 			identifier: local1.identifier,
 			displayName: 'expectedDisplayName',
@@ -271,17 +269,17 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			rating: 4,
 			ratingCount: 100
 		}, {
-				dependencies: ['pub.1'],
-			}, {
-				manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-				readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-				changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-				download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-				icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-				license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-				repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-				coreTranslations: []
-			});
+			dependencies: ['pub.1'],
+		}, {
+			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
+			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+			coreTranslations: []
+		});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local1, local2]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery1));
 		testObject = await aWorkbenchService();
@@ -942,6 +940,46 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return instantiationService.get(IExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledGlobally)
 					.then(() => assert.ok(target.calledOnce));
 			});
+	});
+
+	test('test installing an extension re-eanbles it when disabled globally', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.EnabledGlobally);
+	});
+
+	test('test updating an extension does not re-eanbles it when disabled globally', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.DisabledGlobally);
+	});
+
+	test('test installing an extension re-eanbles it when workspace disabled', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Install });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.EnabledGlobally);
+	});
+
+	test('test updating an extension does not re-eanbles it when workspace disabled', async () => {
+		testObject = await aWorkbenchService();
+		const local = aLocalExtension('pub.a');
+		await instantiationService.get(IExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace);
+		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const actual = await testObject.queryLocal();
+		assert.equal(actual[0].enablementState, EnablementState.DisabledWorkspace);
 	});
 
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {

@@ -9,7 +9,8 @@ import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGallery
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
-import { IRequestService, IRequestOptions, IRequestContext, asJson, asText, IHeaders } from 'vs/platform/request/common/request';
+import { IRequestService, asJson, asText } from 'vs/platform/request/common/request';
+import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
@@ -21,8 +22,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -292,7 +294,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		publisher: galleryExtension.publisher.publisherName,
 		publisherDisplayName: galleryExtension.publisher.displayName,
 		description: galleryExtension.shortDescription || '',
-		installCount: getStatistic(galleryExtension.statistics, 'install') + getStatistic(galleryExtension.statistics, 'updateCount'),
+		installCount: getStatistic(galleryExtension.statistics, 'install'),
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		assets,
@@ -325,7 +327,7 @@ interface IRawExtensionsReport {
 
 export class ExtensionGalleryService implements IExtensionGalleryService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private extensionsGalleryUrl: string | undefined;
 	private extensionsControlUrl: string | undefined;
@@ -339,7 +341,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
-		@IStorageService private readonly storageService: IStorageService,
+		@optional(IStorageService) private readonly storageService: IStorageService,
 	) {
 		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
@@ -655,17 +657,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					}
 
 					const message = getErrorMessage(err);
-					type GalleryServiceRequestErrorClassification = {
-						url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						cdn: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-						message: { classification: 'CallstackOrException', purpose: 'FeatureInsight' };
-					};
-					type GalleryServiceRequestErrorEvent = {
-						url: string;
-						cdn: boolean;
-						message: string;
-					};
-					this.telemetryService.publicLog2<GalleryServiceRequestErrorEvent, GalleryServiceRequestErrorClassification>('galleryService:requestError', { url, cdn: true, message });
 					type GalleryServiceCDNFallbackClassification = {
 						url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 						message: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -677,15 +668,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					this.telemetryService.publicLog2<GalleryServiceCDNFallbackEvent, GalleryServiceCDNFallbackClassification>('galleryService:cdnFallback', { url, message });
 
 					const fallbackOptions = assign({}, options, { url: fallbackUrl });
-					return this.requestService.request(fallbackOptions, token).then(undefined, err => {
-						if (isPromiseCanceledError(err)) {
-							return Promise.reject(err);
-						}
-
-						const message = getErrorMessage(err);
-						this.telemetryService.publicLog2<GalleryServiceRequestErrorEvent, GalleryServiceRequestErrorClassification>('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
-						return Promise.reject(err);
-					});
+					return this.requestService.request(fallbackOptions, token);
 				});
 		});
 	}

@@ -9,24 +9,40 @@ export const instanceStorageKey = 'telemetry.instanceId';
 export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
 export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
+export const machineIdKey = 'telemetry.machineId';
 
 import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
+import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
+import { mixin } from 'vs/base/common/objects';
 
-export async function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string | undefined, version: string | undefined, machineId: string, remoteAuthority?: string): Promise<{ [name: string]: string | undefined }> {
+export async function resolveWorkbenchCommonProperties(
+	storageService: IStorageService,
+	commit: string | undefined,
+	version: string | undefined,
+	remoteAuthority?: string,
+	resolveAdditionalProperties?: () => { [key: string]: any }
+): Promise<{ [name: string]: string | undefined }> {
 	const result: { [name: string]: string | undefined; } = Object.create(null);
-	const instanceId = storageService.get(instanceStorageKey, StorageScope.GLOBAL)!;
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
 
+	let machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
+	if (!machineId) {
+		machineId = uuid.generateUuid();
+		storageService.store(machineIdKey, machineId, StorageScope.GLOBAL);
+	}
+
+	/**
+	 * Note: In the web, session date information is fetched from browser storage, so these dates are tied to a specific
+	 * browser and not the machine overall.
+	 */
 	// __GDPR__COMMON__ "common.firstSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.firstSessionDate'] = firstSessionDate;
 	// __GDPR__COMMON__ "common.lastSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.lastSessionDate'] = lastSessionDate || '';
 	// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
-	// __GDPR__COMMON__ "common.instanceId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.instanceId'] = instanceId;
 	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority);
 
@@ -66,21 +82,10 @@ export async function resolveWorkbenchCommonProperties(storageService: IStorageS
 		}
 	});
 
+	if (resolveAdditionalProperties) {
+		mixin(result, resolveAdditionalProperties());
+	}
+
 	return result;
 }
 
-function cleanRemoteAuthority(remoteAuthority?: string): string {
-	if (!remoteAuthority) {
-		return 'none';
-	}
-
-	let ret = 'other';
-	// Whitelisted remote authorities
-	['ssh-remote', 'dev-container', 'wsl'].forEach((res: string) => {
-		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
-			ret = res;
-		}
-	});
-
-	return ret;
-}

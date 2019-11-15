@@ -8,12 +8,9 @@
 	position: absolute;
 	overflow: hidden;
 	z-index: 50;
+	user-select: text;
 	-webkit-user-select: text;
 	-ms-user-select: text;
-	-khtml-user-select: text;
-	-moz-user-select: text;
-	-o-user-select: text;
-	user-select: text;
 	box-sizing: initial;
 	animation: fadein 100ms linear;
 	line-height: 1.5em;
@@ -37,6 +34,10 @@
 	margin: 8px 0;
 }
 
+.monaco-editor-hover code {
+	font-family: var(--monaco-monospace-font);
+}
+
 .monaco-editor-hover hr {
 	margin-top: 4px;
 	margin-bottom: -6px;
@@ -55,7 +56,11 @@
 	margin-bottom: 0;
 }
 
+/* MarkupContent Layout */
 .monaco-editor-hover ul {
+	padding-left: 20px;
+}
+.monaco-editor-hover ol {
 	padding-left: 20px;
 }
 
@@ -84,10 +89,11 @@
 
 .monaco-editor-hover .hover-row.status-bar .actions {
 	display: flex;
+	padding: 0px 8px;
 }
 
 .monaco-editor-hover .hover-row.status-bar .actions .action-container {
-	margin: 0px 8px;
+	margin-right: 16px;
 	cursor: pointer;
 }
 

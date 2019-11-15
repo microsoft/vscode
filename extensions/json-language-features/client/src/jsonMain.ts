@@ -10,8 +10,8 @@ import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
 
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError } from 'vscode-languageclient';
+import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, ProviderResult, TextEdit, Range, Disposable } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -46,6 +46,7 @@ interface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
 		format?: { enable: boolean; };
+		resultLimit?: number;
 	};
 	http?: {
 		proxy?: string;
@@ -64,6 +65,8 @@ let telemetryReporter: TelemetryReporter | undefined;
 export function activate(context: ExtensionContext) {
 
 	let toDispose = context.subscriptions;
+
+	let rangeFormatting: Disposable | undefined = undefined;
 
 	let packageInfo = getPackageInfo(context);
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
@@ -101,7 +104,8 @@ export function activate(context: ExtensionContext) {
 		// Register the server for json documents
 		documentSelector,
 		initializationOptions: {
-			handledSchemaProtocols: ['file'] // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
+			handledSchemaProtocols: ['file'], // language server only loads file-URI. Fetching schemas with other protocols ('http'...) are made on the client.
+			provideFormatter: false // tell the server to not provide formatting capability and ignore the `json.format.enable` setting.
 		},
 		synchronize: {
 			// Synchronize the setting section 'json' to the server
@@ -139,35 +143,46 @@ export function activate(context: ExtensionContext) {
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-		disposable = client.onTelemetry(e => {
-			if (telemetryReporter) {
-				telemetryReporter.sendTelemetryEvent(e.key, e.data);
-			}
-		});
+		const schemaDocuments: { [uri: string]: boolean } = {};
 
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 			let uri = Uri.parse(uriPath);
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 				return workspace.openTextDocument(uri).then(doc => {
+					schemaDocuments[uri.toString()] = true;
 					return doc.getText();
 				}, error => {
 					return Promise.reject(error);
 				});
 			} else {
+				if (telemetryReporter && uri.authority === 'schema.management.azure.com') {
+					/* __GDPR__
+						"json.schema" : {
+							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					 */
+					telemetryReporter.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
+				}
 				const headers = { 'Accept-Encoding': 'gzip, deflate' };
 				return xhr({ url: uriPath, followRedirects: 5, headers }).then(response => {
 					return response.responseText;
 				}, (error: XHRResponse) => {
-					return Promise.reject(new ResponseError(error.status, error.responseText || getErrorStatusDescription(error.status) || error.toString()));
+					let extraInfo = error.responseText || error.toString();
+					if (extraInfo.length > 256) {
+						extraInfo = `${extraInfo.substr(0, 256)}...`;
+					}
+					return Promise.reject(new ResponseError(error.status, getErrorStatusDescription(error.status) + '\n' + extraInfo));
 				});
 			}
 		});
 
-		let handleContentChange = (uri: Uri) => {
-			if (uri.scheme === 'vscode' && uri.authority === 'schemas') {
-				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
+		let handleContentChange = (uriString: string) => {
+			if (schemaDocuments[uriString]) {
+				client.sendNotification(SchemaContentChangeNotification.type, uriString);
+				return true;
 			}
+			return false;
 		};
 
 		let handleActiveEditorChange = (activeEditor?: TextEditor) => {
@@ -184,10 +199,13 @@ export function activate(context: ExtensionContext) {
 			}
 		};
 
-		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
+		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri.toString())));
 		toDispose.push(workspace.onDidCloseTextDocument(d => {
-			handleContentChange(d.uri);
-			fileSchemaErrors.delete(d.uri.toString());
+			const uriString = d.uri.toString();
+			if (handleContentChange(uriString)) {
+				delete schemaDocuments[uriString];
+			}
+			fileSchemaErrors.delete(uriString);
 		}));
 		toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
 
@@ -216,20 +234,50 @@ export function activate(context: ExtensionContext) {
 		extensions.onDidChange(_ => {
 			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 		});
+
+		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
+		updateFormatterRegistration();
+		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
+		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
 	});
-
-
 
 	let languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
 		indentationRules: {
-			increaseIndentPattern: /^.*(\{[^}]*|\[[^\]]*)$/,
+			increaseIndentPattern: /({+(?=([^"]*"[^"]*")*[^"}]*$))|(\[+(?=([^"]*"[^"]*")*[^"\]]*$))/,
 			decreaseIndentPattern: /^\s*[}\]],?\s*$/
 		}
 	};
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
+
+	function updateFormatterRegistration() {
+		const formatEnabled = workspace.getConfiguration().get('json.format.enable');
+		if (!formatEnabled && rangeFormatting) {
+			rangeFormatting.dispose();
+			rangeFormatting = undefined;
+		} else if (formatEnabled && !rangeFormatting) {
+			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
+				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+					let params: DocumentRangeFormattingParams = {
+						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+						range: client.code2ProtocolConverter.asRange(range),
+						options: client.code2ProtocolConverter.asFormattingOptions(options)
+					};
+					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
+						client.protocol2CodeConverter.asTextEdits,
+						(error) => {
+							client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
+							return Promise.resolve([]);
+						}
+					);
+				}
+			});
+		}
+	}
 }
+
+
 
 export function deactivate(): Promise<any> {
 	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
@@ -278,8 +326,8 @@ function getSettings(): Settings {
 			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
 		},
 		json: {
-			format: workspace.getConfiguration('json').get('format'),
 			schemas: [],
+			resultLimit: 5000
 		}
 	};
 	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);

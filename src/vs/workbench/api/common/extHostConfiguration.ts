@@ -7,8 +7,8 @@ import { mixin, deepClone } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
+import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData, MainContext } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -18,6 +18,9 @@ import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/confi
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -40,14 +43,22 @@ type ConfigurationInspect<T> = {
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
+	readonly _serviceBrand: undefined;
+
 	private readonly _proxy: MainThreadConfigurationShape;
+	private readonly _logService: ILogService;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private readonly _barrier: Barrier;
 	private _actual: ExtHostConfigProvider | null;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace) {
-		this._proxy = proxy;
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostWorkspace extHostWorkspace: IExtHostWorkspace,
+		@ILogService logService: ILogService,
+	) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadConfiguration);
 		this._extHostWorkspace = extHostWorkspace;
+		this._logService = logService;
 		this._barrier = new Barrier();
 		this._actual = null;
 	}
@@ -57,7 +68,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	$initializeConfiguration(data: IConfigurationInitData): void {
-		this._actual = new ExtHostConfigProvider(this._proxy, this._extHostWorkspace, data);
+		this._actual = new ExtHostConfigProvider(this._proxy, this._extHostWorkspace, data, this._logService);
 		this._barrier.open();
 	}
 
@@ -73,9 +84,11 @@ export class ExtHostConfigProvider {
 	private readonly _extHostWorkspace: ExtHostWorkspace;
 	private _configurationScopes: Map<string, ConfigurationScope | undefined>;
 	private _configuration: Configuration;
+	private _logService: ILogService;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData, logService: ILogService) {
 		this._proxy = proxy;
+		this._logService = logService;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = ExtHostConfigProvider.parse(data);
 		this._configurationScopes = this._toMap(data.configurationScopes);
@@ -229,13 +242,13 @@ export class ExtHostConfigProvider {
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
 			if (resource === undefined) {
-				console.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the URI of a resource or 'null' for any resource.`);
+				this._logService.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the URI of a resource or 'null' for any resource.`);
 			}
 			return;
 		}
 		if (ConfigurationScope.WINDOW === scope) {
 			if (resource) {
-				console.warn(`${extensionIdText}Accessing a window scoped configuration for a resource is not expected. To associate '${key}' to a resource, define its scope to 'resource' in configuration contributions in 'package.json'.`);
+				this._logService.warn(`${extensionIdText}Accessing a window scoped configuration for a resource is not expected. To associate '${key}' to a resource, define its scope to 'resource' in configuration contributions in 'package.json'.`);
 			}
 			return;
 		}
@@ -263,8 +276,8 @@ export class ExtHostConfigProvider {
 		const defaultConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.defaults);
 		const userConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.user);
 		const workspaceConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.workspace);
-		const folders: ResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
-			result.set(URI.parse(key), ExtHostConfigProvider.parseConfigurationModel(data.folders[key]));
+		const folders: ResourceMap<ConfigurationModel> = data.folders.reduce((result, value) => {
+			result.set(URI.revive(value[0]), ExtHostConfigProvider.parseConfigurationModel(value[1]));
 			return result;
 		}, new ResourceMap<ConfigurationModel>());
 		return new Configuration(defaultConfiguration, userConfiguration, new ConfigurationModel(), workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);
@@ -274,3 +287,6 @@ export class ExtHostConfigProvider {
 		return new ConfigurationModel(model.contents, model.keys, model.overrides).freeze();
 	}
 }
+
+export const IExtHostConfiguration = createDecorator<IExtHostConfiguration>('IExtHostConfiguration');
+export interface IExtHostConfiguration extends ExtHostConfiguration { }

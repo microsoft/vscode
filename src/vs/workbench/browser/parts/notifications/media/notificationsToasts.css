@@ -30,7 +30,7 @@
 	transform: translateY(100%); /* move the notification 50px to the bottom (to prevent bleed through) */
 	opacity: 0; /*  fade the toast in */
 	transition:	transform 300ms ease-out, opacity 300ms ease-out;
-	will-change: transform, opacity; /* force a separate layer for the toast to speed things up */
+	transform: translate3d(0px, 0px, 0px); /* force a separate layer for the toast to speed things up */
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in {

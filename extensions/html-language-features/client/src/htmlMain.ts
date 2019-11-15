@@ -8,8 +8,8 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -50,6 +50,8 @@ export function activate(context: ExtensionContext) {
 	let documentSelector = ['html', 'handlebars'];
 	let embeddedLanguages = { css: true, javascript: true };
 
+	let rangeFormatting: Disposable | undefined = undefined;
+
 	let dataPaths = [
 		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
 		...getCustomDataPathsFromAllExtensions()
@@ -63,8 +65,9 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			embeddedLanguages,
-			dataPaths
-		}
+			dataPaths,
+			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
+		},
 	};
 
 	// Create the language client and start the client.
@@ -87,7 +90,37 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 		toDispose.push(disposable);
+
+		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
+		updateFormatterRegistration();
+		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
+		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
 	});
+
+	function updateFormatterRegistration() {
+		const formatEnabled = workspace.getConfiguration().get('html.format.enable');
+		if (!formatEnabled && rangeFormatting) {
+			rangeFormatting.dispose();
+			rangeFormatting = undefined;
+		} else if (formatEnabled && !rangeFormatting) {
+			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
+				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+					let params: DocumentRangeFormattingParams = {
+						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+						range: client.code2ProtocolConverter.asRange(range),
+						options: client.code2ProtocolConverter.asFormattingOptions(options)
+					};
+					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
+						client.protocol2CodeConverter.asTextEdits,
+						(error) => {
+							client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
+							return Promise.resolve([]);
+						}
+					);
+				}
+			});
+		}
+	}
 
 	languages.setLanguageConfiguration('html', {
 		indentationRules: {

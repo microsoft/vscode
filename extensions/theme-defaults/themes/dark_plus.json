@@ -8,7 +8,8 @@
 			"scope": [
 				"entity.name.function",
 				"support.function",
-				"support.constant.handlebars"
+				"support.constant.handlebars",
+				"source.powershell variable.other.member"
 			],
 			"settings": {
 				"foreground": "#DCDCAA"
@@ -22,6 +23,7 @@
 				"support.type",
 				"entity.name.type",
 				"entity.name.namespace",
+				"entity.other.attribute",
 				"entity.name.scope-resolution",
 				"entity.name.class",
 				"storage.type.numeric.go",
@@ -75,7 +77,8 @@
 				"source.cpp keyword.operator.new",
 				"keyword.operator.delete",
 				"keyword.other.using",
-				"keyword.other.operator"
+				"keyword.other.operator",
+				"entity.name.operator"
 			],
 			"settings": {
 				"foreground": "#C586C0"
@@ -168,6 +171,12 @@
 			"scope": "constant.character.escape",
 			"settings": {
 				"foreground": "#d7ba7d"
+			}
+		},
+		{
+			"scope": "entity.name.label",
+			"settings": {
+				"foreground": "#C8C8C8"
 			}
 		}
 	]

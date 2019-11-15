@@ -14,7 +14,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;

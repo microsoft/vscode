@@ -6,9 +6,10 @@
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import { Command, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewTag } from 'electron';
+import { getActiveWebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewCommands';
 
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';
@@ -23,7 +24,7 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 		const elements = document.querySelectorAll('webview.ready');
 		for (let i = 0; i < elements.length; i++) {
 			try {
-				(elements.item(i) as Electron.WebviewTag).openDevTools();
+				(elements.item(i) as WebviewTag).openDevTools();
 			} catch (e) {
 				console.error(e);
 			}
@@ -80,18 +81,17 @@ export class RedoWebviewEditorCommand extends Command {
 	}
 }
 
-function getActiveWebviewEditor(accessor: ServicesAccessor): WebviewEditor | undefined {
-	const editorService = accessor.get(IEditorService);
-	const activeControl = editorService.activeControl as WebviewEditor;
-	return activeControl.isWebviewEditor ? activeControl : undefined;
-}
-
 function withActiveWebviewBasedWebview(accessor: ServicesAccessor, f: (webview: ElectronWebviewBasedWebview) => void): void {
 	const webViewEditor = getActiveWebviewEditor(accessor);
 	if (webViewEditor) {
 		webViewEditor.withWebview(webview => {
 			if (webview instanceof ElectronWebviewBasedWebview) {
 				f(webview);
+			} else if ((webview as WebviewEditorOverlay).getInnerWebview) {
+				const innerWebview = (webview as WebviewEditorOverlay).getInnerWebview();
+				if (innerWebview instanceof ElectronWebviewBasedWebview) {
+					f(innerWebview);
+				}
 			}
 		});
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import * as path from 'vs/base/common/path';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
@@ -27,7 +27,7 @@ import 'vs/workbench/contrib/search/browser/search.contribution'; // load contri
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TestContextService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
@@ -78,7 +78,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
-			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
+			[IUntitledTextEditorService, createSyncDescriptor(UntitledTextEditorService)],
 			[ISearchService, createSyncDescriptor(LocalSearchService)]
 		));
 
@@ -160,7 +160,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 
 class TestTelemetryService implements ITelemetryService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public isOptedIn = true;
 
 	public events: any[] = [];

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IEditorModel, EditorActivation } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/workbench/common/editor';
@@ -12,7 +12,7 @@ import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -22,7 +22,7 @@ import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/brow
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
@@ -30,14 +30,14 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 
 export class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForEditorService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, token);
 
 		await input.resolve();
@@ -49,15 +49,15 @@ export class TestEditorControl extends BaseEditor {
 }
 
 export class TestEditorInput extends EditorInput implements IFileEditorInput {
-	public gotDisposed: boolean;
-	private fails: boolean;
+	public gotDisposed = false;
+	private fails = false;
 	constructor(private resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorService'; }
-	resolve(): Promise<IEditorModel> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
+	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
-	getEncoding(): string { return null!; }
+	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
@@ -83,7 +83,7 @@ class FileServiceProvider extends Disposable {
 suite('EditorService', () => {
 
 	function registerTestEditorInput(): void {
-		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForEditorService', 'My Test Editor For Next Editor Service'), [new SyncDescriptor(TestEditorInput)]);
+		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditorControl, 'MyTestEditorForEditorService', 'My Test Editor For Next Editor Service'), [new SyncDescriptor(TestEditorInput)]);
 	}
 
 	registerTestEditorInput();
@@ -270,36 +270,36 @@ suite('EditorService', () => {
 
 		// Untyped Input (untitled)
 		input = service.createInput({ options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
+		assert(input instanceof UntitledTextEditorInput);
 
 		// Untyped Input (untitled with contents)
 		input = service.createInput({ contents: 'Hello Untitled', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		let model = await input.resolve() as UntitledEditorModel;
+		assert(input instanceof UntitledTextEditorInput);
+		let model = await input.resolve() as UntitledTextEditorModel;
 		assert.equal(model.textEditorModel!.getValue(), 'Hello Untitled');
 
 		// Untyped Input (untitled with mode)
 		input = service.createInput({ mode, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		model = await input.resolve() as UntitledEditorModel;
+		assert(input instanceof UntitledTextEditorInput);
+		model = await input.resolve() as UntitledTextEditorModel;
 		assert.equal(model.getMode(), mode);
 
 		// Untyped Input (untitled with file path)
 		input = service.createInput({ resource: URI.file('/some/path.txt'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		assert.ok((input as UntitledEditorInput).hasAssociatedFilePath);
+		assert(input instanceof UntitledTextEditorInput);
+		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		// Untyped Input (untitled with untitled resource)
 		input = service.createInput({ resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		assert.ok(!(input as UntitledEditorInput).hasAssociatedFilePath);
+		assert(input instanceof UntitledTextEditorInput);
+		assert.ok(!(input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		// Untyped Input (untitled with custom resource)
 		const provider = instantiationService.createInstance(FileServiceProvider, 'untitled-custom');
 
 		input = service.createInput({ resource: URI.parse('untitled-custom://some/path'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
-		assert(input instanceof UntitledEditorInput);
-		assert.ok((input as UntitledEditorInput).hasAssociatedFilePath);
+		assert(input instanceof UntitledTextEditorInput);
+		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		provider.dispose();
 
@@ -330,7 +330,7 @@ suite('EditorService', () => {
 
 		const inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource-delegate'), undefined);
 		const delegate = instantiationService.createInstance(DelegatingEditorService);
-		delegate.setEditorOpenHandler((group: IEditorGroup, input: IEditorInput, options?: EditorOptions) => {
+		delegate.setEditorOpenHandler((delegate, group: IEditorGroup, input: IEditorInput, options?: EditorOptions) => {
 			assert.strictEqual(input, inp);
 
 			done();
@@ -406,6 +406,47 @@ suite('EditorService', () => {
 		assert.equal(part.activeGroup, rootGroup);
 		assert.equal(part.count, 2);
 		assert.equal(editor!.group, part.groups[1]);
+	});
+
+	test('editor group activation', async () => {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart);
+		part.create(document.createElement('div'));
+		part.layout(400, 300);
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+
+		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
+		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openside'));
+
+		const rootGroup = part.activeGroup;
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true }, rootGroup);
+		let editor = await service.openEditor(input2, { pinned: true, preserveFocus: true, activation: EditorActivation.ACTIVATE }, SIDE_GROUP);
+		const sideGroup = editor!.group;
+
+		assert.equal(part.activeGroup, sideGroup);
+
+		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.PRESERVE }, rootGroup);
+		assert.equal(part.activeGroup, sideGroup);
+
+		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.ACTIVATE }, rootGroup);
+		assert.equal(part.activeGroup, rootGroup);
+
+		editor = await service.openEditor(input2, { pinned: true, activation: EditorActivation.PRESERVE }, sideGroup);
+		assert.equal(part.activeGroup, rootGroup);
+
+		editor = await service.openEditor(input2, { pinned: true, activation: EditorActivation.ACTIVATE }, sideGroup);
+		assert.equal(part.activeGroup, sideGroup);
+
+		part.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.RESTORE }, rootGroup);
+		assert.equal(part.activeGroup, sideGroup);
 	});
 
 	test('active editor change / visible editor change events', async function () {

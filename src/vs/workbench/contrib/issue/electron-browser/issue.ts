@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IssueReporterData } from 'vs/platform/issue/common/issue';
+import { IssueReporterData } from 'vs/platform/issue/node/issue';
 
 export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');
 
 export interface IWorkbenchIssueService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
 	openProcessExplorer(): Promise<void>;
 }

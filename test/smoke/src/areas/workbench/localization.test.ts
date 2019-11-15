@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Quality } from '../../application';
+import { Application, Quality } from '../../../../automation';
 
 export function setup() {
 	describe('Localization', () => {
@@ -39,8 +39,8 @@ export function setup() {
 			await app.workbench.debug.openDebugViewlet();
 			await app.workbench.debug.waitForTitle(title => /debug/i.test(title));
 
-			await app.workbench.extensions.openExtensionsViewlet();
-			await app.workbench.extensions.waitForTitle(title => /erweiterungen/i.test(title));
+			// await app.workbench.extensions.openExtensionsViewlet();
+			// await app.workbench.extensions.waitForTitle(title => /erweiterungen/i.test(title));
 		});
 	});
 }

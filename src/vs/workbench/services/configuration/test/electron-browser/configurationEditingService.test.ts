@@ -11,14 +11,14 @@ import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -39,14 +39,14 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 
-class TestEnvironmentService extends WorkbenchEnvironmentService {
+class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
+		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -185,7 +185,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null!, notify: null!, error: null!, info: null!, warn: null!, status: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
 		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 				(error: ConfigurationEditingError) => {
@@ -233,6 +233,41 @@ suite('ConfigurationEditingService', () => {
 				const parsed = json.parse(contents);
 				assert.deepEqual(Object.keys(parsed), ['my.super.setting']);
 				assert.equal(parsed['my.super.setting'], 'my.super.value');
+			});
+	});
+
+	test('write overridable settings to user settings', () => {
+		const key = '[language]';
+		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
+		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key, value })
+			.then(() => {
+				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.deepEqual(parsed[key], value);
+			});
+	});
+
+	test('write overridable settings to workspace settings', () => {
+		const key = '[language]';
+		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
+		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key, value })
+			.then(() => {
+				const target = path.join(workspaceDir, FOLDER_SETTINGS_PATH);
+				const contents = fs.readFileSync(target).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.deepEqual(parsed[key], value);
+			});
+	});
+
+	test('write overridable settings to workspace folder settings', () => {
+		const key = '[language]';
+		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
+		const folderSettingsFile = path.join(workspaceDir, FOLDER_SETTINGS_PATH);
+		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE_FOLDER, { key, value }, { scopes: { resource: URI.file(folderSettingsFile) } })
+			.then(() => {
+				const contents = fs.readFileSync(folderSettingsFile).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.deepEqual(parsed[key], value);
 			});
 	});
 

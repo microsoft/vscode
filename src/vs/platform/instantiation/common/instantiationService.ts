@@ -28,7 +28,7 @@ class CyclicDependencyError extends Error {
 
 export class InstantiationService implements IInstantiationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _services: ServiceCollection;
 	private readonly _strict: boolean;
@@ -157,7 +157,7 @@ export class InstantiationService implements IInstantiationService {
 			graph.lookupOrInsertNode(item);
 
 			// a weak but working heuristic for cycle checks
-			if (cycleCount++ > 100) {
+			if (cycleCount++ > 150) {
 				throw new CyclicDependencyError(graph);
 			}
 
@@ -206,7 +206,7 @@ export class InstantiationService implements IInstantiationService {
 		} else if (this._parent) {
 			return this._parent._createServiceInstanceWithOwner(id, ctor, args, supportsDelayedInstantiation, _trace);
 		} else {
-			throw new Error('illegalState - creating UNKNOWN service instance');
+			throw new Error(`illegalState - creating UNKNOWN service instance ${ctor.name}`);
 		}
 	}
 
@@ -219,13 +219,23 @@ export class InstantiationService implements IInstantiationService {
 			// Return a proxy object that's backed by an idle value. That
 			// strategy is to instantiate services in our idle time or when actually
 			// needed but not when injected into a consumer
-			const idle = new IdleValue(() => this._createInstance<T>(ctor, args, _trace));
+			const idle = new IdleValue<any>(() => this._createInstance<T>(ctor, args, _trace));
 			return <T>new Proxy(Object.create(null), {
-				get(_target: T, prop: PropertyKey): any {
-					return (idle.getValue() as any)[prop];
+				get(target: any, key: PropertyKey): any {
+					if (key in target) {
+						return target[key];
+					}
+					let obj = idle.getValue();
+					let prop = obj[key];
+					if (typeof prop !== 'function') {
+						return prop;
+					}
+					prop = prop.bind(obj);
+					target[key] = prop;
+					return prop;
 				},
 				set(_target: T, p: PropertyKey, value: any): boolean {
-					(idle.getValue() as any)[p] = value;
+					idle.getValue()[p] = value;
 					return true;
 				}
 			});
@@ -241,7 +251,7 @@ const enum TraceType {
 
 class Trace {
 
-	private static _None = new class extends Trace {
+	private static readonly _None = new class extends Trace {
 		constructor() { super(-1, null); }
 		stop() { }
 		branch() { return this; }

@@ -20,7 +20,7 @@ class TestMarkersModel extends MarkersModel {
 			const markers = byResource[key];
 			const resource = markers[0].resource;
 
-			this.setResourceMarkers(resource, markers);
+			this.setResourceMarkers([[resource, markers]]);
 		});
 	}
 }

@@ -34,9 +34,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Constants } from 'vs/base/common/uint';
 
 const $ = dom.$;
 
@@ -70,6 +72,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 		private readonly _markerDecorationsService: IMarkerDecorationsService
 	) {
 		this._editor = editor;
+		this._result = [];
 	}
 
 	setRange(range: Range): void {
@@ -213,13 +216,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._computer = new ModesContentComputer(this._editor, markerDecorationsService);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
+		this._shouldFocus = false;
+		this._colorPicker = null;
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
 			result => this._withResult(result, true),
 			null,
 			result => this._withResult(result, false),
-			this._editor.getConfiguration().contribInfo.hover.delay
+			this._editor.getOption(EditorOption.hover).delay
 		);
 
 		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
@@ -231,7 +236,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
-			this._hoverOperation.setHoverTime(this._editor.getConfiguration().contribInfo.hover.delay);
+			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
 		}));
 	}
 
@@ -329,7 +334,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._colorPicker = null;
 
 		// update column from which to show
-		let renderColumn = Number.MAX_VALUE;
+		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let highlightRange: Range | null = messages[0].range ? Range.lift(messages[0].range) : null;
 		let fragment = document.createDocumentFragment();
 		let isEmptyHoverContent = true;
@@ -349,7 +354,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				containColorPicker = true;
 
 				const { red, green, blue, alpha } = msg.color;
-				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha);
+				const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 				const color = new Color(rgba);
 
 				if (!this._editor.hasModel()) {
@@ -362,7 +367,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 				// create blank olor picker model and widget first to ensure it's positioned correctly.
 				const model = new ColorPickerModel(color, [], 0);
-				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
+				const widget = new ColorPickerWidget(fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService);
 
 				getColorPresentations(editorModel, colorInfo, msg.provider, CancellationToken.None).then(colorPresentations => {
 					model.colorPresentations = colorPresentations || [];
@@ -501,7 +506,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					e.stopPropagation();
 					e.preventDefault();
 					if (this._openerService) {
-						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` })).catch(onUnexpectedError);
+						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` }), { fromUserGesture: true }).catch(onUnexpectedError);
 					}
 				};
 				const messageElement = dom.append<HTMLAnchorElement>(relatedInfoContainer, $('span'));
@@ -581,7 +586,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			return getCodeActions(
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
-				{ type: 'manual', filter: { kind: CodeActionKind.QuickFix } },
+				{ type: 'manual', filter: { include: CodeActionKind.QuickFix } },
 				cancellationToken);
 		});
 	}

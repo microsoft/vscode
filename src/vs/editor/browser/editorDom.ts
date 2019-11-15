@@ -131,10 +131,48 @@ export class EditorMouseEventFactory {
 	}
 }
 
+export class EditorPointerEventFactory {
+
+	private readonly _editorViewDomNode: HTMLElement;
+
+	constructor(editorViewDomNode: HTMLElement) {
+		this._editorViewDomNode = editorViewDomNode;
+	}
+
+	private _create(e: MouseEvent): EditorMouseEvent {
+		return new EditorMouseEvent(e, this._editorViewDomNode);
+	}
+
+	public onPointerUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableListener(target, 'pointerup', (e: MouseEvent) => {
+			callback(this._create(e));
+		});
+	}
+
+	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableListener(target, 'pointerdown', (e: MouseEvent) => {
+			callback(this._create(e));
+		});
+	}
+
+	public onPointerLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableNonBubblingPointerOutListener(target, (e: MouseEvent) => {
+			callback(this._create(e));
+		});
+	}
+
+	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+			return merger(lastEvent, this._create(currentEvent));
+		};
+		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'pointermove', callback, myMerger, minimumTimeMs);
+	}
+}
+
 export class GlobalEditorMouseMoveMonitor extends Disposable {
 
 	private readonly _editorViewDomNode: HTMLElement;
-	private readonly _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
+	protected readonly _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
 	private _keydownListener: IDisposable | null;
 
 	constructor(editorViewDomNode: HTMLElement) {

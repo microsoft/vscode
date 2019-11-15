@@ -39,6 +39,7 @@
 	],
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
+	"npm.packageManager": "yarn",
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single",
@@ -59,5 +60,7 @@
 	"git.ignoreLimitWarning": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
-	}
+	},
+	"gulp.autoDetect": "off",
+	"files.insertFinalNewline": true
 }

@@ -10,18 +10,17 @@ import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
 let SearchAddon: typeof XTermSearchAddon;
 
 export class TerminalInstanceService implements ITerminalInstanceService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _onRequestDefaultShellAndArgs = new Emitter<IDefaultShellAndArgsRequest>();
 	public get onRequestDefaultShellAndArgs(): Event<IDefaultShellAndArgsRequest> { return this._onRequestDefaultShellAndArgs.event; }
-
-	constructor() { }
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
@@ -52,11 +51,16 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		throw new Error('Not implemented');
 	}
 
-	public getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
-		return new Promise(r => this._onRequestDefaultShellAndArgs.fire((shell, args) => r({ shell, args })));
+	public getDefaultShellAndArgs(useAutomationShell: boolean, ): Promise<{ shell: string, args: string[] | string | undefined }> {
+		return new Promise(r => this._onRequestDefaultShellAndArgs.fire({
+			useAutomationShell,
+			callback: (shell, args) => r({ shell, args })
+		}));
 	}
 
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		return {};
 	}
 }
+
+registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);

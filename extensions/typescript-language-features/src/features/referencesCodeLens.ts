@@ -7,22 +7,19 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
-import * as typeConverters from '../utils/typeConverters';
-import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
 import { CachedResponse } from '../tsServer/cachedResponse';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
+import * as typeConverters from '../utils/typeConverters';
+import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
 const localize = nls.loadMessageBundle();
 
 class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
-	public static readonly minVersion = API.v206;
-
 	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
-		const response = await this.client.execute('references', args, token, { lowPriority: true });
+		const response = await this.client.execute('references', args, token, { lowPriority: true, cancelOnResourceChange: codeLens.document });
 		if (response.type !== 'response' || !response.body) {
 			codeLens.command = response.type === 'cancelled'
 				? TypeScriptBaseCodeLensProvider.cancelledCommand
@@ -99,9 +96,8 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	return new VersionDependentRegistration(client, TypeScriptReferencesCodeLensProvider.minVersion, () =>
-		new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
-			return vscode.languages.registerCodeLensProvider(selector,
-				new TypeScriptReferencesCodeLensProvider(client, cachedResponse));
-		}));
+	return new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
+		return vscode.languages.registerCodeLensProvider(selector,
+			new TypeScriptReferencesCodeLensProvider(client, cachedResponse));
+	});
 }

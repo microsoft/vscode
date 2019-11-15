@@ -8,7 +8,6 @@ import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/li
 import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 /**
@@ -31,7 +30,6 @@ export interface IServerChannel<TContext = string> {
 	call<T>(ctx: TContext, command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T>;
 	listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
 }
-
 
 export const enum RequestType {
 	Promise = 100,
@@ -268,7 +266,9 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channels.set(channelName, channel);
-		this.flushPendingRequests(channelName);
+
+		// https://github.com/microsoft/vscode/issues/72531
+		setTimeout(() => this.flushPendingRequests(channelName), 0);
 	}
 
 	private sendResponse(response: IRawResponse): void {
@@ -441,7 +441,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private lastRequestId: number = 0;
 	private protocolListener: IDisposable | null;
 
-	private _onDidInitialize = new Emitter<void>();
+	private readonly _onDidInitialize = new Emitter<void>();
 	readonly onDidInitialize = this._onDidInitialize.event;
 
 	constructor(private protocol: IMessagePassingProtocol) {
@@ -659,7 +659,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	private channels = new Map<string, IServerChannel<TContext>>();
 	private _connections = new Set<Connection<TContext>>();
 
-	private _onDidChangeConnections = new Emitter<Connection<TContext>>();
+	private readonly _onDidChangeConnections = new Emitter<Connection<TContext>>();
 	readonly onDidChangeConnections: Event<Connection<TContext>> = this._onDidChangeConnections.event;
 
 	get connections(): Connection<TContext>[] {

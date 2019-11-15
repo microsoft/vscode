@@ -15,8 +15,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
-import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -28,20 +26,22 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAn
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { DirtyEditorContext, OpenEditorsGroupContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
-import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { withUndefinedAsNull } from 'vs/base/common/types';
+import { isWeb } from 'vs/base/common/platform';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 const $ = dom.$;
 
@@ -49,38 +49,37 @@ export class OpenEditorsView extends ViewletPanel {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	static readonly ID = 'workbench.explorer.openEditorsView';
-	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
+	static readonly NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
-	private dirtyCountElement: HTMLElement;
+	private dirtyCountElement!: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
-	private list: WorkbenchList<OpenEditor | IEditorGroup>;
-	private listLabels: ResourceLabels;
-	private contributedContextMenu: IMenu;
-	private needsRefresh: boolean;
-	private resourceContext: ResourceContextKey;
-	private groupFocusedContext: IContextKey<boolean>;
-	private dirtyEditorFocusedContext: IContextKey<boolean>;
+	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
+	private listLabels: ResourceLabels | undefined;
+	private contributedContextMenu!: IMenu;
+	private needsRefresh = false;
+	private resourceContext!: ResourceContextKey;
+	private groupFocusedContext!: IContextKey<boolean>;
+	private dirtyEditorFocusedContext!: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super({
 			...(options as IViewletPanelOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
@@ -99,11 +98,7 @@ export class OpenEditorsView extends ViewletPanel {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
-		this._register(this.untitledEditorService.onDidChangeDirty(() => this.updateDirtyIndicator()));
-		this._register(this.textFileService.models.onModelsDirty(() => this.updateDirtyIndicator()));
-		this._register(this.textFileService.models.onModelsSaved(() => this.updateDirtyIndicator()));
-		this._register(this.textFileService.models.onModelsSaveError(() => this.updateDirtyIndicator()));
-		this._register(this.textFileService.models.onModelsReverted(() => this.updateDirtyIndicator()));
+		this._register(this.workingCopyService.onDidChangeDirty(() => this.updateDirtyIndicator()));
 	}
 
 	private registerUpdateEvents(): void {
@@ -129,7 +124,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
-					case GroupChangeKind.GROUP_LABEL: {
+					case GroupChangeKind.GROUP_INDEX: {
 						if (this.showGroups) {
 							this.list.splice(index, 1, [group]);
 						}
@@ -185,15 +180,15 @@ export class OpenEditorsView extends ViewletPanel {
 		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
 
 		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
 			this.dirtyCountElement.style.backgroundColor = background;
 			this.dirtyCountElement.style.color = foreground;
 
-			this.dirtyCountElement.style.borderWidth = border ? '1px' : null;
-			this.dirtyCountElement.style.borderStyle = border ? 'solid' : null;
+			this.dirtyCountElement.style.borderWidth = border ? '1px' : '';
+			this.dirtyCountElement.style.borderStyle = border ? 'solid' : '';
 			this.dirtyCountElement.style.borderColor = border;
 		})));
 
@@ -213,13 +208,13 @@ export class OpenEditorsView extends ViewletPanel {
 			this.listLabels.clear();
 		}
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
+		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
-				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
-				dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
-			}) as WorkbenchList<OpenEditor | IEditorGroup>;
+			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
+			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
+		});
 		this._register(this.list);
 		this._register(this.listLabels);
 
@@ -244,8 +239,9 @@ export class OpenEditorsView extends ViewletPanel {
 			this.dirtyEditorFocusedContext.reset();
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
-				this.dirtyEditorFocusedContext.set(this.textFileService.isDirty(withNullAsUndefined(element.getResource())));
-				this.resourceContext.set(withUndefinedAsNull(element.getResource()));
+				const resource = element.getResource();
+				this.dirtyEditorFocusedContext.set(element.editor.isDirty());
+				this.resourceContext.set(withUndefinedAsNull(resource));
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
 			}
@@ -263,15 +259,21 @@ export class OpenEditorsView extends ViewletPanel {
 			let openToSide = false;
 			let isSingleClick = false;
 			let isDoubleClick = false;
+			let isMiddleClick = false;
 			if (browserEvent instanceof MouseEvent) {
 				isSingleClick = browserEvent.detail === 1;
 				isDoubleClick = browserEvent.detail === 2;
+				isMiddleClick = browserEvent.button === 1;
 				openToSide = this.list.useAltAsMultipleSelectionModifier ? (browserEvent.ctrlKey || browserEvent.metaKey) : browserEvent.altKey;
 			}
 
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
+				if (isMiddleClick) {
+					return; // already handled above: closes the editor
+				}
+
 				this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 			} else if (element) {
 				this.editorGroupService.activateGroup(element);
@@ -349,13 +351,9 @@ export class OpenEditorsView extends ViewletPanel {
 
 			const preserveActivateGroup = options.sideBySide && options.preserveFocus; // needed for https://github.com/Microsoft/vscode/issues/42399
 			if (!preserveActivateGroup) {
-				this.editorGroupService.activateGroup(element.groupId); // needed for https://github.com/Microsoft/vscode/issues/6672
+				this.editorGroupService.activateGroup(element.group); // needed for https://github.com/Microsoft/vscode/issues/6672
 			}
-			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				if (editor && !preserveActivateGroup && editor.group) {
-					this.editorGroupService.activateGroup(editor.group);
-				}
-			});
+			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : element.group);
 		}
 	}
 
@@ -379,13 +377,16 @@ export class OpenEditorsView extends ViewletPanel {
 	private focusActiveEditor(): void {
 		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
-			this.list.setFocus([index]);
-			this.list.setSelection([index]);
-			this.list.reveal(index);
-		} else {
-			this.list.setFocus([]);
-			this.list.setSelection([]);
+			if (index >= 0) {
+				this.list.setFocus([index]);
+				this.list.setSelection([index]);
+				this.list.reveal(index);
+				return;
+			}
 		}
+
+		this.list.setFocus([]);
+		this.list.setSelection([]);
 	}
 
 	private onConfigurationChange(event: IConfigurationChangeEvent): void {
@@ -406,14 +407,25 @@ export class OpenEditorsView extends ViewletPanel {
 	}
 
 	private updateDirtyIndicator(): void {
-		let dirty = this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY ? this.textFileService.getDirty().length
-			: this.untitledEditorService.getDirty().length;
+		let dirty = this.dirtyCount;
 		if (dirty === 0) {
 			dom.addClass(this.dirtyCountElement, 'hidden');
 		} else {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
 			dom.removeClass(this.dirtyCountElement, 'hidden');
 		}
+	}
+
+	private get dirtyCount(): number {
+		let dirtyCount = 0;
+
+		for (const element of this.elements) {
+			if (element instanceof OpenEditor && element.editor.isDirty()) {
+				dirtyCount++;
+			}
+		}
+
+		return dirtyCount;
 	}
 
 	private get elementCount(): number {
@@ -466,9 +478,13 @@ interface IEditorGroupTemplateData {
 }
 
 class OpenEditorActionRunner extends ActionRunner {
-	public editor: OpenEditor;
+	public editor: OpenEditor | undefined;
 
 	run(action: IAction, context?: any): Promise<void> {
+		if (!this.editor) {
+			return Promise.resolve();
+		}
+
 		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.editorIndex });
 	}
 }
@@ -553,7 +569,6 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		editorTemplate.container = container;
 		editorTemplate.actionRunner = new OpenEditorActionRunner();
 		editorTemplate.actionBar = new ActionBar(container, { actionRunner: editorTemplate.actionRunner });
-		container.draggable = true;
 
 		const closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
 		const key = this.keybindingService.lookupKeybinding(closeEditorAction.id);
@@ -571,7 +586,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			italic: editor.isPreview(),
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
-			descriptionVerbosity: Verbosity.MEDIUM
+			descriptionVerbosity: Verbosity.MEDIUM,
+			title: editor.editor.getTitle(Verbosity.LONG)
 		});
 	}
 
@@ -603,13 +619,13 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		return null;
 	}
 
-	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string | undefined {
+	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
 		const element = elements[0];
 
-		return element instanceof OpenEditor ? withNullAsUndefined(element.editor.getName()) : element.label;
+		return element instanceof OpenEditor ? element.editor.getName() : element.label;
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
@@ -633,16 +649,12 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
-		if (data instanceof DesktopDragAndDropData && originalEvent.dataTransfer) {
-			const types = originalEvent.dataTransfer.types;
-			const typesArray: string[] = [];
-			for (let i = 0; i < types.length; i++) {
-				typesArray.push(types[i].toLowerCase()); // somehow the types are lowercase
+		if (data instanceof DesktopDragAndDropData) {
+			if (isWeb) {
+				return false; // dropping files into editor is unsupported on web
 			}
 
-			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
-				return false;
-			}
+			return containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES);
 		}
 
 		return true;

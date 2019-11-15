@@ -9,10 +9,12 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass, trackFocus, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { $, append, addClass, removeClass, toggleClass, trackFocus, EventHelper } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
+import { isFirefox } from 'vs/base/browser/browser';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export interface IPanelOptions {
 	ariaHeaderLabel?: string;
@@ -42,8 +44,8 @@ export abstract class Panel extends Disposable implements IView {
 	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
-	private header: HTMLElement;
-	private body: HTMLElement;
+	private header!: HTMLElement;
+	private body!: HTMLElement;
 
 	protected _expanded: boolean;
 
@@ -57,6 +59,9 @@ export abstract class Panel extends Disposable implements IView {
 
 	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+
+	private readonly _onDidChangeExpansionState = this._register(new Emitter<boolean>());
+	readonly onDidChangeExpansionState: Event<boolean> = this._onDidChangeExpansionState.event;
 
 	get draggableElement(): HTMLElement {
 		return this.header;
@@ -109,7 +114,7 @@ export abstract class Panel extends Disposable implements IView {
 		return headerSize + maximumBodySize;
 	}
 
-	width: number;
+	width: number = 0;
 
 	constructor(options: IPanelOptions = {}) {
 		super();
@@ -144,6 +149,7 @@ export abstract class Panel extends Disposable implements IView {
 			}, 200);
 		}
 
+		this._onDidChangeExpansionState.fire(expanded);
 		this._onDidChange.fire(expanded ? this.expandedSize : undefined);
 		return true;
 	}
@@ -225,8 +231,8 @@ export abstract class Panel extends Disposable implements IView {
 		this.header.setAttribute('aria-expanded', String(expanded));
 
 		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : null;
-		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : null;
-		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : null;
+		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
+		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : '';
 		this._dropBackground = this.styles.dropBackground;
 	}
 
@@ -267,6 +273,11 @@ class PanelDraggable extends Disposable {
 		}
 
 		e.dataTransfer.effectAllowed = 'move';
+
+		if (isFirefox) {
+			// Firefox: requires to set a text data transfer to get going
+			e.dataTransfer?.setData(DataTransfers.TEXT, this.panel.draggableElement.textContent || '');
+		}
 
 		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.panel.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
@@ -319,6 +330,8 @@ class PanelDraggable extends Disposable {
 			return;
 		}
 
+		EventHelper.stop(e);
+
 		this.dragOverCounter = 0;
 		this.render();
 
@@ -336,7 +349,7 @@ class PanelDraggable extends Disposable {
 			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
 		}
 
-		this.panel.dropTargetElement.style.backgroundColor = backgroundColor;
+		this.panel.dropTargetElement.style.backgroundColor = backgroundColor || '';
 	}
 }
 
@@ -371,7 +384,7 @@ export class PanelView extends Disposable {
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
-	private width: number;
+	private width: number = 0;
 	private splitview: SplitView;
 	private animationTimer: number | undefined = undefined;
 
@@ -391,13 +404,7 @@ export class PanelView extends Disposable {
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
 		const disposables = new DisposableStore();
-
-		// https://github.com/Microsoft/vscode/issues/59950
-		let shouldAnimate = false;
-		disposables.add(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
-
-		disposables.add(Event.filter(panel.onDidChange, () => shouldAnimate)
-			(this.setupAnimation, this));
+		panel.onDidChangeExpansionState(this.setupAnimation, this, disposables);
 
 		const panelItem = { panel, disposable: disposables };
 		this.panelItems.splice(index, 0, panelItem);

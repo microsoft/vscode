@@ -4,16 +4,32 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/30a19d24b9a0070b0fab5eef45f89c92e7cd71ea",
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/e90aa2554b439827f125fd60ff6d7773fc582fcc",
 	"name": "Log file",
 	"scopeName": "text.log",
 	"patterns": [
 		{
-			"match": "\\b(DEBUG|Debug|Trace)\\b|(?i)\\b(debug)\\:",
+			"match": "\\b(Trace)\\b:",
+			"name": "comment log.verbose"
+		},
+		{
+			"match": "(?i)\\[(verbose|verb|vrb|vb|v)\\]",
+			"name": "comment log.verbose"
+		},
+		{
+			"match": "\\bV/",
+			"name": "comment log.verbose"
+		},
+		{
+			"match": "\\b(DEBUG|Debug)\\b|(?i)\\b(debug)\\:",
 			"name": "markup.changed log.debug"
 		},
 		{
 			"match": "(?i)\\[(debug|dbug|dbg|de|d)\\]",
+			"name": "markup.changed log.debug"
+		},
+		{
+			"match": "\\bD/",
 			"name": "markup.changed log.debug"
 		},
 		{
@@ -25,6 +41,10 @@
 			"name": "markup.inserted log.info"
 		},
 		{
+			"match": "\\bI/",
+			"name": "markup.inserted log.info"
+		},
+		{
 			"match": "\\b(WARNING|WARN|Warn)\\b|(?i)\\b(warning)\\:",
 			"name": "markup.deleted log.warning"
 		},
@@ -33,11 +53,19 @@
 			"name": "markup.deleted log.warning"
 		},
 		{
+			"match": "\\bW/",
+			"name": "markup.deleted log.warning"
+		},
+		{
 			"match": "\\b(ALERT|CRITICAL|EMERGENCY|ERROR|FAILURE|FAIL|Fatal|Error)\\b|(?i)\\b(error)\\:",
 			"name": "string.regexp, strong log.error"
 		},
 		{
 			"match": "(?i)\\[(error|eror|err|er|e|fatal|fatl|ftl|fa|f)\\]",
+			"name": "string.regexp, strong log.error"
+		},
+		{
+			"match": "\\bE/",
 			"name": "string.regexp, strong log.error"
 		},
 		{

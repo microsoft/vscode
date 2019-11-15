@@ -6,6 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService, ITheme, DARK, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { TokenStyle, TokenClassification, ProbeScope } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 export class TestTheme implements ITheme {
 
@@ -23,6 +24,14 @@ export class TestTheme implements ITheme {
 	defines(color: string): boolean {
 		throw new Error('Method not implemented.');
 	}
+
+	getTokenStyle(classification: TokenClassification, useDefault?: boolean | undefined): TokenStyle | undefined {
+		throw new Error('Method not implemented.');
+	}
+
+	resolveScopes(scopes: ProbeScope[]): TokenStyle | undefined {
+		throw new Error('Method not implemented.');
+	}
 }
 
 export class TestIconTheme implements IIconTheme {
@@ -33,7 +42,7 @@ export class TestIconTheme implements IIconTheme {
 
 export class TestThemeService implements IThemeService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	_theme: ITheme;
 	_iconTheme: IIconTheme;
 	_onThemeChange = new Emitter<ITheme>();

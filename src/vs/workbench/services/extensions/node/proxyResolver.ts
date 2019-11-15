@@ -17,11 +17,11 @@ import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorksp
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
 import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { promisify } from 'util';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface ConnectionResult {
 	proxy: string;
@@ -34,7 +34,7 @@ export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extensionService: ExtHostExtensionService,
-	extHostLogService: ExtHostLogService,
+	extHostLogService: ILogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
 	const resolveProxy = setupProxyResolution(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
@@ -47,7 +47,7 @@ const maxCacheEntries = 5000; // Cache can grow twice that much due to 'oldCache
 function setupProxyResolution(
 	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
-	extHostLogService: ExtHostLogService,
+	extHostLogService: ILogService,
 	mainThreadTelemetry: MainThreadTelemetryShape
 ) {
 	const env = process.env;
@@ -343,9 +343,13 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 				return original.apply(null, arguments as unknown as any[]);
 			}
 
-			const optionsPatched = options.agent instanceof ProxyAgent;
+			const originalAgent = options.agent;
+			if (originalAgent === true) {
+				throw new Error('Unexpected agent option: true');
+			}
+			const optionsPatched = originalAgent instanceof ProxyAgent;
 			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || proxySetting.config;
-			const useProxySettings = !optionsPatched && (config === 'override' || config === 'on' && !options.agent);
+			const useProxySettings = !optionsPatched && (config === 'override' || config === 'on' && originalAgent === undefined);
 			const useSystemCertificates = !optionsPatched && certSetting.config && originals === https && !(options as https.RequestOptions).ca;
 
 			if (useProxySettings || useSystemCertificates) {
@@ -367,7 +371,7 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 				options.agent = new ProxyAgent({
 					resolveProxy: resolveProxy.bind(undefined, { useProxySettings, useSystemCertificates }),
 					defaultPort: originals === https ? 443 : 80,
-					originalAgent: options.agent
+					originalAgent
 				});
 				return original(options, callback);
 			}
@@ -421,7 +425,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 		});
 }
 
-function useSystemCertificates(extHostLogService: ExtHostLogService, useSystemCertificates: boolean, opts: http.RequestOptions, callback: () => void) {
+function useSystemCertificates(extHostLogService: ILogService, useSystemCertificates: boolean, opts: http.RequestOptions, callback: () => void) {
 	if (useSystemCertificates) {
 		getCaCertificates(extHostLogService)
 			.then(caCertificates => {
@@ -443,7 +447,7 @@ function useSystemCertificates(extHostLogService: ExtHostLogService, useSystemCe
 }
 
 let _caCertificates: ReturnType<typeof readCaCertificates> | Promise<undefined>;
-async function getCaCertificates(extHostLogService: ExtHostLogService) {
+async function getCaCertificates(extHostLogService: ILogService) {
 	if (!_caCertificates) {
 		_caCertificates = readCaCertificates()
 			.then(res => res && res.certs.length ? res : undefined)
@@ -469,7 +473,9 @@ async function readCaCertificates() {
 }
 
 async function readWindowsCaCertificates() {
-	const winCA = await import('vscode-windows-ca-certs');
+	const winCA = await new Promise<any>((resolve, reject) => {
+		require(['vscode-windows-ca-certs'], resolve, reject);
+	});
 
 	let ders: any[] = [];
 	const store = winCA();

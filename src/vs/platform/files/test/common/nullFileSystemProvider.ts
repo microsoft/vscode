@@ -13,7 +13,7 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 	capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
 
 	onDidChangeCapabilities: Event<void> = Event.None;
-	onDidChangeFile: Event<IFileChange[]> = Event.None;
+	onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
 
 	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
 

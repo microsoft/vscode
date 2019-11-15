@@ -26,7 +26,10 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), new NullLogService());
+		const commands = new ExtHostCommands(
+			SingleProxyRPCProtocol(shape),
+			new NullLogService()
+		);
 		commands.registerCommand(true, 'foo', (): any => { }).dispose();
 		assert.equal(lastUnregister!, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
@@ -46,11 +49,45 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), new NullLogService());
+		const commands = new ExtHostCommands(
+			SingleProxyRPCProtocol(shape),
+			new NullLogService()
+		);
 		const reg = commands.registerCommand(true, 'foo', (): any => { });
 		reg.dispose();
 		reg.dispose();
 		reg.dispose();
 		assert.equal(unregisterCounter, 1);
+	});
+
+	test('execute with retry', async function () {
+
+		let count = 0;
+
+		const shape = new class extends mock<MainThreadCommandsShape>() {
+			$registerCommand(id: string): void {
+				//
+			}
+			async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
+				count++;
+				assert.equal(retry, count === 1);
+				if (count === 1) {
+					assert.equal(retry, true);
+					throw new Error('$executeCommand:retry');
+				} else {
+					assert.equal(retry, false);
+					return <any>17;
+				}
+			}
+		};
+
+		const commands = new ExtHostCommands(
+			SingleProxyRPCProtocol(shape),
+			new NullLogService()
+		);
+
+		const result = await commands.executeCommand('fooo', [this, true]);
+		assert.equal(result, 17);
+		assert.equal(count, 2);
 	});
 });

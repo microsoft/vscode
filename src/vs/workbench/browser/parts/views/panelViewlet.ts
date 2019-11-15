@@ -26,8 +26,10 @@ import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/brow
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IView } from 'vs/workbench/common/views';
+import { IView, FocusedViewContext } from 'vs/workbench/common/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -40,11 +42,12 @@ export interface IViewletPanelOptions extends IPanelOptions {
 	actionRunner?: IActionRunner;
 	id: string;
 	title: string;
+	showActionsAlways?: boolean;
 }
 
 export abstract class ViewletPanel extends Panel implements IView {
 
-	private static AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
+	private static readonly AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
@@ -58,26 +61,33 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
+	private focusedViewContextKey: IContextKey<string>;
+
 	private _isVisible: boolean = false;
 	readonly id: string;
-	readonly title: string;
+	title: string;
 
 	protected actionRunner?: IActionRunner;
-	protected toolbar: ToolBar;
-	private headerContainer: HTMLElement;
-	private titleContainer: HTMLElement;
+	protected toolbar?: ToolBar;
+	private readonly showActionsAlways: boolean = false;
+	private headerContainer?: HTMLElement;
+	private titleContainer?: HTMLElement;
+	protected twistiesContainer?: HTMLElement;
 
 	constructor(
 		options: IViewletPanelOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(options);
 
 		this.id = options.id;
 		this.title = options.title;
 		this.actionRunner = options.actionRunner;
+		this.showActionsAlways = !!options.showActionsAlways;
+		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
 
 	setVisible(visible: boolean): void {
@@ -112,16 +122,25 @@ export abstract class ViewletPanel extends Panel implements IView {
 
 		const focusTracker = trackFocus(this.element);
 		this._register(focusTracker);
-		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
+		this._register(focusTracker.onDidFocus(() => {
+			this.focusedViewContextKey.set(this.id);
+			this._onDidFocus.fire();
+		}));
+		this._register(focusTracker.onDidBlur(() => {
+			this.focusedViewContextKey.reset();
+			this._onDidBlur.fire();
+		}));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
+		this.renderTwisties(container);
+
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
+		toggleClass(actions, 'show', this.showActionsAlways);
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: action => this.getActionViewItem(action),
@@ -138,12 +157,19 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this.updateActionsVisibility();
 	}
 
+	protected renderTwisties(container: HTMLElement): void {
+		this.twistiesContainer = append(container, $('.twisties.codicon.codicon-chevron-right'));
+	}
+
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
 		this.titleContainer = append(container, $('h3.title', undefined, title));
 	}
 
 	protected updateTitle(title: string): void {
-		this.titleContainer.textContent = title;
+		if (this.titleContainer) {
+			this.titleContainer.textContent = title;
+		}
+		this.title = title;
 		this._onDidChangeTitleArea.fire();
 	}
 
@@ -155,11 +181,16 @@ export abstract class ViewletPanel extends Panel implements IView {
 	}
 
 	private setActions(): void {
-		this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
-		this.toolbar.context = this.getActionsContext();
+		if (this.toolbar) {
+			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+			this.toolbar.context = this.getActionsContext();
+		}
 	}
 
 	private updateActionsVisibility(): void {
+		if (!this.headerContainer) {
+			return;
+		}
 		const shouldAlwaysShowActions = this.configurationService.getValue<boolean>('workbench.view.alwaysShowHeaderActions');
 		toggleClass(this.headerContainer, 'actions-always-visible', shouldAlwaysShowActions);
 	}
@@ -207,10 +238,10 @@ export class PanelViewlet extends Viewlet {
 
 	private lastFocusedPanel: ViewletPanel | undefined;
 	private panelItems: IViewletPanelItem[] = [];
-	private panelview: PanelView;
+	private panelview?: PanelView;
 
 	get onDidSashChange(): Event<number> {
-		return this.panelview.onDidSashChange;
+		return assertIsDefined(this.panelview).onDidSashChange;
 	}
 
 	protected get panels(): ViewletPanel[] {
@@ -252,7 +283,7 @@ export class PanelViewlet extends Viewlet {
 		event.stopPropagation();
 		event.preventDefault();
 
-		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+		let anchor: { x: number, y: number; } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.getContextMenuActions()
@@ -310,7 +341,9 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	layout(dimension: Dimension): void {
-		this.panelview.layout(dimension.height, dimension.width);
+		if (this.panelview) {
+			this.panelview.layout(dimension.height, dimension.width);
+		}
 	}
 
 	getOptimalWidth(): number {
@@ -320,7 +353,7 @@ export class PanelViewlet extends Viewlet {
 		return Math.max(...sizes);
 	}
 
-	addPanels(panels: { panel: ViewletPanel, size: number, index?: number }[]): void {
+	addPanels(panels: { panel: ViewletPanel, size: number, index?: number; }[]): void {
 		const wasSingleView = this.isSingleView();
 
 		for (const { panel, size, index } of panels) {
@@ -356,7 +389,7 @@ export class PanelViewlet extends Viewlet {
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		this.panelItems.splice(index, 0, panelItem);
-		this.panelview.addPanel(panel, size, index);
+		assertIsDefined(this.panelview).addPanel(panel, size, index);
 	}
 
 	removePanels(panels: ViewletPanel[]): void {
@@ -381,7 +414,7 @@ export class PanelViewlet extends Viewlet {
 			this.lastFocusedPanel = undefined;
 		}
 
-		this.panelview.removePanel(panel);
+		assertIsDefined(this.panelview).removePanel(panel);
 		const [panelItem] = this.panelItems.splice(index, 1);
 		panelItem.disposable.dispose();
 
@@ -402,15 +435,15 @@ export class PanelViewlet extends Viewlet {
 		const [panelItem] = this.panelItems.splice(fromIndex, 1);
 		this.panelItems.splice(toIndex, 0, panelItem);
 
-		this.panelview.movePanel(from, to);
+		assertIsDefined(this.panelview).movePanel(from, to);
 	}
 
 	resizePanel(panel: ViewletPanel, size: number): void {
-		this.panelview.resizePanel(panel, size);
+		assertIsDefined(this.panelview).resizePanel(panel, size);
 	}
 
 	getPanelSize(panel: ViewletPanel): number {
-		return this.panelview.getPanelSize(panel);
+		return assertIsDefined(this.panelview).getPanelSize(panel);
 	}
 
 	protected updateViewHeaders(): void {
@@ -429,6 +462,8 @@ export class PanelViewlet extends Viewlet {
 	dispose(): void {
 		super.dispose();
 		this.panelItems.forEach(i => i.disposable.dispose());
-		this.panelview.dispose();
+		if (this.panelview) {
+			this.panelview.dispose();
+		}
 	}
 }

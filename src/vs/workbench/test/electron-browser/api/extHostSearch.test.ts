@@ -12,20 +12,25 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
+import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import * as vscode from 'vscode';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 
 let rpcProtocol: TestRPCProtocol;
-let extHostSearch: ExtHostSearch;
+let extHostSearch: NativeExtHostSearch;
 const disposables = new DisposableStore();
 
 let mockMainThreadSearch: MockMainThreadSearch;
 class MockMainThreadSearch implements MainThreadSearchShape {
-	lastHandle: number;
+	lastHandle!: number;
 
 	results: Array<UriComponents | IRawFileMatch2> = [];
 
@@ -135,7 +140,21 @@ suite('ExtHostSearch', () => {
 		rpcProtocol.set(MainContext.MainThreadSearch, mockMainThreadSearch);
 
 		mockPFS = {};
-		extHostSearch = new ExtHostSearch(rpcProtocol, null!, logService, mockPFS as any);
+		extHostSearch = new class extends NativeExtHostSearch {
+			constructor() {
+				super(
+					rpcProtocol,
+					new class extends mock<IExtHostInitDataService>() { remote = { isRemote: false, authority: undefined }; },
+					new URITransformerService(null),
+					logService
+				);
+				this._pfs = mockPFS as any;
+			}
+
+			protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
+				return new NativeTextSearchManager(query, provider, this._pfs);
+			}
+		};
 	});
 
 	teardown(() => {

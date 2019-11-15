@@ -37,7 +37,7 @@ import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/com
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -254,11 +254,11 @@ class MarkerWidget extends Disposable {
 	) {
 		super();
 		this.actionBar = this._register(new ActionBar(dom.append(parent, dom.$('.actions')), {
-			actionViewItemProvider: (action) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
+			actionViewItemProvider: (action: QuickFixAction) => action.id === QuickFixAction.ID ? instantiationService.createInstance(QuickFixActionViewItem, action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$(''));
 		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions'))));
-		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details'));
+		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
@@ -267,7 +267,7 @@ class MarkerWidget extends Disposable {
 		this.disposables.clear();
 		dom.clearNode(this.messageAndDetailsContainer);
 
-		this.icon.className = `marker-icon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
+		this.icon.className = `marker-icon codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 		this.renderQuickfixActionbar(element);
 		this.renderMultilineActionbar(element);
 
@@ -302,7 +302,7 @@ class MarkerWidget extends Disposable {
 		const action = new Action('problems.action.toggleMultiline');
 		action.enabled = !!viewModel && marker.lines.length > 1;
 		action.tooltip = multiline ? localize('single line', "Show message in single line") : localize('multi line', "Show message in multiple lines");
-		action.class = multiline ? 'octicon octicon-chevron-up' : 'octicon octicon-chevron-down';
+		action.class = multiline ? 'codicon codicon-chevron-up' : 'codicon codicon-chevron-down';
 		action.run = () => { if (viewModel) { viewModel.multiline = !viewModel.multiline; } return Promise.resolve(); };
 		this.multilineActionbar.push([action], { icon: true, label: false });
 	}
@@ -312,33 +312,35 @@ class MarkerWidget extends Disposable {
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
 		const lineMatches = filterData && filterData.lineMatches || [];
-		const messageContainer = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message'));
-		dom.toggleClass(messageContainer, 'multiline', multiline);
 
-		let lastLineElement = messageContainer;
+		let lastLineElement: HTMLElement | undefined = undefined;
+		this.messageAndDetailsContainer.title = element.marker.message;
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
-			lastLineElement = dom.append(messageContainer, dom.$('.marker-message-line'));
-			const highlightedLabel = new HighlightedLabel(lastLineElement, false);
-			highlightedLabel.set(lines[index], lineMatches[index]);
+			lastLineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
+			const messageElement = dom.append(lastLineElement, dom.$('.marker-message'));
+			const highlightedLabel = new HighlightedLabel(messageElement, false);
+			highlightedLabel.set(lines[index].length > 1000 ? `${lines[index].substring(0, 1000)}...` : lines[index], lineMatches[index]);
 			if (lines[index] === '') {
 				lastLineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
 			}
 		}
-		this.renderDetails(marker, filterData, multiline ? lastLineElement : this.messageAndDetailsContainer);
+		this.renderDetails(marker, filterData, lastLineElement || dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line')));
 	}
 
 	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {
 		dom.addClass(parent, 'details-container');
-		const sourceMatches = filterData && filterData.sourceMatches || [];
-		const codeMatches = filterData && filterData.codeMatches || [];
 
-		const source = new HighlightedLabel(dom.append(parent, dom.$('')), false);
-		source.set(marker.source, sourceMatches);
-		dom.toggleClass(source.element, 'marker-source', !!marker.source);
+		if (marker.source || marker.code) {
+			const source = new HighlightedLabel(dom.append(parent, dom.$('.marker-source')), false);
+			const sourceMatches = filterData && filterData.sourceMatches || [];
+			source.set(marker.source, sourceMatches);
 
-		const code = new HighlightedLabel(dom.append(parent, dom.$('')), false);
-		code.set(marker.code, codeMatches);
-		dom.toggleClass(code.element, 'marker-code', !!marker.code);
+			if (marker.code) {
+				const code = new HighlightedLabel(dom.append(parent, dom.$('.marker-code')), false);
+				const codeMatches = filterData && filterData.codeMatches || [];
+				code.set(marker.code, codeMatches);
+			}
+		}
 
 		const lnCol = dom.append(parent, dom.$('span.marker-line'));
 		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
@@ -424,16 +426,21 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 	}
 
 	private filterMarker(marker: Marker, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		if (this.options.filterErrors && MarkerSeverity.Error === marker.marker.severity) {
-			return true;
+		let shouldAppear: boolean = false;
+		if (this.options.showErrors && MarkerSeverity.Error === marker.marker.severity) {
+			shouldAppear = true;
 		}
 
-		if (this.options.filterWarnings && MarkerSeverity.Warning === marker.marker.severity) {
-			return true;
+		if (this.options.showWarnings && MarkerSeverity.Warning === marker.marker.severity) {
+			shouldAppear = true;
 		}
 
-		if (this.options.filterInfos && MarkerSeverity.Info === marker.marker.severity) {
-			return true;
+		if (this.options.showInfos && MarkerSeverity.Info === marker.marker.severity) {
+			shouldAppear = true;
+		}
+
+		if (!shouldAppear) {
+			return false;
 		}
 
 		if (!this.options.textFilter) {
@@ -509,7 +516,7 @@ export class MarkerViewModel extends Disposable {
 		}
 	}
 
-	private _quickFixAction: QuickFixAction;
+	private _quickFixAction: QuickFixAction | null = null;
 	get quickFixAction(): QuickFixAction {
 		if (!this._quickFixAction) {
 			this._quickFixAction = this._register(this.instantiationService.createInstance(QuickFixAction, this.marker));
@@ -545,7 +552,7 @@ export class MarkerViewModel extends Disposable {
 				if (model) {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
-							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken).then(actions => {
+							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { include: CodeActionKind.QuickFix } }, cancellationToken).then(actions => {
 								return this._register(actions);
 							});
 						});
@@ -564,7 +571,7 @@ export class MarkerViewModel extends Disposable {
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, codeAction, this.bulkEditService, this.commandService));
 			}));
 	}
 
@@ -615,7 +622,7 @@ export class MarkersViewModel extends Disposable {
 
 	private bulkUpdate: boolean = false;
 
-	private hoveredMarker: Marker | null;
+	private hoveredMarker: Marker | null = null;
 	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
 
 	constructor(

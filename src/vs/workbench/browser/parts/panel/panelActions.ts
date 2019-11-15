@@ -21,14 +21,14 @@ import { ActivePanelContext, PanelPositionContext } from 'vs/workbench/common/pa
 export class ClosePanelAction extends Action {
 
 	static readonly ID = 'workbench.action.closePanel';
-	static LABEL = nls.localize('closePanel', "Close Panel");
+	static readonly LABEL = nls.localize('closePanel', "Close Panel");
 
 	constructor(
 		id: string,
 		name: string,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
-		super(id, name, 'hide-panel-action');
+		super(id, name, 'codicon-close');
 	}
 
 	run(): Promise<any> {
@@ -40,7 +40,7 @@ export class ClosePanelAction extends Action {
 export class TogglePanelAction extends Action {
 
 	static readonly ID = 'workbench.action.togglePanel';
-	static LABEL = nls.localize('togglePanel', "Toggle Panel");
+	static readonly LABEL = nls.localize('togglePanel', "Toggle Panel");
 
 	constructor(
 		id: string,
@@ -141,11 +141,11 @@ export class ToggleMaximizedPanelAction extends Action {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
-		super(id, label, layoutService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action');
+		super(id, label, layoutService.isPanelMaximized() ? 'codicon-chevron-down' : 'codicon-chevron-up');
 
 		this.toDispose.add(editorGroupsService.onDidLayout(() => {
 			const maximized = this.layoutService.isPanelMaximized();
-			this.class = maximized ? 'minimize-panel-action' : 'maximize-panel-action';
+			this.class = maximized ? 'codicon-chevron-down' : 'codicon-chevron-up';
 			this.label = maximized ? ToggleMaximizedPanelAction.RESTORE_LABEL : ToggleMaximizedPanelAction.MAXIMIZE_LABEL;
 		}));
 	}
@@ -209,7 +209,7 @@ export class SwitchPanelViewAction extends Action {
 export class PreviousPanelViewAction extends SwitchPanelViewAction {
 
 	static readonly ID = 'workbench.action.previousPanelView';
-	static LABEL = nls.localize('previousPanelView', 'Previous Panel View');
+	static readonly LABEL = nls.localize('previousPanelView', 'Previous Panel View');
 
 	constructor(
 		id: string,
@@ -227,7 +227,7 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 export class NextPanelViewAction extends SwitchPanelViewAction {
 
 	static readonly ID = 'workbench.action.nextPanelView';
-	static LABEL = nls.localize('nextPanelView', 'Next Panel View');
+	static readonly LABEL = nls.localize('nextPanelView', 'Next Panel View');
 
 	constructor(
 		id: string,
@@ -243,14 +243,14 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 }
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL), 'View: Toggle Maximized Panel', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL), 'View: Close Panel', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL), 'View: Toggle Panel Position', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, undefined), 'View: Toggle Panel Position', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PreviousPanelViewAction, PreviousPanelViewAction.ID, PreviousPanelViewAction.LABEL), 'View: Previous Panel View', nls.localize('view', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NextPanelViewAction, NextPanelViewAction.ID, NextPanelViewAction.LABEL), 'View: Next Panel View', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL), 'View: Toggle Maximized Panel', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL), 'View: Close Panel', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL), 'View: Toggle Panel Position', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, undefined), 'View: Toggle Panel Position', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(PreviousPanelViewAction, PreviousPanelViewAction.ID, PreviousPanelViewAction.LABEL), 'View: Previous Panel View', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NextPanelViewAction, NextPanelViewAction.ID, NextPanelViewAction.LABEL), 'View: Next Panel View', nls.localize('view', "View"));
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',

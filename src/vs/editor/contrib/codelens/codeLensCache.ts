@@ -17,7 +17,7 @@ import { once } from 'vs/base/common/functional';
 export const ICodeLensCache = createDecorator<ICodeLensCache>('ICodeLensCache');
 
 export interface ICodeLensCache {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	put(model: ITextModel, data: CodeLensModel): void;
 	get(model: ITextModel): CodeLensModel | undefined;
 	delete(model: ITextModel): void;
@@ -38,7 +38,7 @@ class CacheItem {
 
 export class CodeLensCache implements ICodeLensCache {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _fakeProvider = new class implements CodeLensProvider {
 		provideCodeLenses(): CodeLensList {
@@ -68,11 +68,18 @@ export class CodeLensCache implements ICodeLensCache {
 	}
 
 	put(model: ITextModel, data: CodeLensModel): void {
+		// create a copy of the model that is without command-ids
+		// but with comand-labels
+		const copyItems = data.lenses.map(item => {
+			return <CodeLens>{
+				range: item.symbol.range,
+				command: item.symbol.command && { id: '', title: item.symbol.command?.title },
+			};
+		});
+		const copyModel = new CodeLensModel();
+		copyModel.add({ lenses: copyItems, dispose: () => { } }, this._fakeProvider);
 
-		const lensModel = new CodeLensModel();
-		lensModel.add({ lenses: data.lenses.map(v => v.symbol), dispose() { } }, this._fakeProvider);
-
-		const item = new CacheItem(model.getLineCount(), lensModel);
+		const item = new CacheItem(model.getLineCount(), copyModel);
 		this._cache.set(model.uri.toString(), item);
 	}
 

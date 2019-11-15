@@ -16,71 +16,6 @@
 
 declare module 'vscode' {
 
-	//#region Joh - ExecutionContext
-	// THIS is a deprecated proposal
-	export enum ExtensionExecutionContext {
-		Local = 1,
-		Remote = 2
-	}
-	export interface ExtensionContext {
-		executionContext: ExtensionExecutionContext;
-	}
-	//#endregion
-
-	//#region Joh - call hierarchy
-
-	export enum CallHierarchyDirection {
-		CallsFrom = 1,
-		CallsTo = 2,
-	}
-
-	export class CallHierarchyItem {
-		kind: SymbolKind;
-		name: string;
-		detail?: string;
-		uri: Uri;
-		range: Range;
-		selectionRange: Range;
-
-		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
-	}
-
-	export interface CallHierarchyItemProvider {
-
-		/**
-		 * Given a document and position compute a call hierarchy item. This is justed as
-		 * anchor for call hierarchy and then `resolveCallHierarchyItem` is being called.
-		 */
-		provideCallHierarchyItem(
-			document: TextDocument,
-			position: Position,
-			token: CancellationToken
-		): ProviderResult<CallHierarchyItem>;
-
-		/**
-		 * Resolve a call hierarchy item, e.g. compute all calls from or to a function.
-		 * The result is an array of item/location-tuples. The location in the returned tuples
-		 * is always relative to the "caller" with the caller either being the provided item or
-		 * the returned item.
-		 *
-		 * @param item A call hierarchy item previously returned from `provideCallHierarchyItem` or `resolveCallHierarchyItem`
-		 * @param direction Resolve calls from a function or calls to a function
-		 * @param token A cancellation token
-		 */
-		resolveCallHierarchyItem(
-			item: CallHierarchyItem,
-			direction: CallHierarchyDirection,
-			token: CancellationToken
-		): ProviderResult<[CallHierarchyItem, Location[]][]>;
-	}
-
-	export namespace languages {
-		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyItemProvider): Disposable;
-	}
-
-	//#endregion
-
-
 	//#region Alex - resolvers
 
 	export interface RemoteAuthorityResolverContext {
@@ -567,25 +502,17 @@ declare module 'vscode' {
 
 	//#region Joh: decorations
 
-	//todo@joh -> make class
-	export interface DecorationData {
+	export class Decoration {
 		letter?: string;
 		title?: string;
 		color?: ThemeColor;
 		priority?: number;
 		bubble?: boolean;
-		source?: string; // hacky... we should remove it and use equality under the hood
-	}
-
-	export interface SourceControlResourceDecorations {
-		source?: string;
-		letter?: string;
-		color?: ThemeColor;
 	}
 
 	export interface DecorationProvider {
 		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
-		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<Decoration>;
 	}
 
 	export namespace window {
@@ -595,6 +522,27 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region André: debug
+
+	/**
+	 * A DebugSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugSource {
+		// opaque contents
+	}
+
+	export namespace debug {
+
+		/**
+		 * Converts a "Source" object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
+		 *
+		 * If the "Source" object has insufficient information to create a uri, an error is thrown.
+		 *
+		 * @param source An object conforming to the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+		 * @param session An optional debug session that will be used to locate the Debug Adapter Protocol.
+		 * @return A uri that can be used to load the contents of the source.
+		 */
+		export function asDebugSourceUri(source: DebugSource, session?: DebugSession): Uri;
+	}
 
 	// deprecated
 
@@ -736,14 +684,50 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
+	export interface TerminalDataWriteEvent {
+		/**
+		 * The [terminal](#Terminal) for which the data was written.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The data being written.
+		 */
+		readonly data: string;
+	}
+
+	export interface TerminalExitStatus {
+		/**
+		 * The exit code that a terminal exited with, it can have the following values:
+		 * - Zero: the terminal process or custom execution succeeded.
+		 * - Non-zero: the terminal process or custom execution failed.
+		 * - `undefined`: the user forcefully closed the terminal or a custom execution exited
+		 *   without providing an exit code.
+		 */
+		readonly code: number | undefined;
+	}
+
 	namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
 		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
+
+		/**
+		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
+		 * words, this provides access to the raw data stream from the process running within the
+		 * terminal, including VT sequences.
+		 */
+		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 	}
 
 	export interface Terminal {
+		/**
+		 * The object used to initialize the terminal, this is useful for things like detecting the
+		 * shell type of shells not launched by the extension or detecting what folder the shell was
+		 * launched in.
+		 */
+		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+
 		/**
 		 * The current dimensions of the terminal. This will be `undefined` immediately after the
 		 * terminal is created as the dimensions are not known until shortly after the terminal is
@@ -752,301 +736,19 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions | undefined;
 
 		/**
-		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
-		 * provides access to the raw data stream from the process running within the terminal,
-		 * including VT sequences.
-		 */
-		readonly onDidWriteData: Event<string>;
-	}
-
-
-	export interface TerminalOptions {
-		/**
-		 * When enabled the terminal will run the process as normal but not be surfaced to the user
-		 * until `Terminal.show` is called. The typical usage for this is when you need to run
-		 * something that may need interactivity but only want to tell the user about it when
-		 * interaction is needed. Note that the terminals will still be exposed to all extensions
-		 * as normal.
-		 */
-		runInBackground?: boolean;
-	}
-
-	/**
-	 * Represents the dimensions of a terminal.
-	 */
-	export interface TerminalDimensions {
-		/**
-		 * The number of columns in the terminal.
-		 */
-		readonly columns: number;
-
-		/**
-		 * The number of rows in the terminal.
-		 */
-		readonly rows: number;
-	}
-
-	/**
-	 * Represents a terminal without a process where all interaction and output in the terminal is
-	 * controlled by an extension. This is similar to an output window but has the same VT sequence
-	 * compatibility as the regular terminal.
-	 *
-	 * Note that an instance of [Terminal](#Terminal) will be created when a TerminalRenderer is
-	 * created with all its APIs available for use by extensions. When using the Terminal object
-	 * of a TerminalRenderer it acts just like normal only the extension that created the
-	 * TerminalRenderer essentially acts as a process. For example when an
-	 * [Terminal.onDidWriteData](#Terminal.onDidWriteData) listener is registered, that will fire
-	 * when [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
-	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
-	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
-	 *
-	 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
-	 *
-	 * **Example:** Create a terminal renderer, show it and write hello world in red
-	 * ```typescript
-	 * const renderer = window.createTerminalRenderer('foo');
-	 * renderer.terminal.then(t => t.show());
-	 * renderer.write('\x1b[31mHello world\x1b[0m');
-	 * ```
-	 */
-	export interface TerminalRenderer {
-		/**
-		 * The name of the terminal, this will appear in the terminal selector.
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
-		 */
-		name: string;
-
-		/**
-		 * The dimensions of the terminal, the rows and columns of the terminal can only be set to
-		 * a value smaller than the maximum value, if this is undefined the terminal will auto fit
-		 * to the maximum value [maximumDimensions](TerminalRenderer.maximumDimensions).
+		 * The exit status of the terminal, this will be undefined while the terminal is active.
 		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
-		 *
-		 * **Example:** Override the dimensions of a TerminalRenderer to 20 columns and 10 rows
+		 * **Example:** Show a notification with the exit code when the terminal exits with a
+		 * non-zero exit code.
 		 * ```typescript
-		 * terminalRenderer.dimensions = {
-		 *   cols: 20,
-		 *   rows: 10
-		 * };
-		 * ```
-		 */
-		dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * The maximum dimensions of the terminal, this will be undefined immediately after a
-		 * terminal renderer is created and also until the terminal becomes visible in the UI.
-		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
-		 * to get notified when this value changes.
-		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
-		 */
-		readonly maximumDimensions: TerminalDimensions | undefined;
-
-		/**
-		 * The corresponding [Terminal](#Terminal) for this TerminalRenderer.
-		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
-		 */
-		readonly terminal: Terminal;
-
-		/**
-		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
-		 * text to the underlying _process_, this will write the text to the terminal itself.
-		 *
-		 * @param text The text to write.
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
-		 *
-		 * **Example:** Write red text to the terminal
-		 * ```typescript
-		 * terminalRenderer.write('\x1b[31mHello world\x1b[0m');
-		 * ```
-		 *
-		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
-		 * ```typescript
-		 * terminalRenderer.write('\x1b[10;20H*');
-		 * ```
-		 */
-		write(text: string): void;
-
-		/**
-		 * An event which fires on keystrokes in the terminal or when an extension calls
-		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
-		 * corresponding VT sequence representation.
-		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
-		 *
-		 * **Example:** Simulate interaction with the terminal from an outside extension or a
-		 * workbench command such as `workbench.action.terminal.runSelectedText`
-		 * ```typescript
-		 * const terminalRenderer = window.createTerminalRenderer('test');
-		 * terminalRenderer.onDidAcceptInput(data => {
-		 *   console.log(data); // 'Hello world'
-		 * });
-		 * terminalRenderer.terminal.sendText('Hello world');
-		 * ```
-		 */
-		readonly onDidAcceptInput: Event<string>;
-
-		/**
-		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maximumDimensions) of
-		 * the terminal renderer change.
-		 *
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
-		 */
-		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
-	}
-
-	export namespace window {
-		/**
-		 * Create a [TerminalRenderer](#TerminalRenderer).
-		 *
-		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
-		 * @deprecated Use [virtual processes](#TerminalVirtualProcess) instead.
-		 */
-		export function createTerminalRenderer(name: string): TerminalRenderer;
-	}
-
-	//#endregion
-
-	//#region Terminal virtual process
-
-	export namespace window {
-		/**
-		 * Creates a [Terminal](#Terminal) where an extension acts as the process.
-		 *
-		 * @param options A [TerminalVirtualProcessOptions](#TerminalVirtualProcessOptions) object describing the
-		 * characteristics of the new terminal.
-		 * @return A new Terminal.
-		 */
-		export function createTerminal(options: TerminalVirtualProcessOptions): Terminal;
-	}
-
-	/**
-	 * Value-object describing what options a virtual process terminal should use.
-	 */
-	export interface TerminalVirtualProcessOptions {
-		/**
-		 * A human-readable string which will be used to represent the terminal in the UI.
-		 */
-		name: string;
-
-		/**
-		 * An implementation of [TerminalVirtualProcess](#TerminalVirtualProcess) that allows an
-		 * extension to act as a terminal's backing process.
-		 */
-		virtualProcess: TerminalVirtualProcess;
-	}
-
-	/**
-	 * Defines the interface of a terminal virtual process, enabling extensions to act as a process
-	 * in the terminal.
-	 */
-	interface TerminalVirtualProcess {
-		/**
-		 * An event that when fired will write data to the terminal. Unlike
-		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_,
-		 * this will write the text to the terminal itself.
-		 *
-		 * **Example:** Write red text to the terminal
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   onDidWrite: writeEmitter.event
-		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
-		 * writeEmitter.fire('\x1b[31mHello world\x1b[0m');
-		 * ```
-		 *
-		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
-		 * ```typescript
-		 * writeEmitter.fire('\x1b[10;20H*');
-		 * ```
-		 */
-		onDidWrite: Event<string>;
-
-		/**
-		 * An event that when fired allows overriding the [dimensions](#Terminal.dimensions) of the
-		 * terminal. Note that when set the overridden dimensions will only take effect when they
-		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
-		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions.
-		 *
-		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
-		 * ```typescript
-		 * const dimensionsEmitter = new vscode.EventEmitter<string>();
-		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   onDidOverrideDimensions: dimensionsEmitter.event
-		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', virtualProcess });
-		 * dimensionsEmitter.fire({
-		 *   columns: 20,
-		 *   rows: 10
+		 * window.onDidCloseTerminal(t => {
+		 *   if (t.exitStatus && t.exitStatus.code) {
+		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
+		 *   }
 		 * });
 		 * ```
 		 */
-		onDidOverrideDimensions?: Event<TerminalDimensions | undefined>;
-
-		/**
-		 * An event that when fired will exit the process with an exit code, this will behave the
-		 * same for a virtual process as when a regular process exits with an exit code. Note that
-		 * exit codes must be positive numbers, when negative the exit code will be forced to `1`.
-		 *
-		 * **Example:** Exit with an exit code of `0` if the y key is pressed, otherwise `1`.
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const exitEmitter = new vscode.EventEmitter<number>();
-		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   input: data => exitEmitter.fire(data === 'y' ? 0 : 1)
-		 * };
-		 * vscode.window.createTerminal({ name: 'Exit example', virtualProcess });
-		 * writeEmitter.fire('Press y to exit successfully');
-		 */
-		onDidExit?: Event<number>;
-
-		/**
-		 * Implement to handle keystrokes in the terminal or when an extension calls
-		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
-		 * corresponding VT sequence representation.
-		 *
-		 * @param data The sent data.
-		 *
-		 * **Example:** Echo input in the terminal. The sequence for enter (`\r`) is translated to
-		 * CRLF to go to a new line and move the cursor to the start of the line.
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const virtualProcess: TerminalVirtualProcess = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   handleInput: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
-		 * };
-		 * vscode.window.createTerminal({ name: 'Local echo', virtualProcess });
-		 * ```
-		 */
-		handleInput?(data: string): void;
-
-		/**
-		 * Implement to handle when the number of rows and columns that fit into the terminal panel
-		 * changes, for example when font size changes or when the panel is resized. The initial
-		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
-		 * as the size of a terminal isn't know until it shows up in the user interface.
-		 *
-		 * @param dimensions The new dimensions.
-		 */
-		setDimensions?(dimensions: TerminalDimensions): void;
-
-		/**
-		 * Implement to handle when the terminal shuts down by an act of the user.
-		 */
-		shutdown?(): void;
-
-		/**
-		 * Implement to handle when the terminal is ready to start firing events.
-		 *
-		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
-		 * terminal panel has not been opened before this is called.
-		 */
-		start?(initialDimensions: TerminalDimensions | undefined): void;
+		readonly exitStatus: TerminalExitStatus | undefined;
 	}
 
 	//#endregion
@@ -1060,20 +762,45 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
+
+	export interface FileCreateEvent {
+		readonly created: ReadonlyArray<Uri>;
+	}
+
+	export interface FileWillCreateEvent {
+		readonly creating: ReadonlyArray<Uri>;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	export interface FileDeleteEvent {
+		readonly deleted: ReadonlyArray<Uri>;
+	}
+
+	export interface FileWillDeleteEvent {
+		readonly deleting: ReadonlyArray<Uri>;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
 	export interface FileRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
+		readonly renamed: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
 	export interface FileWillRenameEvent {
-		readonly oldUri: Uri;
-		readonly newUri: Uri;
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		readonly renaming: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void; // TODO@joh support sync/async
 	}
 
 	export namespace workspace {
-		export const onWillRenameFile: Event<FileWillRenameEvent>;
-		export const onDidRenameFile: Event<FileRenameEvent>;
+
+		export const onWillCreateFiles: Event<FileWillCreateEvent>;
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+
+		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+
+		export const onWillRenameFiles: Event<FileWillRenameEvent>;
+		export const onDidRenameFiles: Event<FileRenameEvent>;
+
 	}
 	//#endregion
 
@@ -1089,12 +816,11 @@ declare module 'vscode' {
 	//#region Tree View
 
 	export interface TreeView<T> {
-
 		/**
-		 * An optional human-readable message that will be rendered in the view.
+		 * The tree view title is initially taken from the extension package.json
+		 * Changes to the title property will be properly reflected in the UI in the title of the view.
 		 */
-		message?: string | MarkdownString;
-
+		title?: string;
 	}
 
 	/**
@@ -1129,66 +855,28 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	/**
-	 * Class used to execute an extension callback as a task.
-	 */
-	export class CustomExecution {
-		/**
-		 * @param callback The callback that will be called when the extension callback task is executed.
-		 */
-		constructor(callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>);
+	//#region CustomExecution
 
-		/**
-		 * The callback used to execute the task.
-		 * @param terminalRenderer Used by the task to render output and receive input.
-		 * @param cancellationToken Cancellation used to signal a cancel request to the executing task.
-		 * @returns The callback should return '0' for success and a non-zero value for failure.
-		 */
-		callback: (terminalRenderer: TerminalRenderer, cancellationToken: CancellationToken, thisArg?: any) => Thenable<number>;
-	}
-
-	/**
-	 * Class used to execute an extension callback as a task.
-	 */
-	export class CustomExecution2 {
-		/**
-		 * @param process The [TerminalVirtualProcess](#TerminalVirtualProcess) to be used by the task to display output.
-		 * @param callback The callback that will be called when the task is started by a user.
-		 */
-		constructor(callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>);
-
-		/**
-		 * The callback used to execute the task. Cancellation should be handled using the shutdown method of [TerminalVirtualProcess](#TerminalVirtualProcess).
-		 * When the task is complete, onDidExit should be fired on the TerminalVirtualProcess with the exit code with '0' for success and a non-zero value for failure.
-		 */
-		callback: (thisArg?: any) => Thenable<TerminalVirtualProcess>;
-	}
 
 	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
-		/**
-		 * Creates a new task.
-		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2, problemMatchers?: string | string[]);
-
-		/**
-		 * The task's execution engine
-		 */
-		execution2?: ProcessExecution | ShellExecution | CustomExecution | CustomExecution2;
+		detail?: string;
 	}
 
-	//#region Tasks
+	export class CustomExecution2 extends CustomExecution {
+		/**
+		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
+		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
+	}
+
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
@@ -1245,32 +933,132 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Webview Resource Roots
+	// #region Ben - extension auth flow (desktop+web)
 
-	export interface Webview {
-		/**
-		 * Convert a uri for the local file system to one that can be used inside webviews.
-		 *
-		 * Webviews cannot directly load resoruces from the workspace or local file system using `file:` uris. The
-		 * `toWebviewResource` function takes a local `file:` uri and converts it into a uri that can be used inside of
-		 * a webview to load the same resource:
-		 *
-		 * ```ts
-		 * webview.html = `<img src="${webview.toWebviewResource(vscode.Uri.file('/Users/codey/workspace/cat.gif'))}">`
-		 * ```
-		 */
-		toWebviewResource(localResource: Uri): Uri;
+	export interface AppUriOptions {
+		payload?: {
+			path?: string;
+			query?: string;
+			fragment?: string;
+		};
+	}
+
+	export namespace env {
 
 		/**
-		 * Content security policy source for webview resources.
-		 *
-		 * This is origin used in a content security policy rule:
-		 *
-		 * ```
-		 * img-src https: ${webview.cspSource} ...;
-		 * ````
+		 * @deprecated use `vscode.env.asExternalUri` instead.
 		 */
-		readonly cspSource: string;
+		export function createAppUri(options?: AppUriOptions): Thenable<Uri>;
+	}
+
+	//#endregion
+
+	//#region Custom editors, mjbvz
+
+	/**
+	 *
+	 */
+	interface WebviewEditorCapabilities {
+		/**
+		 * Invoked when the resource has been renamed in VS Code.
+		 *
+		 * This is called when the resource's new name also matches the custom editor selector.
+		 *
+		 * If this is not implemented—or if the new resource name does not match the existing selector—then VS Code
+		 * will close and reopen the editor on  rename.
+		 *
+		 * @param newResource Full path to the resource.
+		 *
+		 * @return Thenable that signals the save is complete.
+		 */
+		rename?(newResource: Uri): Thenable<void>;
+
+		readonly editingCapability?: WebviewEditorEditingCapability;
+	}
+
+	interface WebviewEditorEditingCapability {
+		/**
+		 * Persist the resource.
+		 */
+		save(resource: Uri): Thenable<void>;
+
+		/**
+		 * Called when the editor exits.
+		 */
+		hotExit(hotExitPath: Uri): Thenable<void>;
+
+		/**
+		 * Signal to VS Code that an edit has occurred.
+		 *
+		 * Edits must be a json serilizable object.
+		 */
+		readonly onEdit: Event<any>;
+
+		/**
+		 * Apply a set of edits.
+		 *
+		 * This is triggered on redo and when restoring a custom editor after restart. Note that is not invoked
+		 * when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
+		 *
+		 * @param edit Array of edits. Sorted from oldest to most recent.
+		 */
+		applyEdits(edits: any[]): Thenable<void>;
+
+		/**
+		 * Undo a set of edits.
+		 *
+		 * This is triggered when a user undoes an edit or when revert is called on a file.
+		 *
+		 * @param edit Array of edits. Sorted from most recent to oldest.
+		 */
+		undoEdits(edits: any[]): Thenable<void>;
+	}
+
+	export interface WebviewEditorProvider {
+		/**
+		 * Fills out a `WebviewEditor` for a given resource.
+		 *
+		 * @param input Information about the resource being resolved.
+		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 *
+		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
+		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
+		 *   **❗️Note**: `WebviewEditorCapabilities` is not actually implemented... yet!
+		 */
+		resolveWebviewEditor(
+			input: {
+				readonly resource: Uri
+			},
+			webview: WebviewPanel,
+		): Thenable<WebviewEditorCapabilities>;
+	}
+
+	namespace window {
+		export function registerWebviewEditorProvider(
+			viewType: string,
+			provider: WebviewEditorProvider,
+			options?: WebviewPanelOptions,
+		): Disposable;
+	}
+
+	//#endregion
+
+	//#region joh, insert/replace completions: https://github.com/microsoft/vscode/issues/10266
+
+	export interface CompletionItem {
+
+		/**
+		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
+		 *
+		 * When omitted, the range of the [current word](#TextDocument.getWordRangeAtPosition) is used as replace-range
+		 * and as insert-range the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position is used.
+		 *
+		 * *Note 1:* A range must be a [single line](#Range.isSingleLine) and it must
+		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
+		 */
+		range2?: Range | { inserting: Range; replacing: Range; };
 	}
 
 	//#endregion

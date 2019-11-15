@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -15,9 +15,9 @@ export const IProgressService = createDecorator<IProgressService>('progressServi
  */
 export interface IProgressService {
 
-	_serviceBrand: ServiceIdentifier<IProgressService>;
+	_serviceBrand: undefined;
 
-	withProgress<R = any>(options: IProgressOptions | IProgressNotificationOptions | IProgressCompositeOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
+	withProgress<R = any>(options: IProgressOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R>;
 }
 
 export interface IProgressIndicator {
@@ -50,12 +50,18 @@ export interface IProgressOptions {
 	source?: string;
 	total?: number;
 	cancellable?: boolean;
+	buttons?: string[];
 }
 
 export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Notification;
 	readonly primaryActions?: ReadonlyArray<IAction>;
 	readonly secondaryActions?: ReadonlyArray<IAction>;
+}
+
+export interface IProgressWindowOptions extends IProgressOptions {
+	readonly location: ProgressLocation.Window;
+	readonly command?: string;
 }
 
 export interface IProgressCompositeOptions extends IProgressOptions {
@@ -90,13 +96,13 @@ export interface IProgress<T> {
 export class Progress<T> implements IProgress<T> {
 
 	private _callback: (data: T) => void;
-	private _value: T;
+	private _value?: T;
 
 	constructor(callback: (data: T) => void) {
 		this._callback = callback;
 	}
 
-	get value() {
+	get value(): T | undefined {
 		return this._value;
 	}
 
@@ -120,7 +126,7 @@ export interface IOperation {
 export class LongRunningOperation extends Disposable {
 	private currentOperationId = 0;
 	private readonly currentOperationDisposables = this._register(new DisposableStore());
-	private currentProgressRunner: IProgressRunner;
+	private currentProgressRunner: IProgressRunner | undefined;
 	private currentProgressTimeout: any;
 
 	constructor(
@@ -173,5 +179,5 @@ export const IEditorProgressService = createDecorator<IEditorProgressService>('e
  */
 export interface IEditorProgressService extends IProgressIndicator {
 
-	_serviceBrand: ServiceIdentifier<IEditorProgressService>;
+	_serviceBrand: undefined;
 }

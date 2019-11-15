@@ -9,12 +9,13 @@ import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/brows
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 class Coordinate {
 	_coordinateBrand: void;
@@ -111,7 +112,7 @@ export class ViewContentWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IContentWidget, position: IPosition | null | undefined, range: IRange | null | undefined, preference: ContentWidgetPositionPreference[] | null | undefined): void {
+	public setWidgetPosition(widget: IContentWidget, position: IPosition | null, range: IRange | null, preference: ContentWidgetPositionPreference[] | null): void {
 		const myWidget = this._widgets[widget.getId()];
 		myWidget.setPosition(position, range, preference);
 
@@ -202,18 +203,24 @@ class Widget {
 		this._context = context;
 		this._viewDomNode = viewDomNode;
 		this._actual = actual;
-		this.domNode = createFastDomNode(this._actual.getDomNode());
 
+		this.domNode = createFastDomNode(this._actual.getDomNode());
 		this.id = this._actual.getId();
 		this.allowEditorOverflow = this._actual.allowEditorOverflow || false;
 		this.suppressMouseDown = this._actual.suppressMouseDown || false;
 
-		this._fixedOverflowWidgets = this._context.configuration.editor.viewInfo.fixedOverflowWidgets;
-		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		this._setPosition(null, null);
+		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
+		this._contentWidth = layoutInfo.contentWidth;
+		this._contentLeft = layoutInfo.contentLeft;
+		this._lineHeight = options.get(EditorOption.lineHeight);
+
+		this._position = null;
+		this._range = null;
+		this._viewPosition = null;
+		this._viewRange = null;
 		this._preference = [];
 		this._cachedDomNodeClientWidth = -1;
 		this._cachedDomNodeClientHeight = -1;
@@ -228,12 +235,12 @@ class Widget {
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.layoutInfo) {
-			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		const options = this._context.configuration.options;
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		if (e.hasChanged(EditorOption.layoutInfo)) {
+			const layoutInfo = options.get(EditorOption.layoutInfo);
+			this._contentLeft = layoutInfo.contentLeft;
+			this._contentWidth = layoutInfo.contentWidth;
 			this._maxWidth = this._getMaxWidth();
 		}
 	}
@@ -242,9 +249,9 @@ class Widget {
 		this._setPosition(this._position, this._range);
 	}
 
-	private _setPosition(position: IPosition | null | undefined, range: IRange | null | undefined): void {
-		this._position = withUndefinedAsNull(position);
-		this._range = withUndefinedAsNull(range);
+	private _setPosition(position: IPosition | null, range: IRange | null): void {
+		this._position = position;
+		this._range = range;
 		this._viewPosition = null;
 		this._viewRange = null;
 
@@ -270,9 +277,9 @@ class Widget {
 		);
 	}
 
-	public setPosition(position: IPosition | null | undefined, range: IRange | null | undefined, preference: ContentWidgetPositionPreference[] | null | undefined): void {
+	public setPosition(position: IPosition | null, range: IRange | null, preference: ContentWidgetPositionPreference[] | null): void {
 		this._setPosition(position, range);
-		this._preference = withUndefinedAsNull(preference);
+		this._preference = preference;
 		this._cachedDomNodeClientWidth = -1;
 		this._cachedDomNodeClientHeight = -1;
 	}
@@ -373,7 +380,7 @@ class Widget {
 			belowLeft = absoluteBelowLeft;
 		}
 
-		return { fitsAbove, aboveTop, aboveLeft, fitsBelow, belowTop, belowLeft };
+		return { fitsAbove, aboveTop: Math.max(aboveTop, TOP_PADDING), aboveLeft, fitsBelow, belowTop, belowLeft };
 	}
 
 	private _prepareRenderWidgetAtExactPositionOverflowing(topLeft: Coordinate): Coordinate {

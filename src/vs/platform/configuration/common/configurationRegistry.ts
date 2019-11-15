@@ -99,6 +99,10 @@ export const enum ConfigurationScope {
 	 * Resource specific configuration, which can be configured in the user, workspace or folder settings.
 	 */
 	RESOURCE,
+	/**
+	 * Machine specific configuration that can also be configured in workspace or folder settings.
+	 */
+	MACHINE_OVERRIDABLE,
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
@@ -136,6 +140,7 @@ type SettingProperties = { [key: string]: any };
 export const allSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
 export const applicationSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
 export const machineSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
+export const machineOverridableSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
 export const windowSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
 export const resourceSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
 
@@ -165,10 +170,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			properties: {}
 		};
 		this.configurationContributors = [this.defaultOverridesConfigurationNode];
-		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
+		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting', allowTrailingCommas: true, allowComments: true };
 		this.configurationProperties = {};
 		this.excludedConfigurationProperties = {};
-		this.computeOverridePropertyPattern();
+		this.overridePropertyPattern = this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
 	}
@@ -208,6 +213,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 							break;
 						case ConfigurationScope.MACHINE:
 							delete machineSettings.properties[key];
+							break;
+						case ConfigurationScope.MACHINE_OVERRIDABLE:
+							delete machineOverridableSettings.properties[key];
 							break;
 						case ConfigurationScope.WINDOW:
 							delete windowSettings.properties[key];
@@ -360,6 +368,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						case ConfigurationScope.MACHINE:
 							machineSettings.properties[key] = properties[key];
 							break;
+						case ConfigurationScope.MACHINE_OVERRIDABLE:
+							machineOverridableSettings.properties[key] = properties[key];
+							break;
 						case ConfigurationScope.WINDOW:
 							windowSettings.properties[key] = properties[key];
 							break;
@@ -398,14 +409,16 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		delete allSettings.patternProperties[this.overridePropertyPattern];
 		delete applicationSettings.patternProperties[this.overridePropertyPattern];
 		delete machineSettings.patternProperties[this.overridePropertyPattern];
+		delete machineOverridableSettings.patternProperties[this.overridePropertyPattern];
 		delete windowSettings.patternProperties[this.overridePropertyPattern];
 		delete resourceSettings.patternProperties[this.overridePropertyPattern];
 
-		this.computeOverridePropertyPattern();
+		this.overridePropertyPattern = this.computeOverridePropertyPattern();
 
 		allSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		applicationSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		machineSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
+		machineOverridableSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		windowSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		resourceSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 
@@ -427,8 +440,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		}
 	}
 
-	private computeOverridePropertyPattern(): void {
-		this.overridePropertyPattern = this.overrideIdentifiers.length ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', this.overrideIdentifiers.map(identifier => strings.createRegExp(identifier, false).source).join('|')) : OVERRIDE_PROPERTY;
+	private computeOverridePropertyPattern(): string {
+		return this.overrideIdentifiers.length ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', this.overrideIdentifiers.map(identifier => strings.createRegExp(identifier, false).source).join('|')) : OVERRIDE_PROPERTY;
 	}
 }
 

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
-import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
@@ -24,12 +24,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator2, WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, FilesFilter, FileSorter, FileDragAndDrop } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
+import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -50,13 +50,14 @@ import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { dispose } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
-	private tree: WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
-	private filter: FilesFilter;
+	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
+	private filter!: FilesFilter;
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
@@ -66,8 +67,9 @@ export class ExplorerView extends ViewletPanel {
 
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
-	private dragHandler: DelayedDragHandler;
+	private dragHandler!: DelayedDragHandler;
 	private autoReveal = false;
+	private actions: IAction[] | undefined;
 
 	constructor(
 		options: IViewletPanelOptions,
@@ -90,7 +92,7 @@ export class ExplorerView extends ViewletPanel {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
@@ -100,7 +102,7 @@ export class ExplorerView extends ViewletPanel {
 		this.resourceMoveableToTrash = ExplorerResourceMoveableToTrash.bindTo(contextKeyService);
 
 		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
-		decorationService.registerDecorationsProvider(decorationProvider);
+		this._register(decorationService.registerDecorationsProvider(decorationProvider));
 		this._register(decorationProvider);
 		this._register(this.resourceContext);
 	}
@@ -170,7 +172,12 @@ export class ExplorerView extends ViewletPanel {
 		}));
 
 		this._register(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
-		this._register(this.explorerService.onDidChangeItem(e => this.refresh(e.recursive, e.item)));
+		this._register(this.explorerService.onDidChangeItem(e => {
+			if (this.explorerService.isEditable(undefined)) {
+				this.tree.domFocus();
+			}
+			this.refresh(e.recursive, e.item);
+		}));
 		this._register(this.explorerService.onDidChangeEditable(async e => {
 			const isEditing = !!this.explorerService.getEditableData(e);
 
@@ -218,14 +225,16 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	getActions(): IAction[] {
-		const actions: Action[] = [];
-
-		actions.push(this.instantiationService.createInstance(NewFileAction));
-		actions.push(this.instantiationService.createInstance(NewFolderAction));
-		actions.push(this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL));
-		actions.push(this.instantiationService.createInstance(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL));
-
-		return actions;
+		if (!this.actions) {
+			this.actions = [
+				this.instantiationService.createInstance(NewFileAction),
+				this.instantiationService.createInstance(NewFolderAction),
+				this.instantiationService.createInstance(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL),
+				this.instantiationService.createInstance(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL)
+			];
+			this.actions.forEach(a => this._register(a));
+		}
+		return this.actions;
 	}
 
 	focus(): void {
@@ -240,8 +249,7 @@ export class ExplorerView extends ViewletPanel {
 			const activeFile = this.getActiveFile();
 			if (!activeFile && !focused[0].isDirectory) {
 				// Open the focused element in the editor if there is currently no file opened #67708
-				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } })
-					.then(undefined, onUnexpectedError);
+				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } });
 			}
 		}
 	}
@@ -275,35 +283,50 @@ export class ExplorerView extends ViewletPanel {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, container, new ExplorerDelegate(), [filesRenderer],
+		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compressSingleChildFolders');
+
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleAsyncDataTree, WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [filesRenderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
-				accessibilityProvider: new ExplorerAccessibilityProvider(),
-				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
-				identityProvider: {
-					getId: (stat: ExplorerItem) => {
-						if (stat instanceof NewExplorerItem) {
-							return `new:${stat.resource}`;
-						}
-
-						return stat.resource;
+			compressionEnabled: isCompressionEnabled(),
+			accessibilityProvider: new ExplorerAccessibilityProvider(),
+			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
+			identityProvider: {
+				getId: (stat: ExplorerItem) => {
+					if (stat instanceof NewExplorerItem) {
+						return `new:${stat.resource}`;
 					}
-				},
-				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (stat: ExplorerItem) => {
-						if (this.explorerService.isEditable(stat)) {
-							return undefined;
-						}
 
-						return stat.name;
+					return stat.resource;
+				}
+			},
+			keyboardNavigationLabelProvider: {
+				getKeyboardNavigationLabel: (stat: ExplorerItem) => {
+					if (this.explorerService.isEditable(stat)) {
+						return undefined;
 					}
+
+					return stat.name;
 				},
-				multipleSelectionSupport: true,
-				filter: this.filter,
-				sorter: this.instantiationService.createInstance(FileSorter),
-				dnd: this.instantiationService.createInstance(FileDragAndDrop),
-				autoExpandSingleChildren: true
-			}) as WorkbenchAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
+				getCompressedNodeKeyboardNavigationLabel: (stats: ExplorerItem[]) => {
+					if (stats.some(stat => this.explorerService.isEditable(stat))) {
+						return undefined;
+					}
+
+					return stats.map(stat => stat.name).join('/');
+				}
+			},
+			multipleSelectionSupport: true,
+			filter: this.filter,
+			sorter: this.instantiationService.createInstance(FileSorter),
+			dnd: this.instantiationService.createInstance(FileDragAndDrop),
+			autoExpandSingleChildren: true,
+			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT
+		});
 		this._register(this.tree);
+
+		// Bind configuration
+		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compressSingleChildFolders'));
+		this._register(onDidChangeCompressionConfiguration(_ => this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
 
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
@@ -315,7 +338,7 @@ export class ExplorerView extends ViewletPanel {
 		const explorerNavigator = new TreeResourceNavigator2(this.tree);
 		this._register(explorerNavigator);
 		// Open when selecting via keyboard
-		this._register(explorerNavigator.onDidOpenResource(e => {
+		this._register(explorerNavigator.onDidOpenResource(async e => {
 			const selection = this.tree.getSelection();
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
@@ -327,12 +350,18 @@ export class ExplorerView extends ViewletPanel {
 					return;
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP)
-					.then(undefined, onUnexpectedError);
+				await this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			}
 		}));
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
+		this._register(this.tree.onDidScroll(e => {
+			let editable = this.explorerService.getEditable();
+			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
+				editable.data.onFinish('', false);
+			}
+		}));
 
 		// save view state on shutdown
 		this._register(this.storageService.onWillSaveState(() => {
@@ -343,7 +372,7 @@ export class ExplorerView extends ViewletPanel {
 	// React on events
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
+		this.autoReveal = configuration?.explorer?.autoReveal;
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
@@ -509,7 +538,12 @@ export class ExplorerView extends ViewletPanel {
 		return withNullAsUndefined(toResource(input, { supportSideBySide: SideBySideEditor.MASTER }));
 	}
 
-	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal): Promise<void> {
+	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
+		// do no retry more than once to prevent inifinite loops in cases of inconsistent model
+		if (retry === 2) {
+			return;
+		}
+
 		if (!resource || !this.isBodyVisible()) {
 			return;
 		}
@@ -520,12 +554,18 @@ export class ExplorerView extends ViewletPanel {
 			.sort((first, second) => second.resource.path.length - first.resource.path.length)[0];
 
 		while (item && item.resource.toString() !== resource.toString()) {
+			if (item.isDisposed) {
+				return this.onSelectResource(resource, reveal, retry + 1);
+			}
 			await this.tree.expand(item);
 			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
 		}
 
 		if (item && item.parent) {
 			if (reveal) {
+				if (item.isDisposed) {
+					return this.onSelectResource(resource, reveal, retry + 1);
+				}
 				this.tree.reveal(item, 0.5);
 			}
 

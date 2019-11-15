@@ -28,16 +28,16 @@ import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandSer
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeyboardEvent, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -45,6 +45,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 import { ILayoutService, IDimension } from 'vs/platform/layout/browser/layoutService';
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { basename } from 'vs/base/common/resources';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -96,19 +97,22 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 }
 
 export class SimpleEditorModelResolverService implements ITextModelService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
-	private editor: editorCommon.IEditor;
+	private editor?: editorCommon.IEditor;
 
 	public setEditor(editor: editorCommon.IEditor): void {
 		this.editor = editor;
 	}
 
 	public createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		let model: ITextModel | null = withTypedEditor(this.editor,
-			(editor) => this.findModel(editor, resource),
-			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
-		);
+		let model: ITextModel | null = null;
+		if (this.editor) {
+			model = withTypedEditor(this.editor,
+				(editor) => this.findModel(editor, resource),
+				(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
+			);
+		}
 
 		if (!model) {
 			return Promise.reject(new Error(`Model not found`));
@@ -138,7 +142,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 }
 
 export class SimpleEditorProgressService implements IEditorProgressService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private static NULL_PROGRESS_RUNNER: IProgressRunner = {
 		done: () => { },
@@ -159,7 +163,7 @@ export class SimpleEditorProgressService implements IEditorProgressService {
 
 export class SimpleDialogService implements IDialogService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return this.doConfirm(confirmation).then(confirmed => {
@@ -179,14 +183,18 @@ export class SimpleDialogService implements IDialogService {
 		return Promise.resolve(window.confirm(messageText));
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number> {
-		return Promise.resolve(0);
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
+		return Promise.resolve({ choice: 0 });
+	}
+
+	public about(): Promise<void> {
+		return Promise.resolve(undefined);
 	}
 }
 
 export class SimpleNotificationService implements INotificationService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -225,16 +233,20 @@ export class SimpleNotificationService implements INotificationService {
 	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
+
+	public setFilter(filter: NotificationsFilter): void { }
 }
 
 export class StandaloneCommandService implements ICommandService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _instantiationService: IInstantiationService;
 	private readonly _dynamicCommands: { [id: string]: ICommand; };
 
 	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
+	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
 	constructor(instantiationService: IInstantiationService) {
 		this._instantiationService = instantiationService;
@@ -256,8 +268,10 @@ export class StandaloneCommandService implements ICommandService {
 		}
 
 		try {
-			this._onWillExecuteCommand.fire({ commandId: id });
+			this._onWillExecuteCommand.fire({ commandId: id, args });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
+
+			this._onDidExecuteCommand.fire({ commandId: id, args });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);
@@ -352,7 +366,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (const item of items) {
-			const when = (item.when ? item.when.normalize() : undefined);
+			const when = item.when || undefined;
 			const keybinding = item.keybinding;
 
 			if (!keybinding) {
@@ -395,6 +409,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public _dumpDebugInfoJSON(): string {
 		return '';
 	}
+
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
+		// noop
+	}
 }
 
 function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
@@ -406,9 +424,9 @@ function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides 
 
 export class SimpleConfigurationService implements IConfigurationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	private readonly _configuration: Configuration;
@@ -464,21 +482,21 @@ export class SimpleConfigurationService implements IConfigurationService {
 			defaults: emptyModel,
 			user: emptyModel,
 			workspace: emptyModel,
-			folders: {}
+			folders: []
 		};
 	}
 }
 
 export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
-	private readonly _onDidChangeConfigurationEmitter = new Emitter();
+	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(private readonly configurationService: SimpleConfigurationService) {
 		this.configurationService.onDidChangeConfiguration((e) => {
-			this._onDidChangeConfigurationEmitter.fire(e);
+			this._onDidChangeConfiguration.fire(e);
 		});
 	}
 
@@ -496,26 +514,24 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 export class SimpleResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
-	getEOL(resource: URI): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
-		if (filesConfiguration && filesConfiguration.eol) {
-			if (filesConfiguration.eol !== 'auto') {
-				return filesConfiguration.eol;
-			}
+	getEOL(resource: URI, language?: string): string {
+		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
+		if (eol && eol !== 'auto') {
+			return eol;
 		}
 		return (isLinux || isMacintosh) ? '\n' : '\r\n';
 	}
 }
 
 export class StandaloneTelemetryService implements ITelemetryService {
-	_serviceBrand: void;
+	_serviceBrand: undefined;
 
 	public isOptedIn = false;
 
@@ -537,9 +553,9 @@ export class StandaloneTelemetryService implements ITelemetryService {
 
 export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
-	private static SCHEME = 'inmemory';
+	private static readonly SCHEME = 'inmemory';
 
 	private readonly _onDidChangeWorkspaceName = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
@@ -606,7 +622,7 @@ export function applyConfigurationValues(configurationService: IConfigurationSer
 }
 
 export class SimpleBulkEditService implements IBulkEditService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(private readonly _modelService: IModelService) {
 		//
@@ -636,7 +652,9 @@ export class SimpleBulkEditService implements IBulkEditService {
 		let totalEdits = 0;
 		let totalFiles = 0;
 		edits.forEach((edits, model) => {
-			model.applyEdits(edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
+			model.pushStackElement();
+			model.pushEditOperations([], edits.map((e) => EditOperation.replaceMove(Range.lift(e.range), e.text)), () => []);
+			model.pushStackElement();
 			totalFiles += 1;
 			totalEdits += edits.length;
 		});
@@ -649,7 +667,8 @@ export class SimpleBulkEditService implements IBulkEditService {
 }
 
 export class SimpleUriLabelService implements ILabelService {
-	_serviceBrand: any;
+
+	_serviceBrand: undefined;
 
 	private readonly _onDidRegisterFormatter = new Emitter<void>();
 	public readonly onDidChangeFormatters: Event<void> = this._onDidRegisterFormatter.event;
@@ -659,6 +678,10 @@ export class SimpleUriLabelService implements ILabelService {
 			return resource.fsPath;
 		}
 		return resource.path;
+	}
+
+	getUriBasenameLabel(resource: URI): string {
+		return basename(resource);
 	}
 
 	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
@@ -679,11 +702,11 @@ export class SimpleUriLabelService implements ILabelService {
 }
 
 export class SimpleLayoutService implements ILayoutService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public onLayout = Event.None;
 
-	private _dimension: IDimension;
+	private _dimension?: IDimension;
 	get dimension(): IDimension {
 		if (!this._dimension) {
 			this._dimension = dom.getClientArea(window.document.body);

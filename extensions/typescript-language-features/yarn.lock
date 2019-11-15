@@ -26,10 +26,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-12.0.2.tgz#3452a24edf9fea138b48fad4a0a028a683da1e40"
   integrity sha512-5tabW/i+9mhrfEOUcLDu2xBPsHJ+X5Orqy9FKpale3SjDA17j5AEpYq5vfy3oAeAHGcvANRCO3NV3d2D6q3NiA==
 
-"@types/node@^10.14.8":
-  version "10.14.8"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-10.14.8.tgz#fe444203ecef1162348cd6deb76c62477b2cc6e9"
-  integrity sha512-I4+DbJEhLEg4/vIy/2gkWDvXBOOtPKV9EnLhYjMoqxcRW+TTZtUftkHktz/a8suoD5mUL7m6ReLrkPvSsCQQmw==
+"@types/node@^12.11.7":
+  version "12.11.7"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.11.7.tgz#57682a9771a3f7b09c2497f28129a0462966524a"
+  integrity sha512-JNbGaHFCLwgHn/iCckiGSOZ1XYHsKFwREtzPwSGCVld1SGhOlmZw2D4ZI94HQCrBHbADzW9m4LER/8olJTRGHA==
 
 "@types/rimraf@2.0.2":
   version "2.0.2"
@@ -1027,10 +1027,10 @@ json-stringify-safe@~5.0.1:
   resolved "https://registry.yarnpkg.com/json-stringify-safe/-/json-stringify-safe-5.0.1.tgz#1296a2d58fd45f19a0f6ce01d65701e2c735b6eb"
   integrity sha1-Epai1Y/UXxmg9s4B1lcB4sc1tus=
 
-jsonc-parser@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.0.1.tgz#9d23cd2709714fff508a1a6679d82135bee1ae60"
-  integrity sha512-9w/QyN9qF1dTlffzkmyITa6qAYt6sDArlVZqaP+CXnRh66V73wImQGG8GIBkuas0XLAxddWEWYQ8PPFoK5KNQA==
+jsonc-parser@^2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.1.1.tgz#83dc3d7a6e7186346b889b1280eefa04446c6d3e"
+  integrity sha512-VC0CjnWJylKB1iov4u76/W/5Ef0ydDkjtYWxoZ9t3HdWlSnZQwZL5MgFikaB/EtQ4RmMEw3tmQzuYnZA2/Ja1g==
 
 jsonify@~0.0.0:
   version "0.0.0"

@@ -24,10 +24,11 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class FormatOnType implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.autoFormat';
+	public static readonly ID = 'editor.contrib.autoFormat';
 
 	private readonly _editor: ICodeEditor;
 	private readonly _callOnDispose = new DisposableStore();
@@ -44,10 +45,6 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this._callOnDispose.add(OnTypeFormattingEditProviderRegistry.onDidChange(this._update, this));
 	}
 
-	getId(): string {
-		return FormatOnType.ID;
-	}
-
 	dispose(): void {
 		this._callOnDispose.dispose();
 		this._callOnModel.dispose();
@@ -59,7 +56,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this._callOnModel.clear();
 
 		// we are disabled
-		if (!this._editor.getConfiguration().contribInfo.formatOnType) {
+		if (!this._editor.getOption(EditorOption.formatOnType)) {
 			return;
 		}
 
@@ -154,7 +151,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 class FormatOnPaste implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.formatOnPaste';
+	public static readonly ID = 'editor.contrib.formatOnPaste';
 
 	private readonly _callOnDispose = new DisposableStore();
 	private readonly _callOnModel = new DisposableStore();
@@ -169,10 +166,6 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		this._callOnDispose.add(DocumentRangeFormattingEditProviderRegistry.onDidChange(this._update, this));
 	}
 
-	getId(): string {
-		return FormatOnPaste.ID;
-	}
-
 	dispose(): void {
 		this._callOnDispose.dispose();
 		this._callOnModel.dispose();
@@ -184,7 +177,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 		this._callOnModel.clear();
 
 		// we are disabled
-		if (!this.editor.getConfiguration().contribInfo.formatOnPaste) {
+		if (!this.editor.getOption(EditorOption.formatOnPaste)) {
 			return;
 		}
 
@@ -277,8 +270,8 @@ class FormatSelectionAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(FormatOnType);
-registerEditorContribution(FormatOnPaste);
+registerEditorContribution(FormatOnType.ID, FormatOnType);
+registerEditorContribution(FormatOnPaste.ID, FormatOnPaste);
 registerEditorAction(FormatDocumentAction);
 registerEditorAction(FormatSelectionAction);
 

@@ -5,8 +5,9 @@
 
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export interface IAnchor {
 	x: number;
@@ -100,11 +101,11 @@ export class ContextView extends Disposable {
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
 	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
-	private container: HTMLElement | null;
+	private container: HTMLElement | null = null;
 	private view: HTMLElement;
-	private delegate: IDelegate | null;
-	private toDisposeOnClean: IDisposable | null;
-	private toDisposeOnSetContainer: IDisposable;
+	private delegate: IDelegate | null = null;
+	private toDisposeOnClean: IDisposable = Disposable.None;
+	private toDisposeOnSetContainer: IDisposable = Disposable.None;
 
 	constructor(container: HTMLElement) {
 		super();
@@ -120,7 +121,7 @@ export class ContextView extends Disposable {
 
 	setContainer(container: HTMLElement | null): void {
 		if (this.container) {
-			dispose(this.toDisposeOnSetContainer);
+			this.toDisposeOnSetContainer.dispose();
 			this.container.removeChild(this.view);
 			this.container = null;
 		}
@@ -159,7 +160,7 @@ export class ContextView extends Disposable {
 		DOM.show(this.view);
 
 		// Render content
-		this.toDisposeOnClean = delegate.render(this.view);
+		this.toDisposeOnClean = delegate.render(this.view) || Disposable.None;
 
 		// Set active delegate
 		this.delegate = delegate;
@@ -178,7 +179,7 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate!.canRelayout === false) {
+		if (this.delegate!.canRelayout === false && !BrowserFeatures.pointerEvents) {
 			this.hide();
 			return;
 		}
@@ -263,14 +264,11 @@ export class ContextView extends Disposable {
 		const delegate = this.delegate;
 		this.delegate = null;
 
-		if (delegate && delegate.onHide) {
+		if (delegate?.onHide) {
 			delegate.onHide(data);
 		}
 
-		if (this.toDisposeOnClean) {
-			this.toDisposeOnClean.dispose();
-			this.toDisposeOnClean = null;
-		}
+		this.toDisposeOnClean.dispose();
 
 		DOM.hide(this.view);
 	}

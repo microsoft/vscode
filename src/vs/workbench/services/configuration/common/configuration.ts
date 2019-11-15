@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
@@ -18,11 +15,12 @@ export const machineSettingsSchemaId = 'vscode://schemas/settings/machine';
 export const workspaceSettingsSchemaId = 'vscode://schemas/settings/workspace';
 export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
 export const launchSchemaId = 'vscode://schemas/launch';
+export const tasksSchemaId = 'vscode://schemas/tasks';
 
 export const LOCAL_MACHINE_SCOPES = [ConfigurationScope.APPLICATION, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE];
-export const REMOTE_MACHINE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE];
-export const WORKSPACE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE];
-export const FOLDER_SCOPES = [ConfigurationScope.RESOURCE];
+export const REMOTE_MACHINE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const WORKSPACE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const FOLDER_SCOPES = [ConfigurationScope.RESOURCE, ConfigurationScope.MACHINE_OVERRIDABLE];
 
 export const TASKS_CONFIGURATION_KEY = 'tasks';
 export const LAUNCH_CONFIGURATION_KEY = 'launch';
@@ -38,39 +36,5 @@ export interface IConfigurationCache {
 	read(key: ConfigurationKey): Promise<string>;
 	write(key: ConfigurationKey, content: string): Promise<void>;
 	remove(key: ConfigurationKey): Promise<void>;
-
-}
-
-export class ConfigurationFileService {
-
-	constructor(private readonly fileService: IFileService) { }
-
-	get onFileChanges() { return this.fileService.onFileChanges; }
-
-	whenProviderRegistered(scheme: string): Promise<void> {
-		if (this.fileService.canHandleResource(URI.from({ scheme }))) {
-			return Promise.resolve();
-		}
-		return new Promise((c, e) => {
-			const disposable = this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-				if (e.scheme === scheme && e.added) {
-					disposable.dispose();
-					c();
-				}
-			});
-		});
-	}
-
-	watch(resource: URI): IDisposable {
-		return this.fileService.watch(resource);
-	}
-
-	exists(resource: URI): Promise<boolean> {
-		return this.fileService.exists(resource);
-	}
-
-	readFile(resource: URI): Promise<string> {
-		return this.fileService.readFile(resource).then(content => content.value.toString());
-	}
 
 }

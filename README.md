@@ -8,7 +8,7 @@
 
 ## The Repository
 
-This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product. Not only do we work on code and issues here, we also publish our roadmap, monthly iteration plans, and our endgame plans. The source code here is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/master/LICENSE.txt).
+This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product. Not only do we work on code and issues here, we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/master/LICENSE.txt).
 
 ## Visual Studio Code
 
@@ -39,6 +39,7 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 * [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#debugging)
 * [Coding guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
+* [Finding an issue to work on](https://github.com/microsoft/vscode/wiki/How-to-Contribute#where-to-contribute)
 * [Contributing to translations](https://aka.ms/vscodeloc)
 
 ## Feedback

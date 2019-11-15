@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
+import { Dimension } from 'vs/base/browser/dom';
 
 export const IWorkbenchLayoutService = createDecorator<IWorkbenchLayoutService>('layoutService');
 
@@ -26,19 +27,9 @@ export const enum Position {
 	BOTTOM
 }
 
-export interface ILayoutOptions {
-	toggleMaximizedPanel?: boolean;
-	source?: Parts;
-}
-
 export interface IWorkbenchLayoutService extends ILayoutService {
 
-	_serviceBrand: ServiceIdentifier<any>;
-
-	/**
-	 * Emits when the visibility of the title bar changes.
-	 */
-	readonly onTitleBarVisibilityChange: Event<void>;
+	_serviceBrand: undefined;
 
 	/**
 	 * Emits when the zen mode is enabled or disabled.
@@ -51,6 +42,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onFullscreenChange: Event<boolean>;
 
 	/**
+	 * Emits when the window is maximized or unmaximized.
+	 */
+	readonly onMaximizeChange: Event<boolean>;
+
+	/**
 	 * Emits when centered layout is enabled or disabled.
 	 */
 	readonly onCenteredLayoutChange: Event<boolean>;
@@ -59,6 +55,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Emit when panel position changes.
 	 */
 	readonly onPanelPositionChange: Event<string>;
+
+	/**
+	 * Emit when part visibility changes
+	 */
+	readonly onPartVisibilityChange: Event<void>;
 
 	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
@@ -74,12 +75,17 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Returns the parts HTML element, if there is one.
 	 */
-	getContainer(part: Parts): HTMLElement;
+	getContainer(part: Parts): HTMLElement | undefined;
 
 	/**
 	 * Returns if the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
+
+	/**
+	 * Returns if the part is visible.
+	 */
+	getDimension(part: Parts): Dimension | undefined;
 
 	/**
 	 * Set activity bar hidden or not
@@ -114,6 +120,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleMaximizedPanel(): void;
 
 	/**
+	 * Returns true if the window has a border.
+	 */
+	hasWindowBorder(): boolean;
+
+	/**
+	 * Returns the window border radius if any.
+	 */
+	getWindowBorderRadius(): string | undefined;
+
+	/**
 	 * Returns true if the panel is maximized.
 	 */
 	isPanelMaximized(): boolean;
@@ -137,6 +153,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Sets the panel position.
 	 */
 	setPanelPosition(position: Position): void;
+
+	/**
+	 * Gets the maximum possible size for editor.
+	 */
+	getMaximumEditorDimensions(): Dimension;
 
 	/**
 	 * Returns the element that is parent of the workbench element.
@@ -172,4 +193,15 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Register a part to participate in the layout.
 	 */
 	registerPart(part: Part): void;
+
+
+	/**
+	 * Returns whether the window is maximized.
+	 */
+	isWindowMaximized(): boolean;
+
+	/**
+	 * Updates the maximized state of the window.
+	 */
+	updateWindowMaximizedState(maximized: boolean): void;
 }

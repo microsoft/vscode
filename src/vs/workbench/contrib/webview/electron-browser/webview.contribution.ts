@@ -13,16 +13,16 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
-import { IWebviewService, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
+import { IWebviewService, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/browser/webview';
 import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
-import { WebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
+import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-browser/webviewService';
 
-registerSingleton(IWebviewService, WebviewService, true);
+registerSingleton(IWebviewService, ElectronWebviewService, true);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 actionRegistry.registerWorkbenchAction(
-	new SyncActionDescriptor(webviewCommands.OpenWebviewDeveloperToolsAction, webviewCommands.OpenWebviewDeveloperToolsAction.ID, webviewCommands.OpenWebviewDeveloperToolsAction.LABEL),
+	SyncActionDescriptor.create(webviewCommands.OpenWebviewDeveloperToolsAction, webviewCommands.OpenWebviewDeveloperToolsAction.ID, webviewCommands.OpenWebviewDeveloperToolsAction.LABEL),
 	webviewCommands.OpenWebviewDeveloperToolsAction.ALIAS,
 	webviewDeveloperCategory);
 

@@ -14,7 +14,7 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -26,6 +26,8 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class InsertCursorAbove extends EditorAction {
 
@@ -72,7 +74,7 @@ export class InsertCursorAbove extends EditorAction {
 			CursorChangeReason.Explicit,
 			CursorMoveCommands.addCursorUp(context, cursors.getAll(), useLogicalLine)
 		);
-		cursors.reveal(true, RevealTarget.TopMost, ScrollType.Smooth);
+		cursors.reveal(args.source, true, RevealTarget.TopMost, ScrollType.Smooth);
 	}
 }
 
@@ -121,7 +123,7 @@ export class InsertCursorBelow extends EditorAction {
 			CursorChangeReason.Explicit,
 			CursorMoveCommands.addCursorDown(context, cursors.getAll(), useLogicalLine)
 		);
-		cursors.reveal(true, RevealTarget.BottomMost, ScrollType.Smooth);
+		cursors.reveal(args.source, true, RevealTarget.BottomMost, ScrollType.Smooth);
 	}
 }
 
@@ -350,7 +352,7 @@ export class MultiCursorSession {
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), false, this.matchCase, this.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false);
+		const nextMatch = this._editor.getModel().findNextMatch(this.searchText, lastAddedSelection.getEndPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 
 		if (!nextMatch) {
 			return null;
@@ -401,7 +403,7 @@ export class MultiCursorSession {
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
-		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), false, this.matchCase, this.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false);
+		const previousMatch = this._editor.getModel().findPreviousMatch(this.searchText, lastAddedSelection.getStartPosition(), false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 
 		if (!previousMatch) {
 			return null;
@@ -416,13 +418,13 @@ export class MultiCursorSession {
 
 		this.findController.highlightFindOptions();
 
-		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
 }
 
 export class MultiCursorSelectionController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.multiCursorController';
+	public static readonly ID = 'editor.contrib.multiCursorController';
 
 	private readonly _editor: ICodeEditor;
 	private _ignoreSelectionChange: boolean;
@@ -443,10 +445,6 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 	public dispose(): void {
 		this._endSession();
 		super.dispose();
-	}
-
-	public getId(): string {
-		return MultiCursorSelectionController.ID;
 	}
 
 	private _beginSessionIfNeeded(findController: CommonFindController): void {
@@ -593,7 +591,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and we're searching for a regex
 		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 
-			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 
 		} else {
 
@@ -603,6 +601,17 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			}
 
 			matches = this._session.selectAll();
+		}
+
+		if (findState.searchScope) {
+			const state = findState.searchScope;
+			let inSelection: FindMatch[] | null = [];
+			for (let i = 0; i < matches.length; i++) {
+				if (matches[i].range.endLineNumber <= state.endLineNumber && matches[i].range.startLineNumber >= state.startLineNumber) {
+					inSelection.push(matches[i]);
+				}
+			}
+			matches = inSelection;
 		}
 
 		if (matches.length > 0) {
@@ -750,7 +759,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 			id: 'editor.action.changeAll',
 			label: nls.localize('changeAll.label', "Change All Occurrences"),
 			alias: 'Change All Occurrences',
-			precondition: EditorContextKeys.writable,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus, EditorContextKeys.hasRenameProvider.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2,
@@ -797,7 +806,7 @@ class SelectionHighlighterState {
 }
 
 export class SelectionHighlighter extends Disposable implements IEditorContribution {
-	private static readonly ID = 'editor.contrib.selectionHighlighter';
+	public static readonly ID = 'editor.contrib.selectionHighlighter';
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
@@ -808,13 +817,13 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	constructor(editor: ICodeEditor) {
 		super();
 		this.editor = editor;
-		this._isEnabled = editor.getConfiguration().contribInfo.selectionHighlight;
+		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 		this.decorations = [];
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
-			this._isEnabled = editor.getConfiguration().contribInfo.selectionHighlight;
+			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 		}));
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 
@@ -845,10 +854,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this._register(CommonFindController.get(editor).getState().onFindReplaceStateChange((e) => {
 			this._update();
 		}));
-	}
-
-	public getId(): string {
-		return SelectionHighlighter.ID;
 	}
 
 	private _update(): void {
@@ -928,7 +933,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null);
+		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null);
 	}
 
 	private _setState(state: SelectionHighlighterState | null): void {
@@ -1040,8 +1045,8 @@ function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean):
 	return (toLowerCase ? text.toLowerCase() : text);
 }
 
-registerEditorContribution(MultiCursorSelectionController);
-registerEditorContribution(SelectionHighlighter);
+registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter);
 
 registerEditorAction(InsertCursorAbove);
 registerEditorAction(InsertCursorBelow);

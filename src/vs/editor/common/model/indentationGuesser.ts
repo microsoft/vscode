@@ -7,8 +7,8 @@ import { CharCode } from 'vs/base/common/charCode';
 import { ITextBuffer } from 'vs/editor/common/model';
 
 class SpacesDiffResult {
-	public spacesDiff: number;
-	public looksLikeAlignment: boolean;
+	public spacesDiff: number = 0;
+	public looksLikeAlignment: boolean = false;
 }
 
 /**
@@ -158,8 +158,19 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 		spacesDiff(previousLineText, previousLineIndentation, currentLineText, currentLineIndentation, tmp);
 
 		if (tmp.looksLikeAlignment) {
-			// skip this line entirely
-			continue;
+			// if defaultInsertSpaces === true && the spaces count == tabSize, we may want to count it as valid indentation
+			//
+			// - item1
+			//   - item2
+			//
+			// otherwise skip this line entirely
+			//
+			// const a = 1,
+			//       b = 2;
+
+			if (!(defaultInsertSpaces && defaultTabSize === tmp.spacesDiff)) {
+				continue;
+			}
 		}
 
 		let currentSpacesDiff = tmp.spacesDiff;

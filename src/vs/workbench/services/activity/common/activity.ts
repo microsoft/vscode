@@ -58,7 +58,7 @@ export class ProgressBadge extends BaseBadge { }
 export const IActivityService = createDecorator<IActivityService>('activityService');
 
 export interface IActivityService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Show activity in the panel for the given panel or in the activitybar for the given viewlet or global action.

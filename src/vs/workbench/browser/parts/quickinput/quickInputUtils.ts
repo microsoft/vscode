@@ -22,8 +22,8 @@ export function getIconClass(iconPath: { dark: URI; light?: URI; } | undefined):
 		iconClass = iconPathToClass[key];
 	} else {
 		iconClass = iconClassGenerator.nextId();
-		dom.createCSSRule(`.${iconClass}`, `background-image: url("${dom.asDomUri(iconPath.light || iconPath.dark).toString()}")`);
-		dom.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: url("${dom.asDomUri(iconPath.dark).toString()}")`);
+		dom.createCSSRule(`.${iconClass}`, `background-image: ${dom.asCSSUrl(iconPath.light || iconPath.dark)}`);
+		dom.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: ${dom.asCSSUrl(iconPath.dark)}`);
 		iconPathToClass[key] = iconClass;
 	}
 

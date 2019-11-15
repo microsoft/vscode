@@ -13,11 +13,11 @@ import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { EditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IViewWhitespaceViewportData {
-	readonly id: number;
+	readonly id: string;
 	readonly afterLineNumber: number;
 	readonly verticalOffset: number;
 	readonly height: number;
@@ -61,7 +61,7 @@ export interface IViewLayout {
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
-	getWhitespaces(): IEditorWhitespace[];
+	getWhitespaces(): EditorWhitespace[];
 
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
@@ -74,15 +74,15 @@ export interface IViewLayout {
 	 * Reserve rendering space.
 	 * @return an identifier that can be later used to remove or change the whitespace.
 	 */
-	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number;
+	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): string;
 	/**
 	 * Change the properties of a whitespace.
 	 */
-	changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean;
+	changeWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean;
 	/**
 	 * Remove rendering space
 	 */
-	removeWhitespace(id: number): boolean;
+	removeWhitespace(id: string): boolean;
 	/**
 	 * Get the layout information for whitespaces currently in the viewport
 	 */

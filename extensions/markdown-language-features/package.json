@@ -24,7 +24,9 @@
 		"onCommand:markdown.showLockedPreviewToSide",
 		"onCommand:markdown.showSource",
 		"onCommand:markdown.showPreviewSecuritySelector",
-		"onWebviewPanel:markdown.preview"
+		"onCommand:markdown.api.render",
+		"onWebviewPanel:markdown.preview",
+		"onWebviewEditor:vscode.markdown.preview.editor"
 	],
 	"contributes": {
 		"commands": [
@@ -230,12 +232,6 @@
 					"description": "%markdown.preview.scrollPreviewWithEditor.desc%",
 					"scope": "resource"
 				},
-				"markdown.preview.scrollPreviewWithEditorSelection": {
-					"type": "boolean",
-					"default": true,
-					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%",
-					"deprecationMessage": "%markdown.preview.scrollPreviewWithEditorSelection.deprecationMessage%"
-				},
 				"markdown.preview.markEditorSelection": {
 					"type": "boolean",
 					"default": true,
@@ -268,6 +264,20 @@
 						"%configuration.markdown.preview.openMarkdownLinks.inEditor%"
 					]
 				},
+				"markdown.links.openLocation": {
+					"type": "string",
+					"default": "currentGroup",
+					"description": "%configuration.markdown.links.openLocation.description%",
+					"scope": "resource",
+					"enum": [
+						"currentGroup",
+						"beside"
+					],
+					"enumDescriptions": [
+						"%configuration.markdown.links.openLocation.currentGroup%",
+						"%configuration.markdown.links.openLocation.beside%"
+					]
+				},
 				"markdown.trace": {
 					"type": "string",
 					"enum": [
@@ -298,6 +308,18 @@
 		],
 		"markdown.previewScripts": [
 			"./media/index.js"
+		],
+		"webviewEditors": [
+			{
+				"viewType": "vscode.markdown.preview.editor",
+				"displayName": "(Experimental) VS Code Markdown Preview",
+				"priority": "option",
+				"selector": [
+					{
+						"filenamePattern": "*.md"
+					}
+				]
+			}
 		]
 	},
 	"scripts": {
@@ -305,11 +327,11 @@
 		"watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
 		"vscode:prepublish": "npm run build-ext && npm run build-preview",
 		"build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-		"build-preview": "webpack --mode development"
+		"build-preview": "webpack --mode production"
 	},
 	"dependencies": {
-		"highlight.js": "9.15.8",
-		"markdown-it": "^8.4.2",
+		"highlight.js": "9.15.10",
+		"markdown-it": "^10.0.0",
 		"markdown-it-front-matter": "^0.1.2",
 		"vscode-extension-telemetry": "0.1.1",
 		"vscode-nls": "^4.0.0"
@@ -318,14 +340,14 @@
 		"@types/highlight.js": "9.12.3",
 		"@types/lodash.throttle": "^4.1.3",
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "^10.14.8",
+		"@types/node": "^12.11.7",
 		"lodash.throttle": "^4.1.1",
 		"mocha-junit-reporter": "^1.17.0",
 		"mocha-multi-reporters": "^1.1.7",
-		"ts-loader": "^4.0.1",
-		"typescript": "^3.3.1",
+		"ts-loader": "^6.2.1",
+		"typescript": "^3.7.2",
 		"vscode": "^1.1.10",
-		"webpack": "^4.1.0",
-		"webpack-cli": "^2.0.10"
+		"webpack": "^4.41.2",
+		"webpack-cli": "^3.3.0"
 	}
 }

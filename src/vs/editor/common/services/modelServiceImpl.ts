@@ -88,7 +88,7 @@ interface IRawConfig {
 const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLine.LF : DefaultEndOfLine.CRLF;
 
 export class ModelServiceImpl extends Disposable implements IModelService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	private readonly _configurationService: IConfigurationService;
 	private readonly _configurationServiceSubscription: IDisposable;
@@ -218,6 +218,10 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	}
 
 	private static _setModelOptionsForModel(model: ITextModel, newOptions: ITextModelCreationOptions, currentOptions: ITextModelCreationOptions): void {
+		if (currentOptions && currentOptions.defaultEOL !== newOptions.defaultEOL && model.getLineCount() === 1) {
+			model.setEOL(newOptions.defaultEOL === DefaultEndOfLine.LF ? EndOfLineSequence.LF : EndOfLineSequence.CRLF);
+		}
+
 		if (currentOptions
 			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
 			&& (currentOptions.insertSpaces === newOptions.insertSpaces)

@@ -5,13 +5,13 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions, IWebSocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
@@ -25,7 +25,7 @@ import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
 export interface IInitDataProvider {
@@ -47,9 +47,9 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 	constructor(
 		private readonly _allExtensions: Promise<IExtensionDescription[]>,
 		private readonly _initDataProvider: IInitDataProvider,
-		private readonly _webSocketFactory: IWebSocketFactory,
+		private readonly _socketFactory: ISocketFactory,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@ILogService private readonly _logService: ILogService,
@@ -71,16 +71,16 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 
 	public start(): Promise<IMessagePassingProtocol> {
 		const options: IConnectionOptions = {
-			isBuilt: this._environmentService.isBuilt,
 			commit: this._productService.commit,
-			webSocketFactory: this._webSocketFactory,
+			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {
 					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
 					return { host: authority.host, port: authority.port };
 				}
 			},
-			signService: this._signService
+			signService: this._signService,
+			logService: this._logService
 		};
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
 
@@ -162,6 +162,11 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 	}
 
 	private _onExtHostConnectionLost(): void {
+
+		if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId) {
+			this._extensionHostDebugService.close(this._environmentService.debugExtensionHost.debugId);
+		}
+
 		if (this._terminating) {
 			// Expected termination path (we asked the process to terminate)
 			return;
@@ -210,6 +215,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 				logLevel: this._logService.getLevel(),
 				logsLocation: remoteExtensionHostData.extensionHostLogsPath,
 				autoStart: true,
+				uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
 			};
 			return r;
 		});
@@ -217,6 +223,10 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 
 	getInspectPort(): number | undefined {
 		return undefined;
+	}
+
+	enableInspectPort(): Promise<boolean> {
+		return Promise.resolve(false);
 	}
 
 	dispose(): void {

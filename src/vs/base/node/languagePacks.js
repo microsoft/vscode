@@ -50,8 +50,8 @@ function factory(nodeRequire, path, fs, perf) {
 	 * @param {string} dir
 	 * @returns {Promise<string>}
 	 */
-	function mkdir(dir) {
-		return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
+	function mkdirp(dir) {
+		return new Promise((c, e) => fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
 	}
 
 	/**
@@ -87,24 +87,6 @@ function factory(nodeRequire, path, fs, perf) {
 			if (err.code === 'ENOENT') {
 				return undefined;
 			}
-			throw err;
-		});
-	}
-
-	/**
-	 * @param {string} dir
-	 * @returns {Promise<string>}
-	 */
-	function mkdirp(dir) {
-		return mkdir(dir).then(null, err => {
-			if (err && err.code === 'ENOENT') {
-				const parent = path.dirname(dir);
-
-				if (parent !== dir) { // if not arrived at root
-					return mkdirp(parent).then(() => mkdir(dir));
-				}
-			}
-
 			throw err;
 		});
 	}
@@ -268,10 +250,10 @@ function factory(nodeRequire, path, fs, perf) {
 								const packData = JSON.parse(values[1]).contents;
 								const bundles = Object.keys(metadata.bundles);
 								const writes = [];
-								for (let bundle of bundles) {
+								for (const bundle of bundles) {
 									const modules = metadata.bundles[bundle];
 									const target = Object.create(null);
-									for (let module of modules) {
+									for (const module of modules) {
 										const keys = metadata.keys[module];
 										const defaultMessages = metadata.messages[module];
 										const translations = packData[module];

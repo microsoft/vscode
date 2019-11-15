@@ -137,6 +137,8 @@ export const launchSchema: IJSONSchema = {
 	id: launchSchemaId,
 	type: 'object',
 	title: nls.localize('app.launch.json.title', "Launch"),
+	allowTrailingCommas: true,
+	allowComments: true,
 	required: [],
 	default: { version: '0.2.0', configurations: [], compounds: [] },
 	properties: {
@@ -188,6 +190,11 @@ export const launchSchema: IJSONSchema = {
 							}]
 						},
 						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
+					},
+					preLaunchTask: {
+						type: 'string',
+						default: '',
+						description: nls.localize('compoundPrelaunchTask', "Task to run before any of the compound configurations start.")
 					}
 				},
 				default: defaultCompound

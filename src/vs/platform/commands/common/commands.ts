@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -15,11 +15,13 @@ export const ICommandService = createDecorator<ICommandService>('commandService'
 
 export interface ICommandEvent {
 	commandId: string;
+	args: any[];
 }
 
 export interface ICommandService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	onWillExecuteCommand: Event<ICommandEvent>;
+	onDidExecuteCommand: Event<ICommandEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
 }
 
@@ -97,7 +99,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		let ret = toDisposable(() => {
 			removeFn();
 			const command = this._commands.get(id);
-			if (command && command.isEmpty()) {
+			if (command?.isEmpty()) {
 				this._commands.delete(id);
 			}
 		});
@@ -134,7 +136,8 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 export const NullCommandService: ICommandService = {
 	_serviceBrand: undefined,
-	onWillExecuteCommand: () => ({ dispose: () => { } }),
+	onWillExecuteCommand: () => Disposable.None,
+	onDidExecuteCommand: () => Disposable.None,
 	executeCommand() {
 		return Promise.resolve(undefined);
 	}

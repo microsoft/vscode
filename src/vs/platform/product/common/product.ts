@@ -3,127 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { assign } from 'vs/base/common/objects';
+import { isWeb } from 'vs/base/common/platform';
+import * as path from 'vs/base/common/path';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { env } from 'vs/base/common/process';
 
-export const IProductService = createDecorator<IProductService>('productService');
+let product: IProductConfiguration;
 
-export interface IProductService {
-	_serviceBrand: any;
+// Web
+if (isWeb) {
 
-	readonly version: string;
-	readonly commit?: string;
+	// Built time configuration (do NOT modify)
+	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
 
-	readonly nameLong: string;
-	readonly urlProtocol: string;
-	readonly extensionAllowedProposedApi: readonly string[];
-	readonly uiExtensions?: readonly string[];
-
-	readonly enableTelemetry: boolean;
-	readonly extensionsGallery?: {
-		readonly serviceUrl: string;
-		readonly itemUrl: string;
-		readonly controlUrl: string;
-		readonly recommendationsUrl: string;
-	};
-
-	readonly sendASmile?: {
-		readonly reportIssueUrl: string;
-		readonly requestFeatureUrl: string;
-	};
-
-	readonly settingsSearchBuildId?: number;
-	readonly settingsSearchUrl?: string;
-
-	readonly experimentsUrl?: string;
-	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
-	readonly extensionAllowedBadgeProviders?: readonly string[];
-
-	readonly aiConfig?: {
-		readonly asimovKey: string;
-	};
+	// Running out of sources
+	if (Object.keys(product).length === 0) {
+		assign(product, {
+			version: '1.41.0-dev',
+			nameLong: 'Visual Studio Code Web Dev',
+			nameShort: 'VSCode Web Dev',
+			urlProtocol: 'code-oss'
+		});
+	}
 }
 
-export interface IProductConfiguration {
-	nameShort: string;
-	nameLong: string;
-	readonly applicationName: string;
-	readonly win32AppId: string;
-	readonly win32x64AppId: string;
-	readonly win32UserAppId: string;
-	readonly win32x64UserAppId: string;
-	readonly win32AppUserModelId: string;
-	readonly win32MutexName: string;
-	readonly darwinBundleIdentifier: string;
-	readonly urlProtocol: string;
-	dataFolderName: string;
-	readonly downloadUrl: string;
-	readonly updateUrl?: string;
-	readonly quality?: string;
-	readonly target?: string;
-	readonly commit?: string;
-	readonly settingsSearchBuildId?: number;
-	readonly settingsSearchUrl?: string;
-	readonly experimentsUrl?: string;
-	readonly date: string;
-	readonly extensionsGallery?: {
-		readonly serviceUrl: string;
-		readonly itemUrl: string;
-		readonly controlUrl: string;
-		readonly recommendationsUrl: string;
-	};
-	extensionTips: { [id: string]: string; };
-	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
-	readonly exeBasedExtensionTips: { [id: string]: { friendlyName: string, windowsPath?: string, recommendations: readonly string[] }; };
-	readonly extensionKeywords: { [extension: string]: readonly string[]; };
-	readonly extensionAllowedBadgeProviders: readonly string[];
-	readonly extensionAllowedProposedApi: readonly string[];
-	readonly keymapExtensionTips: readonly string[];
-	readonly crashReporter: {
-		readonly companyName: string;
-		readonly productName: string;
-	};
-	readonly welcomePage: string;
-	readonly enableTelemetry: boolean;
-	readonly aiConfig: {
-		readonly asimovKey: string;
-	};
-	readonly sendASmile: {
-		readonly reportIssueUrl: string,
-		readonly requestFeatureUrl: string
-	};
-	readonly documentationUrl: string;
-	readonly releaseNotesUrl: string;
-	readonly keyboardShortcutsUrlMac: string;
-	readonly keyboardShortcutsUrlLinux: string;
-	readonly keyboardShortcutsUrlWin: string;
-	readonly introductoryVideosUrl: string;
-	readonly tipsAndTricksUrl: string;
-	readonly newsletterSignupUrl: string;
-	readonly twitterUrl: string;
-	readonly requestFeatureUrl: string;
-	readonly reportIssueUrl: string;
-	readonly licenseUrl: string;
-	readonly privacyStatementUrl: string;
-	readonly telemetryOptOutUrl: string;
-	readonly npsSurveyUrl: string;
-	readonly surveys: readonly ISurveyData[];
-	readonly checksums: { [path: string]: string; };
-	readonly checksumFailMoreInfoUrl: string;
-	readonly hockeyApp: {
-		readonly 'win32-ia32': string;
-		readonly 'win32-x64': string;
-		readonly 'linux-x64': string;
-		readonly 'darwin': string;
-	};
-	readonly logUploaderUrl: string;
-	readonly portable?: string;
-	readonly uiExtensions?: readonly string[];
+// Node: AMD loader
+else if (typeof require !== 'undefined' && typeof require.__$__nodeRequire === 'function') {
+
+	// Obtain values from product.json and package.json
+	const rootPath = path.dirname(getPathFromAmdModule(require, ''));
+
+	product = assign({}, require.__$__nodeRequire(path.join(rootPath, 'product.json')) as IProductConfiguration);
+	const pkg = require.__$__nodeRequire(path.join(rootPath, 'package.json')) as { version: string; };
+
+	// Running out of sources
+	if (env['VSCODE_DEV']) {
+		assign(product, {
+			nameShort: `${product.nameShort} Dev`,
+			nameLong: `${product.nameLong} Dev`,
+			dataFolderName: `${product.dataFolderName}-dev`
+		});
+	}
+
+	assign(product, {
+		version: pkg.version
+	});
 }
 
-export interface ISurveyData {
-	surveyId: string;
-	surveyUrl: string;
-	languageId: string;
-	editCount: number;
-	userProbability: number;
+// Unknown
+else {
+	throw new Error('Unable to resolve product configuration');
 }
+
+export default product;

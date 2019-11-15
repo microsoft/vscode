@@ -6,10 +6,19 @@
 import 'vs/css!./media/style';
 
 import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { isWeb } from 'vs/base/common/platform';
+import { createMetaElement } from 'vs/base/browser/dom';
+import { isSafari } from 'vs/base/browser/browser';
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Icon defaults
+	const iconForegroundColor = theme.getColor(iconForeground);
+	if (iconForegroundColor) {
+		collector.addRule(`.monaco-workbench .codicon { color: ${iconForegroundColor}; }`);
+	}
 
 	// Foreground
 	const windowForeground = theme.getColor(foreground);
@@ -26,8 +35,16 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Input placeholder
 	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
 	if (placeholderForeground) {
-		collector.addRule(`.monaco-workbench input::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
-		collector.addRule(`.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
+		collector.addRule(`
+			.monaco-workbench input::placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench input::-webkit-input-placeholder  { color: ${placeholderForeground}; }
+			.monaco-workbench input::-moz-placeholder { color: ${placeholderForeground}; }
+		`);
+		collector.addRule(`
+			.monaco-workbench textarea::placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench textarea::-moz-placeholder { color: ${placeholderForeground}; }
+		`);
 	}
 
 	// List highlight
@@ -134,6 +151,37 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		.hc-black .synthetic-focus input {
 			background: transparent; /* Search input focus fix when in high contrast */
 		}
+		`);
+	}
+
+	// Update <meta name="theme-color" content=""> based on selected theme
+	if (isWeb) {
+		const titleBackground = theme.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
+		if (titleBackground) {
+			const metaElementId = 'monaco-workbench-meta-theme-color';
+			let metaElement = document.getElementById(metaElementId) as HTMLMetaElement | null;
+			if (!metaElement) {
+				metaElement = createMetaElement();
+				metaElement.name = 'theme-color';
+				metaElement.id = metaElementId;
+			}
+
+			metaElement.content = titleBackground.toString();
+		}
+	}
+
+	// We disable user select on the root element, however on Safari this seems
+	// to prevent any text selection in the monaco editor. As a workaround we
+	// allow to select text in monaco editor instances.
+	if (isSafari) {
+		collector.addRule(`
+			body.web {
+				touch-action: none;
+			}
+			.monaco-workbench .monaco-editor .view-lines {
+				user-select: text;
+				-webkit-user-select: text;
+			}
 		`);
 	}
 });

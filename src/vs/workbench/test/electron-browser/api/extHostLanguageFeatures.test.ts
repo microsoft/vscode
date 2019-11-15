@@ -23,10 +23,9 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import * as modes from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition } from 'vs/editor/contrib/goToDefinition/goToDefinition';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/goToSymbol';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
-import { provideReferences } from 'vs/editor/contrib/referenceSearch/referenceSearch';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
 import { rename } from 'vs/editor/contrib/rename/rename';
@@ -103,7 +102,7 @@ suite('ExtHostLanguageFeatures', function () {
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
-		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
 		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService());
@@ -535,7 +534,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await provideReferences(model, new EditorPosition(1, 2), CancellationToken.None);
+		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
 		assert.equal(value.length, 2);
 		let [first, second] = value;
 		assert.equal(first.uri.path, '/second');
@@ -551,7 +550,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await provideReferences(model, new EditorPosition(1, 2), CancellationToken.None);
+		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
 		assert.equal(value.length, 1);
 		let [item] = value;
 		assert.deepEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
@@ -572,7 +571,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await provideReferences(model, new EditorPosition(1, 2), CancellationToken.None);
+		const value = await getReferencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
 		assert.equal(value.length, 1);
 	});
 

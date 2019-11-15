@@ -12,7 +12,7 @@ import { Queue } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isValidLocalization, ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
-import product from 'vs/platform/product/node/product';
+import product from 'vs/platform/product/common/product';
 import { distinct, equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -34,7 +34,7 @@ if (product.quality !== 'stable') {
 
 export class LocalizationsService extends Disposable implements ILocalizationsService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly cache: LanguagePacksCache;
 
@@ -93,7 +93,7 @@ class LanguagePacksCache extends Disposable {
 	private languagePacks: { [language: string]: ILanguagePack } = {};
 	private languagePacksFilePath: string;
 	private languagePacksFileLimiter: Queue<any>;
-	private initializedCache: boolean;
+	private initializedCache: boolean | undefined;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,

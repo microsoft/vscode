@@ -19,6 +19,11 @@
 	margin-right: 7px;
 }
 
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container .monaco-select-box,
+.monaco-workbench .start-debug-action-item .select-container .monaco-select-box {
+	padding: 0 22px 0 6px;
+}
+
 .monaco-workbench .debug-toolbar .drag-area {
 	cursor: grab;
 	height: 32px;

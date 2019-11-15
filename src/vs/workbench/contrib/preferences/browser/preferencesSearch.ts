@@ -24,7 +24,8 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -32,7 +33,7 @@ export interface IEndpointDetails {
 }
 
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _installedExtensions: Promise<ILocalExtension[]>;
 
@@ -564,3 +565,5 @@ export class SettingMatches {
 		};
 	}
 }
+
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);

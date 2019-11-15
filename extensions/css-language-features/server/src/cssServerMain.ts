@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind
 } from 'vscode-languageserver';
-import URI from 'vscode-uri';
-import { TextDocument, CompletionList, Position } from 'vscode-languageserver-types';
+import { URI } from 'vscode-uri';
 import { stat as fsStat } from 'fs';
-
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, FileSystemProvider, FileType } from 'vscode-css-languageservice';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, FileSystemProvider, FileType, TextDocument, CompletionList, Position } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { getPathCompletionParticipant } from './pathCompletion';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
@@ -34,7 +32,7 @@ process.on('unhandledRejection', (e: any) => {
 });
 
 // Create a text document manager.
-const documents: TextDocuments = new TextDocuments();
+const documents = new TextDocuments(TextDocument);
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
@@ -75,9 +73,9 @@ const fileSystemProvider: FileSystemProvider = {
 				let type = FileType.Unknown;
 				if (stats.isFile()) {
 					type = FileType.File;
-				} else if (stats.isDirectory) {
+				} else if (stats.isDirectory()) {
 					type = FileType.Directory;
-				} else if (stats.isSymbolicLink) {
+				} else if (stats.isSymbolicLink()) {
 					type = FileType.SymbolicLink;
 				}
 
@@ -103,7 +101,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		}
 	}
 
-	const dataPaths: string[] = params.initializationOptions.dataPaths;
+	const dataPaths: string[] = params.initializationOptions.dataPaths || [];
 	const customDataProviders = getDataProviders(dataPaths);
 
 	function getClientCapability<T>(name: string, def: T) {
@@ -121,14 +119,13 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 
-	languageServices.css = getCSSLanguageService({ customDataProviders, fileSystemProvider });
-	languageServices.scss = getSCSSLanguageService({ customDataProviders, fileSystemProvider });
-	languageServices.less = getLESSLanguageService({ customDataProviders, fileSystemProvider });
+	languageServices.css = getCSSLanguageService({ customDataProviders, fileSystemProvider, clientCapabilities: params.capabilities });
+	languageServices.scss = getSCSSLanguageService({ customDataProviders, fileSystemProvider, clientCapabilities: params.capabilities });
+	languageServices.less = getLESSLanguageService({ customDataProviders, fileSystemProvider, clientCapabilities: params.capabilities });
 
 	const capabilities: ServerCapabilities = {
-		// Tell the client that the server works in FULL text document sync mode
-		textDocumentSync: documents.syncKind,
-		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/'] } : undefined,
+		textDocumentSync: TextDocumentSyncKind.Incremental,
+		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: ['/', '-'] } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		referencesProvider: true,
@@ -140,7 +137,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		codeActionProvider: true,
 		renameProvider: true,
 		colorProvider: {},
-		foldingRangeProvider: true
+		foldingRangeProvider: true,
+		selectionRangeProvider: true
 	};
 	return { capabilities };
 });

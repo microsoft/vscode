@@ -14,7 +14,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, ServicesAccessor, registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
@@ -23,13 +23,14 @@ import { parseTree, Node } from 'vs/base/common/json';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { themeColorFromId, ThemeColor, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import Severity from 'vs/base/common/severity';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { equals } from 'vs/base/common/arrays';
+import { assertIsDefined } from 'vs/base/common/types';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -38,7 +39,7 @@ const INTERESTING_FILE = /keybindings\.json$/;
 
 export class DefineKeybindingController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.defineKeybinding';
+	public static readonly ID = 'editor.contrib.defineKeybinding';
 
 	static get(editor: ICodeEditor): DefineKeybindingController {
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
@@ -55,10 +56,6 @@ export class DefineKeybindingController extends Disposable implements editorComm
 
 		this._register(this._editor.onDidChangeModel(e => this._update()));
 		this._update();
-	}
-
-	getId(): string {
-		return DefineKeybindingController.ID;
 	}
 
 	get keybindingWidgetRenderer(): KeybindingWidgetRenderer | undefined {
@@ -82,7 +79,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 		this._createKeybindingDecorationRenderer();
 
 		// The button to define keybindings is shown only for the user keybindings.json
-		if (!this._editor.getConfiguration().readOnly) {
+		if (!this._editor.getOption(EditorOption.readOnly)) {
 			this._createKeybindingWidgetRenderer();
 		} else {
 			this._disposeKeybindingWidgetRenderer();
@@ -168,14 +165,14 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	private _dec: string[] = [];
 
 	constructor(
-		private _editor: IActiveCodeEditor,
+		private _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
 		this._updateDecorations = this._register(new RunOnceScheduler(() => this._updateDecorationsNow(), 500));
 
-		const model = this._editor.getModel();
+		const model = assertIsDefined(this._editor.getModel());
 		this._register(model.onDidChangeContent(() => this._updateDecorations.schedule()));
 		this._register(this._keybindingService.onDidUpdateKeybindings((e) => this._updateDecorations.schedule()));
 		this._register({
@@ -188,7 +185,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	}
 
 	private _updateDecorationsNow(): void {
-		const model = this._editor.getModel();
+		const model = assertIsDefined(this._editor.getModel());
 
 		const newDecorations: IModelDeltaDecoration[] = [];
 
@@ -266,18 +263,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 		const aParts = KeybindingParser.parseUserBinding(a);
 		const bParts = KeybindingParser.parseUserBinding(b);
-
-		if (aParts.length !== bParts.length) {
-			return false;
-		}
-
-		for (let i = 0, len = aParts.length; i < len; i++) {
-			if (!this._userBindingEquals(aParts[i], bParts[i])) {
-				return false;
-			}
-		}
-
-		return true;
+		return equals(aParts, bParts, (a, b) => this._userBindingEquals(a, b));
 	}
 
 	private static _userBindingEquals(a: SimpleKeybinding | ScanCodeBinding, b: SimpleKeybinding | ScanCodeBinding): boolean {
@@ -302,14 +288,12 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	private _createDecoration(isError: boolean, uiLabel: string | null, usLabel: string | null, model: ITextModel, keyNode: Node): IModelDeltaDecoration {
 		let msg: MarkdownString;
 		let className: string;
-		let beforeContentClassName: string;
 		let overviewRulerColor: ThemeColor;
 
 		if (isError) {
 			// this is the error case
 			msg = new MarkdownString().appendText(NLS_KB_LAYOUT_ERROR_MESSAGE);
 			className = 'keybindingError';
-			beforeContentClassName = 'inlineKeybindingError';
 			overviewRulerColor = themeColorFromId(overviewRulerError);
 		} else {
 			// this is the info case
@@ -335,7 +319,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				);
 			}
 			className = 'keybindingInfo';
-			beforeContentClassName = 'inlineKeybindingInfo';
 			overviewRulerColor = themeColorFromId(overviewRulerInfo);
 		}
 
@@ -352,7 +335,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			options: {
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: className,
-				beforeContentClassName: beforeContentClassName,
 				hoverMessage: msg,
 				overviewRuler: {
 					color: overviewRulerColor,
@@ -381,7 +363,7 @@ class DefineKeybindingCommand extends EditorCommand {
 	}
 
 	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!isInterestingEditorModel(editor) || editor.getConfiguration().readOnly) {
+		if (!isInterestingEditorModel(editor) || editor.getOption(EditorOption.readOnly)) {
 			return;
 		}
 		const controller = DefineKeybindingController.get(editor);
@@ -400,10 +382,5 @@ function isInterestingEditorModel(editor: ICodeEditor): boolean {
 	return INTERESTING_FILE.test(url);
 }
 
-registerEditorContribution(DefineKeybindingController);
+registerEditorContribution(DefineKeybindingController.ID, DefineKeybindingController);
 registerEditorCommand(new DefineKeybindingCommand());
-
-registerThemingParticipant((theme, collector) => {
-	collector.addRule(`.monaco-editor .inlineKeybindingInfo:before { background: url("data:image/svg+xml,${SeverityIcon.getSVGData(Severity.Info, theme)}") -0.1em -0.2em no-repeat; }`);
-	collector.addRule(`.monaco-editor .inlineKeybindingError:before { background: url("data:image/svg+xml,${SeverityIcon.getSVGData(Severity.Error, theme)}") -0.1em -0.2em no-repeat; }`);
-});

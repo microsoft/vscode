@@ -6,8 +6,8 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import product from 'vs/platform/product/node/product';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import product from 'vs/platform/product/common/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -24,13 +24,13 @@ export type UpdateNotAvailableClassification = {
 
 export abstract class AbstractUpdateService implements IUpdateService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	protected readonly url: string | undefined;
 
 	private _state: State = State.Uninitialized;
 
-	private _onStateChange = new Emitter<State>();
+	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
@@ -44,7 +44,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IRequestService protected requestService: IRequestService,
@@ -81,8 +81,15 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		if (updateMode === 'start') {
+			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
+
+			// Check for updates only once after 30 seconds
+			setTimeout(() => this.checkForUpdates(null), 30 * 1000);
+		} else {
+			// Start checking for updates after 30 seconds
+			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		}
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
@@ -145,7 +152,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleService.quit(true /* from update */).then(vetod => {
+		this.lifecycleMainService.quit(true /* from update */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;

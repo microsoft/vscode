@@ -185,6 +185,25 @@ suite('RawSearchService', () => {
 		assert.strictEqual(result.results.length, 1, 'Result');
 	});
 
+	test('Handles maxResults=0 correctly', async function () {
+		this.timeout(testTimeout);
+		const service = new RawSearchService();
+
+		const query: IFileQuery = {
+			type: QueryType.File,
+			folderQueries: MULTIROOT_QUERIES,
+			maxResults: 0,
+			sortByScore: true,
+			includePattern: {
+				'*.txt': true,
+				'*.js': true
+			},
+		};
+
+		const result = await DiskSearch.collectResultsFromEvent(service.fileSearch(query));
+		assert.strictEqual(result.results.length, 0, 'Result');
+	});
+
 	test('Multi-root with include pattern and exists', async function () {
 		this.timeout(testTimeout);
 		const service = new RawSearchService();

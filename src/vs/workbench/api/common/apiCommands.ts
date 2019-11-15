@@ -11,9 +11,8 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenSettings, IURIToOpen, IWindowService } from 'vs/platform/windows/common/windows';
-import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { IRecent } from 'vs/platform/history/common/history';
+import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 
 // -----------------------------------------------------------------
@@ -40,7 +39,7 @@ interface IOpenFolderAPICommandOptions {
 }
 
 export class OpenFolderAPICommand {
-	public static ID = 'vscode.openFolder';
+	public static readonly ID = 'vscode.openFolder';
 	public static execute(executor: ICommandsExecutor, uri?: URI, forceNewWindow?: boolean): Promise<any>;
 	public static execute(executor: ICommandsExecutor, uri?: URI, options?: IOpenFolderAPICommandOptions): Promise<any>;
 	public static execute(executor: ICommandsExecutor, uri?: URI, arg: boolean | IOpenFolderAPICommandOptions = {}): Promise<any> {
@@ -50,9 +49,9 @@ export class OpenFolderAPICommand {
 		if (!uri) {
 			return executor.executeCommand('_files.pickFolderAndOpen', { forceNewWindow: arg.forceNewWindow });
 		}
-		const options: IOpenSettings = { forceNewWindow: arg.forceNewWindow, forceReuseWindow: arg.forceReuseWindow, noRecentEntry: arg.noRecentEntry };
+		const options: IOpenWindowOptions = { forceNewWindow: arg.forceNewWindow, forceReuseWindow: arg.forceReuseWindow, noRecentEntry: arg.noRecentEntry };
 		uri = URI.revive(uri);
-		const uriToOpen: IURIToOpen = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
+		const uriToOpen: IWindowOpenable = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
 		return executor.executeCommand('_files.windowOpen', [uriToOpen], options);
 	}
 }
@@ -70,12 +69,18 @@ CommandsRegistry.registerCommand({
 
 interface INewWindowAPICommandOptions {
 	reuseWindow?: boolean;
+	remoteAuthority?: string;
 }
 
 export class NewWindowAPICommand {
-	public static ID = 'vscode.newWindow';
+	public static readonly ID = 'vscode.newWindow';
 	public static execute(executor: ICommandsExecutor, options?: INewWindowAPICommandOptions): Promise<any> {
-		return executor.executeCommand('_files.newWindow', options);
+		const commandOptions: IOpenEmptyWindowOptions = {
+			forceReuseWindow: options && options.reuseWindow,
+			remoteAuthority: options && options.remoteAuthority
+		};
+
+		return executor.executeCommand('_files.newWindow', commandOptions);
 	}
 }
 CommandsRegistry.registerCommand({
@@ -89,7 +94,7 @@ CommandsRegistry.registerCommand({
 });
 
 export class DiffAPICommand {
-	public static ID = 'vscode.diff';
+	public static readonly ID = 'vscode.diff';
 	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions): Promise<any> {
 		return executor.executeCommand('_workbench.diff', [
 			left, right,
@@ -103,7 +108,7 @@ export class DiffAPICommand {
 CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand.execute));
 
 export class OpenAPICommand {
-	public static ID = 'vscode.open';
+	public static readonly ID = 'vscode.open';
 	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, label?: string): Promise<any> {
 		let options: ITextEditorOptions | undefined;
 		let position: EditorViewColumn | undefined;
@@ -128,12 +133,12 @@ export class OpenAPICommand {
 CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
 
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
-	const windowService = accessor.get(IWindowService);
-	return windowService.removeFromRecentlyOpened([uri]);
+	const workspacesService = accessor.get(IWorkspacesService);
+	return workspacesService.removeFromRecentlyOpened([uri]);
 });
 
 export class RemoveFromRecentlyOpenedAPICommand {
-	public static ID = 'vscode.removeFromRecentlyOpened';
+	public static readonly ID = 'vscode.removeFromRecentlyOpened';
 	public static execute(executor: ICommandsExecutor, path: string | URI): Promise<any> {
 		if (typeof path === 'string') {
 			path = path.match(/^[^:/?#]+:\/\//) ? URI.parse(path) : URI.file(path);
@@ -146,7 +151,7 @@ export class RemoveFromRecentlyOpenedAPICommand {
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
 
 export class OpenIssueReporter {
-	public static ID = 'vscode.openIssueReporter';
+	public static readonly ID = 'vscode.openIssueReporter';
 	public static execute(executor: ICommandsExecutor, extensionId: string): Promise<void> {
 		return executor.executeCommand('workbench.action.openIssueReporter', [extensionId]);
 	}
@@ -159,7 +164,6 @@ interface RecentEntry {
 }
 
 CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
-	const windowService = accessor.get(IWindowService);
 	const workspacesService = accessor.get(IWorkspacesService);
 	let recent: IRecent | undefined = undefined;
 	const uri = recentEntry.uri;
@@ -172,11 +176,16 @@ CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async functio
 	} else {
 		recent = { fileUri: uri, label };
 	}
-	return windowService.addRecentlyOpened([recent]);
+	return workspacesService.addRecentlyOpened([recent]);
+});
+
+CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function (accessor: ServicesAccessor) {
+	const workspacesService = accessor.get(IWorkspacesService);
+	return workspacesService.getRecentlyOpened();
 });
 
 export class SetEditorLayoutAPICommand {
-	public static ID = 'vscode.setEditorLayout';
+	public static readonly ID = 'vscode.setEditorLayout';
 	public static execute(executor: ICommandsExecutor, layout: EditorGroupLayout): Promise<any> {
 		return executor.executeCommand('layoutEditorGroups', layout);
 	}

@@ -10,20 +10,49 @@
 	height: 22px;
 	font-size: 12px;
 	display: flex;
+	overflow: visible;
+}
+
+.monaco-workbench.windows .part.statusbar,
+.monaco-workbench.linux .part.statusbar,
+.monaco-workbench.web .part.statusbar {
+	/*
+	 * Explicitly put the part onto its own layer to help Chrome to
+	 * render the content with LCD-anti-aliasing. By partioning the
+	 * workbench into multiple layers, we can ensure that a bad
+	 * behaving part is not making another part fallback to greyscale
+	 * rendering.
+	 *
+	 * macOS: does not render LCD-anti-aliased.
+	 */
+	transform: translate3d(0px, 0px, 0px);
+}
+
+.monaco-workbench .part.statusbar.status-border-top::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 5;
+	pointer-events: none;
+	background-color: var(--status-border-top-color);
+	width: 100%;
+	height: 1px;
 }
 
 .monaco-workbench .part.statusbar > .left-items,
 .monaco-workbench .part.statusbar > .right-items {
 	display: flex;
-	flex-wrap: wrap; /* individual entries should not shrink since we do not control their content */
 }
 
 .monaco-workbench .part.statusbar > .right-items {
-	flex-direction: row-reverse; /* ensures that the most right elements wrap last when space is little */
+	flex-direction: row-reverse;
+	flex-wrap: wrap /* ensures that the most right elements wrap last when space is little */;
 }
 
 .monaco-workbench .part.statusbar > .left-items {
 	flex-grow: 1; /* left items push right items to the far right end */
+	overflow: hidden; /* Hide the overflowing entries */
 }
 
 .monaco-workbench  .part.statusbar > .items-container > .statusbar-item {
@@ -40,7 +69,7 @@
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
 	content: '';
 	position: absolute;
-	left: calc(50% - 8px); /* 3px (margin) + 5px (padding) = 8px */
+	left: calc(50% - 9px); /* 3px (margin) + 5px (padding) + 1px (icon) = 9px */
 	top: -5px;
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
@@ -77,10 +106,11 @@
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a {
 	cursor: pointer;
-	display: inline-block;
+	display: flex;
 	height: 100%;
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
+	align-items: center
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover {
@@ -91,7 +121,8 @@
 	pointer-events: none;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.octicon {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.codicon {
 	text-align: center;
 	font-size: 14px;
+	color: inherit;
 }

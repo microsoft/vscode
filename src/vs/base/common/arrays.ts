@@ -293,12 +293,9 @@ function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, re
 }
 
 /**
- * @returns a new array with all falsy values removed. The original array IS NOT modified.
+ * @returns New array with all falsy values removed. The original array IS NOT modified.
  */
 export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
-	if (!array) {
-		return array;
-	}
 	return <T[]>array.filter(e => !!e);
 }
 
@@ -306,9 +303,6 @@ export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
  * Remove all falsey values from `array`. The original array IS modified.
  */
 export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
-	if (!array) {
-		return;
-	}
 	let to = 0;
 	for (let i = 0; i < array.length; i++) {
 		if (!!array[i]) {
@@ -378,6 +372,12 @@ export function distinctES6<T>(array: ReadonlyArray<T>): T[] {
 	});
 }
 
+export function fromSet<T>(set: Set<T>): T[] {
+	const result: T[] = [];
+	set.forEach(o => result.push(o));
+	return result;
+}
+
 export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	const seen: { [key: string]: boolean; } = Object.create(null);
 
@@ -422,6 +422,12 @@ export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T |
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | undefined = undefined): T | undefined {
 	const index = firstIndex(array, fn);
 	return index < 0 ? notFoundValue : array[index];
+}
+
+export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
+export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
+export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
+	return array.length > 0 ? array[0] : notFoundValue;
 }
 
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {

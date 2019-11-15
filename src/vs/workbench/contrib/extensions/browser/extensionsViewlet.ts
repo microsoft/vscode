@@ -18,7 +18,7 @@ import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey, CloseExtensionDetailsOnViewChangeKey, VIEW_CONTAINER } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey, CloseExtensionDetailsOnViewChangeKey, VIEW_CONTAINER } from '../common/extensions';
 import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
@@ -32,7 +32,7 @@ import { OpenGlobalSettingsAction } from 'vs/workbench/contrib/preferences/brows
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import Severity from 'vs/base/common/severity';
-import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewsRegistry, IViewDescriptor, Extensions } from 'vs/workbench/common/views';
@@ -43,7 +43,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -55,14 +55,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { RemoteAuthorityContext } from 'vs/workbench/browser/contextkeys';
+import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MementoObject } from 'vs/workbench/common/memento';
-
-interface SearchInputEvent extends Event {
-	target: HTMLInputElement;
-	immediate?: boolean;
-}
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -88,6 +83,7 @@ const viewIdNameMappings: { [id: string]: string } = {
 	'extensions.builtInExtensionsList': localize('builtInExtensions', "Features"),
 	'extensions.builtInThemesExtensionsList': localize('builtInThemesExtensions', "Themes"),
 	'extensions.builtInBasicsExtensionsList': localize('builtInBasicsExtensions', "Programming Languages"),
+	'extensions.syncedExtensionsList': localize('syncedExtensions', "My Account"),
 };
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
@@ -144,7 +140,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id,
 			name: viewIdNameMappings[id],
 			ctorDescriptor: { ctor: EnabledExtensionsView },
-			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteAuthorityContext.isEqualTo('')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteNameContext.isEqualTo('')),
 			weight: 40,
 			canToggleVisibility: true,
 			order: 1
@@ -159,7 +155,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id,
 			name: viewIdNameMappings[id],
 			ctorDescriptor: { ctor: DisabledExtensionsView },
-			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteAuthorityContext.isEqualTo('')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteNameContext.isEqualTo('')),
 			weight: 10,
 			canToggleVisibility: true,
 			order: 3,
@@ -208,7 +204,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id: `extensions.${server.authority}.default`,
 			get name() { return getInstalledViewName(); },
 			ctorDescriptor: { ctor: ServerExtensionsView, arguments: [server, EventOf.map<void, string>(onDidChangeServerLabel, () => getInstalledViewName())] },
-			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteAuthorityContext.notEqualsTo('')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('defaultExtensionViews'), ContextKeyExpr.has('hasInstalledExtensions'), RemoteNameContext.notEqualsTo('')),
 			weight: 40,
 			order: 1
 		}];
@@ -315,11 +311,13 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			weight: 100
 		};
 	}
+
 }
 
 export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensionsViewlet {
 
-	private onSearchChange: EventOf<string>;
+	private readonly _onSearchChange: Emitter<string> = this._register(new Emitter<string>());
+	private readonly onSearchChange: EventOf<string> = this._onSearchChange.event;
 	private nonEmptyWorkspaceContextKey: IContextKey<boolean>;
 	private defaultViewsContextKey: IContextKey<boolean>;
 	private searchMarketplaceExtensionsContextKey: IContextKey<boolean>;
@@ -333,12 +331,10 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private defaultRecommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: Delayer<void>;
-	private root: HTMLElement;
-
-	private searchBox: SuggestEnabledInput;
-	private extensionsBox: HTMLElement;
-	private primaryActions: IAction[];
-	private secondaryActions: IAction[] | null;
+	private root: HTMLElement | undefined;
+	private searchBox: SuggestEnabledInput | undefined;
+	private primaryActions: IAction[] | undefined;
+	private secondaryActions: IAction[] | null = null;
 	private readonly searchViewletState: MementoObject;
 
 	constructor(
@@ -356,7 +352,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
@@ -404,7 +400,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			triggerCharacters: ['@'],
 			sortKey: (item: string) => {
 				if (item.indexOf(':') === -1) { return 'a'; }
-				else if (/ext:/.test(item) || /tag:/.test(item)) { return 'b'; }
+				else if (/ext:/.test(item) || /id:/.test(item) || /tag:/.test(item)) { return 'b'; }
 				else if (/sort:/.test(item)) { return 'c'; }
 				else { return 'd'; }
 			},
@@ -417,33 +413,36 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		this._register(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
 
-		const _searchChange = new Emitter<string>();
-		this.onSearchChange = _searchChange.event;
 		this._register(this.searchBox.onInputDidChange(() => {
 			this.triggerSearch();
-			_searchChange.fire(this.searchBox.getValue());
+			this._onSearchChange.fire(this.searchBox!.getValue());
 		}, this));
 
 		this._register(this.searchBox.onShouldFocusResults(() => this.focusListView(), this));
 
 		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
-				this.searchBox.focus();
+				this.searchBox!.focus();
 			}
 		}));
 
-		this.extensionsBox = append(this.root, $('.extensions'));
-		super.create(this.extensionsBox);
+		super.create(append(this.root, $('.extensions')));
 	}
 
 	focus(): void {
-		this.searchBox.focus();
+		if (this.searchBox) {
+			this.searchBox.focus();
+		}
 	}
 
 	layout(dimension: Dimension): void {
-		toggleClass(this.root, 'narrow', dimension.width <= 300);
-		this.searchBox.layout({ height: 20, width: dimension.width - 34 });
-		super.layout(new Dimension(dimension.width, dimension.height - 38));
+		if (this.root) {
+			toggleClass(this.root, 'narrow', dimension.width <= 300);
+		}
+		if (this.searchBox) {
+			this.searchBox.layout({ height: 20, width: dimension.width - 34 });
+		}
+		super.layout(new Dimension(dimension.width, dimension.height - 41));
 	}
 
 	getOptimalWidth(): number {
@@ -453,7 +452,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	getActions(): IAction[] {
 		if (!this.primaryActions) {
 			this.primaryActions = [
-				this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL, this.onSearchChange, this.searchBox.getValue())
+				this.instantiationService.createInstance(ClearExtensionsInputAction, ClearExtensionsInputAction.ID, ClearExtensionsInputAction.LABEL, this.onSearchChange, this.searchBox ? this.searchBox.getValue() : '')
 			];
 		}
 		return this.primaryActions;
@@ -486,23 +485,26 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return this.secondaryActions;
 	}
 
-	search(value: string): void {
-		const event = new Event('input', { bubbles: true }) as SearchInputEvent;
-		event.immediate = true;
-
-		this.searchBox.setValue(value);
+	search(value: string, refresh: boolean = false): void {
+		if (this.searchBox) {
+			if (this.searchBox.getValue() !== value) {
+				this.searchBox.setValue(value);
+			} else if (refresh) {
+				this.doSearch();
+			}
+		}
 	}
 
-	private triggerSearch(immediate = false): void {
-		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.getValue() ? 0 : 500).then(undefined, err => this.onError(err));
+	private triggerSearch(): void {
+		this.searchDelayer.trigger(() => this.doSearch(), this.searchBox && this.searchBox.getValue() ? 500 : 0).then(undefined, err => this.onError(err));
 	}
 
 	private normalizedQuery(): string {
-		return this.searchBox.getValue().replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:');
+		return this.searchBox ? this.searchBox.getValue().replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:') : '';
 	}
 
 	protected saveState(): void {
-		const value = this.searchBox.getValue();
+		const value = this.searchBox ? this.searchBox.getValue() : '';
 		if (ExtensionsListView.isLocalExtensionsQuery(value)) {
 			this.searchViewletState['query.value'] = value;
 		} else {
@@ -629,11 +631,6 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 	private onServiceChange(): void {
 		this.badgeHandle.clear();
 
-		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
-			this.badgeHandle.value = this.activityService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', "Extensions")), 'extensions-badge progress-badge');
-			return;
-		}
-
 		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) ? 1 : 0), 0);
 		if (outdated > 0) {
 			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
@@ -646,7 +643,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionManagementService private readonly extensionsManagementService: IExtensionManagementService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
@@ -677,7 +674,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", e.identifier.id),
 							[{
 								label: localize('reloadNow', "Reload Now"),
-								run: () => this.windowService.reloadWindow()
+								run: () => this.hostService.reload()
 							}],
 							{ sticky: true }
 						);

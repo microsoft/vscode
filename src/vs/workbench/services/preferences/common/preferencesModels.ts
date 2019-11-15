@@ -23,6 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { withNullAsUndefined, isArray } from 'vs/base/common/types';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 
 export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
 export function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
@@ -375,6 +376,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				const position = model.getPositionAt(offset);
 				range.endLineNumber = position.lineNumber;
 				range.endColumn = position.column;
+				settingsPropertyIndex = -1;
 			}
 		},
 		onArrayBegin: (offset: number, length: number) => {
@@ -427,7 +429,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 
 export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 
-	private _configurationGroups: ISettingsGroup[];
+	private _configurationGroups: ISettingsGroup[] = [];
 
 	get configurationGroups(): ISettingsGroup[] {
 		return this._configurationGroups;
@@ -446,9 +448,9 @@ export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 
 export class DefaultSettings extends Disposable {
 
-	private _allSettingsGroups: ISettingsGroup[];
-	private _content: string;
-	private _settingsByName: Map<string, ISetting>;
+	private _allSettingsGroups: ISettingsGroup[] | undefined;
+	private _content: string | undefined;
+	private _settingsByName = new Map<string, ISetting>();
 
 	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -465,7 +467,7 @@ export class DefaultSettings extends Disposable {
 			this.initialize();
 		}
 
-		return this._content;
+		return this._content!;
 	}
 
 	getSettingsGroups(forceUpdate = false): ISettingsGroup[] {
@@ -473,7 +475,7 @@ export class DefaultSettings extends Disposable {
 			this.initialize();
 		}
 
-		return this._allSettingsGroups;
+		return this._allSettingsGroups!;
 	}
 
 	private initialize(): void {
@@ -658,11 +660,14 @@ export class DefaultSettings extends Disposable {
 	}
 
 	private matchesScope(property: IConfigurationNode): boolean {
+		if (!property.scope) {
+			return true;
+		}
 		if (this.target === ConfigurationTarget.WORKSPACE_FOLDER) {
-			return property.scope === ConfigurationScope.RESOURCE;
+			return FOLDER_SCOPES.indexOf(property.scope) !== -1;
 		}
 		if (this.target === ConfigurationTarget.WORKSPACE) {
-			return property.scope === ConfigurationScope.WINDOW || property.scope === ConfigurationScope.RESOURCE;
+			return WORKSPACE_SCOPES.indexOf(property.scope) !== -1;
 		}
 		return true;
 	}
@@ -1023,6 +1028,74 @@ class SettingsContentBuilder {
 }
 
 export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
+	// Only for array of string
+	if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type === 'string') {
+		const propItems = prop.items;
+		if (propItems && !isArray(propItems) && propItems.type === 'string') {
+			const withQuotes = (s: string) => `'` + s + `'`;
+
+			return value => {
+				if (!value) {
+					return null;
+				}
+
+				let message = '';
+
+				const stringArrayValue = value as string[];
+
+				if (prop.uniqueItems) {
+					if (new Set(stringArrayValue).size < stringArrayValue.length) {
+						message += nls.localize('validations.stringArrayUniqueItems', 'Array has duplicate items');
+						message += '\n';
+					}
+				}
+
+				if (prop.minItems && stringArrayValue.length < prop.minItems) {
+					message += nls.localize('validations.stringArrayMinItem', 'Array must have at least {0} items', prop.minItems);
+					message += '\n';
+				}
+
+				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
+					message += nls.localize('validations.stringArrayMaxItem', 'Array must have less than {0} items', prop.maxItems);
+					message += '\n';
+				}
+
+				if (typeof propItems.pattern === 'string') {
+					const patternRegex = new RegExp(propItems.pattern);
+					stringArrayValue.forEach(v => {
+						if (!patternRegex.test(v)) {
+							message +=
+								propItems.patternErrorMessage ||
+								nls.localize(
+									'validations.stringArrayItemPattern',
+									'Value {0} must match regex {1}.',
+									withQuotes(v),
+									withQuotes(propItems.pattern!)
+								);
+						}
+					});
+				}
+
+				const propItemsEnum = propItems.enum;
+				if (propItemsEnum) {
+					stringArrayValue.forEach(v => {
+						if (propItemsEnum.indexOf(v) === -1) {
+							message += nls.localize(
+								'validations.stringArrayItemEnum',
+								'Value {0} is not one of {1}',
+								withQuotes(v),
+								'[' + propItemsEnum.map(withQuotes).join(', ') + ']'
+							);
+							message += '\n';
+						}
+					});
+				}
+
+				return message;
+			};
+		}
+	}
+
 	return value => {
 		let exclusiveMax: number | undefined;
 		let exclusiveMin: number | undefined;
@@ -1044,7 +1117,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 			patternRegex = new RegExp(prop.pattern);
 		}
 
-		const type = Array.isArray(prop.type) ? prop.type : [prop.type];
+		const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
 		const canBeType = (t: string) => type.indexOf(t) > -1;
 
 		const isNullable = canBeType('null');
@@ -1176,7 +1249,7 @@ export function defaultKeybindingsContents(keybindingService: IKeybindingService
 
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
-	private _content: string;
+	private _content: string | undefined;
 
 	constructor(private _uri: URI,
 		@IKeybindingService private readonly keybindingService: IKeybindingService) {

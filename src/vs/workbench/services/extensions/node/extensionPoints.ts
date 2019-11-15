@@ -49,15 +49,18 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 
 	public parse(): Promise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
-			try {
-				const manifest = JSON.parse(manifestContents.toString());
+			const errors: json.ParseError[] = [];
+			const manifest = json.parse(manifestContents.toString(), errors);
+			if (errors.length === 0 && json.getNodeType(manifest) === 'object') {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
 				}
 				delete manifest.__metadata;
 				return manifest;
-			} catch (e) {
-				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, getParseErrorMessage(e.message)));
+			} else {
+				errors.forEach(e => {
+					this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: [{1}, {2}] {3}.", this._absoluteManifestPath, e.offset, e.length, getParseErrorMessage(e.error)));
+				});
 			}
 			return null;
 		}, (err) => {
@@ -101,6 +104,9 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 				this._log.error(this._absoluteFolderPath, nls.localize('jsonsParseReportErrors', "Failed to parse {0}: {1}.", localized, getParseErrorMessage(error.error)));
 			});
 		};
+		const reportInvalidFormat = (localized: string | null): void => {
+			this._log.error(this._absoluteFolderPath, nls.localize('jsonInvalidFormat', "Invalid format {0}: JSON object expected.", localized));
+		};
 
 		let extension = path.extname(this._absoluteManifestPath);
 		let basename = this._absoluteManifestPath.substr(0, this._absoluteManifestPath.length - extension.length);
@@ -114,6 +120,9 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 				let translationBundle: TranslationBundle = json.parse(content, errors);
 				if (errors.length > 0) {
 					reportErrors(translationPath, errors);
+					return { values: undefined, default: `${basename}.nls.json` };
+				} else if (json.getNodeType(translationBundle) !== 'object') {
+					reportInvalidFormat(translationPath);
 					return { values: undefined, default: `${basename}.nls.json` };
 				} else {
 					let values = translationBundle.contents ? translationBundle.contents.package : undefined;
@@ -137,6 +146,9 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 						if (errors.length > 0) {
 							reportErrors(messageBundle.localized, errors);
 							return { values: undefined, default: messageBundle.original };
+						} else if (json.getNodeType(messages) !== 'object') {
+							reportInvalidFormat(messageBundle.localized);
+							return { values: undefined, default: messageBundle.original };
 						}
 						return { values: messages, default: messageBundle.original };
 					}, (err) => {
@@ -157,6 +169,9 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			return ExtensionManifestNLSReplacer.resolveOriginalMessageBundle(localizedMessages.default, errors).then((defaults) => {
 				if (errors.length > 0) {
 					reportErrors(localizedMessages.default, errors);
+					return extensionDescription;
+				} else if (json.getNodeType(localizedMessages) !== 'object') {
+					reportInvalidFormat(localizedMessages.default);
 					return extensionDescription;
 				}
 				const localized = localizedMessages.values || Object.create(null);
@@ -309,11 +324,6 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		extensionDescription.id = `${extensionDescription.publisher}.${extensionDescription.name}`;
 		extensionDescription.identifier = new ExtensionIdentifier(extensionDescription.id);
 
-		// main := absolutePath(`main`)
-		if (extensionDescription.main) {
-			extensionDescription.main = path.join(this._absoluteFolderPath, extensionDescription.main);
-		}
-
 		extensionDescription.extensionLocation = URI.file(this._absoluteFolderPath);
 
 		return extensionDescription;
@@ -409,7 +419,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 
 export class ExtensionScannerInput {
 
-	public mtime: number;
+	public mtime: number | undefined;
 
 	constructor(
 		public readonly ourVersion: string,

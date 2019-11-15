@@ -42,7 +42,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 	constructor(
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any } | null,
-		aiKeyOrClientFactory: string | (() => appInsights.ITelemetryClient), // allow factory function for testing
+		aiKeyOrClientFactory: string | (() => appInsights.TelemetryClient), // allow factory function for testing
 		@ILogService private _logService?: ILogService
 	) {
 		if (!this._defaultData) {
@@ -73,7 +73,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		});
 	}
 
-	dispose(): Promise<any> | undefined {
+	flush(): Promise<any> {
 		if (this._aiClient) {
 			return new Promise(resolve => {
 				this._aiClient!.flush({
@@ -85,6 +85,6 @@ export class AppInsightsAppender implements ITelemetryAppender {
 				});
 			});
 		}
-		return undefined;
+		return Promise.resolve(undefined);
 	}
 }

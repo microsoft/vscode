@@ -32,7 +32,8 @@ let nonBuiltInLanguages = { // { fileNames, extensions }
 	"haml": { extensions: ['haml'] },
 	"stylus": { extensions: ['styl'] },
 	"vala": { extensions: ['vala'] },
-	"todo": { fileNames: ['todo'] }
+	"todo": { fileNames: ['todo'] },
+	"jsonc": { extensions: ['json'] }
 };
 
 let FROM_DISK = true; // set to true to take content from a repo checked out next to the vscode repo
@@ -109,7 +110,7 @@ function downloadBinary(source, dest) {
 	return new Promise((c, e) => {
 		https.get(source, function (response) {
 			switch (response.statusCode) {
-				case 200:
+				case 200: {
 					let file = fs.createWriteStream(dest);
 					response.on('data', function (chunk) {
 						file.write(chunk);
@@ -121,6 +122,7 @@ function downloadBinary(source, dest) {
 						e(err.message);
 					});
 					break;
+				}
 				case 301:
 				case 302:
 				case 303:

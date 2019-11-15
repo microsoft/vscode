@@ -56,7 +56,7 @@ class WindowManager {
 	}
 
 	// --- Fullscreen
-	private _fullscreen: boolean;
+	private _fullscreen: boolean = false;
 	private readonly _onDidChangeFullscreen = new Emitter<void>();
 
 	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
@@ -122,21 +122,4 @@ export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
 export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
 export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
-export const isStandalone = (window.matchMedia('(display-mode: standalone)').matches);
-
-export function hasClipboardSupport() {
-	if (isIE) {
-		return false;
-	}
-
-	if (isEdge) {
-		let index = userAgent.indexOf('Edge/');
-		let version = parseInt(userAgent.substring(index + 5, userAgent.indexOf('.', index)), 10);
-
-		if (!version || (version >= 12 && version <= 16)) {
-			return false;
-		}
-	}
-
-	return true;
-}
+export const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);

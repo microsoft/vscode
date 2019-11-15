@@ -14,6 +14,12 @@ export const UTF8_with_bom = 'utf8bom';
 export const UTF16be = 'utf16be';
 export const UTF16le = 'utf16le';
 
+export type UTF_ENCODING = typeof UTF8 | typeof UTF8_with_bom | typeof UTF16be | typeof UTF16le;
+
+export function isUTFEncoding(encoding: string): encoding is UTF_ENCODING {
+	return [UTF8, UTF8_with_bom, UTF16be, UTF16le].some(utfEncoding => utfEncoding === encoding);
+}
+
 export const UTF16be_BOM = [0xFE, 0xFF];
 export const UTF16le_BOM = [0xFF, 0xFE];
 export const UTF8_BOM = [0xEF, 0xBB, 0xBF];
@@ -41,8 +47,8 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 
 	return new Promise<IDecodeStreamResult>((resolve, reject) => {
 		const writer = new class extends Writable {
-			private decodeStream: NodeJS.ReadWriteStream;
-			private decodeStreamPromise: Promise<void>;
+			private decodeStream: NodeJS.ReadWriteStream | undefined;
+			private decodeStreamPromise: Promise<void> | undefined;
 
 			private bufferedChunks: Buffer[] = [];
 			private bytesBuffered = 0;
@@ -105,7 +111,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				});
 			}
 
-			_final(callback: (error: Error | null) => void) {
+			_final(callback: () => void) {
 
 				// normal finish
 				if (this.decodeStream) {
@@ -116,7 +122,11 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				// detection. thus, wrap up starting the stream even
 				// without all the data to get things going
 				else {
-					this._startDecodeStream(() => this.decodeStream.end(callback));
+					this._startDecodeStream(() => {
+						if (this.decodeStream) {
+							this.decodeStream.end(callback);
+						}
+					});
 				}
 			}
 		};
@@ -134,7 +144,7 @@ export function decode(buffer: Buffer, encoding: string): string {
 }
 
 export function encode(content: string | Buffer, encoding: string, options?: { addBOM?: boolean }): Buffer {
-	return iconv.encode(content, toNodeEncoding(encoding), options);
+	return iconv.encode(content as string /* TODO report into upstream typings */, toNodeEncoding(encoding), options);
 }
 
 export function encodingExists(encoding: string): boolean {
@@ -189,27 +199,25 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 	return null;
 }
 
-const MINIMUM_THRESHOLD = 0.2;
-const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
-
 /**
  * Guesses the encoding from buffer.
  */
 async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 	const jschardet = await import('jschardet');
 
-	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
-
 	const guessed = jschardet.detect(buffer);
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
 
-	const enc = guessed.encoding.toLowerCase();
-
-	// Ignore encodings that cannot guess correctly
-	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
-	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
+	// Ignore 'ascii' as guessed encoding because that
+	// is almost never what we want, rather fallback
+	// to the configured encoding then. Otherwise,
+	// opening a ascii-only file with auto guessing
+	// enabled will put the file into 'ascii' mode
+	// and thus typing any special characters is
+	// not possible anymore.
+	if (guessed.encoding.toLowerCase() === 'ascii') {
 		return null;
 	}
 

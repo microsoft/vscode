@@ -5,12 +5,12 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isUndefinedOrNull, withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
+import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
@@ -19,9 +19,10 @@ import { ICompositeControl } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
+export const ActiveEditorIsSaveableContext = new RawContextKey<boolean>('activeEditorIsSaveable', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
@@ -30,11 +31,14 @@ export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toN
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
+export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0);
+export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false);
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false);
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
+export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true);
 
 /**
  * Text diff editor id.
@@ -51,12 +55,12 @@ export interface IEditor {
 	/**
 	 * The assigned input of this editor.
 	 */
-	input: IEditorInput | null;
+	input: IEditorInput | undefined;
 
 	/**
 	 * The assigned options of this editor.
 	 */
-	options: IEditorOptions | null;
+	options: IEditorOptions | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
@@ -114,7 +118,7 @@ export interface ITextEditor extends IEditor {
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
-	getControl(): ICodeEditor;
+	getControl(): ICodeEditor | undefined;
 }
 
 export interface ITextDiffEditor extends IEditor {
@@ -122,7 +126,7 @@ export interface ITextDiffEditor extends IEditor {
 	/**
 	 * Returns the underlying text editor widget of this editor.
 	 */
-	getControl(): IDiffEditor;
+	getControl(): IDiffEditor | undefined;
 }
 
 export interface ITextSideBySideEditor extends IEditor {
@@ -171,7 +175,7 @@ export interface IEditorInputFactoryRegistry {
 	 * @param editorInputId the identifier of the editor input
 	 * @param factory the editor input factory for serialization/deserialization
 	 */
-	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void;
+	registerEditorInputFactory<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputFactory }): void;
 
 	/**
 	 * Returns the editor input factory for the given editor input.
@@ -201,11 +205,11 @@ export interface IEditorInputFactory {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined;
 }
 
-export interface IUntitledResourceInput extends IBaseResourceInput {
+export interface IUntitledTextResourceInput extends IBaseResourceInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
-	 * Otherwise the untitled editor will have an associated path and use that when saving.
+	 * Otherwise the untitled text editor will have an associated path and use that when saving.
 	 */
 	resource?: URI;
 
@@ -290,7 +294,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display name of this input.
 	 */
-	getName(): string | null;
+	getName(): string;
 
 	/**
 	 * Returns the display description of this input.
@@ -300,7 +304,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display title of this input.
 	 */
-	getTitle(verbosity?: Verbosity): string | null;
+	getTitle(verbosity?: Verbosity): string | undefined;
 
 	/**
 	 * Resolves the input.
@@ -329,14 +333,14 @@ export interface IEditorInput extends IDisposable {
  */
 export abstract class EditorInput extends Disposable implements IEditorInput {
 
-	protected readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
+	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	protected readonly _onDidChangeLabel: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeLabel: Event<void> = this._onDidChangeLabel.event;
+	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
+	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
-	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDispose: Event<void> = this._onDispose.event;
+	private readonly _onDispose = this._register(new Emitter<void>());
+	readonly onDispose = this._onDispose.event;
 
 	private disposed: boolean = false;
 
@@ -356,8 +360,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
 	 * above the editor area when the input is shown.
 	 */
-	getName(): string | null {
-		return null;
+	getName(): string {
+		return `Editor ${this.getTypeId()}`;
 	}
 
 	/**
@@ -372,7 +376,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * Returns the title of this input that can be shown to the user. Examples include showing the title of
 	 * the input above the editor area as hover over the input label.
 	 */
-	getTitle(verbosity?: Verbosity): string | null {
+	getTitle(verbosity?: Verbosity): string {
 		return this.getName();
 	}
 
@@ -381,11 +385,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 * for the input. This allows subclasses to decide late which editor to use for the input on a case by case basis.
 	 */
 	getPreferredEditorId(candidates: string[]): string | undefined {
-		if (candidates.length > 0) {
-			return candidates[0];
-		}
-
-		return undefined;
+		return firstOrDefault(candidates);
 	}
 
 	/**
@@ -416,13 +416,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	/**
-	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
-	 */
-	confirmSave(): Promise<ConfirmResult> {
-		return Promise.resolve(ConfirmResult.DONT_SAVE);
-	}
-
-	/**
 	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
 	save(): Promise<boolean> {
@@ -434,13 +427,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 */
 	revert(options?: IRevertOptions): Promise<boolean> {
 		return Promise.resolve(true);
-	}
-
-	/**
-	 * Called when this input is no longer opened in any editor. Subclasses can free resources as needed.
-	 */
-	close(): void {
-		this.dispose();
 	}
 
 	/**
@@ -476,12 +462,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 }
 
-export const enum ConfirmResult {
-	SAVE,
-	DONT_SAVE,
-	CANCEL
-}
-
 export const enum EncodingMode {
 
 	/**
@@ -500,7 +480,7 @@ export interface IEncodingSupport {
 	/**
 	 * Gets the encoding of the input if known.
 	 */
-	getEncoding(): string;
+	getEncoding(): string | undefined;
 
 	/**
 	 * Sets the encoding for the input for saving.
@@ -571,10 +551,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 	isDirty(): boolean {
 		return this.master.isDirty();
-	}
-
-	confirmSave(): Promise<ConfirmResult> {
-		return this.master.confirmSave();
 	}
 
 	save(): Promise<boolean> {
@@ -657,8 +633,8 @@ export interface ITextEditorModel extends IEditorModel {
  */
 export class EditorModel extends Disposable implements IEditorModel {
 
-	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDispose: Event<void> = this._onDispose.event;
+	private readonly _onDispose = this._register(new Emitter<void>());
+	readonly onDispose = this._onDispose.event;
 
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
@@ -705,24 +681,28 @@ export class EditorOptions implements IEditorOptions {
 	 */
 	static create(settings: IEditorOptions): EditorOptions {
 		const options = new EditorOptions();
-
-		options.preserveFocus = settings.preserveFocus;
-		options.forceReload = settings.forceReload;
-		options.revealIfVisible = settings.revealIfVisible;
-		options.revealIfOpened = settings.revealIfOpened;
-		options.pinned = settings.pinned;
-		options.index = settings.index;
-		options.inactive = settings.inactive;
-		options.ignoreError = settings.ignoreError;
+		options.overwrite(settings);
 
 		return options;
 	}
 
 	/**
-	 * Tells the editor to not receive keyboard focus when the editor is being opened. By default,
-	 * the editor will receive keyboard focus on open.
+	 * Tells the editor to not receive keyboard focus when the editor is being opened.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	preserveFocus: boolean | undefined;
+
+	/**
+	 * This option is only relevant if an editor is opened into a group that is not active
+	 * already and allows to control if the inactive group should become active, restored
+	 * or preserved.
+	 *
+	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
+	 * is specified.
+	 */
+	activation: EditorActivation | undefined;
 
 	/**
 	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
@@ -754,7 +734,10 @@ export class EditorOptions implements IEditorOptions {
 
 	/**
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
-	 * in the background.
+	 * in the background without loading its contents.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	inactive: boolean | undefined;
 
@@ -763,19 +746,87 @@ export class EditorOptions implements IEditorOptions {
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
 	ignoreError: boolean | undefined;
+
+	/**
+	 * Does not use editor overrides while opening the editor.
+	 */
+	ignoreOverrides: boolean | undefined;
+
+	/**
+	 * A optional hint to signal in which context the editor opens.
+	 *
+	 * If configured to be `EditorOpenContext.USER`, this hint can be
+	 * used in various places to control the experience. For example,
+	 * if the editor to open fails with an error, a notification could
+	 * inform about this in a modal dialog. If the editor opened through
+	 * some background task, the notification would show in the background,
+	 * not as a modal dialog.
+	 */
+	context: EditorOpenContext | undefined;
+
+	/**
+	 * Overwrites option values from the provided bag.
+	 */
+	overwrite(options: IEditorOptions): EditorOptions {
+		if (typeof options.forceReload === 'boolean') {
+			this.forceReload = options.forceReload;
+		}
+
+		if (typeof options.revealIfVisible === 'boolean') {
+			this.revealIfVisible = options.revealIfVisible;
+		}
+
+		if (typeof options.revealIfOpened === 'boolean') {
+			this.revealIfOpened = options.revealIfOpened;
+		}
+
+		if (typeof options.preserveFocus === 'boolean') {
+			this.preserveFocus = options.preserveFocus;
+		}
+
+		if (typeof options.activation === 'number') {
+			this.activation = options.activation;
+		}
+
+		if (typeof options.pinned === 'boolean') {
+			this.pinned = options.pinned;
+		}
+
+		if (typeof options.inactive === 'boolean') {
+			this.inactive = options.inactive;
+		}
+
+		if (typeof options.ignoreError === 'boolean') {
+			this.ignoreError = options.ignoreError;
+		}
+
+		if (typeof options.index === 'number') {
+			this.index = options.index;
+		}
+
+		if (typeof options.ignoreOverrides === 'boolean') {
+			this.ignoreOverrides = options.ignoreOverrides;
+		}
+
+		if (typeof options.context === 'number') {
+			this.context = options.context;
+		}
+
+		return this;
+	}
 }
 
 /**
  * Base Text Editor Options.
  */
 export class TextEditorOptions extends EditorOptions {
-	private startLineNumber: number;
-	private startColumn: number;
-	private endLineNumber: number;
-	private endColumn: number;
+	private startLineNumber: number | undefined;
+	private startColumn: number | undefined;
+	private endLineNumber: number | undefined;
+	private endColumn: number | undefined;
 
-	private revealInCenterIfOutsideViewport: boolean;
-	private editorViewState: IEditorViewState | null;
+	private revealInCenterIfOutsideViewport: boolean | undefined;
+	private editorViewState: IEditorViewState | undefined;
 
 	static from(input?: IBaseResourceInput): TextEditorOptions | undefined {
 		if (!input || !input.options) {
@@ -790,53 +841,31 @@ export class TextEditorOptions extends EditorOptions {
 	 */
 	static create(options: ITextEditorOptions = Object.create(null)): TextEditorOptions {
 		const textEditorOptions = new TextEditorOptions();
+		textEditorOptions.overwrite(options);
+
+		return textEditorOptions;
+	}
+
+	/**
+	 * Overwrites option values from the provided bag.
+	 */
+	overwrite(options: ITextEditorOptions): TextEditorOptions {
+		super.overwrite(options);
 
 		if (options.selection) {
 			const selection = options.selection;
-			textEditorOptions.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
+			this.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
 		}
 
 		if (options.viewState) {
-			textEditorOptions.editorViewState = options.viewState as IEditorViewState;
+			this.editorViewState = options.viewState as IEditorViewState;
 		}
 
-		if (options.forceReload) {
-			textEditorOptions.forceReload = true;
+		if (typeof options.revealInCenterIfOutsideViewport === 'boolean') {
+			this.revealInCenterIfOutsideViewport = options.revealInCenterIfOutsideViewport;
 		}
 
-		if (options.revealIfVisible) {
-			textEditorOptions.revealIfVisible = true;
-		}
-
-		if (options.revealIfOpened) {
-			textEditorOptions.revealIfOpened = true;
-		}
-
-		if (options.preserveFocus) {
-			textEditorOptions.preserveFocus = true;
-		}
-
-		if (options.revealInCenterIfOutsideViewport) {
-			textEditorOptions.revealInCenterIfOutsideViewport = true;
-		}
-
-		if (options.pinned) {
-			textEditorOptions.pinned = true;
-		}
-
-		if (options.inactive) {
-			textEditorOptions.inactive = true;
-		}
-
-		if (options.ignoreError) {
-			textEditorOptions.ignoreError = true;
-		}
-
-		if (typeof options.index === 'number') {
-			textEditorOptions.index = options.index;
-		}
-
-		return textEditorOptions;
+		return this;
 	}
 
 	/**
@@ -865,7 +894,7 @@ export class TextEditorOptions extends EditorOptions {
 		const options = TextEditorOptions.create(settings);
 
 		// View state
-		options.editorViewState = editor.saveViewState();
+		options.editorViewState = withNullAsUndefined(editor.saveViewState());
 
 		return options;
 	}
@@ -989,6 +1018,7 @@ interface IEditorPartConfiguration {
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
+	splitSizing?: 'split' | 'distribute';
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
@@ -1010,7 +1040,7 @@ export function toResource(editor: IEditorInput | undefined, options?: IResource
 		return undefined;
 	}
 
-	if (options && options.supportSideBySide && editor instanceof SideBySideEditorInput) {
+	if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
 		editor = options.supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details;
 	}
 
@@ -1048,23 +1078,23 @@ export interface IEditorMemento<T> {
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
-	private instantiationService: IInstantiationService;
-	private fileInputFactory: IFileInputFactory;
+	private instantiationService: IInstantiationService | undefined;
+	private fileInputFactory: IFileInputFactory | undefined;
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
 
 	start(accessor: ServicesAccessor): void {
-		this.instantiationService = accessor.get(IInstantiationService);
+		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
 
 		this.editorInputFactoryConstructors.forEach((ctor, key) => {
-			this.createEditorInputFactory(key, ctor);
+			this.createEditorInputFactory(key, ctor, instantiationService);
 		});
 
 		this.editorInputFactoryConstructors.clear();
 	}
 
-	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
-		const instance = this.instantiationService.createInstance(ctor);
+	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>, instantiationService: IInstantiationService): void {
+		const instance = instantiationService.createInstance(ctor);
 		this.editorInputFactoryInstances.set(editorInputId, instance);
 	}
 
@@ -1073,14 +1103,14 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	}
 
 	getFileInputFactory(): IFileInputFactory {
-		return this.fileInputFactory;
+		return assertIsDefined(this.fileInputFactory);
 	}
 
 	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
 		if (!this.instantiationService) {
 			this.editorInputFactoryConstructors.set(editorInputId, ctor);
 		} else {
-			this.createEditorInputFactory(editorInputId, ctor);
+			this.createEditorInputFactory(editorInputId, ctor, this.instantiationService);
 		}
 	}
 
@@ -1095,7 +1125,7 @@ export const Extensions = {
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
-export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledResourceInput)[]> {
+export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceInput | IUntitledTextResourceInput)[]> {
 	if (!paths || !paths.length) {
 		return [];
 	}
@@ -1116,7 +1146,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			};
 		}
 
-		let input: IResourceInput | IUntitledResourceInput;
+		let input: IResourceInput | IUntitledTextResourceInput;
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {

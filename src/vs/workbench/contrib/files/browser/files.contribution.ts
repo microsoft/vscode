@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { sep } from 'vs/base/common/path';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
@@ -18,7 +18,6 @@ import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerServ
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/contrib/files/browser/saveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -26,7 +25,6 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { DirtyFilesTracker } from 'vs/workbench/contrib/files/common/dirtyFilesTracker';
 import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
@@ -39,6 +37,9 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
+import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
+import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -74,11 +75,11 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 }
 
 // Register Viewlet
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	ExplorerViewlet,
 	VIEWLET_ID,
 	nls.localize('explore', "Explorer"),
-	'explore',
+	'codicon-files',
 	0
 ));
 
@@ -93,25 +94,14 @@ const openViewletKb: IKeybindings = {
 // Register Action to Open Viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(
-	new SyncActionDescriptor(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
+	SyncActionDescriptor.create(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
 	'View: Show Explorer',
 	nls.localize('view', "View")
 );
 
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
-		TextFileEditor,
-		TextFileEditor.ID,
-		nls.localize('textFileEditor', "Text File Editor")
-	),
-	[
-		new SyncDescriptor<EditorInput>(FileEditorInput)
-	]
-);
-
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		BinaryFileEditor,
 		BinaryFileEditor.ID,
 		nls.localize('binaryFileEditor', "Binary File Editor")
@@ -142,8 +132,6 @@ interface ISerializedFileInput {
 
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
-
-	constructor() { }
 
 	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
@@ -181,17 +169,19 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Register Save Error Handler
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SaveErrorHandler, LifecyclePhase.Starting);
 
-// Register Dirty Files Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
-
 // Register uri display for file uris
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
+// Register Workspace Watcher
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceWatcher, LifecyclePhase.Restored);
+
+// Register Dirty Files Indicator
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesIndicator, LifecyclePhase.Starting);
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
-const hotExitConfiguration = platform.isNative ?
+const hotExitConfiguration: IConfigurationPropertySchema = platform.isNative ?
 	{
 		'type': 'string',
 		'scope': ConfigurationScope.APPLICATION,
@@ -257,17 +247,20 @@ configurationRegistry.registerConfiguration({
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can also be configured per language."),
 			'scope': ConfigurationScope.RESOURCE,
-			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
+			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong),
+			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'overridable': true,
 			'default': false,
 			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.RESOURCE
+			'scope': ConfigurationScope.RESOURCE,
+			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
 		},
 		'files.eol': {
 			'type': 'string',
+			'overridable': true,
 			'enum': [
 				'\n',
 				'\r\n',
@@ -339,7 +332,8 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
-			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line.")
+			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
+			included: platform.isNative
 		},
 		'files.simpleDialog.enable': {
 			'type': 'boolean',
@@ -350,10 +344,7 @@ configurationRegistry.registerConfiguration({
 });
 
 configurationRegistry.registerConfiguration({
-	id: 'editor',
-	order: 5,
-	title: nls.localize('editorConfigurationTitle', "Editor"),
-	type: 'object',
+	...editorConfigurationBaseNode,
 	properties: {
 		'editor.formatOnSave': {
 			'type': 'boolean',
@@ -425,6 +416,20 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('explorer.decorations.badges', "Controls whether file decorations should use badges."),
 			default: true
+		},
+		'explorer.incrementalNaming': {
+			enum: ['simple', 'smart'],
+			enumDescriptions: [
+				nls.localize('simple', "Appends the word \"copy\" at the end of the duplicated name potentially followed by a number"),
+				nls.localize('smart', "Adds a number at the end of the duplicated name. If some number is already part of the name, tries to increase that number")
+			],
+			description: nls.localize('explorer.incrementalNaming', "Controls what naming strategy to use when a giving a new name to a duplicated explorer item on paste."),
+			default: 'simple'
+		},
+		'explorer.compressSingleChildFolders': {
+			'type': 'boolean',
+			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should compress single child folders in a combined tree element. Useful for Java project folder structures, for example."),
+			'default': true
 		},
 	}
 });

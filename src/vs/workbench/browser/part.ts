@@ -9,10 +9,10 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
-import { ISerializableView, Orientation } from 'vs/base/browser/ui/grid/grid';
+import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewSize } from 'vs/base/browser/ui/grid/gridview';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -29,17 +29,24 @@ export interface ILayoutContentResult {
  * arranges an optional title and mandatory content area to show content.
  */
 export abstract class Part extends Component implements ISerializableView {
-	private parent: HTMLElement;
-	private titleArea: HTMLElement | null;
-	private contentArea: HTMLElement | null;
-	private partLayout: PartLayout;
+
+	private _dimension: Dimension | undefined;
+	get dimension(): Dimension | undefined { return this._dimension; }
+
+	protected _onDidVisibilityChange = this._register(new Emitter<boolean>());
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
+
+	private parent: HTMLElement | undefined;
+	private titleArea: HTMLElement | undefined;
+	private contentArea: HTMLElement | undefined;
+	private partLayout: PartLayout | undefined;
 
 	constructor(
 		id: string,
 		private options: IPartOptions,
 		themeService: IThemeService,
 		storageService: IStorageService,
-		layoutService: IWorkbenchLayoutService
+		protected readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, themeService, storageService);
 
@@ -77,35 +84,35 @@ export abstract class Part extends Component implements ISerializableView {
 	/**
 	 * Returns the overall part container.
 	 */
-	getContainer(): HTMLElement {
+	getContainer(): HTMLElement | undefined {
 		return this.parent;
 	}
 
 	/**
 	 * Subclasses override to provide a title area implementation.
 	 */
-	protected createTitleArea(parent: HTMLElement, options?: object): HTMLElement | null {
-		return null;
+	protected createTitleArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
+		return undefined;
 	}
 
 	/**
 	 * Returns the title area container.
 	 */
-	protected getTitleArea(): HTMLElement | null {
+	protected getTitleArea(): HTMLElement | undefined {
 		return this.titleArea;
 	}
 
 	/**
 	 * Subclasses override to provide a content area implementation.
 	 */
-	protected createContentArea(parent: HTMLElement, options?: object): HTMLElement | null {
-		return null;
+	protected createContentArea(parent: HTMLElement, options?: object): HTMLElement | undefined {
+		return undefined;
 	}
 
 	/**
 	 * Returns the content area container.
 	 */
-	protected getContentArea(): HTMLElement | null {
+	protected getContentArea(): HTMLElement | undefined {
 		return this.contentArea;
 	}
 
@@ -113,7 +120,9 @@ export abstract class Part extends Component implements ISerializableView {
 	 * Layout title and content area in the given dimension.
 	 */
 	protected layoutContents(width: number, height: number): ILayoutContentResult {
-		return this.partLayout.layout(width, height);
+		const partLayout = assertIsDefined(this.partLayout);
+
+		return partLayout.layout(width, height);
 	}
 
 	//#region ISerializableView
@@ -121,14 +130,21 @@ export abstract class Part extends Component implements ISerializableView {
 	private _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	get onDidChange(): Event<IViewSize | undefined> { return this._onDidChange.event; }
 
-	element: HTMLElement;
+	element!: HTMLElement;
 
 	abstract minimumWidth: number;
 	abstract maximumWidth: number;
 	abstract minimumHeight: number;
 	abstract maximumHeight: number;
 
-	abstract layout(width: number, height: number, orientation: Orientation): void;
+	layout(width: number, height: number): void {
+		this._dimension = new Dimension(width, height);
+	}
+
+	setVisible(visible: boolean) {
+		this._onDidVisibilityChange.fire(visible);
+	}
+
 	abstract toJSON(): object;
 
 	//#endregion
@@ -138,7 +154,7 @@ class PartLayout {
 
 	private static readonly TITLE_HEIGHT = 35;
 
-	constructor(private options: IPartOptions, private contentArea: HTMLElement | null) { }
+	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
 
@@ -150,12 +166,13 @@ class PartLayout {
 			titleSize = new Dimension(0, 0);
 		}
 
-		// Content Size: Width (Fill), Height (Variable)
-		const contentSize = new Dimension(width, height - titleSize.height);
-
+		let contentWidth = width;
 		if (this.options && typeof this.options.borderWidth === 'function') {
-			contentSize.width -= this.options.borderWidth(); // adjust for border size
+			contentWidth -= this.options.borderWidth(); // adjust for border size
 		}
+
+		// Content Size: Width (Fill), Height (Variable)
+		const contentSize = new Dimension(contentWidth, height - titleSize.height);
 
 		// Content
 		if (this.contentArea) {

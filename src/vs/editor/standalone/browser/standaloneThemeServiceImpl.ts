@@ -14,6 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, ICssStyleCollector, IIconTheme, IThemingRegistry } from 'vs/platform/theme/common/themeService';
+import { TokenStyle, TokenClassification, ProbeScope } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -23,6 +24,7 @@ const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
 class StandaloneTheme implements IStandaloneTheme {
+
 	public readonly id: string;
 	public readonly themeName: string;
 
@@ -128,6 +130,14 @@ class StandaloneTheme implements IStandaloneTheme {
 		}
 		return this._tokenTheme;
 	}
+
+	getTokenStyle(classification: TokenClassification, useDefault?: boolean | undefined): TokenStyle | undefined {
+		return undefined;
+	}
+
+	resolveScopes(scopes: ProbeScope[]): TokenStyle | undefined {
+		return undefined;
+	}
 }
 
 function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
@@ -156,11 +166,11 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 
 export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
 	private readonly _styleElement: HTMLStyleElement;
-	private _theme: IStandaloneTheme;
+	private _theme!: IStandaloneTheme;
 	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
 	private readonly _onIconThemeChange: Emitter<IIconTheme>;
 	private readonly environment: IEnvironmentService = Object.create(null);

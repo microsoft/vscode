@@ -19,7 +19,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -31,10 +31,12 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
@@ -45,14 +47,28 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
+	readonly priority: LayoutPriority = LayoutPriority.Low;
+
 	readonly snap = true;
+
+	get preferredWidth(): number | undefined {
+		const viewlet = this.getActiveViewlet();
+
+		if (!viewlet) {
+			return;
+		}
+
+		const width = viewlet.getOptimalWidth();
+		if (typeof width !== 'number') {
+			return;
+		}
+
+		return Math.max(width, 300);
+	}
 
 	//#endregion
 
 	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
-
-	private _onDidVisibilityChange = this._register(new Emitter<boolean>());
-	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
 
 	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
 	readonly onDidViewletDeregister: Event<ViewletDescriptor> = this._onDidViewletDeregister.event;
@@ -63,7 +79,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	private viewletRegistry: ViewletRegistry;
 	private sideBarFocusContextKey: IContextKey<boolean>;
 	private activeViewletContextKey: IContextKey<string>;
-	private blockOpeningViewlet: boolean;
+	private blockOpeningViewlet = false;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -154,19 +170,19 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = assertIsDefined(this.getContainer());
 
-		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND);
+		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND);
 
 		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : null;
-		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : null;
-		container.style.borderRightColor = isPositionLeft ? borderColor : null;
-		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : null;
-		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : null;
-		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
+		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '';
+		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : '';
+		container.style.borderRightColor = isPositionLeft ? borderColor || '' : '';
+		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
+		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
+		container.style.borderLeftColor = !isPositionLeft ? borderColor || '' : '';
 	}
 
 	layout(width: number, height: number): void {
@@ -179,7 +195,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	// Viewlet service
 
-	getActiveViewlet(): IViewlet | null {
+	getActiveViewlet(): IViewlet | undefined {
 		return <IViewlet>this.getActiveComposite();
 	}
 
@@ -191,7 +207,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.hideActiveComposite();
 	}
 
-	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | null> {
+	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | undefined> {
 		if (typeof id === 'string' && this.getViewlet(id)) {
 			return this.doOpenViewlet(id, focus);
 		}
@@ -202,12 +218,21 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			return this.doOpenViewlet(id, focus);
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getViewlets(): ViewletDescriptor[] {
-		return this.viewletRegistry.getViewlets()
-			.sort((v1, v2) => v1.order! - v2.order!);
+		return this.viewletRegistry.getViewlets().sort((v1, v2) => {
+			if (typeof v1.order !== 'number') {
+				return -1;
+			}
+
+			if (typeof v2.order !== 'number') {
+				return 1;
+			}
+
+			return v1.order - v2.order;
+		});
 	}
 
 	getDefaultViewletId(): string {
@@ -218,9 +243,9 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
 	}
 
-	private doOpenViewlet(id: string, focus?: boolean): Viewlet | null {
+	private doOpenViewlet(id: string, focus?: boolean): Viewlet | undefined {
 		if (this.blockOpeningViewlet) {
-			return null; // Workaround against a potential race condition
+			return undefined; // Workaround against a potential race condition
 		}
 
 		// First check if sidebar is hidden and show if so
@@ -256,10 +281,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}
 	}
 
-	setVisible(visible: boolean): void {
-		this._onDidVisibilityChange.fire(visible);
-	}
-
 	toJSON(): object {
 		return {
 			type: Parts.SIDEBAR_PART
@@ -289,7 +310,7 @@ class FocusSideBarAction extends Action {
 		}
 
 		// Focus into active viewlet
-		let viewlet = this.viewletService.getActiveViewlet();
+		const viewlet = this.viewletService.getActiveViewlet();
 		if (viewlet) {
 			viewlet.focus();
 		}
@@ -299,7 +320,7 @@ class FocusSideBarAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
+registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_0
 }), 'View: Focus into Side Bar', nls.localize('viewCategory', "View"));
 

@@ -19,13 +19,14 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { LOG_SCHEME, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class LogViewerInput extends ResourceEditorInput {
 
 	public static readonly ID = 'workbench.editorinputs.output';
 
-	constructor(private outputChannelDescriptor: IFileOutputChannelDescriptor,
+	constructor(private readonly outputChannelDescriptor: IFileOutputChannelDescriptor,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), undefined, textModelResolverService);
@@ -54,9 +55,10 @@ export class LogViewer extends AbstractTextResourceEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService
+		@IHostService hostService: IHostService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, hostService, filesConfigurationService);
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {

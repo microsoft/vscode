@@ -25,10 +25,9 @@ import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/wor
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter, IDataSource } from 'vs/base/browser/ui/tree/tree';
-import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineItem } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	const ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement
@@ -57,11 +56,11 @@ export abstract class BreadcrumbsPicker {
 
 	protected readonly _disposables = new DisposableStore();
 	protected readonly _domNode: HTMLDivElement;
-	protected _arrow: HTMLDivElement;
-	protected _treeContainer: HTMLDivElement;
-	protected _tree: Tree<any, any>;
+	protected _arrow!: HTMLDivElement;
+	protected _treeContainer!: HTMLDivElement;
+	protected _tree!: Tree<any, any>;
 	protected _fakeEvent = new UIEvent('fakeEvent');
-	protected _layoutInfo: ILayoutInfo;
+	protected _layoutInfo!: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<SelectEvent>();
 	readonly onDidPickElement: Event<SelectEvent> = this._onDidPickElement.event;
@@ -241,7 +240,7 @@ class FileRenderer implements ITreeRenderer<IFileStat | IWorkspaceFolder, FuzzyS
 	}
 
 	renderElement(node: ITreeNode<IWorkspaceFolder | IFileStat, [number, number, number]>, index: number, templateData: IResourceLabel): void {
-		const fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
+		const fileDecorations = this._configService.getValue<{ colors: boolean, badges: boolean; }>('explorer.decorations');
 		const { element } = node;
 		let resource: URI;
 		let fileKind: FileKind;
@@ -375,13 +374,13 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
 		this._disposables.add(labels);
 
-		return this._instantiationService.createInstance(WorkbenchAsyncDataTree, container, new FileVirtualDelegate(), [this._instantiationService.createInstance(FileRenderer, labels)], this._instantiationService.createInstance(FileDataSource), {
+		return this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>>(WorkbenchAsyncDataTree, 'BreadcrumbsFilePicker', container, new FileVirtualDelegate(), [this._instantiationService.createInstance(FileRenderer, labels)], this._instantiationService.createInstance(FileDataSource), {
 			multipleSelectionSupport: false,
 			sorter: new FileSorter(),
 			filter: this._instantiationService.createInstance(FileFilter),
 			identityProvider: new FileIdentityProvider(),
 			keyboardNavigationLabelProvider: new FileNavigationLabelProvider()
-		}) as WorkbenchAsyncDataTree<BreadcrumbElement | IFileStat, any, FuzzyScore>;
+		});
 	}
 
 	_setInput(element: BreadcrumbElement): Promise<void> {
@@ -439,27 +438,23 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	}
 
 	protected _createTree(container: HTMLElement) {
-		return this._instantiationService.createInstance<
-			HTMLElement,
-			IListVirtualDelegate<OutlineItem>,
-			ITreeRenderer<any, FuzzyScore, any>[],
-			IDataSource<OutlineModel, OutlineItem>,
-			IDataTreeOptions<OutlineItem, FuzzyScore>,
-			WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>
-		>(
+		return this._instantiationService.createInstance<typeof WorkbenchDataTree, WorkbenchDataTree<OutlineModel, any, FuzzyScore>>(
 			WorkbenchDataTree,
+			'BreadcrumbsOutlinePicker',
 			container,
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), this._instantiationService.createInstance(OutlineElementRenderer)],
 			new OutlineDataSource(),
 			{
+				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
 				identityProvider: new OutlineIdentityProvider(),
-				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider()
+				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
 			}
-		) as WorkbenchDataTree<OutlineModel, OutlineItem, FuzzyScore>;
+		);
 	}
 
 	dispose(): void {
@@ -473,14 +468,10 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		const tree = this._tree as WorkbenchDataTree<OutlineModel, any, FuzzyScore>;
 		tree.setInput(model);
 
-		let focusElement: TreeElement;
-		if (element === model) {
-			focusElement = tree.navigate().first();
-		} else {
-			focusElement = element;
+		if (element !== model) {
+			tree.reveal(element, 0.5);
+			tree.setFocus([element], this._fakeEvent);
 		}
-		tree.reveal(focusElement, 0.5);
-		tree.setFocus([focusElement], this._fakeEvent);
 		tree.domFocus();
 
 		return Promise.resolve();

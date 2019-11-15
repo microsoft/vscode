@@ -8,7 +8,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { OVERRIDE_PROPERTY_PATTERN, ConfigurationScope, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
@@ -441,7 +441,7 @@ export class Configuration {
 		return this._defaultConfiguration;
 	}
 
-	private _userConfiguration: ConfigurationModel | null;
+	private _userConfiguration: ConfigurationModel | null = null;
 	get userConfiguration(): ConfigurationModel {
 		if (!this._userConfiguration) {
 			this._userConfiguration = this._remoteUserConfiguration.isEmpty() ? this._localUserConfiguration : this._localUserConfiguration.merge(this._remoteUserConfiguration);
@@ -518,14 +518,14 @@ export class Configuration {
 		return folderConsolidatedConfiguration;
 	}
 
-	private getFolderConfigurationModelForResource(resource: URI | null | undefined, workspace: Workspace | undefined): ConfigurationModel | null {
+	private getFolderConfigurationModelForResource(resource: URI | null | undefined, workspace: Workspace | undefined): ConfigurationModel | undefined {
 		if (workspace && resource) {
 			const root = workspace.getFolder(resource);
 			if (root) {
-				return types.withUndefinedAsNull(this._folderConfigurations.get(root.uri));
+				return this._folderConfigurations.get(root.uri);
 			}
 		}
-		return null;
+		return undefined;
 	}
 
 	toData(): IConfigurationData {
@@ -545,11 +545,11 @@ export class Configuration {
 				overrides: this._workspaceConfiguration.overrides,
 				keys: this._workspaceConfiguration.keys
 			},
-			folders: this._folderConfigurations.keys().reduce((result, folder) => {
+			folders: this._folderConfigurations.keys().reduce<[UriComponents, IConfigurationModel][]>((result, folder) => {
 				const { contents, overrides, keys } = this._folderConfigurations.get(folder)!;
-				result[folder.toString()] = { contents, overrides, keys };
+				result.push([folder, { contents, overrides, keys }]);
 				return result;
-			}, Object.create({}))
+			}, [])
 		};
 	}
 
@@ -605,6 +605,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 		private _changedConfiguration: ConfigurationModel = new ConfigurationModel(),
 		private _changedConfigurationByResource: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>()) {
 		super();
+		this._source = ConfigurationTarget.DEFAULT;
 	}
 
 	get changedConfiguration(): IConfigurationModel {
@@ -663,13 +664,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 			configurationModelsToSearch.push(...this._changedConfigurationByResource.values());
 		}
 
-		for (const configuration of configurationModelsToSearch) {
-			if (this.doesConfigurationContains(configuration, config)) {
-				return true;
-			}
-		}
-
-		return false;
+		return configurationModelsToSearch.some(configuration => this.doesConfigurationContains(configuration, config));
 	}
 
 	private changeWithKeys(keys: string[], resource?: URI): void {

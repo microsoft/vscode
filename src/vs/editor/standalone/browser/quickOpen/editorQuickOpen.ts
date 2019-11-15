@@ -24,23 +24,19 @@ export interface IQuickOpenControllerOpts {
 
 export class QuickOpenController implements editorCommon.IEditorContribution, IDecorator {
 
-	private static readonly ID = 'editor.controller.quickOpenController';
+	public static readonly ID = 'editor.controller.quickOpenController';
 
 	public static get(editor: ICodeEditor): QuickOpenController {
 		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
 	}
 
 	private readonly editor: ICodeEditor;
-	private widget: QuickOpenEditorWidget | null;
-	private rangeHighlightDecorationId: string | null;
-	private lastKnownEditorSelection: Selection | null;
+	private widget: QuickOpenEditorWidget | null = null;
+	private rangeHighlightDecorationId: string | null = null;
+	private lastKnownEditorSelection: Selection | null = null;
 
 	constructor(editor: ICodeEditor, @IThemeService private readonly themeService: IThemeService) {
 		this.editor = editor;
-	}
-
-	public getId(): string {
-		return QuickOpenController.ID;
 	}
 
 	public dispose(): void {
@@ -173,4 +169,4 @@ export interface IDecorator {
 	clearDecorations(): void;
 }
 
-registerEditorContribution(QuickOpenController);
+registerEditorContribution(QuickOpenController.ID, QuickOpenController);

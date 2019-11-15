@@ -19,9 +19,9 @@ import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 export class ExplorerModel implements IDisposable {
 
-	private _roots: ExplorerItem[];
+	private _roots!: ExplorerItem[];
 	private _listener: IDisposable;
-	private _onDidChangeRoots = new Emitter<void>();
+	private readonly _onDidChangeRoots = new Emitter<void>();
 
 	constructor(private readonly contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
@@ -75,7 +75,8 @@ export class ExplorerModel implements IDisposable {
 
 export class ExplorerItem {
 	private _isDirectoryResolved: boolean;
-	public isError: boolean;
+	private _isDisposed: boolean;
+	public isError = false;
 
 	constructor(
 		public resource: URI,
@@ -87,6 +88,11 @@ export class ExplorerItem {
 		private _mtime?: number,
 	) {
 		this._isDirectoryResolved = false;
+		this._isDisposed = false;
+	}
+
+	get isDisposed(): boolean {
+		return this._isDisposed;
 	}
 
 	get isDirectoryResolved(): boolean {
@@ -148,7 +154,7 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: URI[]): ExplorerItem {
+	static create(raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
 		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime);
 
 		// Recursively add children if present
@@ -218,6 +224,7 @@ export class ExplorerItem {
 				if (formerLocalChild) {
 					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
 					local.addChild(formerLocalChild);
+					oldLocalChildren.delete(diskChild.resource);
 				}
 
 				// New child: add
@@ -225,6 +232,10 @@ export class ExplorerItem {
 					local.addChild(diskChild);
 				}
 			});
+
+			for (let child of oldLocalChildren.values()) {
+				child._dispose();
+			}
 		}
 	}
 
@@ -247,9 +258,14 @@ export class ExplorerItem {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'
 			const resolveMetadata = explorerService.sortOrder === 'modified';
-			const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-			const resolved = ExplorerItem.create(stat, this);
-			ExplorerItem.mergeLocalWithDisk(resolved, this);
+			try {
+				const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
+				const resolved = ExplorerItem.create(stat, this);
+				ExplorerItem.mergeLocalWithDisk(resolved, this);
+			} catch (e) {
+				this.isError = true;
+				throw e;
+			}
 			this._isDirectoryResolved = true;
 		}
 
@@ -269,8 +285,18 @@ export class ExplorerItem {
 	}
 
 	forgetChildren(): void {
+		for (let c of this.children.values()) {
+			c._dispose();
+		}
 		this.children.clear();
 		this._isDirectoryResolved = false;
+	}
+
+	private _dispose() {
+		this._isDisposed = true;
+		for (let child of this.children.values()) {
+			child._dispose();
+		}
 	}
 
 	private getPlatformAwareName(name: string): string {

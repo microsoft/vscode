@@ -62,8 +62,10 @@ function getOutputChannel(): vscode.OutputChannel {
 
 function showError() {
 	vscode.window.showWarningMessage(localize('gulpTaskDetectError', 'Problem finding gulp tasks. See the output for more information.'),
-		localize('gulpShowOutput', 'Go to output')).then(() => {
-			_channel.show(true);
+		localize('gulpShowOutput', 'Go to output')).then((choice) => {
+			if (choice !== undefined) {
+				_channel.show(true);
+			}
 		});
 }
 
@@ -130,10 +132,7 @@ class FolderDetector {
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
 		const gulpTask = (<any>_task.definition).task;
 		if (gulpTask) {
-			let kind: GulpTaskDefinition = {
-				type: 'gulp',
-				task: gulpTask
-			};
+			let kind: GulpTaskDefinition = (<any>_task.definition);
 			let options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 			let task = new vscode.Task(kind, this.workspaceFolder, gulpTask, 'gulp', new vscode.ShellExecution(await this._gulpCommand, [gulpTask], options));
 			return task;
@@ -159,8 +158,13 @@ class FolderDetector {
 		try {
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr && stderr.length > 0) {
-				getOutputChannel().appendLine(stderr);
-				showError();
+				// Filter out "No license field"
+				const errors = stderr.split('\n');
+				errors.pop(); // The last line is empty.
+				if (!errors.every(value => value.indexOf('No license field') >= 0)) {
+					getOutputChannel().appendLine(stderr);
+					showError();
+				}
 			}
 			let result: vscode.Task[] = [];
 			if (stdout) {

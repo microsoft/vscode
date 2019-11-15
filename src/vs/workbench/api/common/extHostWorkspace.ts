@@ -20,10 +20,14 @@ import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspa
 import { Range, RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import * as vscode from 'vscode';
-import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, IMainContext, MainContext, IStaticWorkspaceData } from './extHost.protocol';
+import { ExtHostWorkspaceShape, IWorkspaceData, MainThreadMessageServiceShape, MainThreadWorkspaceShape, MainContext } from './extHost.protocol';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
+import { withUndefinedAsNull } from 'vs/base/common/types';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -152,6 +156,8 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspaceProvider {
 
+	readonly _serviceBrand: undefined;
+
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
@@ -168,21 +174,21 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	constructor(
-		mainContext: IMainContext,
-		logService: ILogService,
-		requestIdProvider: Counter,
-		data?: IStaticWorkspaceData
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@ILogService logService: ILogService,
 	) {
 		this._logService = logService;
-		this._requestIdProvider = requestIdProvider;
+		this._requestIdProvider = new Counter();
 		this._barrier = new Barrier();
 
-		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
-		this._messageService = mainContext.getProxy(MainContext.MainThreadMessageService);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWorkspace);
+		this._messageService = extHostRpc.getProxy(MainContext.MainThreadMessageService);
+		const data = initData.workspace;
 		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled) : undefined;
 	}
 
-	$initializeWorkspace(data: IWorkspaceData): void {
+	$initializeWorkspace(data: IWorkspaceData | null): void {
 		this.$acceptWorkspaceData(data);
 		this._barrier.open();
 	}
@@ -288,7 +294,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				this._unconfirmedWorkspace = undefined;
 
 				// show error to user
-				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error), { extension }, []);
+				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error.toString()), { extension }, []);
 			});
 		}
 
@@ -389,7 +395,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 	}
 
-	$acceptWorkspaceData(data: IWorkspaceData): void {
+	$acceptWorkspaceData(data: IWorkspaceData | null): void {
 
 		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace);
 
@@ -407,7 +413,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- search ---
 
-	findFiles(include: string | RelativePattern | undefined, exclude: vscode.GlobPattern | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
+	/**
+	 * Note, null/undefined have different and important meanings for "exclude"
+	 */
+	findFiles(include: string | RelativePattern | undefined, exclude: vscode.GlobPattern | null | undefined, maxResults: number | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles`);
 
 		let includePattern: string | undefined;
@@ -438,7 +447,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			return Promise.resolve([]);
 		}
 
-		return this._proxy.$startFileSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, token)
+		return this._proxy.$startFileSearch(
+			withUndefinedAsNull(includePattern),
+			withUndefinedAsNull(includeFolder),
+			withUndefinedAsNull(excludePatternOrDisregardExcludes),
+			withUndefinedAsNull(maxResults),
+			token
+		)
 			.then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : []);
 	}
 
@@ -536,3 +551,6 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._proxy.$resolveProxy(url);
 	}
 }
+
+export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
+export interface IExtHostWorkspace extends ExtHostWorkspace, ExtHostWorkspaceShape, IExtHostWorkspaceProvider { }

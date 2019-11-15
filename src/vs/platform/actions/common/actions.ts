@@ -5,7 +5,7 @@
 
 import { Action } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature2, createDecorator, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -87,12 +87,14 @@ export const enum MenuId {
 	ProblemsPanelContext,
 	SCMChangeContext,
 	SCMResourceContext,
+	SCMResourceFolderContext,
 	SCMResourceGroupContext,
 	SCMSourceControl,
 	SCMTitle,
 	SearchContext,
 	StatusBarWindowIndicatorMenu,
 	TouchBarContext,
+	TitleBarContext,
 	ViewItemContext,
 	ViewTitle,
 	CommentThreadTitle,
@@ -116,7 +118,7 @@ export const IMenuService = createDecorator<IMenuService>('menuService');
 
 export interface IMenuService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
 }
@@ -285,15 +287,21 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 export class SyncActionDescriptor {
 
-	private _descriptor: SyncDescriptor0<Action>;
+	private readonly _descriptor: SyncDescriptor0<Action>;
 
-	private _id: string;
-	private _label?: string;
-	private _keybindings: IKeybindings | undefined;
-	private _keybindingContext: ContextKeyExpr | undefined;
-	private _keybindingWeight: number | undefined;
+	private readonly _id: string;
+	private readonly _label?: string;
+	private readonly _keybindings: IKeybindings | undefined;
+	private readonly _keybindingContext: ContextKeyExpr | undefined;
+	private readonly _keybindingWeight: number | undefined;
 
-	constructor(ctor: IConstructorSignature2<string, string, Action>,
+	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
+		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
+	): SyncActionDescriptor {
+		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
+	}
+
+	private constructor(ctor: IConstructorSignature2<string, string, Action>,
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	) {
 		this._id = id;

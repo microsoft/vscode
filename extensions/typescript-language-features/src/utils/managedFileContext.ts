@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { isSupportedLanguageMode } from './languageModeIds';
 import { Disposable } from './dispose';
+import { isJsConfigOrTsConfigFileName } from './languageDescription';
+import { isSupportedLanguageMode } from './languageModeIds';
 
 /**
  * When clause context set when the current file is managed by vscode's built-in typescript extension.
@@ -26,8 +27,7 @@ export default class ManagedFileContextManager extends Disposable {
 
 	private onDidChangeActiveTextEditor(editor?: vscode.TextEditor): any {
 		if (editor) {
-			const isManagedFile = isSupportedLanguageMode(editor.document) && this.normalizePath(editor.document.uri) !== null;
-			this.updateContext(isManagedFile);
+			this.updateContext(this.isManagedFile(editor));
 		}
 	}
 
@@ -38,5 +38,17 @@ export default class ManagedFileContextManager extends Disposable {
 
 		vscode.commands.executeCommand('setContext', ManagedFileContextManager.contextName, newValue);
 		this.isInManagedFileContext = newValue;
+	}
+
+	private isManagedFile(editor: vscode.TextEditor): boolean {
+		return this.isManagedScriptFile(editor) || this.isManagedConfigFile(editor);
+	}
+
+	private isManagedScriptFile(editor: vscode.TextEditor): boolean {
+		return isSupportedLanguageMode(editor.document) && this.normalizePath(editor.document.uri) !== null;
+	}
+
+	private isManagedConfigFile(editor: vscode.TextEditor): boolean {
+		return isJsConfigOrTsConfigFileName(editor.document.fileName);
 	}
 }

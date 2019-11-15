@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
+import { assertIsDefined, isFunction } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -19,11 +19,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -41,12 +42,13 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService
+		@IHostService hostService: IHostService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, filesConfigurationService);
 	}
 
-	getTitle(): string | null {
+	getTitle(): string | undefined {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -54,7 +56,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
@@ -74,53 +76,54 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 
 		// Set Editor Model
-		const textEditor = this.getControl();
+		const textEditor = assertIsDefined(this.getControl());
 		const textEditorModel = resolvedModel.textEditorModel;
 		textEditor.setModel(textEditorModel);
 
 		// Apply Options from TextOptions
 		let optionsGotApplied = false;
 		const textOptions = <TextEditorOptions>options;
-		if (textOptions && types.isFunction(textOptions.apply)) {
+		if (textOptions && isFunction(textOptions.apply)) {
 			optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
 		}
 
 		// Otherwise restore View State
 		if (!optionsGotApplied) {
-			this.restoreTextResourceEditorViewState(input);
+			this.restoreTextResourceEditorViewState(input, textEditor);
 		}
 	}
 
-	private restoreTextResourceEditorViewState(input: EditorInput) {
-		if (input instanceof UntitledEditorInput || input instanceof ResourceEditorInput) {
-			const viewState = this.loadTextEditorViewState(input.getResource());
+	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
+		if (editor instanceof UntitledTextEditorInput || editor instanceof ResourceEditorInput) {
+			const viewState = this.loadTextEditorViewState(editor.getResource());
 			if (viewState) {
-				this.getControl().restoreViewState(viewState);
+				control.restoreViewState(viewState);
 			}
 		}
 	}
 
-	setOptions(options: EditorOptions): void {
+	setOptions(options: EditorOptions | undefined): void {
 		const textOptions = <TextEditorOptions>options;
-		if (textOptions && types.isFunction(textOptions.apply)) {
-			textOptions.apply(this.getControl(), ScrollType.Smooth);
+		if (textOptions && isFunction(textOptions.apply)) {
+			const textEditor = assertIsDefined(this.getControl());
+			textOptions.apply(textEditor, ScrollType.Smooth);
 		}
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
 
-		options.readOnly = !(this.input instanceof UntitledEditorInput); // all resource editors are readonly except for the untitled one;
+		options.readOnly = !(this.input instanceof UntitledTextEditorInput); // all resource editors are readonly except for the untitled one;
 
 		return options;
 	}
 
 	protected getAriaLabel(): string {
 		const input = this.input;
-		const isReadonly = !(this.input instanceof UntitledEditorInput);
+		const isReadonly = !(this.input instanceof UntitledTextEditorInput);
 
 		let ariaLabel: string;
-		const inputName = input && input.getName();
+		const inputName = input?.getName();
 		if (isReadonly) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
 		} else {
@@ -149,7 +152,10 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Clear Model
-		this.getControl().setModel(null);
+		const textEditor = this.getControl();
+		if (textEditor) {
+			textEditor.setModel(null);
+		}
 
 		super.clearInput();
 	}
@@ -157,15 +163,15 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	protected saveState(): void {
 
 		// Save View State (only for untitled)
-		if (this.input instanceof UntitledEditorInput) {
+		if (this.input instanceof UntitledTextEditorInput) {
 			this.saveTextResourceEditorViewState(this.input);
 		}
 
 		super.saveState();
 	}
 
-	private saveTextResourceEditorViewState(input: EditorInput | null): void {
-		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
+	private saveTextResourceEditorViewState(input: EditorInput | undefined): void {
+		if (!(input instanceof UntitledTextEditorInput) && !(input instanceof ResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}
 
@@ -201,8 +207,9 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IWindowService windowService: IWindowService
+		@IHostService hostService: IHostService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService, hostService, filesConfigurationService);
 	}
 }

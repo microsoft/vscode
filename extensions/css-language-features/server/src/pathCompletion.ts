@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import URI from 'vscode-uri';
+import { URI } from 'vscode-uri';
 
 import { TextDocument, CompletionList, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver';
@@ -154,10 +154,10 @@ function pathToReplaceRange(valueBeforeCursor: string, fullValue: string, fullVa
 		const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
 		const startPos = shiftPosition(fullValueRange.end, -valueAfterLastSlash.length);
 		// If whitespace exists, replace until it
-		const whiteSpaceIndex = valueAfterLastSlash.indexOf(' ');
+		const whitespaceIndex = valueAfterLastSlash.indexOf(' ');
 		let endPos;
-		if (whiteSpaceIndex !== -1) {
-			endPos = shiftPosition(startPos, whiteSpaceIndex);
+		if (whitespaceIndex !== -1) {
+			endPos = shiftPosition(startPos, whitespaceIndex);
 		} else {
 			endPos = fullValueRange.end;
 		}

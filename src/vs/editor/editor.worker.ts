@@ -19,12 +19,12 @@ export function initialize(foreignModule: any) {
 		(<any>self).postMessage(msg);
 	}, (host: EditorWorkerHost) => new EditorSimpleWorker(host, foreignModule));
 
-	self.onmessage = (e) => {
+	self.onmessage = (e: MessageEvent) => {
 		simpleWorker.onmessage(e.data);
 	};
 }
 
-self.onmessage = (e) => {
+self.onmessage = (e: MessageEvent) => {
 	// Ignore first message in this case and initialize if not yet initialized
 	if (!initialized) {
 		initialize(null);

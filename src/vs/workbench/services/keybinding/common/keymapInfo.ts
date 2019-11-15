@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { DispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -94,7 +94,7 @@ export type IKeyboardLayoutInfo = (IWindowsKeyboardLayoutInfo | ILinuxKeyboardLa
 export const IKeymapService = createDecorator<IKeymapService>('keymapService');
 
 export interface IKeymapService {
-	_serviceBrand: ServiceIdentifier<any>;
+	_serviceBrand: undefined;
 	onDidChangeKeyboardMapper: Event<void>;
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper;
 	getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null;

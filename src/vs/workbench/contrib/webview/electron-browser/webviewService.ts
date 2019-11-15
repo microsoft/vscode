@@ -3,25 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WebviewService as BrowserWebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
-import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/common/webview';
+import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/dynamicWebviewEditorOverlay';
+import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
-export class WebviewService extends BrowserWebviewService implements IWebviewService {
-	_serviceBrand: any;
+export class ElectronWebviewService implements IWebviewService {
+	_serviceBrand: undefined;
+
+	private readonly webviewThemeDataProvider: WebviewThemeDataProvider;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
-		super(instantiationService);
+		this.webviewThemeDataProvider = this._instantiationService.createInstance(WebviewThemeDataProvider);
 	}
 
 	createWebview(
-		_id: string,
+		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions
 	): WebviewElement {
-		return this.instantiationService.createInstance(ElectronWebviewBasedWebview, options, contentOptions);
+		const useExternalEndpoint = this._configService.getValue<string>('webview.experimental.useExternalEndpoint');
+		if (useExternalEndpoint) {
+			return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, this.webviewThemeDataProvider);
+		} else {
+			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, id, options, contentOptions, this.webviewThemeDataProvider);
+		}
+	}
+
+	createWebviewEditorOverlay(
+		id: string,
+		options: WebviewOptions,
+		contentOptions: WebviewContentOptions,
+	): WebviewEditorOverlay {
+		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions);
 	}
 }

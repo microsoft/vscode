@@ -21,6 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -45,7 +46,7 @@ export class ClearOutputAction extends Action {
 		id: string, label: string,
 		@IOutputService private readonly outputService: IOutputService
 	) {
-		super(id, label, 'output-action clear-output');
+		super(id, label, 'output-action codicon-clear-all');
 	}
 
 	public run(): Promise<boolean> {
@@ -67,7 +68,7 @@ export class ToggleOrSetOutputScrollLockAction extends Action {
 	public static readonly LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
 
 	constructor(id: string, label: string, @IOutputService private readonly outputService: IOutputService) {
-		super(id, label, 'output-action output-scroll-unlock');
+		super(id, label, 'output-action codicon-unlock');
 		this._register(this.outputService.onActiveOutputChannel(channel => {
 			const activeChannel = this.outputService.getActiveChannel();
 			if (activeChannel) {
@@ -94,10 +95,10 @@ export class ToggleOrSetOutputScrollLockAction extends Action {
 
 	private setClassAndLabel(locked: boolean) {
 		if (locked) {
-			this.class = 'output-action output-scroll-lock';
+			this.class = 'output-action codicon-lock';
 			this.label = nls.localize('outputScrollOn', "Turn Auto Scrolling On");
 		} else {
-			this.class = 'output-action output-scroll-unlock';
+			this.class = 'output-action codicon-unlock';
 			this.label = nls.localize('outputScrollOff', "Turn Auto Scrolling Off");
 		}
 	}
@@ -122,8 +123,8 @@ export class SwitchOutputActionViewItem extends SelectActionViewItem {
 
 	private static readonly SEPARATOR = '─────────';
 
-	private outputChannels: IOutputChannelDescriptor[];
-	private logChannels: IOutputChannelDescriptor[];
+	private outputChannels: IOutputChannelDescriptor[] = [];
+	private logChannels: IOutputChannelDescriptor[] = [];
 
 	constructor(
 		action: IAction,
@@ -185,7 +186,7 @@ export class OpenLogOutputFile extends Action {
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
+		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action codicon-go-to-file');
 		this._register(this.outputService.onActiveOutputChannel(this.update, this));
 		this.update();
 	}
@@ -213,8 +214,8 @@ export class OpenLogOutputFile extends Action {
 
 export class ShowLogsOutputChannelAction extends Action {
 
-	static ID = 'workbench.action.showLogs';
-	static LABEL = nls.localize('showLogs', "Show Logs...");
+	static readonly ID = 'workbench.action.showLogs';
+	static readonly LABEL = nls.localize('showLogs', "Show Logs...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -243,8 +244,8 @@ interface IOutputChannelQuickPickItem extends IQuickPickItem {
 
 export class OpenOutputLogFileAction extends Action {
 
-	static ID = 'workbench.action.openLogFile';
-	static LABEL = nls.localize('openLogFile', "Open Log File...");
+	static readonly ID = 'workbench.action.openLogFile';
+	static readonly LABEL = nls.localize('openLogFile', "Open Log File...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -262,7 +263,8 @@ export class OpenOutputLogFileAction extends Action {
 		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") })
 			.then(entry => {
 				if (entry) {
-					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel)).then(() => undefined);
+					assertIsDefined(entry.channel.file);
+					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel as IFileOutputChannelDescriptor)).then(() => undefined);
 				}
 				return undefined;
 			});

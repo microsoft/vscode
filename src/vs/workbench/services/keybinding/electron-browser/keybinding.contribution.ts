@@ -22,6 +22,15 @@ const keyboardConfiguration: IConfigurationNode = {
 			'default': true,
 			'description': nls.localize('touchbar.enabled', "Enables the macOS touchbar buttons on the keyboard if available."),
 			'included': OS === OperatingSystem.Macintosh && parseFloat(release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
+		},
+		'keyboard.touchbar.ignored': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': [],
+			'description': nls.localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`.'),
+			'included': OS === OperatingSystem.Macintosh && parseFloat(release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		}
 	}
 };

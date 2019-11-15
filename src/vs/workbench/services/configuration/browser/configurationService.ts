@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { equals, deepClone } from 'vs/base/common/objects';
+import { equals } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue, Barrier } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -14,16 +14,15 @@ import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, 
 import { ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, ConfigurationFileService } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, isSingleFolderWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, IEmptyWorkspaceInitializationPayload, useSlashForPath, getStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { localize } from 'vs/nls';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -32,9 +31,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
-	private workspace: Workspace;
+	private workspace!: Workspace;
 	private completeWorkspaceBarrier: Barrier;
 	private readonly configurationCache: IConfigurationCache;
 	private _configuration: Configuration;
@@ -46,7 +45,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private cachedFolderConfigs: ResourceMap<FolderConfiguration>;
 	private workspaceEditingQueue: Queue<void>;
 
-	private readonly configurationFileService: ConfigurationFileService;
+	private readonly fileService: IFileService;
 
 	protected readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
@@ -60,10 +59,10 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	protected readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
-	private configurationEditingService: ConfigurationEditingService;
-	private jsonEditingService: JSONEditingService;
-
-	private cyclicDependencyReady: Function;
+	// TODO@sandeep debt with cyclic dependencies
+	private configurationEditingService!: ConfigurationEditingService;
+	private jsonEditingService!: JSONEditingService;
+	private cyclicDependencyReady!: Function;
 	private cyclicDependency = new Promise<void>(resolve => this.cyclicDependencyReady = resolve);
 
 	constructor(
@@ -77,16 +76,16 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.completeWorkspaceBarrier = new Barrier();
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.configurationCache = configurationCache;
-		this.configurationFileService = new ConfigurationFileService(fileService);
+		this.fileService = fileService;
 		this._configuration = new Configuration(this.defaultConfiguration, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
 		this.localUserConfiguration = this._register(new UserConfiguration(environmentService.settingsResource, remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, fileService));
 		this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
 		if (remoteAuthority) {
-			this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache, this.configurationFileService, remoteAgentService));
+			this.remoteUserConfiguration = this._register(new RemoteUserConfiguration(remoteAuthority, configurationCache, fileService, remoteAgentService));
 			this._register(this.remoteUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onRemoteUserConfigurationChanged(userConfiguration)));
 		}
-		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, this.configurationFileService));
+		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, fileService));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => {
 			this.onWorkspaceConfigurationChanged();
 			if (this.workspaceConfiguration.loaded) {
@@ -492,6 +491,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		if (this.workspace) {
 			this._configuration.updateDefaultConfiguration(this.defaultConfiguration);
 			if (this.remoteUserConfiguration) {
+				this._configuration.updateLocalUserConfiguration(this.localUserConfiguration.reprocess());
 				this._configuration.updateRemoteUserConfiguration(this.remoteUserConfiguration.reprocess());
 			}
 			if (this.getWorkbenchState() === WorkbenchState.FOLDER) {
@@ -507,29 +507,17 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private registerConfigurationSchemas(): void {
 		if (this.workspace) {
 			const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-			const convertToNotSuggestedProperties = (properties: IJSONSchemaMap, errorMessage: string): IJSONSchemaMap => {
-				return Object.keys(properties).reduce((result: IJSONSchemaMap, property) => {
-					result[property] = deepClone(properties[property]);
-					result[property].deprecationMessage = errorMessage;
-					return result;
-				}, {});
-			};
-
-			const unsupportedApplicationSettings = convertToNotSuggestedProperties(applicationSettings.properties, localize('unsupportedApplicationSetting', "This setting can be applied only in application user settings"));
-			const unsupportedMachineSettings = convertToNotSuggestedProperties(machineSettings.properties, localize('unsupportedMachineSetting', "This setting can be applied only in user settings"));
-			const unsupportedRemoteMachineSettings = convertToNotSuggestedProperties(machineSettings.properties, localize('unsupportedRemoteMachineSetting', "This setting can be applied only in remote machine settings"));
-			const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
-			const userSettingsSchema: IJSONSchema = this.remoteUserConfiguration ? { properties: { ...applicationSettings.properties, ...unsupportedRemoteMachineSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' } : allSettingsSchema;
-			const machineSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
-			const workspaceSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...unsupportedMachineSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+			const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
+			const userSettingsSchema: IJSONSchema = this.remoteUserConfiguration ? { properties: { ...applicationSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true } : allSettingsSchema;
+			const machineSettingsSchema: IJSONSchema = { properties: { ...machineSettings.properties, ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
+			const workspaceSettingsSchema: IJSONSchema = { properties: { ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
 
 			jsonRegistry.registerSchema(defaultSettingsSchemaId, allSettingsSchema);
 			jsonRegistry.registerSchema(userSettingsSchemaId, userSettingsSchema);
 			jsonRegistry.registerSchema(machineSettingsSchemaId, machineSettingsSchema);
 
 			if (WorkbenchState.WORKSPACE === this.getWorkbenchState()) {
-				const unsupportedWindowSettings = convertToNotSuggestedProperties(windowSettings.properties, localize('unsupportedWindowSetting', "This setting cannot be applied now. It will be applied when you open this folder directly."));
-				const folderSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...unsupportedMachineSettings, ...unsupportedWindowSettings, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+				const folderSettingsSchema: IJSONSchema = { properties: { ...machineOverridableSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
 				jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
 				jsonRegistry.registerSchema(folderSettingsSchemaId, folderSettingsSchema);
 			} else {
@@ -611,7 +599,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return Promise.all([...folders.map(folder => {
 			let folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (!folderConfiguration) {
-				folderConfiguration = new FolderConfiguration(folder, FOLDER_CONFIG_FOLDER_NAME, this.getWorkbenchState(), this.configurationFileService, this.configurationCache);
+				folderConfiguration = new FolderConfiguration(folder, FOLDER_CONFIG_FOLDER_NAME, this.getWorkbenchState(), this.fileService, this.configurationCache);
 				this._register(folderConfiguration.onDidChange(() => this.onWorkspaceFolderConfigurationChanged(folder)));
 				this.cachedFolderConfigs.set(folder.uri, this._register(folderConfiguration));
 			}
