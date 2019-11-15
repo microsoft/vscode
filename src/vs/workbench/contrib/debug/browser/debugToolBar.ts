@@ -102,6 +102,12 @@ export const debugIconContinueForeground = registerColor('debugIcon.continueFore
 	hc: '#75BEFF'
 }, localize('debugIcon.continueForeground', "Debug toolbar icon for continue."));
 
+export const debugIconStepBackForeground = registerColor('debugIcon.stepBackForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
+
 export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	private $el: HTMLElement;
@@ -392,5 +398,10 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
 	if (debugIconContinueColor) {
 		collector.addRule(`.monaco-workbench .codicon-debug-continue { color: ${debugIconContinueColor} !important; }`);
+	}
+
+	const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);
+	if (debugIconStepBackColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-back { color: ${debugIconStepBackColor} !important; }`);
 	}
 });
