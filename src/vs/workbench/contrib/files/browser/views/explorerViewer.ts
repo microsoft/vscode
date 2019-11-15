@@ -119,7 +119,6 @@ export interface ICompressedNavigationController {
 	readonly current: ExplorerItem;
 	readonly index: number;
 	readonly count: number;
-	reset(): void;
 	previous(): void;
 	next(): void;
 	first(): void;
@@ -141,20 +140,12 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 		DOM.addClass(this.labels[this._index], 'active');
 	}
 
-	reset(): void {
-		DOM.removeClass(this.labels[this._index], 'active');
-		this._index = this.items.length - 1;
-		DOM.addClass(this.labels[this._index], 'active');
-	}
-
 	previous(): void {
 		if (this._index <= 0) {
 			return;
 		}
 
-		DOM.removeClass(this.labels[this._index], 'active');
-		this._index--;
-		DOM.addClass(this.labels[this._index], 'active');
+		this.setIndex(this._index - 1);
 	}
 
 	next(): void {
@@ -162,9 +153,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 			return;
 		}
 
-		DOM.removeClass(this.labels[this._index], 'active');
-		this._index++;
-		DOM.addClass(this.labels[this._index], 'active');
+		this.setIndex(this._index + 1);
 	}
 
 	first(): void {
@@ -172,9 +161,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 			return;
 		}
 
-		DOM.removeClass(this.labels[this._index], 'active');
-		this._index = 0;
-		DOM.addClass(this.labels[this._index], 'active');
+		this.setIndex(0);
 	}
 
 	last(): void {
@@ -182,8 +169,12 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 			return;
 		}
 
+		this.setIndex(this.items.length - 1);
+	}
+
+	private setIndex(index: number): void {
 		DOM.removeClass(this.labels[this._index], 'active');
-		this._index = this.items.length - 1;
+		this._index = index;
 		DOM.addClass(this.labels[this._index], 'active');
 	}
 }

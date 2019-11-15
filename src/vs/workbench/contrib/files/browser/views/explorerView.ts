@@ -501,7 +501,7 @@ export class ExplorerView extends ViewletPanel {
 		}
 
 		this.compressedFocusContext.set(true);
-		this.compressedNavigationController.reset();
+		this.compressedNavigationController.last();
 		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
 	}
 
