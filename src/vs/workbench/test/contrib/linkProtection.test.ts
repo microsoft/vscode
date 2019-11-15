@@ -70,5 +70,7 @@ suite('Link protection domain matching', () => {
 
 		linkNotAllowedByRules('https://a.x.org/bar', ['https://*.x.org/foo']);
 		linkNotAllowedByRules('https://a.b.x.org/bar', ['https://*.x.org/foo']);
+
+		linkAllowedByRules('https://github.com', ['https://github.com/foo/bar', 'https://github.com']);
 	});
 });

@@ -44,17 +44,9 @@ export class Link implements ILink {
 		return this._link.tooltip;
 	}
 
-	resolve(token: CancellationToken): Promise<URI> {
+	async resolve(token: CancellationToken): Promise<URI | string> {
 		if (this._link.url) {
-			try {
-				if (typeof this._link.url === 'string') {
-					return Promise.resolve(URI.parse(this._link.url));
-				} else {
-					return Promise.resolve(this._link.url);
-				}
-			} catch (e) {
-				return Promise.reject(new Error('invalid'));
-			}
+			return this._link.url;
 		}
 
 		if (typeof this._provider.resolveLink === 'function') {

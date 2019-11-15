@@ -102,7 +102,7 @@ class Item extends BreadcrumbsItem {
 		} else if (this.element instanceof OutlineGroup) {
 			// provider
 			let label = new IconLabel(container);
-			label.setLabel(this.element.provider.displayName);
+			label.setLabel(this.element.provider.displayName || '');
 			this._disposables.add(label);
 
 		} else if (this.element instanceof OutlineElement) {

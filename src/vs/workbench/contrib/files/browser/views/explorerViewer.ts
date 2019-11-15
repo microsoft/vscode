@@ -176,8 +176,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		const stat = node.element.elements[node.element.elements.length - 1];
 		const label = node.element.elements.map(e => e.name).join('/');
+		const editableData = this.explorerService.getEditableData(stat);
 
-		templateData.elementDisposable = this.renderStat(stat, label, node.filterData, templateData);
+		// File Label
+		if (!editableData) {
+			templateData.label.element.style.display = 'flex';
+			templateData.elementDisposable = this.renderStat(stat, label, node.filterData, templateData);
+		}
+
+		// Input Box
+		else {
+			templateData.label.element.style.display = 'none';
+			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
+		}
 	}
 
 	private renderStat(stat: ExplorerItem, label: string, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
@@ -445,11 +456,13 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 	}
 }
 
-const fileOverwriteConfirm: IConfirmation = {
-	message: localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
-	detail: localize('irreversible', "This action is irreversible!"),
-	primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-	type: 'warning'
+const fileOverwriteConfirm = (name: string) => {
+	return <IConfirmation>{
+		message: localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name),
+		detail: localize('irreversible', "This action is irreversible!"),
+		primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+		type: 'warning'
+	};
 };
 
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
@@ -632,7 +645,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					const name = file.name;
 					if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
 						if (target.getChild(name)) {
-							const { confirmed } = await this.dialogService.confirm(fileOverwriteConfirm);
+							const { confirmed } = await this.dialogService.confirm(fileOverwriteConfirm(name));
 							if (!confirmed) {
 								return;
 							}
@@ -702,13 +715,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (targetStat.children) {
 				const ignoreCase = hasToIgnoreCase(target.resource);
 				targetStat.children.forEach(child => {
-					targetNames.add(ignoreCase ? child.name : child.name.toLowerCase());
+					targetNames.add(ignoreCase ? child.name.toLowerCase() : child.name);
 				});
 			}
 
-			const resourceExists = resources.some(resource => targetNames.has(!hasToIgnoreCase(resource) ? basename(resource) : basename(resource).toLowerCase()));
+			const filtered = resources.filter(resource => targetNames.has(!hasToIgnoreCase(resource) ? basename(resource) : basename(resource).toLowerCase()));
+			const resourceExists = filtered.length >= 1;
 			if (resourceExists) {
-				const confirmationResult = await this.dialogService.confirm(fileOverwriteConfirm);
+				const confirmationResult = await this.dialogService.confirm(fileOverwriteConfirm(basename(filtered[0])));
 				if (!confirmationResult.confirmed) {
 					return;
 				}
@@ -751,9 +765,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (confirmDragAndDrop) {
 			const confirmation = await this.dialogService.confirm({
 				message: items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
-					: items.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", items.length), items.map(s => s.resource))
+					: items.length > 1 ? getConfirmMessage(localize('confirmMultiMove', "Are you sure you want to move the following {0} files into '{1}'?", items.length, target.name), items.map(s => s.resource))
 						: items[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
-							: localize('confirmMove', "Are you sure you want to move '{0}'?", items[0].name),
+							: localize('confirmMove', "Are you sure you want to move '{0}' into '{1}'?", items[0].name, target.name),
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				},

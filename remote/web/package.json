@@ -2,7 +2,7 @@
 	"name": "vscode-web",
 	"version": "0.0.0",
 	"dependencies": {
-		"onigasm-umd": "^2.2.2",
+		"onigasm-umd": "^2.2.4",
 		"semver-umd": "^5.5.3",
 		"vscode-textmate": "^4.3.0",
 		"xterm": "4.3.0-beta17",

@@ -22,9 +22,12 @@ export class AuthTokenChannel implements IServerChannel {
 		switch (command) {
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
 			case 'getToken': return this.service.getToken();
-			case 'updateToken': return this.service.updateToken(args[0]);
+			case 'exchangeCodeForToken':
+				this.service._onDidGetCallback.fire(args);
+				return Promise.resolve();
 			case 'refreshToken': return this.service.refreshToken();
-			case 'deleteToken': return this.service.deleteToken();
+			case 'login': return this.service.login(args);
+			case 'logout': return this.service.logout();
 		}
 		throw new Error('Invalid call');
 	}

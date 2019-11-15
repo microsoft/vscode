@@ -12,6 +12,21 @@
 	z-index: initial;
 }
 
+.monaco-workbench.windows .part.panel,
+.monaco-workbench.linux .part.panel,
+.monaco-workbench.web .part.panel {
+	/*
+	 * Explicitly put the part onto its own layer to help Chrome to
+	 * render the content with LCD-anti-aliasing. By partioning the
+	 * workbench into multiple layers, we can ensure that a bad
+	 * behaving part is not making another part fallback to greyscale
+	 * rendering.
+	 *
+	 * macOS: does not render LCD-anti-aliased.
+	 */
+	transform: translate3d(0px, 0px, 0px);
+}
+
 .monaco-workbench .part.panel .title {
 	height: 35px;
 	display: flex;
@@ -43,24 +58,14 @@
 
 /** Panel Switcher */
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background-image: url('ellipsis-light.svg');
-	display: block;
-	height: 28px;
-	min-width: 28px;
+.monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.codicon-more {
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	margin-left: 0px;
 	margin-right: 0px;
-	background-size: 16px;
-	background-repeat: no-repeat;
-	background-position: center center;
-}
+	color: inherit !important;
 
-.vs-dark .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background-image: url('ellipsis-dark.svg');
-}
-
-.hc-black .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background-image: url('ellipsis-hc.svg');
 }
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
@@ -84,8 +89,6 @@
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label{
 	margin-right: 0;
-	display: flex;
-	align-items: center;
 }
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:last-child {

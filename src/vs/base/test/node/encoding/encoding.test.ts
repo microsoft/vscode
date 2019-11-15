@@ -189,6 +189,20 @@ suite('Encoding', () => {
 		assert.equal(mimes.seemsBinary, false);
 	});
 
+	test('autoGuessEncoding (UTF8)', async function () {
+		const file = getPathFromAmdModule(require, './fixtures/some_file.css');
+		const buffer = await readExactlyByFile(file, 512 * 8);
+		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
+		assert.equal(mimes.encoding, 'utf8');
+	});
+
+	test('autoGuessEncoding (ASCII)', async function () {
+		const file = getPathFromAmdModule(require, './fixtures/some_ansi.css');
+		const buffer = await readExactlyByFile(file, 512 * 8);
+		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
+		assert.equal(mimes.encoding, null);
+	});
+
 	test('autoGuessEncoding (ShiftJIS)', async function () {
 		const file = getPathFromAmdModule(require, './fixtures/some.shiftjis.txt');
 		const buffer = await readExactlyByFile(file, 512 * 8);

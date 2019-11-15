@@ -488,8 +488,6 @@ export class DebugService implements IDebugService {
 			}
 
 			const errorMessage = error instanceof Error ? error.message : error;
-			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
-
 			await this.showError(errorMessage, isErrorWithActions(error) ? error.actions : []);
 			return false;
 		}
@@ -1198,19 +1196,6 @@ export class DebugService implements IDebugService {
 			sessionLengthInSeconds: adapterExitEvent.sessionLengthInSeconds,
 			breakpointCount: breakpoints.length,
 			watchExpressionsCount: this.model.getWatchExpressions().length
-		});
-	}
-
-	private telemetryDebugMisconfiguration(debugType: string | undefined, message: string): Promise<any> {
-		/* __GDPR__
-			"debugMisconfiguration" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"error": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-			}
-		*/
-		return this.telemetryService.publicLog('debugMisconfiguration', {
-			type: debugType,
-			error: message
 		});
 	}
 

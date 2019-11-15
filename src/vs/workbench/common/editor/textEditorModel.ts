@@ -17,7 +17,9 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
+
 	protected textEditorModelHandle: URI | null = null;
+
 	private createdEditorModel: boolean | undefined;
 
 	private readonly modelDisposeListener = this._register(new MutableDisposable());

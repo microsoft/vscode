@@ -5,10 +5,12 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as modes from 'vs/editor/common/modes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
@@ -34,6 +36,7 @@ export class ExtHostWebview implements vscode.Webview {
 		private readonly _initData: WebviewInitData,
 		private readonly _workspace: IExtHostWorkspace | undefined,
 		private readonly _extension: IExtensionDescription,
+		private readonly _logService: ILogService,
 	) { }
 
 	public dispose() {
@@ -62,7 +65,7 @@ export class ExtHostWebview implements vscode.Webview {
 			if (this._initData.isExtensionDevelopmentDebug && !this._hasCalledAsWebviewUri) {
 				if (/(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
 					this._hasCalledAsWebviewUri = true;
-					console.warn(`${this._extension.identifier.value} created a webview that appears to use the vscode-resource scheme directly. Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
+					this._logService.warn(`${this._extension.identifier.value} created a webview that appears to use the vscode-resource scheme directly. Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
 				}
 			}
 			this._proxy.$setHtml(this._handle, value);
@@ -113,7 +116,8 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 
 	readonly _onDidChangeViewStateEmitter = this._register(new Emitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState: Event<vscode.WebviewPanelOnDidChangeViewStateEvent> = this._onDidChangeViewStateEmitter.event;
-	_capabilities: vscode.WebviewEditorCapabilities;
+
+	public _capabilities?: vscode.WebviewEditorCapabilities;
 
 	constructor(
 		handle: WebviewPanelHandle,
@@ -245,7 +249,7 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 	}
 
 	_undoEdits(edits: string[]): void {
-		this._capabilities.editingCapability?.undoEdits(edits);
+		assertIsDefined(this._capabilities).editingCapability?.undoEdits(edits);
 	}
 
 	private assertNotDisposed() {
@@ -270,6 +274,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		mainContext: IMainContext,
 		private readonly initData: WebviewInitData,
 		private readonly workspace: IExtHostWorkspace | undefined,
+		private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWebviews);
 	}
@@ -290,7 +295,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const handle = ExtHostWebviews.newHandle();
 		this._proxy.$createWebviewPanel({ id: extension.identifier, location: extension.extensionLocation }, handle, viewType, title, webviewShowOptions, convertWebviewOptions(extension, this.workspace, options));
 
-		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension);
+		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
 		const panel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, viewColumn, options, webview);
 		this._webviewPanels.set(handle, panel);
 		return panel;
@@ -347,7 +352,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		_handle: WebviewPanelHandle,
 		extensionId: string
 	): void {
-		console.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
+		this._logService.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
 	}
 
 	public $onDidChangeWebviewPanelViewStates(newStates: WebviewPanelViewStateData): void {
@@ -407,7 +412,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 		const { serializer, extension } = entry;
 
-		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData, this.workspace, extension);
+		const webview = new ExtHostWebview(webviewHandle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
 		const revivedPanel = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		await serializer.deserializeWebviewPanel(revivedPanel, state);
@@ -427,7 +432,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 
 		const { provider, extension } = entry;
-		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension);
+		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
 		const revivedPanel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(handle, revivedPanel);
 		const capabilities = await provider.resolveWebviewEditor({ resource: URI.revive(resource) }, revivedPanel);

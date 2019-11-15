@@ -128,12 +128,12 @@ export class DebugCallStackContribution implements IWorkbenchContribution {
 	static readonly STICKINESS = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 	// we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
 	private static TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-top-stack-frame',
+		glyphMarginClassName: 'codicon-debug-breakpoint-stackframe',
 		stickiness
 	};
 
 	private static FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-focused-stack-frame',
+		glyphMarginClassName: 'codicon-debug-breakpoint-stackframe-focused',
 		stickiness
 	};
 
@@ -176,7 +176,68 @@ registerThemingParticipant((theme, collector) => {
 	if (focusedStackFrame) {
 		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
 	}
+
+	const debugIconBreakpointColor = theme.getColor(debugIconBreakpointForeground);
+	if (debugIconBreakpointColor) {
+		collector.addRule(`
+		.monaco-workbench .codicon-debug-breakpoint,
+		.monaco-workbench .codicon-debug-breakpoint-conditional,
+		.monaco-workbench .codicon-debug-breakpoint-log,
+		.monaco-workbench .codicon-debug-breakpoint-function,
+		.monaco-workbench .codicon-debug-breakpoint-data,
+		.monaco-workbench .codicon-debug-breakpoint-unsupported,
+		.monaco-workbench .codicon-debug-hint:not(*[class*='codicon-debug-breakpoint']) ,
+		.monaco-workbench .codicon-debug-breakpoint-stackframe-dot,
+		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe-focused::after {
+			color: ${debugIconBreakpointColor} !important;
+		}
+		`);
+	}
+
+	const debugIconBreakpointDisabledColor = theme.getColor(debugIconBreakpointDisabledForeground);
+	if (debugIconBreakpointDisabledColor) {
+		collector.addRule(`
+		.monaco-workbench .codicon[class*='-disabled'] {
+			color: ${debugIconBreakpointDisabledColor} !important;
+		}
+		`);
+	}
+
+	const debugIconBreakpointUnverifiedColor = theme.getColor(debugIconBreakpointUnverifiedForeground);
+	if (debugIconBreakpointUnverifiedColor) {
+		collector.addRule(`
+		.monaco-workbench .codicon[class*='-unverified'] {
+			color: ${debugIconBreakpointUnverifiedColor} !important;
+		}
+		`);
+	}
+
+	const debugIconBreakpointStackframeColor = theme.getColor(debugIconBreakpointStackframeForeground);
+	if (debugIconBreakpointStackframeColor) {
+		collector.addRule(`
+		.monaco-workbench .codicon-debug-breakpoint-stackframe,
+		.monaco-workbench .codicon-debug-breakpoint-stackframe-dot::after {
+			color: ${debugIconBreakpointStackframeColor} !important;
+		}
+		`);
+	}
+
+	const debugIconBreakpointStackframeFocusedColor = theme.getColor(debugIconBreakpointStackframeFocusedForeground);
+	if (debugIconBreakpointStackframeFocusedColor) {
+		collector.addRule(`
+		.monaco-workbench .codicon-debug-breakpoint-stackframe-focused {
+			color: ${debugIconBreakpointStackframeFocusedColor} !important;
+		}
+		`);
+	}
+
 });
 
 const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#fff600' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
 const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#cee7ce' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
+
+const debugIconBreakpointForeground = registerColor('debugIcon.breakpointForeground', { dark: '#E51400', light: '#E51400', hc: '#E51400' }, localize('debugIcon.breakpointForeground', 'Icon color for breakpoints.'));
+const debugIconBreakpointDisabledForeground = registerColor('debugIcon.breakpointDisabledForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, localize('debugIcon.breakpointDisabledForeground', 'Icon color for disabled breakpoints.'));
+const debugIconBreakpointUnverifiedForeground = registerColor('debugIcon.breakpointUnverifiedForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, localize('debugIcon.breakpointUnverifiedForeground', 'Icon color for unverified breakpoints.'));
+const debugIconBreakpointStackframeForeground = registerColor('debugIcon.breakpointStackframeForeground', { dark: '#FFCC00', light: '#FFCC00', hc: '#FFCC00' }, localize('debugIcon.breakpointStackframeForeground', 'Icon color for breakpoints.'));
+const debugIconBreakpointStackframeFocusedForeground = registerColor('debugIcon.breakpointStackframeFocusedForeground', { dark: '#89D185', light: '#89D185', hc: '#89D185' }, localize('debugIcon.breakpointStackframeFocusedForeground', 'Icon color for breakpoints.'));

@@ -344,7 +344,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	focus(): void {
-		this.replInput.focus();
+		setTimeout(() => this.replInput.focus(), 0);
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {

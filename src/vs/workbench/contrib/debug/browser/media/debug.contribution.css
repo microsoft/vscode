@@ -3,45 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Activity Bar */
-.monaco-editor .debug-top-stack-frame-column::before {
-	background: url('current-arrow.svg') center center no-repeat;
-}
-
-.debug-breakpoint-hint {
-	background: url('breakpoint-hint.svg') center center no-repeat;
+.codicon-debug-hint {
 	cursor: pointer;
 }
 
-.debug-breakpoint-disabled,
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-disabled {
-	background: url('breakpoint-disabled.svg') center center no-repeat;
+.codicon-debug-hint:not(*[class*='codicon-debug-breakpoint']) {
+	opacity: .4 !important;
 }
 
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-disabled:hover {
-	background: url('breakpoint-hint.svg') center center no-repeat;
+/* overlapped icons */
+.inline-breakpoint-widget.codicon-debug-breakpoint-stackframe-dot::after {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+.codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe-focused::after {
+	position: absolute;
+}
+
+.inline-breakpoint-widget.codicon-debug-breakpoint-stackframe-dot::after {
+	content: "\eb8b";
+}
+
+.codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe-focused::after {
+	content: "\eb8a";
 }
 
 .monaco-editor .inline-breakpoint-widget.line-start {
 	left: -0.45em !important;
-}
-
-.debug-breakpoint-unverified,
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-unverified {
-	background: url('breakpoint-unverified.svg') center center no-repeat;
-}
-
-.monaco-editor .debug-top-stack-frame {
-	background: url('current-arrow.svg') center center no-repeat;
-}
-
-.monaco-editor .debug-focused-stack-frame {
-	background: url('stackframe-arrow.svg') center center no-repeat;
-}
-
-.debug-breakpoint,
-.monaco-editor .inline-breakpoint-widget {
-	background: url('breakpoint.svg') center center no-repeat;
 }
 
 .monaco-editor .debug-breakpoint-placeholder::before,
@@ -68,66 +58,6 @@
 
 .monaco-editor .inline-breakpoint-widget {
 	cursor: pointer;
-}
-
-.debug-function-breakpoint {
-	background: url('breakpoint-function.svg') center center no-repeat;
-}
-
-.debug-function-breakpoint-unverified {
-	background: url('breakpoint-function-unverified.svg') center center no-repeat;
-}
-
-.debug-function-breakpoint-disabled {
-	background: url('breakpoint-function-disabled.svg') center center no-repeat;
-}
-
-.debug-data-breakpoint {
-	background: url('breakpoint-data.svg') center center no-repeat;
-}
-
-.debug-data-breakpoint-unverified {
-	background: url('breakpoint-data-unverified.svg') center center no-repeat;
-}
-
-.debug-data-breakpoint-disabled {
-	background: url('breakpoint-data-disabled.svg') center center no-repeat;
-}
-
-.debug-breakpoint-conditional,
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-conditional {
-	background: url('breakpoint-conditional.svg') center center no-repeat;
-}
-
-.debug-breakpoint-log,
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-log {
-	background: url('breakpoint-log.svg') center center no-repeat;
-}
-
-.debug-breakpoint-log-disabled,
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-log-disabled {
-	background: url('breakpoint-log-disabled.svg') center center no-repeat;
-}
-
-.debug-breakpoint-log-unverified,
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-log-unverified {
-	background: url('breakpoint-log-unverified.svg') center center no-repeat;
-}
-
-.debug-breakpoint-unsupported,
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-unsupported {
-	background: url('breakpoint-unsupported.svg') center center no-repeat;
-}
-
-.monaco-editor .debug-top-stack-frame.debug-breakpoint-and-top-stack-frame,
-.monaco-editor .inline-breakpoint-widget.debug-breakpoint-and-top-stack-frame-at-column {
-	background: url('current-and-breakpoint.svg') center center no-repeat;
-}
-
-.monaco-editor .debug-focused-stack-frame.debug-breakpoint,
-.monaco-editor .debug-focused-stack-frame.debug-breakpoint-conditional,
-.monaco-editor .debug-focused-stack-frame.debug-breakpoint-log {
-	background: url('stackframe-and-breakpoint.svg') center center no-repeat;
 }
 
 /* Error editor */

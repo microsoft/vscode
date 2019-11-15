@@ -18,6 +18,7 @@ import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEdito
 import './commands';
 import { CustomFileEditorInput } from './customEditorInput';
 import { CustomEditorContribution, customEditorsAssociationsKey, CustomEditorService } from './customEditors';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
@@ -25,7 +26,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(CustomEditorContribution, LifecyclePhase.Starting);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		WebviewEditor,
 		WebviewEditor.ID,
 		'Webview Editor',
@@ -39,10 +40,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		'id': 'workbench',
-		'order': 7,
-		'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
-		'type': 'object',
+		...workbenchConfigurationNodeBase,
 		'properties': {
 			[customEditorsAssociationsKey]: {
 				type: 'array',

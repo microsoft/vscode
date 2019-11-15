@@ -209,16 +209,20 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat>;
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, resolveMetadata: true, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStatWithMetadata>;
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 
 		// convert to file stat
 		const fileStat: IFileStat = {
 			resource,
 			name: getBaseLabel(resource),
+			isFile: (stat.type & FileType.File) !== 0,
 			isDirectory: (stat.type & FileType.Directory) !== 0,
 			isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
 			isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			mtime: stat.mtime,
+			ctime: stat.ctime,
 			size: stat.size,
 			etag: etag({ mtime: stat.mtime, size: stat.size })
 		};
@@ -358,7 +362,7 @@ export class FileService extends Disposable implements IFileService {
 		// mtime and etag, we bail out to prevent dirty writing.
 		//
 		// First, we check for a mtime that is in the future before we do more checks. The assumption is
-		// that only the mtime is an indicator for a file that has changd on disk.
+		// that only the mtime is an indicator for a file that has changed on disk.
 		//
 		// Second, if the mtime has advanced, we compare the size of the file on disk with our previous
 		// one using the etag() function. Relying only on the mtime check has prooven to produce false

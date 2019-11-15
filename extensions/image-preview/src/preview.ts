@@ -43,15 +43,8 @@ export class PreviewManager {
 			}
 		});
 
-		const onEdit = new vscode.EventEmitter<{ now: number }>();
 		return {
-			editingCapability: {
-				onEdit: onEdit.event,
-				save: async () => { },
-				hotExit: async () => { },
-				applyEdits: async () => { },
-				undoEdits: async (edits) => { console.log('undo', edits); },
-			}
+			editingCapability: preview
 		};
 	}
 
@@ -73,7 +66,7 @@ const enum PreviewState {
 	Active,
 }
 
-class Preview extends Disposable {
+class Preview extends Disposable implements vscode.WebviewEditorEditingCapability {
 
 	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
 
@@ -203,8 +196,11 @@ class Preview extends Disposable {
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+	<!-- Disable pinch zooming -->
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
 	<title>Image Preview</title>
 
 	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('/media/main.css'))}" type="text/css" media="screen" nonce="${nonce}">
@@ -229,8 +225,11 @@ class Preview extends Disposable {
 				// Show blank image
 				return encodeURI('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==');
 
-
 			default:
+				// Avoid adding cache busting if there is already a query string
+				if (resource.query) {
+					return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true));
+				}
 				return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true) + `?version=${version}`);
 		}
 	}
@@ -239,6 +238,24 @@ class Preview extends Disposable {
 		return this.webviewEditor.webview.asWebviewUri(this.extensionRoot.with({
 			path: this.extensionRoot.path + path
 		}));
+	}
+
+	//#region WebviewEditorCapabilities
+	private readonly _onEdit = this._register(new vscode.EventEmitter<{ now: number }>());
+	public readonly onEdit = this._onEdit.event;
+
+	async save() { }
+
+	async hotExit() { }
+
+	async applyEdits(_edits: any[]) { }
+
+	async undoEdits(edits: any[]) { console.log('undo', edits); }
+
+	//#endregion
+
+	public test_makeEdit() {
+		this._onEdit.fire({ now: Date.now() });
 	}
 }
 

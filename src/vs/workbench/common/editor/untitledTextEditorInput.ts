@@ -8,13 +8,14 @@ import { suggestFilename } from 'vs/base/common/mime';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
+import { EditorInput, IEncodingSupport, EncodingMode, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
 import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -109,7 +110,7 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 		return this.labelService.getUriLabel(this.resource);
 	}
 
-	getTitle(verbosity: Verbosity): string | undefined {
+	getTitle(verbosity: Verbosity): string {
 		if (!this.hasAssociatedFilePath) {
 			return this.getName();
 		}
@@ -122,8 +123,6 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 			case Verbosity.LONG:
 				return this.longTitle;
 		}
-
-		return undefined;
 	}
 
 	isDirty(): boolean {
@@ -148,15 +147,11 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 		return false;
 	}
 
-	confirmSave(): Promise<ConfirmResult> {
-		return this.textFileService.confirmSave([this.resource]);
+	save(options?: ISaveOptions): Promise<boolean> {
+		return this.textFileService.save(this.resource, options);
 	}
 
-	save(): Promise<boolean> {
-		return this.textFileService.save(this.resource);
-	}
-
-	revert(): Promise<boolean> {
+	revert(options?: IRevertOptions): Promise<boolean> {
 		if (this.cachedModel) {
 			this.cachedModel.revert();
 		}

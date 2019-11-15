@@ -9,15 +9,15 @@
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
     "iconv-lite": "0.5.0",
-    "jschardet": "1.6.0",
+    "jschardet": "2.1.1",
     "native-watchdog": "1.2.0",
     "node-pty": "^0.10.0-beta2",
-    "onigasm-umd": "^2.2.2",
+    "onigasm-umd": "^2.2.4",
     "semver-umd": "^5.5.3",
     "spdlog": "^0.11.1",
-    "vscode-minimist": "^1.2.1",
+    "vscode-minimist": "^1.2.2",
     "vscode-nsfw": "1.2.8",
-    "vscode-proxy-agent": "^0.5.1",
+    "vscode-proxy-agent": "^0.5.2",
     "vscode-ripgrep": "^1.5.7",
     "vscode-textmate": "^4.3.0",
     "xterm": "4.3.0-beta17",
@@ -28,7 +28,7 @@
     "yazl": "^2.4.3"
   },
   "optionalDependencies": {
-    "vscode-windows-ca-certs": "0.1.0",
+    "vscode-windows-ca-certs": "0.2.0",
     "vscode-windows-registry": "1.0.2"
   }
 }
