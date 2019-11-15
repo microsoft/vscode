@@ -52,6 +52,7 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { isNumber } from 'vs/base/common/types';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -606,7 +607,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// In-Explorer DND
 		else {
-			const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
+			const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>);
 
 			if (!target) {
 				// Dropping onto the empty area. Do not accept if items dragged are already
@@ -681,16 +682,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return element.resource.toString();
 	}
 
-	getDragLabel(elements: ExplorerItem[]): string | undefined {
-		if (elements.length > 1) {
-			return String(elements.length);
+	getDragLabel(elements: ExplorerItem[], originalEvent: DragEvent): string | undefined {
+		if (elements.length === 1) {
+			const stat = FileDragAndDrop.getCompressedStatFromDragEvent(elements[0], originalEvent);
+			return stat.name;
 		}
 
-		return elements[0].name;
+		return String(elements.length);
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const items = (data as ElementsDragAndDropData<ExplorerItem>).elements;
+		const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, originalEvent);
 		if (items && items.length && originalEvent.dataTransfer) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.instantiationService.invokeFunction(fillResourceDataTransfers, items, originalEvent);
@@ -845,7 +847,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async handleExplorerDrop(data: IDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
-		const elementsData = (data as ElementsDragAndDropData<ExplorerItem>).elements;
+		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>);
 		const items = distinctParents(elementsData, s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
@@ -958,6 +960,62 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 		}
 	}
+
+	private static getStatsFromDragAndDropData(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, dragStartEvent?: DragEvent): ExplorerItem[] {
+		if (data.context) {
+			return data.context;
+		}
+
+		// Detect compressed folder dragging
+		if (dragStartEvent && data.elements.length === 1) {
+			data.context = [FileDragAndDrop.getCompressedStatFromDragEvent(data.elements[0], dragStartEvent)];
+			return data.context;
+		}
+
+		return data.elements;
+	}
+
+	private static getCompressedStatFromDragEvent(stat: ExplorerItem, dragStartEvent: DragEvent): ExplorerItem {
+		const target = document.elementFromPoint(dragStartEvent.clientX, dragStartEvent.clientY);
+		const iconLabelName = getIconLabelNameFromHTMLElement(target);
+
+		if (iconLabelName) {
+			const { count, index } = iconLabelName;
+
+			let i = count - 1;
+			while (i > index && stat.parent) {
+				stat = stat.parent;
+				i--;
+			}
+
+			return stat;
+		}
+
+		return stat;
+	}
+}
+
+export function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement, count: number, index: number } | null {
+	if (!(target instanceof HTMLElement)) {
+		return null;
+	}
+
+	let element: HTMLElement | null = target;
+
+	while (element && !DOM.hasClass(element, 'monaco-list-row')) {
+		if (DOM.hasClass(element, 'label-name') && element.hasAttribute('data-icon-label-count')) {
+			const count = Number(element.getAttribute('data-icon-label-count'));
+			const index = Number(element.getAttribute('data-icon-label-index'));
+
+			if (isNumber(count) && isNumber(index)) {
+				return { element: element, count, index };
+			}
+		}
+
+		element = element.parentElement;
+	}
+
+	return null;
 }
 
 export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {

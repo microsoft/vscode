@@ -29,7 +29,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
+import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, getIconLabelNameFromHTMLElement } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -47,28 +47,10 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/arrays';
-import { withNullAsUndefined, isNumber } from 'vs/base/common/types';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-
-function getLabelNameFromEventTarget(target: EventTarget | null): { element: HTMLElement, index: number } | null {
-	while (target instanceof HTMLElement && !DOM.hasClass(target, 'monaco-list-row')) {
-		// const rawIndex = element.getAttribute('data-index');
-
-		if (DOM.hasClass(target, 'label-name')) {
-			const index = Number(target.getAttribute('data-icon-label-index'));
-
-			if (isNumber(index)) {
-				return { element: target, index };
-			}
-		}
-
-		target = target.parentElement;
-	}
-
-	return null;
-}
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -434,23 +416,20 @@ export class ExplorerView extends ViewletPanel {
 
 		// compressed node context menu
 		if (stat) {
-			const result = getLabelNameFromEventTarget(e.browserEvent.target);
+			const result = getIconLabelNameFromHTMLElement(e.browserEvent.target);
 
 			if (result) {
-				let { element: labelName, index } = result;
+				let { element: labelName, count, index } = result;
+				let i = count - 1;
 
-				while (index > 0 && stat.parent) {
+				while (i > index && stat.parent) {
 					stat = stat.parent;
-					index--;
+					i--;
 				}
 
-				if (index === 0) {
-					DOM.addClass(labelName, 'active');
+				DOM.addClass(labelName, 'context-active');
 
-					disposables.add(toDisposable(() => {
-						DOM.removeClass(labelName, 'active');
-					}));
-				}
+				disposables.add(toDisposable(() => DOM.removeClass(labelName, 'context-active')));
 			}
 		}
 

@@ -74,9 +74,10 @@ const DefaultOptions = {
 	horizontalScrolling: false
 };
 
-export class ElementsDragAndDropData<T> implements IDragAndDropData {
+export class ElementsDragAndDropData<T, TContext = void> implements IDragAndDropData {
 
 	readonly elements: T[];
+	context: TContext | undefined;
 
 	constructor(elements: T[]) {
 		this.elements = elements;
@@ -766,7 +767,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			let label: string | undefined;
 
 			if (this.dnd.getDragLabel) {
-				label = this.dnd.getDragLabel(elements);
+				label = this.dnd.getDragLabel(elements, event);
 			}
 
 			if (typeof label === 'undefined') {

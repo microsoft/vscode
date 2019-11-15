@@ -1062,9 +1062,9 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		return this.dnd.getDragURI(element);
 	}
 
-	getDragLabel?(elements: T[]): string | undefined {
+	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined {
 		if (this.dnd.getDragLabel) {
-			return this.dnd.getDragLabel(elements);
+			return this.dnd.getDragLabel(elements, originalEvent);
 		}
 
 		return undefined;

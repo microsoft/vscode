@@ -134,6 +134,7 @@
 }
 
 .explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover,
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.context-active,
 .explorer-viewlet .monaco-list:focus .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active {
 	text-decoration: underline;
 }
