@@ -176,4 +176,4 @@ export class KeyboardLayoutPickerAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(KeyboardLayoutPickerAction, KeyboardLayoutPickerAction.ID, KeyboardLayoutPickerAction.LABEL, {}), 'Preferences: Change Keyboard Layout', nls.localize('preferences', "Preferences"));
+registry.registerWorkbenchAction(SyncActionDescriptor.create(KeyboardLayoutPickerAction, KeyboardLayoutPickerAction.ID, KeyboardLayoutPickerAction.LABEL, {}), 'Preferences: Change Keyboard Layout', nls.localize('preferences', "Preferences"));
