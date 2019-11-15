@@ -105,7 +105,7 @@ export class LinesLayout {
 
 	private readonly _instanceId: string;
 
-	private _pendingChanges: PendingChanges;
+	private readonly _pendingChanges: PendingChanges;
 
 	private readonly _arr: EditorWhitespace[];
 
@@ -113,13 +113,6 @@ export class LinesLayout {
 	 * _arr[i].prefixSum, 1 <= i <= prefixSumValidIndex can be trusted
 	 */
 	private _prefixSumValidIndex: number;
-
-	/**
-	 * index at which a whitespace is positioned (inside heights, afterLineNumbers, prefixSum members)
-	 */
-	private readonly _whitespaceId2Index: {
-		[id: string]: number;
-	};
 
 	/**
 	 * last whitespace id issued
@@ -144,7 +137,6 @@ export class LinesLayout {
 		this._pendingChanges = new PendingChanges();
 		this._arr = [];
 		this._prefixSumValidIndex = -1;
-		this._whitespaceId2Index = {};
 		this._lastWhitespaceId = 0;
 		this._minWidth = -1; /* marker for not being computed */
 		this._lineCount = lineCount;
@@ -229,23 +221,34 @@ export class LinesLayout {
 	}
 
 	public _commitPendingChanges(inserts: EditorWhitespace[], changes: IPendingChange[], removes: IPendingRemove[]): void {
-		// const magnitude = inserts.length + changes.length + removes.length;
-		// if (magnitude === 1) {
-		// 	// when only one thing
-		for (const insert of inserts) {
-			this._insertWhitespace(insert);
+		if (!false || inserts.length + changes.length + removes.length <= 1) {
+			// when only one thing happened, handle it "delicately"
+			for (const insert of inserts) {
+				this._insertWhitespace(insert);
+				this._minWidth = -1; /* marker for not being computed */
+			}
+			for (const change of changes) {
+				this._changeOneWhitespace(change.id, change.newAfterLineNumber, change.newHeight);
+			}
+			for (const remove of removes) {
+				this._removeWhitespace(remove.id);
+			}
+			return;
 		}
-		for (const change of changes) {
-			this._changeOneWhitespace(change.id, change.newAfterLineNumber, change.newHeight);
-		}
-		for (const remove of removes) {
-			this._removeWhitespace(remove.id);
-		}
-		return;
-		// }
 
-		// console.log(`magnitude: ${magnitude} -- inserts: ${inserts.length}, changes: ${changes.length}, removes: ${removes.length}`);
-		// console.log(`TODO: `, inserts, changes, removes);
+		// simply rebuild the entire datastructure
+
+		const toRemove = new Set<string>();
+		for (const remove of removes) {
+			toRemove.add(remove.id);
+		}
+
+		const toChange = new Map<string, IPendingChange>();
+		for (const change of changes) {
+			toChange.set(change.id, change);
+		}
+
+		this._minWidth = -1; /* marker for not being computed */
 	}
 
 	private _checkPendingChanges(): void {
@@ -255,72 +258,58 @@ export class LinesLayout {
 	}
 
 	private _insertWhitespace(whitespace: EditorWhitespace): void {
-		const insertionIndex = LinesLayout.findInsertionIndex(this._arr, whitespace.afterLineNumber, whitespace.ordinal);
-		this._insertWhitespaceAtIndex(insertionIndex, whitespace);
-		this._minWidth = -1; /* marker for not being computed */
-	}
-
-	private _insertWhitespaceAtIndex(insertIndex: number, whitespace: EditorWhitespace): void {
+		const insertIndex = LinesLayout.findInsertionIndex(this._arr, whitespace.afterLineNumber, whitespace.ordinal);
 		this._arr.splice(insertIndex, 0, whitespace);
-
-		const keys = Object.keys(this._whitespaceId2Index);
-		for (const sid of keys) {
-			const oldIndex = this._whitespaceId2Index[sid];
-			if (oldIndex >= insertIndex) {
-				this._whitespaceId2Index[sid] = oldIndex + 1;
-			}
-		}
-
-		this._whitespaceId2Index[whitespace.id] = insertIndex;
 		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, insertIndex - 1);
 	}
 
+	private _findWhitespaceIndex(id: string): number {
+		const arr = this._arr;
+		for (let i = 0, len = arr.length; i < len; i++) {
+			if (arr[i].id === id) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
 	private _changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): void {
-		if (this._whitespaceId2Index.hasOwnProperty(id)) {
-			const index = this._whitespaceId2Index[id];
-			if (this._arr[index].height !== newHeight) {
-				this._arr[index].height = newHeight;
-				this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, index - 1);
-			}
-			if (this._arr[index].afterLineNumber !== newAfterLineNumber) {
-				// `afterLineNumber` changed for this whitespace
+		const index = this._findWhitespaceIndex(id);
+		if (index === -1) {
+			return;
+		}
+		if (this._arr[index].height !== newHeight) {
+			this._arr[index].height = newHeight;
+			this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, index - 1);
+		}
+		if (this._arr[index].afterLineNumber !== newAfterLineNumber) {
+			// `afterLineNumber` changed for this whitespace
 
-				// Record old whitespace
-				const whitespace = this._arr[index];
+			// Record old whitespace
+			const whitespace = this._arr[index];
 
-				// Since changing `afterLineNumber` can trigger a reordering, we're gonna remove this whitespace
-				this._removeWhitespace(id);
+			// Since changing `afterLineNumber` can trigger a reordering, we're gonna remove this whitespace
+			this._removeWhitespaceAtIndex(index);
 
-				whitespace.afterLineNumber = newAfterLineNumber;
+			whitespace.afterLineNumber = newAfterLineNumber;
 
-				// And add it again
-				const insertionIndex = LinesLayout.findInsertionIndex(this._arr, whitespace.afterLineNumber, whitespace.ordinal);
-				this._insertWhitespaceAtIndex(insertionIndex, whitespace);
-			}
+			// And add it again
+			this._insertWhitespace(whitespace);
 		}
 	}
 
 	private _removeWhitespace(id: string): void {
-		if (this._whitespaceId2Index.hasOwnProperty(id)) {
-			const index = this._whitespaceId2Index[id];
-			delete this._whitespaceId2Index[id];
-			this._removeWhitespaceAtIndex(index);
-			this._minWidth = -1; /* marker for not being computed */
+		const index = this._findWhitespaceIndex(id);
+		if (index === -1) {
+			return;
 		}
+		this._removeWhitespaceAtIndex(index);
+		this._minWidth = -1; /* marker for not being computed */
 	}
 
 	private _removeWhitespaceAtIndex(removeIndex: number): void {
-
 		this._arr.splice(removeIndex, 1);
 		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, removeIndex - 1);
-
-		const keys = Object.keys(this._whitespaceId2Index);
-		for (const sid of keys) {
-			const oldIndex = this._whitespaceId2Index[sid];
-			if (oldIndex >= removeIndex) {
-				this._whitespaceId2Index[sid] = oldIndex - 1;
-			}
-		}
 	}
 
 	/**
