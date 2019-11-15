@@ -56,5 +56,5 @@ export const BrowserFeatures = {
 	})(),
 
 	touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0,
-	pointerEvents: browser.isSafari && ('ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0)
+	pointerEvents: browser.isSafari && window.PointerEvent && ('ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0)
 };
