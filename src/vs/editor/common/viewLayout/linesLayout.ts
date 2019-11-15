@@ -12,7 +12,6 @@ import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewMode
  *
  * These objects are basically either text (lines) or spaces between those lines (whitespaces).
  * This provides commodity operations for working with lines that contain whitespace that pushes lines lower (vertically).
- * This is written with no knowledge of an editor in mind.
  */
 export class LinesLayout {
 
@@ -474,5 +473,68 @@ export class LinesLayout {
 	 */
 	public getWhitespaces(): IEditorWhitespace[] {
 		return this._whitespaces.getWhitespaces(this._lineHeight);
+	}
+
+	/**
+	 * The number of whitespaces.
+	 */
+	public getWhitespacesCount(): number {
+		return this._whitespaces.getCount();
+	}
+
+	/**
+	 * Get the `id` for whitespace at index `index`.
+	 *
+	 * @param index The index of the whitespace.
+	 * @return `id` of whitespace at `index`.
+	 */
+	public getIdForWhitespaceIndex(index: number): string {
+		return this._whitespaces.getIdForWhitespaceIndex(index);
+	}
+
+	/**
+	 * Get the `afterLineNumber` for whitespace at index `index`.
+	 *
+	 * @param index The index of the whitespace.
+	 * @return `afterLineNumber` of whitespace at `index`.
+	 */
+	public getAfterLineNumberForWhitespaceIndex(index: number): number {
+		return this._whitespaces.getAfterLineNumberForWhitespaceIndex(index);
+	}
+
+	/**
+	 * Get the `height` for whitespace at index `index`.
+	 *
+	 * @param index The index of the whitespace.
+	 * @return `height` of whitespace at `index`.
+	 */
+	public getHeightForWhitespaceIndex(index: number): number {
+		return this._whitespaces.getHeightForWhitespaceIndex(index);
+	}
+
+	/**
+	 * Find the index of the first whitespace which has `afterLineNumber` >= `lineNumber`.
+	 * @return The index of the first whitespace with `afterLineNumber` >= `lineNumber` or -1 if no whitespace is found.
+	 */
+	public getFirstWhitespaceIndexAfterLineNumber(lineNumber: number): number {
+		return this._whitespaces.getFirstWhitespaceIndexAfterLineNumber(lineNumber);
+	}
+
+	/**
+	 * Return the sum of the heights of the whitespaces at [0..index].
+	 * This includes the whitespace at `index`.
+	 *
+	 * @param index The index of the whitespace.
+	 * @return The sum of the heights of all whitespaces before the one at `index`, including the one at `index`.
+	 */
+	public getWhitespacesAccumulatedHeight(index: number): number {
+		return this._whitespaces.getAccumulatedHeight(index);
+	}
+
+	/**
+	 * Get the sum of all the whitespaces.
+	 */
+	public getWhitespacesTotalHeight(): number {
+		return this._whitespaces.getTotalHeight();
 	}
 }
