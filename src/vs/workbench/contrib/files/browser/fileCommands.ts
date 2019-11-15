@@ -496,9 +496,30 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_S,
 	id: SAVE_FILE_COMMAND_ID,
-	handler: (accessor, resource: URI | object) => {
+	handler: async (accessor, resource: URI | object) => {
+		const listService = accessor.get(IListService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const notificationService = accessor.get(INotificationService);
+
+		const editors = getMultiSelectedEditors(listService, editorGroupsService);
+		if (editors.length && !editors.some(({ editor }) => editor.getResource()?.scheme === Schemas.untitled)) {
+			try {
+				await Promise.all(editors.map(async ({ groupId, editor }) => {
+
+					// Use save as a hint to pin the editor
+					editorGroupsService.getGroup(groupId)?.pinEditor(editor);
+
+					return editor.save({ force: true });
+				}));
+			} catch (error) {
+				notificationService.error(nls.localize('genericRevertResourcesError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+			}
+
+			return;
+		}
+
 		const editorService = accessor.get(IEditorService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		const resources = getMultiSelectedResources(resource, listService, editorService);
 
 		if (resources.length === 1) {
 			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
