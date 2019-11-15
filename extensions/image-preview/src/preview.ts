@@ -183,7 +183,7 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 		if (this.webviewEditor.active) {
 			this._previewState = PreviewState.Active;
 			this.sizeStatusBarEntry.show(this.id, this._imageSize || '');
-			this.binarySizeStatusBarEntry.show(this.id, this._imageBinarySize || -1);
+			this.binarySizeStatusBarEntry.show(this.id, this._imageBinarySize);
 			this.zoomStatusBarEntry.show(this.id, this._imageZoom || 'fit');
 		} else {
 			if (this._previewState === PreviewState.Active) {

@@ -51,10 +51,14 @@ export class BinarySizeStatusBarEntry extends Disposable {
 		}));
 	}
 
-	public show(owner: string, size: number) {
+	public show(owner: string, size: number | undefined) {
 		this._showingOwner = owner;
-		this._entry.text = size < 0 ? '' : BinarySize.formatSize(size);
-		this._entry.show();
+		if (typeof size === 'number') {
+			this._entry.text = BinarySize.formatSize(size);
+			this._entry.show();
+		} else {
+			this.hide(owner);
+		}
 	}
 
 	public hide(owner: string) {
