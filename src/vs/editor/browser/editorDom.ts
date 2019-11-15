@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { GlobalMouseMoveMonitor, GlobalPointerMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
+import { GlobalMouseMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
@@ -179,11 +178,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 	constructor(editorViewDomNode: HTMLElement) {
 		super();
 		this._editorViewDomNode = editorViewDomNode;
-		this._globalMouseMoveMonitor = this._register(
-			BrowserFeatures.pointerEvents
-				? new GlobalPointerMoveMonitor<EditorMouseEvent>()
-				: new GlobalMouseMoveMonitor<EditorMouseEvent>()
-		);
+		this._globalMouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<EditorMouseEvent>());
 		this._keydownListener = null;
 	}
 

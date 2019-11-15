@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IframeUtils } from 'vs/base/browser/iframe';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export interface IStandardMouseMoveEventData {
 	leftButton: boolean;
@@ -84,12 +85,14 @@ export class GlobalMouseMoveMonitor<R> implements IDisposable {
 		this.onStopCallback = onStopCallback;
 
 		let windowChain = IframeUtils.getSameOriginWindowChain();
+		const mouseMove = BrowserFeatures.pointerEvents ? 'pointermove' : 'mousemove';
+		const mouseUp = BrowserFeatures.pointerEvents ? 'pointerup' : 'mouseup';
 		for (const element of windowChain) {
-			this.hooks.add(dom.addDisposableThrottledListener(element.window.document, 'mousemove',
+			this.hooks.add(dom.addDisposableThrottledListener(element.window.document, mouseMove,
 				(data: R) => this.mouseMoveCallback!(data),
 				(lastEvent: R, currentEvent) => this.mouseMoveEventMerger!(lastEvent, currentEvent as MouseEvent)
 			));
-			this.hooks.add(dom.addDisposableListener(element.window.document, 'mouseup', (e: MouseEvent) => this.stopMonitoring(true)));
+			this.hooks.add(dom.addDisposableListener(element.window.document, mouseUp, (e: MouseEvent) => this.stopMonitoring(true)));
 		}
 
 		if (IframeUtils.hasDifferentOriginAncestor()) {
@@ -114,34 +117,5 @@ export class GlobalMouseMoveMonitor<R> implements IDisposable {
 				this.stopMonitoring(true);
 			}));
 		}
-	}
-}
-
-export class GlobalPointerMoveMonitor<R> extends GlobalMouseMoveMonitor<R> {
-	public startMonitoring(
-		mouseMoveEventMerger: IEventMerger<R>,
-		mouseMoveCallback: IMouseMoveCallback<R>,
-		onStopCallback: IOnStopCallback
-	): void {
-		if (this.isMonitoring()) {
-			// I am already hooked
-			return;
-		}
-		this.mouseMoveEventMerger = mouseMoveEventMerger;
-		this.mouseMoveCallback = mouseMoveCallback;
-		this.onStopCallback = onStopCallback;
-
-		let windowChain = IframeUtils.getSameOriginWindowChain();
-		for (const element of windowChain) {
-			this.hooks.add(dom.addDisposableThrottledListener(element.window.document, 'pointermove',
-				(data: R) => {
-					this.mouseMoveCallback!(data);
-				},
-				(lastEvent: R, currentEvent) => this.mouseMoveEventMerger!(lastEvent, currentEvent as MouseEvent)
-			));
-			this.hooks.add(dom.addDisposableListener(element.window.document, 'pointerup', (e: MouseEvent) => this.stopMonitoring(true)));
-		}
-
-		// Currently we didn't test pointer events in iframe yet.
 	}
 }
