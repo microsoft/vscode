@@ -134,8 +134,7 @@
 }
 
 .explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover > .monaco-highlighted-label,
-.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.context-active > .monaco-highlighted-label,
-.explorer-viewlet .monaco-list:focus .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
+.explorer-viewlet .monaco-list .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
 	text-decoration: underline;
 }
 

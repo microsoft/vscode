@@ -124,6 +124,7 @@ export interface ICompressedNavigationController {
 	next(): void;
 	first(): void;
 	last(): void;
+	setIndex(index: number): void;
 }
 
 export class CompressedNavigationController implements ICompressedNavigationController {
@@ -173,7 +174,11 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 		this.setIndex(this.items.length - 1);
 	}
 
-	private setIndex(index: number): void {
+	setIndex(index: number): void {
+		if (index < 0 || index >= this.items.length) {
+			return;
+		}
+
 		DOM.removeClass(this.labels[this._index], 'active');
 		this._index = index;
 		DOM.addClass(this.labels[this._index], 'active');

@@ -454,19 +454,14 @@ export class ExplorerView extends ViewletPanel {
 
 		// Compressed folders
 		if (stat) {
-			const result = getIconLabelNameFromHTMLElement(e.browserEvent.target);
+			const controller = this.renderer.getCompressedNavigationController(stat);
 
-			if (result) {
-				let { element: labelName, count, index } = result;
-				let i = count - 1;
+			if (controller) {
+				const result = getIconLabelNameFromHTMLElement(e.browserEvent.target);
 
-				while (i > index && stat.parent) {
-					stat = stat.parent;
-					i--;
+				if (result) {
+					controller.setIndex(result.index);
 				}
-
-				DOM.addClass(labelName, 'context-active');
-				disposables.add(toDisposable(() => DOM.removeClass(labelName, 'context-active')));
 			}
 		}
 
