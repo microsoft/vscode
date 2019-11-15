@@ -501,7 +501,7 @@ export function getClientArea(element: HTMLElement): Dimension {
 	}
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
-	if (platform.isIOS && BrowserFeatures.pointerEvents && (<any>window).visualViewport) {
+	if (platform.isIOS && (<any>window).visualViewport) {
 		return new Dimension((<any>window).visualViewport.width, (<any>window).visualViewport.height);
 	}
 
