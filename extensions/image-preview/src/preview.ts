@@ -147,10 +147,11 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 			}
 		}));
 
-		(async () => {
-			const { size } = await vscode.workspace.fs.stat(resource);
+		vscode.workspace.fs.stat(resource).then(({ size }) => {
 			this._imageBinarySize = size;
-		})();
+			this.update();
+		});
+
 		this.render();
 		this.update();
 		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
