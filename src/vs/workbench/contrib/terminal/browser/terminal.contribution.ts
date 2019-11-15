@@ -331,7 +331,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenTermAction
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionTermContributor);
 
-(<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
+(<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(panel.PanelDescriptor.create(
 	TerminalPanel,
 	TERMINAL_PANEL_ID,
 	nls.localize('terminal', "Terminal"),
