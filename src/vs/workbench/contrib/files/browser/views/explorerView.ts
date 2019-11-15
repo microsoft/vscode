@@ -719,8 +719,6 @@ export class ExplorerView extends ViewletPanel {
 			content.push(`.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.drop-target { background-color: ${styles.listDropBackground}; }`);
 		}
 
-		console.log(styles.listDropBackground);
-
 		const newStyles = content.join('\n');
 		if (newStyles !== this.styleElement.innerHTML) {
 			this.styleElement.innerHTML = newStyles;
