@@ -267,8 +267,13 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
-		const focus = this.tree.getFocus();
-		const stat = focus.length ? focus[0] : undefined;
+		let stat: ExplorerItem | undefined;
+		if (this.compressedNavigationController) {
+			stat = this.compressedNavigationController.current;
+		} else {
+			const focus = this.tree.getFocus();
+			stat = focus.length ? focus[0] : undefined;
+		}
 		if (!stat) {
 			return [];
 		}
