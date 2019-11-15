@@ -482,9 +482,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.setCurrentActiveEditor();
 		if (this.filterAction.activeFile) {
 			this.refreshPanel();
-		} else {
-			this.autoReveal();
 		}
+		this.autoReveal();
 	}
 
 	private setCurrentActiveEditor(): void {
@@ -547,32 +546,32 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private autoReveal(focus: boolean = false): void {
+		// No need to auto reveal if active file filter is on
+		if (this.filterAction.activeFile) {
+			return;
+		}
 		let autoReveal = this.configurationService.getValue<boolean>('problems.autoReveal');
 		if (typeof autoReveal === 'boolean' && autoReveal) {
-			this.revealMarkersForCurrentActiveEditor(focus);
-		}
-	}
+			let currentActiveResource = this.getResourceForCurrentActiveResource();
+			if (currentActiveResource) {
+				if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
+					this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
+					if (focus) {
+						this.tree.setFocus(this.tree.getSelection());
+					}
+				} else {
+					this.tree.expand(currentActiveResource);
+					this.tree.reveal(currentActiveResource, 0);
 
-	private revealMarkersForCurrentActiveEditor(focus: boolean = false): void {
-		let currentActiveResource = this.getResourceForCurrentActiveResource();
-		if (currentActiveResource) {
-			if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
-				this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
-				if (focus) {
-					this.tree.setFocus(this.tree.getSelection());
+					if (focus) {
+						this.tree.setFocus([currentActiveResource]);
+						this.tree.setSelection([currentActiveResource]);
+					}
 				}
-			} else {
-				this.tree.expand(currentActiveResource);
-				this.tree.reveal(currentActiveResource, 0);
-
-				if (focus) {
-					this.tree.setFocus([currentActiveResource]);
-					this.tree.setSelection([currentActiveResource]);
-				}
+			} else if (focus) {
+				this.tree.setSelection([]);
+				this.tree.focusFirst();
 			}
-		} else if (focus) {
-			this.tree.setSelection([]);
-			this.tree.focusFirst();
 		}
 	}
 
