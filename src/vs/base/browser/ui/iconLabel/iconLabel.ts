@@ -255,11 +255,12 @@ class LabelWithHighlights {
 				const l = label[i];
 				const m = matches ? matches[i] : undefined;
 
-				const highlightedLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { 'data-icon-label-count': label.length, 'data-icon-label-index': i })), this.supportCodicons);
+				const name = dom.$('a.label-name', { 'data-icon-label-count': label.length, 'data-icon-label-index': i });
+				const highlightedLabel = new HighlightedLabel(dom.append(this.container, name), this.supportCodicons);
 				highlightedLabel.set(l, m, options?.title, options?.labelEscapeNewLines);
 
 				if (i < label.length - 1) {
-					dom.append(this.container, dom.$('span.label-separator', undefined, separator));
+					dom.append(name, dom.$('span.label-separator', undefined, separator));
 				}
 			}
 		}
