@@ -8,6 +8,7 @@ import * as nls from 'vscode-nls';
 import { Disposable } from './dispose';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
 import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
+import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
@@ -22,6 +23,7 @@ export class PreviewManager {
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
 		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
+		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) { }
 
@@ -29,7 +31,7 @@ export class PreviewManager {
 		resource: vscode.Uri,
 		webviewEditor: vscode.WebviewPanel,
 	): vscode.WebviewEditorCapabilities {
-		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.zoomStatusBarEntry);
+		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 
@@ -72,6 +74,7 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 
 	private _previewState = PreviewState.Visible;
 	private _imageSize: string | undefined;
+	private _imageBinarySize: number | undefined;
 	private _imageZoom: Scale | undefined;
 
 	constructor(
@@ -79,6 +82,7 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 		private readonly resource: vscode.Uri,
 		private readonly webviewEditor: vscode.WebviewPanel,
 		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
+		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) {
 		super();
@@ -125,6 +129,7 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 		this._register(webviewEditor.onDidDispose(() => {
 			if (this._previewState === PreviewState.Active) {
 				this.sizeStatusBarEntry.hide(this.id);
+				this.binarySizeStatusBarEntry.hide(this.id);
 				this.zoomStatusBarEntry.hide(this.id);
 			}
 			this._previewState = PreviewState.Disposed;
@@ -142,6 +147,10 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 			}
 		}));
 
+		(async () => {
+			const { size } = await vscode.workspace.fs.stat(resource);
+			this._imageBinarySize = size;
+		})();
 		this.render();
 		this.update();
 		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
@@ -173,10 +182,12 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 		if (this.webviewEditor.active) {
 			this._previewState = PreviewState.Active;
 			this.sizeStatusBarEntry.show(this.id, this._imageSize || '');
+			this.binarySizeStatusBarEntry.show(this.id, this._imageBinarySize || -1);
 			this.zoomStatusBarEntry.show(this.id, this._imageZoom || 'fit');
 		} else {
 			if (this._previewState === PreviewState.Active) {
 				this.sizeStatusBarEntry.hide(this.id);
+				this.binarySizeStatusBarEntry.hide(this.id);
 				this.zoomStatusBarEntry.hide(this.id);
 			}
 			this._previewState = PreviewState.Visible;
