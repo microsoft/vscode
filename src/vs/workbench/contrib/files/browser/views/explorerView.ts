@@ -49,7 +49,7 @@ import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -283,23 +283,36 @@ export class ExplorerView extends ViewletPanel {
 	}
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
-		let stat: ExplorerItem | undefined;
+		let focusedStat: ExplorerItem | undefined;
+
 		if (this.compressedNavigationController) {
-			stat = this.compressedNavigationController.current;
+			focusedStat = this.compressedNavigationController.current;
 		} else {
 			const focus = this.tree.getFocus();
-			stat = focus.length ? focus[0] : undefined;
+			focusedStat = focus.length ? focus[0] : undefined;
 		}
-		if (!stat) {
+
+		if (!focusedStat) {
 			return [];
 		}
 
-		const selection = this.tree.getSelection();
-		if (respectMultiSelection && selection.indexOf(stat) >= 0) {
-			return selection;
+		const selectedStats: ExplorerItem[] = [];
+
+		for (const stat of this.tree.getSelection()) {
+			const controller = this.renderer.getCompressedNavigationController(stat);
+
+			if (controller) {
+				selectedStats.push(...controller.items);
+			} else {
+				selectedStats.push(stat);
+			}
 		}
 
-		return [stat];
+		if (respectMultiSelection && selectedStats.indexOf(focusedStat) >= 0) {
+			return selectedStats;
+		}
+
+		return [focusedStat];
 	}
 
 	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {

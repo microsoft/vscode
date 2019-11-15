@@ -118,6 +118,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 
 export interface ICompressedNavigationController {
 	readonly current: ExplorerItem;
+	readonly items: ExplorerItem[];
 	readonly index: number;
 	readonly count: number;
 	previous(): void;
@@ -136,7 +137,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	get count(): number { return this.items.length; }
 	get current(): ExplorerItem { return this.items[this._index]!; }
 
-	constructor(private items: ExplorerItem[], templateData: IFileTemplateData) {
+	constructor(readonly items: ExplorerItem[], templateData: IFileTemplateData) {
 		this._index = items.length - 1;
 		this.labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
 		DOM.addClass(this.labels[this._index], 'active');
