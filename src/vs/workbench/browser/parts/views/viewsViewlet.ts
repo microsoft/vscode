@@ -350,20 +350,24 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 		}));
 
 		this._register(this.viewsModel.onDidChangeActiveViews((viewDescriptors) => {
-			viewDescriptors.forEach(descriptor => {
-				let filterOnValue = this.getFilterOn(descriptor);
-				if (!filterOnValue) {
-					return;
-				}
-				if (!this.allViews.has(filterOnValue)) {
-					this.allViews.set(filterOnValue, new Map());
-				}
-				this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
-				if (filterOnValue !== this.filterValue) {
-					this.viewsModel.setVisible(descriptor.id, false);
-				}
-			});
+			this.updateAllViews(viewDescriptors);
 		}));
+	}
+
+	private updateAllViews(viewDescriptors: IViewDescriptor[]) {
+		viewDescriptors.forEach(descriptor => {
+			let filterOnValue = this.getFilterOn(descriptor);
+			if (!filterOnValue) {
+				return;
+			}
+			if (!this.allViews.has(filterOnValue)) {
+				this.allViews.set(filterOnValue, new Map());
+			}
+			this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
+			if (filterOnValue !== this.filterValue) {
+				this.viewsModel.setVisible(descriptor.id, false);
+			}
+		});
 	}
 
 	protected addConstantViewDescriptors(constantViewDescriptors: IViewDescriptor[]) {
@@ -415,6 +419,10 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 	}
 
 	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
+		// Check that allViews is ready
+		if (this.allViews.size === 0) {
+			this.updateAllViews(this.viewsModel.viewDescriptors);
+		}
 		const panels: ViewletPanel[] = super.onDidAddViews(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
