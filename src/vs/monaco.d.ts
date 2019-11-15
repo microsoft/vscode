@@ -160,7 +160,7 @@ declare namespace monaco {
 			path?: string;
 			query?: string;
 			fragment?: string;
-		} | URL): Uri;
+		}): Uri;
 		/**
 		 * Creates a string representation for this Uri. It's guaranteed that calling
 		 * `Uri.parse` with the result of this function creates an Uri which is equal
