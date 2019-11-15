@@ -7,11 +7,12 @@ import { localize } from 'vs/nls';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
+import { EncodingMode, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity } from 'vs/workbench/common/editor';
+import { IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService, ModelState, TextFileModelChangeEvent, LoadReason, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, TextFileModelChangeEvent, LoadReason, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -243,8 +244,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return model.isDirty();
 	}
 
-	save(): Promise<boolean> {
-		return this.textFileService.save(this.resource);
+	save(options?: ITextFileSaveOptions): Promise<boolean> {
+		return this.textFileService.save(this.resource, options);
 	}
 
 	revert(options?: IRevertOptions): Promise<boolean> {

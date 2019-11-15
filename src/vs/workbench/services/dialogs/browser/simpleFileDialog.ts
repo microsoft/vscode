@@ -32,7 +32,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -56,7 +56,7 @@ export namespace SaveLocalFileCommand {
 			const textFileService = accessor.get(ITextFileService);
 			const editorService = accessor.get(IEditorService);
 			let resource: URI | undefined = toResource(editorService.activeEditor);
-			const options: ISaveOptions = { force: true, availableFileSystems: [Schemas.file] };
+			const options: ITextFileSaveOptions = { force: true, availableFileSystems: [Schemas.file] };
 			if (resource) {
 				return textFileService.saveAs(resource, undefined, options);
 			}

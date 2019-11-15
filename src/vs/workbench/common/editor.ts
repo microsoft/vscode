@@ -20,6 +20,7 @@ import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
 export const ActiveEditorIsSaveableContext = new RawContextKey<boolean>('activeEditorIsSaveable', false);
@@ -261,25 +262,12 @@ export const enum Verbosity {
 	LONG
 }
 
-export interface IRevertOptions {
-
-	/**
-	 *  Forces to load the contents of the editor again even if the editor is not dirty.
-	 */
-	force?: boolean;
-
-	/**
-	 * A soft revert will clear dirty state of an editor but will not attempt to load it.
-	 */
-	soft?: boolean;
-}
-
 export interface IEditorInput extends IDisposable {
 
 	/**
 	 * Triggered when this input is disposed.
 	 */
-	onDispose: Event<void>;
+	readonly onDispose: Event<void>;
 
 	/**
 	 * Returns the associated resource of this input.
@@ -315,6 +303,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this input is dirty or not.
 	 */
 	isDirty(): boolean;
+
+	/**
+	 * Saves the editor if it is dirty.
+	 */
+	save(options?: ISaveOptions): Promise<boolean>;
 
 	/**
 	 * Reverts this input.
@@ -418,7 +411,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	/**
 	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
-	save(): Promise<boolean> {
+	save(options?: ISaveOptions): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
@@ -553,12 +546,12 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isDirty();
 	}
 
-	save(): Promise<boolean> {
-		return this.master.save();
+	save(options?: ISaveOptions): Promise<boolean> {
+		return this.master.save(options);
 	}
 
-	revert(): Promise<boolean> {
-		return this.master.revert();
+	revert(options?: IRevertOptions): Promise<boolean> {
+		return this.master.revert(options);
 	}
 
 	getTelemetryDescriptor(): { [key: string]: unknown } {
