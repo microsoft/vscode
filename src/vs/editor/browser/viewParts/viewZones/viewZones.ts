@@ -13,7 +13,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IWhitespaceChangeAccessor, EditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
+import { IWhitespaceChangeAccessor, IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 
 export interface IMyViewZone {
 	whitespaceId: string;
@@ -75,7 +75,7 @@ export class ViewZones extends ViewPart {
 
 	private _recomputeWhitespacesProps(): boolean {
 		const whitespaces = this._context.viewLayout.getWhitespaces();
-		const oldWhitespaces = new Map<string, EditorWhitespace>();
+		const oldWhitespaces = new Map<string, IEditorWhitespace>();
 		for (const whitespace of whitespaces) {
 			oldWhitespaces.set(whitespace.id, whitespace);
 		}
@@ -88,7 +88,7 @@ export class ViewZones extends ViewPart {
 				const zone = this._zones[id];
 				const props = this._computeWhitespaceProps(zone.delegate);
 				const oldWhitespace = oldWhitespaces.get(id);
-				if (oldWhitespace && (oldWhitespace.afterLineNumber !== props.afterViewLineNumber || oldWhitespace.heightInPx !== props.heightInPx)) {
+				if (oldWhitespace && (oldWhitespace.afterLineNumber !== props.afterViewLineNumber || oldWhitespace.height !== props.heightInPx)) {
 					whitespaceAccessor.changeOneWhitespace(id, props.afterViewLineNumber, props.heightInPx);
 					this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
 					hadAChange = true;

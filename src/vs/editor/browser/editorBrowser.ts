@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer } from 'vs/editor/common/model';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
-import { EditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 
@@ -672,7 +672,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get the view zones.
 	 * @internal
 	 */
-	getWhitespaces(): EditorWhitespace[];
+	getWhitespaces(): IEditorWhitespace[];
 
 	/**
 	 * Get the vertical position (top offset) for the line w.r.t. to the first line.

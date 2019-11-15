@@ -7,13 +7,10 @@ import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewL
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 import * as strings from 'vs/base/common/strings';
 
-export class EditorWhitespace {
-	constructor(
-		public readonly id: string,
-		public readonly afterLineNumber: number,
-		public readonly heightInPx: number,
-		public readonly heightInLines: number,
-	) { }
+export interface IEditorWhitespace {
+	readonly id: string;
+	readonly afterLineNumber: number;
+	readonly height: number;
 }
 
 /**
@@ -30,7 +27,7 @@ interface IPendingRemove { id: string; }
 
 class PendingChanges {
 	private _hasPending: boolean;
-	private _inserts: InternalWhitespace[];
+	private _inserts: EditorWhitespace[];
 	private _changes: IPendingChange[];
 	private _removes: IPendingRemove[];
 
@@ -41,7 +38,7 @@ class PendingChanges {
 		this._removes = [];
 	}
 
-	public insert(x: InternalWhitespace): void {
+	public insert(x: EditorWhitespace): void {
 		this._hasPending = true;
 		this._inserts.push(x);
 	}
@@ -78,7 +75,7 @@ class PendingChanges {
 	}
 }
 
-export class InternalWhitespace {
+export class EditorWhitespace implements IEditorWhitespace {
 	public id: string;
 	public afterLineNumber: number;
 	public ordinal: number;
@@ -110,7 +107,7 @@ export class LinesLayout {
 
 	private _pendingChanges: PendingChanges;
 
-	private readonly _arr: InternalWhitespace[];
+	private readonly _arr: EditorWhitespace[];
 
 	/**
 	 * _arr[i].prefixSum, 1 <= i <= prefixSumValidIndex can be trusted
@@ -158,7 +155,7 @@ export class LinesLayout {
 	 * Find the insertion index for a new value inside a sorted array of values.
 	 * If the value is already present in the sorted array, the insertion index will be after the already existing value.
 	 */
-	public static findInsertionIndex(arr: InternalWhitespace[], afterLineNumber: number, ordinal: number): number {
+	public static findInsertionIndex(arr: EditorWhitespace[], afterLineNumber: number, ordinal: number): number {
 		let low = 0;
 		let high = arr.length;
 
@@ -209,7 +206,7 @@ export class LinesLayout {
 					minWidth = minWidth | 0;
 
 					const id = this._instanceId + (++this._lastWhitespaceId);
-					this._pendingChanges.insert(new InternalWhitespace(id, afterLineNumber, ordinal, heightInPx, minWidth));
+					this._pendingChanges.insert(new EditorWhitespace(id, afterLineNumber, ordinal, heightInPx, minWidth));
 					return id;
 					// return this._insertWhitespace(afterLineNumber, ordinal, heightInPx, minWidth);
 				},
@@ -231,7 +228,7 @@ export class LinesLayout {
 		}
 	}
 
-	public _commitPendingChanges(inserts: InternalWhitespace[], changes: IPendingChange[], removes: IPendingRemove[]): void {
+	public _commitPendingChanges(inserts: EditorWhitespace[], changes: IPendingChange[], removes: IPendingRemove[]): void {
 		// const magnitude = inserts.length + changes.length + removes.length;
 		// if (magnitude === 1) {
 		// 	// when only one thing
@@ -257,13 +254,13 @@ export class LinesLayout {
 		}
 	}
 
-	private _insertWhitespace(whitespace: InternalWhitespace): void {
+	private _insertWhitespace(whitespace: EditorWhitespace): void {
 		const insertionIndex = LinesLayout.findInsertionIndex(this._arr, whitespace.afterLineNumber, whitespace.ordinal);
 		this._insertWhitespaceAtIndex(insertionIndex, whitespace);
 		this._minWidth = -1; /* marker for not being computed */
 	}
 
-	private _insertWhitespaceAtIndex(insertIndex: number, whitespace: InternalWhitespace): void {
+	private _insertWhitespaceAtIndex(insertIndex: number, whitespace: EditorWhitespace): void {
 		this._arr.splice(insertIndex, 0, whitespace);
 
 		const keys = Object.keys(this._whitespaceId2Index);
@@ -853,18 +850,9 @@ export class LinesLayout {
 	/**
 	 * Get all whitespaces.
 	 */
-	public getWhitespaces(): EditorWhitespace[] {
+	public getWhitespaces(): IEditorWhitespace[] {
 		this._checkPendingChanges();
-		let result: EditorWhitespace[] = [];
-		for (let i = 0; i < this._arr.length; i++) {
-			result.push(new EditorWhitespace(
-				this._arr[i].id,
-				this._arr[i].afterLineNumber,
-				this._arr[i].height,
-				this._arr[i].height / this._lineHeight
-			));
-		}
-		return result;
+		return this._arr.slice(0);
 	}
 
 	/**

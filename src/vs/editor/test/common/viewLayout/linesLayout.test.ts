@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { LinesLayout, InternalWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
+import { LinesLayout, EditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 
 suite('Editor ViewLayout - LinesLayout', () => {
 
@@ -846,10 +846,10 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	test('LinesLayout findInsertionIndex', () => {
 
 		const makeInternalWhitespace = (afterLineNumbers: number[], ordinal: number = 0) => {
-			return afterLineNumbers.map((afterLineNumber) => new InternalWhitespace('', afterLineNumber, ordinal, 0, 0));
+			return afterLineNumbers.map((afterLineNumber) => new EditorWhitespace('', afterLineNumber, ordinal, 0, 0));
 		};
 
-		let arr: InternalWhitespace[];
+		let arr: EditorWhitespace[];
 
 		arr = makeInternalWhitespace([]);
 		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);

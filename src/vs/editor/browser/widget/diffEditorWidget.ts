@@ -32,7 +32,7 @@ import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/s
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { EditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { InlineDecoration, InlineDecorationType, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -68,7 +68,7 @@ interface IEditorsZones {
 }
 
 interface IDiffEditorWidgetStyle {
-	getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: EditorWhitespace[], modifiedWhitespaces: EditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones;
+	getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones;
 	setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	applyColors(theme: ITheme): boolean;
 	layout(): number;
@@ -91,7 +91,7 @@ class VisualEditorState {
 		this._decorations = [];
 	}
 
-	public getForeignViewZones(allViewZones: EditorWhitespace[]): EditorWhitespace[] {
+	public getForeignViewZones(allViewZones: IEditorWhitespace[]): IEditorWhitespace[] {
 		return allViewZones.filter((z) => !this._zonesMap[String(z.id)]);
 	}
 
@@ -1303,7 +1303,7 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 		return hasChanges;
 	}
 
-	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: EditorWhitespace[], modifiedWhitespaces: EditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones {
+	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones {
 		// Get view zones
 		modifiedWhitespaces = modifiedWhitespaces.sort((a, b) => {
 			return a.afterLineNumber - b.afterLineNumber;
@@ -1331,7 +1331,7 @@ abstract class DiffEditorWidgetStyle extends Disposable implements IDiffEditorWi
 		};
 	}
 
-	protected abstract _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: EditorWhitespace[], modifiedForeignVZ: EditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean): IEditorsZones;
+	protected abstract _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean): IEditorsZones;
 	protected abstract _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations;
 	protected abstract _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations;
 
@@ -1352,10 +1352,10 @@ interface IMyViewZone {
 class ForeignViewZonesIterator {
 
 	private _index: number;
-	private readonly _source: EditorWhitespace[];
-	public current: EditorWhitespace | null;
+	private readonly _source: IEditorWhitespace[];
+	public current: IEditorWhitespace | null;
 
-	constructor(source: EditorWhitespace[]) {
+	constructor(source: IEditorWhitespace[]) {
 		this._source = source;
 		this._index = -1;
 		this.current = null;
@@ -1375,13 +1375,17 @@ class ForeignViewZonesIterator {
 abstract class ViewZonesComputer {
 
 	private readonly lineChanges: editorCommon.ILineChange[];
-	private readonly originalForeignVZ: EditorWhitespace[];
-	private readonly modifiedForeignVZ: EditorWhitespace[];
+	private readonly originalForeignVZ: IEditorWhitespace[];
+	private readonly originalLineHeight: number;
+	private readonly modifiedForeignVZ: IEditorWhitespace[];
+	private readonly modifiedLineHeight: number;
 
-	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: EditorWhitespace[], modifiedForeignVZ: EditorWhitespace[]) {
+	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], originalLineHeight: number, modifiedForeignVZ: IEditorWhitespace[], modifiedLineHeight: number) {
 		this.lineChanges = lineChanges;
 		this.originalForeignVZ = originalForeignVZ;
+		this.originalLineHeight = originalLineHeight;
 		this.modifiedForeignVZ = modifiedForeignVZ;
+		this.modifiedLineHeight = modifiedLineHeight;
 	}
 
 	public getViewZones(): IEditorsZones {
@@ -1456,7 +1460,7 @@ abstract class ViewZonesComputer {
 
 				stepOriginal.push({
 					afterLineNumber: viewZoneLineNumber,
-					heightInLines: modifiedForeignVZ.current.heightInLines,
+					heightInLines: modifiedForeignVZ.current.height / this.modifiedLineHeight,
 					domNode: null,
 					marginDomNode: marginDomNode
 				});
@@ -1473,7 +1477,7 @@ abstract class ViewZonesComputer {
 				}
 				stepModified.push({
 					afterLineNumber: viewZoneLineNumber,
-					heightInLines: originalForeignVZ.current.heightInLines,
+					heightInLines: originalForeignVZ.current.height / this.originalLineHeight,
 					domNode: null
 				});
 				originalForeignVZ.advance();
@@ -1731,8 +1735,8 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 		return this._dataSource.getHeight();
 	}
 
-	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: EditorWhitespace[], modifiedForeignVZ: EditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsZones {
-		let c = new SideBySideViewZonesComputer(lineChanges, originalForeignVZ, modifiedForeignVZ);
+	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsZones {
+		let c = new SideBySideViewZonesComputer(lineChanges, originalForeignVZ, originalEditor.getOption(EditorOption.lineHeight), modifiedForeignVZ, modifiedEditor.getOption(EditorOption.lineHeight));
 		return c.getViewZones();
 	}
 
@@ -1859,8 +1863,8 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 
 class SideBySideViewZonesComputer extends ViewZonesComputer {
 
-	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: EditorWhitespace[], modifiedForeignVZ: EditorWhitespace[]) {
-		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
+	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], originalLineHeight: number, modifiedForeignVZ: IEditorWhitespace[], modifiedLineHeight: number) {
+		super(lineChanges, originalForeignVZ, originalLineHeight, modifiedForeignVZ, modifiedLineHeight);
 	}
 
 	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement | null {
@@ -1911,7 +1915,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle implements IDiffEdito
 		// Nothing to do..
 	}
 
-	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: EditorWhitespace[], modifiedForeignVZ: EditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean): IEditorsZones {
+	protected _getViewZones(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean): IEditorsZones {
 		let computer = new InlineViewZonesComputer(lineChanges, originalForeignVZ, modifiedForeignVZ, originalEditor, modifiedEditor, renderIndicators);
 		return computer.getViewZones();
 	}
@@ -2019,8 +2023,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	private readonly modifiedEditorTabSize: number;
 	private readonly renderIndicators: boolean;
 
-	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: EditorWhitespace[], modifiedForeignVZ: EditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean) {
-		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
+	constructor(lineChanges: editorCommon.ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor, renderIndicators: boolean) {
+		super(lineChanges, originalForeignVZ, originalEditor.getOption(EditorOption.lineHeight), modifiedForeignVZ, modifiedEditor.getOption(EditorOption.lineHeight));
 		this.originalModel = originalEditor.getModel()!;
 		this.modifiedEditorOptions = modifiedEditor.getOptions();
 		this.modifiedEditorTabSize = modifiedEditor.getModel()!.getOptions().tabSize;
