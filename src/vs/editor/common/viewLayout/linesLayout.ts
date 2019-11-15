@@ -16,6 +16,15 @@ export class EditorWhitespace {
 }
 
 /**
+ * An accessor that allows for whtiespace to be added, removed or changed in bulk.
+ */
+export interface IWhitespaceChangeAccessor {
+	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;
+	changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean;
+	removeWhitespace(id: string): boolean;
+}
+
+/**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
  *
  * These objects are basically either text (lines) or spaces between those lines (whitespaces).
@@ -146,6 +155,22 @@ export class LinesLayout {
 		this._lineCount = lineCount;
 	}
 
+	public changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T {
+		const accessor = {
+			insertWhitespace: (afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string => {
+				return this._insertWhitespace(afterLineNumber, ordinal, heightInPx, minWidth);
+			},
+			changeOneWhitespace: (id: string, newAfterLineNumber: number, newHeight: number): boolean => {
+				return this._changeOneWhitespace(id, newAfterLineNumber, newHeight);
+			},
+			removeWhitespace: (id: string): boolean => {
+				return this._removeWhitespace(id);
+			}
+		};
+		const r = callback(accessor);
+		return r;
+	}
+
 	/**
 	 * Insert a new whitespace of a certain height after a line number.
 	 * The whitespace has a "sticky" characteristic.
@@ -155,7 +180,7 @@ export class LinesLayout {
 	 * @param heightInPx The height of the whitespace, in pixels.
 	 * @return An id that can be used later to mutate or delete the whitespace
 	 */
-	public insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string {
+	private _insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string {
 		afterLineNumber = afterLineNumber | 0;
 		ordinal = ordinal | 0;
 		heightInPx = heightInPx | 0;
@@ -197,7 +222,7 @@ export class LinesLayout {
 	/**
 	 * Change properties associated with a certain whitespace.
 	 */
-	public changeWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean {
+	private _changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean {
 		newAfterLineNumber = newAfterLineNumber | 0;
 		newHeight = newHeight | 0;
 
@@ -253,7 +278,7 @@ export class LinesLayout {
 				const minWidth = this._minWidths[index];
 
 				// Since changing `afterLineNumber` can trigger a reordering, we're gonna remove this whitespace
-				this.removeWhitespace(id);
+				this._removeWhitespace(id);
 
 				// And add it again
 				const insertionIndex = LinesLayout.findInsertionIndex(this._afterLineNumbers, newAfterLineNumber, this._ordinals, ordinal);
@@ -271,7 +296,7 @@ export class LinesLayout {
 	 * @param id The whitespace to remove
 	 * @return Returns true if the whitespace is found and it is removed.
 	 */
-	public removeWhitespace(id: string): boolean {
+	private _removeWhitespace(id: string): boolean {
 		if (this._whitespaceId2Index.hasOwnProperty(id)) {
 			const index = this._whitespaceId2Index[id];
 			delete this._whitespaceId2Index[id];
