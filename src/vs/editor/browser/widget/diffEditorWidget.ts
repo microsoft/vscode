@@ -32,7 +32,7 @@ import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/s
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { InlineDecoration, InlineDecorationType, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
