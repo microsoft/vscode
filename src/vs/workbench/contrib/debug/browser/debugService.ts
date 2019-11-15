@@ -581,19 +581,19 @@ export class DebugService implements IDebugService {
 			return this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask);
 		};
 
-		if (session.capabilities.supportsRestartRequest) {
+		if (isExtensionHostDebugging(session.configuration)) {
 			const taskResult = await runTasks();
 			if (taskResult === TaskRunResult.Success) {
-				await session.restart();
+				this.extensionHostDebugService.reload(session.getId());
 			}
 
 			return;
 		}
 
-		if (isExtensionHostDebugging(session.configuration)) {
+		if (session.capabilities.supportsRestartRequest) {
 			const taskResult = await runTasks();
 			if (taskResult === TaskRunResult.Success) {
-				this.extensionHostDebugService.reload(session.getId());
+				await session.restart();
 			}
 
 			return;
