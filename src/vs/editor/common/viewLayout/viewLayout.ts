@@ -8,7 +8,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { LinesLayout, IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
+import { LinesLayout, EditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 
@@ -235,7 +235,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const visibleBox = this.getCurrentViewport();
 		return this._linesLayout.getWhitespaceViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
 	}
-	public getWhitespaces(): IEditorWhitespace[] {
+	public getWhitespaces(): EditorWhitespace[] {
 		return this._linesLayout.getWhitespaces();
 	}
 
