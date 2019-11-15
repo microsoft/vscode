@@ -27,7 +27,7 @@ export interface IOnStopCallback {
 	(): void;
 }
 
-export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData, currentEvent: MouseEvent): IStandardMouseMoveEventData {
+export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData | null, currentEvent: MouseEvent): IStandardMouseMoveEventData {
 	let ev = new StandardMouseEvent(currentEvent);
 	ev.preventDefault();
 	return {

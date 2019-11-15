@@ -307,7 +307,7 @@ export function registerEditorContribution<Services extends BrandedService[]>(id
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor);
 }
 
-export function registerDiffEditorContribution(id: string, ctor: IDiffEditorContributionCtor): void {
+export function registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
 	EditorContributionRegistry.INSTANCE.registerDiffEditorContribution(id, ctor);
 }
 
@@ -363,7 +363,7 @@ class EditorContributionRegistry {
 		return this.editorContributions.slice(0);
 	}
 
-	public registerDiffEditorContribution(id: string, ctor: IDiffEditorContributionCtor): void {
+	public registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
 		this.diffEditorContributions.push({ id, ctor });
 	}
 
