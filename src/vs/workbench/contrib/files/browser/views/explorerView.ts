@@ -667,10 +667,6 @@ export class ExplorerView extends ViewletPanel {
 		this.tree.collapseAll();
 	}
 
-	currentCompressedStat(): ExplorerItem | undefined {
-		return this.compressedNavigationController?.current;
-	}
-
 	previousCompressedStat(): void {
 		if (!this.compressedNavigationController) {
 			return;
