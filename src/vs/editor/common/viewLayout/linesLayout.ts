@@ -104,40 +104,20 @@ export class LinesLayout {
 	private static INSTANCE_COUNT = 0;
 
 	private readonly _instanceId: string;
-
 	private readonly _pendingChanges: PendingChanges;
-
-	private readonly _arr: EditorWhitespace[];
-
-	/**
-	 * _arr[i].prefixSum, 1 <= i <= prefixSumValidIndex can be trusted
-	 */
-	private _prefixSumValidIndex: number;
-
-	/**
-	 * last whitespace id issued
-	 */
 	private _lastWhitespaceId: number;
-
+	private _arr: EditorWhitespace[];
+	private _prefixSumValidIndex: number;
 	private _minWidth: number;
-
-	/**
-	 * Keep track of the total number of lines.
-	 * This is useful for doing binary searches or for doing hit-testing.
-	 */
 	private _lineCount: number;
-
-	/**
-	 * The height of a line in pixels.
-	 */
 	private _lineHeight: number;
 
 	constructor(lineCount: number, lineHeight: number) {
 		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
 		this._pendingChanges = new PendingChanges();
+		this._lastWhitespaceId = 0;
 		this._arr = [];
 		this._prefixSumValidIndex = -1;
-		this._lastWhitespaceId = 0;
 		this._minWidth = -1; /* marker for not being computed */
 		this._lineCount = lineCount;
 		this._lineHeight = lineHeight;
@@ -200,18 +180,15 @@ export class LinesLayout {
 					const id = this._instanceId + (++this._lastWhitespaceId);
 					this._pendingChanges.insert(new EditorWhitespace(id, afterLineNumber, ordinal, heightInPx, minWidth));
 					return id;
-					// return this._insertWhitespace(afterLineNumber, ordinal, heightInPx, minWidth);
 				},
 				changeOneWhitespace: (id: string, newAfterLineNumber: number, newHeight: number): void => {
 					newAfterLineNumber = newAfterLineNumber | 0;
 					newHeight = newHeight | 0;
 
 					this._pendingChanges.change({ id, newAfterLineNumber, newHeight });
-					// this._changeOneWhitespace(id, newAfterLineNumber, newHeight);
 				},
 				removeWhitespace: (id: string): void => {
 					this._pendingChanges.remove({ id });
-					// this._removeWhitespace(id);
 				}
 			};
 			return callback(accessor);
@@ -221,17 +198,24 @@ export class LinesLayout {
 	}
 
 	public _commitPendingChanges(inserts: EditorWhitespace[], changes: IPendingChange[], removes: IPendingRemove[]): void {
-		if (!false || inserts.length + changes.length + removes.length <= 1) {
+		if (inserts.length > 0 || removes.length > 0) {
+			this._minWidth = -1; /* marker for not being computed */
+		}
+
+		if (inserts.length + changes.length + removes.length <= 1) {
 			// when only one thing happened, handle it "delicately"
 			for (const insert of inserts) {
 				this._insertWhitespace(insert);
-				this._minWidth = -1; /* marker for not being computed */
 			}
 			for (const change of changes) {
 				this._changeOneWhitespace(change.id, change.newAfterLineNumber, change.newHeight);
 			}
 			for (const remove of removes) {
-				this._removeWhitespace(remove.id);
+				const index = this._findWhitespaceIndex(remove.id);
+				if (index === -1) {
+					continue;
+				}
+				this._removeWhitespace(index);
 			}
 			return;
 		}
@@ -248,12 +232,38 @@ export class LinesLayout {
 			toChange.set(change.id, change);
 		}
 
-		this._minWidth = -1; /* marker for not being computed */
+		const applyRemoveAndChange = (whitespaces: EditorWhitespace[]): EditorWhitespace[] => {
+			let result: EditorWhitespace[] = [];
+			for (const whitespace of whitespaces) {
+				if (toRemove.has(whitespace.id)) {
+					continue;
+				}
+				if (toChange.has(whitespace.id)) {
+					const change = toChange.get(whitespace.id)!;
+					whitespace.afterLineNumber = change.newAfterLineNumber;
+					whitespace.height = change.newHeight;
+				}
+				result.push(whitespace);
+			}
+			return result;
+		};
+
+		const result = applyRemoveAndChange(this._arr).concat(applyRemoveAndChange(inserts));
+		result.sort((a, b) => {
+			if (a.afterLineNumber === b.afterLineNumber) {
+				return a.ordinal - b.ordinal;
+			}
+			return a.afterLineNumber - b.afterLineNumber;
+		});
+
+		this._arr = result;
+		this._prefixSumValidIndex = -1;
 	}
 
 	private _checkPendingChanges(): void {
 		if (this._pendingChanges.mustCommit()) {
-			console.log(`I should commit pending changes!`);//TODO
+			console.warn(`Commiting pending changes before change accessor leaves due to read access.`);
+			this._pendingChanges.commit(this);
 		}
 	}
 
@@ -289,7 +299,7 @@ export class LinesLayout {
 			const whitespace = this._arr[index];
 
 			// Since changing `afterLineNumber` can trigger a reordering, we're gonna remove this whitespace
-			this._removeWhitespaceAtIndex(index);
+			this._removeWhitespace(index);
 
 			whitespace.afterLineNumber = newAfterLineNumber;
 
@@ -298,16 +308,7 @@ export class LinesLayout {
 		}
 	}
 
-	private _removeWhitespace(id: string): void {
-		const index = this._findWhitespaceIndex(id);
-		if (index === -1) {
-			return;
-		}
-		this._removeWhitespaceAtIndex(index);
-		this._minWidth = -1; /* marker for not being computed */
-	}
-
-	private _removeWhitespaceAtIndex(removeIndex: number): void {
+	private _removeWhitespace(removeIndex: number): void {
 		this._arr.splice(removeIndex, 1);
 		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, removeIndex - 1);
 	}
