@@ -647,9 +647,9 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 
 		common.toDispose.push(attachButtonStyler(openSettingsButton, this._themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: 'foreground'
+			buttonBackground: Color.fromHex('#0E639C').toString(),
+			buttonHoverBackground: Color.fromHex('#1177BB').toString(),
+			buttonForeground: Color.white.toString()
 		}));
 
 		const template: ISettingComplexItemTemplate = {
