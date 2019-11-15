@@ -51,6 +51,7 @@ export interface IExplorerService {
 	readonly onDidSelectResource: Event<{ resource?: URI, reveal?: boolean }>;
 	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>;
 
+	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	setEditable(stat: ExplorerItem, data: IEditableData | null): void;
 	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
@@ -66,7 +67,14 @@ export interface IExplorerService {
 	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
 	 */
 	select(resource: URI, reveal?: boolean): Promise<void>;
+
+	registerContextProvider(contextProvider: IContextProvider): void;
 }
+
+export interface IContextProvider {
+	getContext(respectMultiSelection: boolean): ExplorerItem[];
+}
+
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 /**

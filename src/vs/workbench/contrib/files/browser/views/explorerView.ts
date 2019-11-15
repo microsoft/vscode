@@ -112,6 +112,8 @@ export class ExplorerView extends ViewletPanel {
 		this.compressedFocusFirstContext = ExplorerCompressedFirstFocusContext.bindTo(contextKeyService);
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
 
+		this.explorerService.registerContextProvider(this);
+
 		const decorationProvider = new ExplorerDecorationsProvider(this.explorerService, contextService);
 		this._register(decorationService.registerDecorationsProvider(decorationProvider));
 		this._register(decorationProvider);
@@ -262,6 +264,21 @@ export class ExplorerView extends ViewletPanel {
 				this.editorService.openEditor({ resource: focused[0].resource, options: { preserveFocus: true, revealIfVisible: true } });
 			}
 		}
+	}
+
+	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+		const focus = this.tree.getFocus();
+		const stat = focus.length ? focus[0] : undefined;
+		if (!stat) {
+			return [];
+		}
+
+		const selection = this.tree.getSelection();
+		if (respectMultiSelection && selection.indexOf(stat) >= 0) {
+			return selection;
+		}
+
+		return [stat];
 	}
 
 	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
