@@ -36,26 +36,30 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 	return undefined;
 }
 
+const enum BufferOperationType { Close, Open, Change }
+
 class CloseOperation {
-	readonly type = 'close';
+	readonly type = BufferOperationType.Close;
 	constructor(
 		public readonly args: string
 	) { }
 }
 
 class OpenOperation {
-	readonly type = 'open';
+	readonly type = BufferOperationType.Open;
 	constructor(
 		public readonly args: Proto.OpenRequestArgs
 	) { }
 }
 
 class ChangeOperation {
-	readonly type = 'change';
+	readonly type = BufferOperationType.Change;
 	constructor(
 		public readonly args: Proto.FileCodeEdits
 	) { }
 }
+
+type BufferOperation = CloseOperation | OpenOperation | ChangeOperation;
 
 /**
  * Manages synchronization of buffers with the TS server.
@@ -64,7 +68,7 @@ class ChangeOperation {
  */
 class BufferSynchronizer {
 
-	private readonly _pending = new ResourceMap<CloseOperation | OpenOperation | ChangeOperation>();
+	private readonly _pending = new ResourceMap<BufferOperation>();
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -137,9 +141,9 @@ class BufferSynchronizer {
 			const changedFiles: Proto.FileCodeEdits[] = [];
 			for (const change of this._pending.values) {
 				switch (change.type) {
-					case 'change': changedFiles.push(change.args); break;
-					case 'open': openFiles.push(change.args); break;
-					case 'close': closedFiles.push(change.args); break;
+					case BufferOperationType.Change: changedFiles.push(change.args); break;
+					case BufferOperationType.Open: openFiles.push(change.args); break;
+					case BufferOperationType.Close: closedFiles.push(change.args); break;
 				}
 			}
 			this.client.execute('updateOpen', { changedFiles, closedFiles, openFiles }, nulToken, { nonRecoverable: true });
@@ -151,12 +155,12 @@ class BufferSynchronizer {
 		return this.client.apiVersion.gte(API.v340);
 	}
 
-	private updatePending(resource: vscode.Uri, op: CloseOperation | OpenOperation | ChangeOperation): void {
+	private updatePending(resource: vscode.Uri, op: BufferOperation): void {
 		switch (op.type) {
-			case 'close':
+			case BufferOperationType.Close:
 				const existing = this._pending.get(resource);
 				switch (existing?.type) {
-					case 'open':
+					case BufferOperationType.Open:
 						this._pending.delete(resource);
 						return; // Open then close. No need to do anything
 				}
