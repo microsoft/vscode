@@ -43,7 +43,7 @@ interface IBreakpointDecoration {
 }
 
 const breakpointHelperDecoration: IModelDecorationOptions = {
-	glyphMarginClassName: 'debug-breakpoint-hint',
+	glyphMarginClassName: 'codicon-debug-hint',
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -91,7 +91,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 	}
 
 	return {
-		glyphMarginClassName: className,
+		glyphMarginClassName: `${className}`,
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		beforeContentClassName: breakpoint.column ? `debug-breakpoint-placeholder` : undefined,
@@ -344,7 +344,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
 			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('debug') === -1) {
+				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('codicon-') === -1) {
 					return false;
 				}
 			}
@@ -422,7 +422,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
 			// In practice this happens for the first breakpoint that was set on a line
 			// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
-			const cssClass = candidate.breakpoint ? getBreakpointMessageAndClassName(this.debugService, candidate.breakpoint).className : 'debug-breakpoint-disabled';
+			const cssClass = candidate.breakpoint ? getBreakpointMessageAndClassName(this.debugService, candidate.breakpoint).className : 'codicon-debug-breakpoint-disabled';
 			const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
 			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, cssClass, candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 
@@ -543,6 +543,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 
 	private create(cssClass: string | null | undefined): void {
 		this.domNode = $('.inline-breakpoint-widget');
+		this.domNode.classList.add('codicon');
 		if (cssClass) {
 			this.domNode.classList.add(cssClass);
 		}
