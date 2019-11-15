@@ -41,7 +41,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import { ITask, sequence, disposableTimeout } from 'vs/base/common/async';
+import { ITask, sequence } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
@@ -53,7 +53,6 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
-import { domEvent } from 'vs/base/browser/event';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -260,50 +259,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			const compressedNavigationController = new CompressedNavigationController(node.element.elements, templateData);
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
 			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
-
-			// Compressed folders: drag over feedback
-			let dragOverElement: HTMLElement | undefined;
-			let dragLeaveTimeout: IDisposable = Disposable.None;
-			let dropTargetDisposable: IDisposable = Disposable.None;
-
-			domEvent(templateData.container, 'dragover')(e => {
-				dragLeaveTimeout.dispose();
-
-				const target = getIconLabelNameFromHTMLElement(e.target);
-
-				if (!target || target.index === target.count - 1) {
-					dropTargetDisposable.dispose();
-					return;
-				}
-
-				e.stopPropagation();
-
-				if (target.element === dragOverElement) {
-					return;
-				}
-
-				dragOverElement = target.element;
-				dropTargetDisposable.dispose();
-				dropTargetDisposable = toDisposable(() => {
-					DOM.removeClass(target.element, 'drop-target');
-					dragOverElement = undefined;
-				});
-				DOM.addClass(target.element, 'drop-target');
-			}, undefined, disposables);
-
-			domEvent(templateData.container, 'drop')(() => {
-				// TODO@joao drop
-			}, undefined, disposables);
-
-			domEvent(templateData.container, 'dragleave')(() => {
-				dragLeaveTimeout.dispose();
-				dragLeaveTimeout = disposableTimeout(() => dropTargetDisposable.dispose(), 100);
-			}, undefined, disposables);
-
-			domEvent(window, 'dragend')(() => {
-				dragLeaveTimeout.dispose();
-				dropTargetDisposable.dispose();
-			}, undefined, disposables);
 
 			templateData.elementDisposable = disposables;
 		}
@@ -603,6 +558,9 @@ const fileOverwriteConfirm: IConfirmation = {
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
+	private compressedDragOverElement: HTMLElement | undefined;
+	private compressedDropTargetDisposable: IDisposable = Disposable.None;
+
 	private toDispose: IDisposable[];
 	private dropEnabled = false;
 
@@ -633,6 +591,42 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			return false;
 		}
 
+		// Compressed folders
+		if (target) {
+			const compressedTarget = FileDragAndDrop.getCompressedStatFromDragEvent(target, originalEvent);
+
+			if (compressedTarget) {
+				const iconLabelName = getIconLabelNameFromHTMLElement(originalEvent.target);
+
+				if (iconLabelName && iconLabelName.index < iconLabelName.count - 1) {
+					const result = this._onDragOver(data, compressedTarget, targetIndex, originalEvent);
+
+					if (result) {
+						if (iconLabelName.element !== this.compressedDragOverElement) {
+							this.compressedDragOverElement = iconLabelName.element;
+							this.compressedDropTargetDisposable.dispose();
+							this.compressedDropTargetDisposable = toDisposable(() => {
+								DOM.removeClass(iconLabelName.element, 'drop-target');
+								this.compressedDragOverElement = undefined;
+							});
+
+							DOM.addClass(iconLabelName.element, 'drop-target');
+						}
+
+						return typeof result === 'boolean' ? result : { ...result, feedback: [] };
+					}
+
+					this.compressedDropTargetDisposable.dispose();
+					return false;
+				}
+			}
+		}
+
+		this.compressedDropTargetDisposable.dispose();
+		return this._onDragOver(data, target, targetIndex, originalEvent);
+	}
+
+	private _onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
 		const fromDesktop = data instanceof DesktopDragAndDropData;
 		const effect = (fromDesktop || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
@@ -751,6 +745,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+		this.compressedDropTargetDisposable.dispose();
+
+		// Find compressed target
+		if (target) {
+			const compressedTarget = FileDragAndDrop.getCompressedStatFromDragEvent(target, originalEvent);
+
+			if (compressedTarget) {
+				target = compressedTarget;
+			}
+		}
+
 		// Find parent to add to
 		if (!target) {
 			target = this.explorerService.roots[this.explorerService.roots.length - 1];
@@ -772,7 +777,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 		// In-Explorer DND (Move/Copy file)
 		else {
-			this.handleExplorerDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
+			this.handleExplorerDrop(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
 		}
 	}
 
@@ -892,8 +897,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	private async handleExplorerDrop(data: IDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
-		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>);
+	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
 		const items = distinctParents(elementsData, s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
@@ -1021,8 +1026,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return data.elements;
 	}
 
-	private static getCompressedStatFromDragEvent(stat: ExplorerItem, dragStartEvent: DragEvent): ExplorerItem {
-		const target = document.elementFromPoint(dragStartEvent.clientX, dragStartEvent.clientY);
+	private static getCompressedStatFromDragEvent(stat: ExplorerItem, dragEvent: DragEvent): ExplorerItem {
+		const target = document.elementFromPoint(dragEvent.clientX, dragEvent.clientY);
 		const iconLabelName = getIconLabelNameFromHTMLElement(target);
 
 		if (iconLabelName) {
@@ -1038,6 +1043,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		return stat;
+	}
+
+	onDragEnd(): void {
+		this.compressedDropTargetDisposable.dispose();
 	}
 }
 
