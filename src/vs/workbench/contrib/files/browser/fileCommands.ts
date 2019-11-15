@@ -11,7 +11,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, IExplorerService, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -19,7 +19,7 @@ import { ISaveOptions } from 'vs/workbench/services/workingCopy/common/workingCo
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -79,6 +79,11 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
+
+export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
+export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
+export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
+export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -601,5 +606,83 @@ CommandsRegistry.registerCommand({
 		);
 
 		return workspaceEditingService.removeFolders(resources);
+	}
+});
+
+// Compressed item navigation
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib + 10,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
+	primary: KeyCode.LeftArrow,
+	id: PREVIOUS_COMPRESSED_FOLDER,
+	handler: (accessor) => {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = viewletService.getActiveViewlet();
+
+		if (viewlet?.getId() !== VIEWLET_ID) {
+			return;
+		}
+
+		const explorer = viewlet as ExplorerViewlet;
+		const view = explorer.getExplorerView();
+		view.previousCompressedStat();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib + 10,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
+	primary: KeyCode.RightArrow,
+	id: NEXT_COMPRESSED_FOLDER,
+	handler: (accessor) => {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = viewletService.getActiveViewlet();
+
+		if (viewlet?.getId() !== VIEWLET_ID) {
+			return;
+		}
+
+		const explorer = viewlet as ExplorerViewlet;
+		const view = explorer.getExplorerView();
+		view.nextCompressedStat();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib + 10,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
+	primary: KeyCode.Home,
+	id: FIRST_COMPRESSED_FOLDER,
+	handler: (accessor) => {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = viewletService.getActiveViewlet();
+
+		if (viewlet?.getId() !== VIEWLET_ID) {
+			return;
+		}
+
+		const explorer = viewlet as ExplorerViewlet;
+		const view = explorer.getExplorerView();
+		view.firstCompressedStat();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib + 10,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
+	primary: KeyCode.End,
+	id: LAST_COMPRESSED_FOLDER,
+	handler: (accessor) => {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = viewletService.getActiveViewlet();
+
+		if (viewlet?.getId() !== VIEWLET_ID) {
+			return;
+		}
+
+		const explorer = viewlet as ExplorerViewlet;
+		const view = explorer.getExplorerView();
+		view.lastCompressedStat();
 	}
 });

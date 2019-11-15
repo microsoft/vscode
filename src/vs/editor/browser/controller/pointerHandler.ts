@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
@@ -283,7 +284,7 @@ export class PointerHandler extends Disposable {
 		super();
 		if (window.navigator.msPointerEnabled) {
 			this.handler = this._register(new MsPointerHandler(context, viewController, viewHelper));
-		} else if (((<any>window).PointerEvent && BrowserFeatures.pointerEvents)) {
+		} else if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if ((<any>window).TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));

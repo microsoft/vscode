@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { IframeUtils } from 'vs/base/browser/iframe';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -85,8 +86,8 @@ export class GlobalMouseMoveMonitor<R> implements IDisposable {
 		this.onStopCallback = onStopCallback;
 
 		let windowChain = IframeUtils.getSameOriginWindowChain();
-		const mouseMove = BrowserFeatures.pointerEvents ? 'pointermove' : 'mousemove';
-		const mouseUp = BrowserFeatures.pointerEvents ? 'pointerup' : 'mouseup';
+		const mouseMove = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointermove' : 'mousemove';
+		const mouseUp = platform.isIOS && BrowserFeatures.pointerEvents ? 'pointerup' : 'mouseup';
 		for (const element of windowChain) {
 			this.hooks.add(dom.addDisposableThrottledListener(element.window.document, mouseMove,
 				(data: R) => this.mouseMoveCallback!(data),
