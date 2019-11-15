@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
+import { LinesLayout, InternalWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 
 suite('Editor ViewLayout - LinesLayout', () => {
 
@@ -13,15 +13,15 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		});
 	}
 
-	function changeOneWhitespace(linesLayout: LinesLayout, id: string, newAfterLineNumber: number, newHeight: number): boolean {
-		return linesLayout.changeWhitespace((accessor) => {
-			return accessor.changeOneWhitespace(id, newAfterLineNumber, newHeight);
+	function changeOneWhitespace(linesLayout: LinesLayout, id: string, newAfterLineNumber: number, newHeight: number): void {
+		linesLayout.changeWhitespace((accessor) => {
+			accessor.changeOneWhitespace(id, newAfterLineNumber, newHeight);
 		});
 	}
 
-	function removeWhitespace(linesLayout: LinesLayout, id: string): boolean {
-		return linesLayout.changeWhitespace((accessor) => {
-			return accessor.removeWhitespace(id);
+	function removeWhitespace(linesLayout: LinesLayout, id: string): void {
+		linesLayout.changeWhitespace((accessor) => {
+			accessor.removeWhitespace(id);
 		});
 	}
 
@@ -845,136 +845,121 @@ suite('Editor ViewLayout - LinesLayout', () => {
 
 	test('LinesLayout findInsertionIndex', () => {
 
-		const makeArray = (size: number, fillValue: number) => {
-			let r: number[] = [];
-			for (let i = 0; i < size; i++) {
-				r[i] = fillValue;
-			}
-			return r;
+		const makeInternalWhitespace = (afterLineNumbers: number[], ordinal: number = 0) => {
+			return afterLineNumbers.map((afterLineNumber) => new InternalWhitespace('', afterLineNumber, ordinal, 0, 0));
 		};
 
-		let arr: number[];
-		let ordinals: number[];
+		let arr: InternalWhitespace[];
 
-		arr = [];
-		ordinals = makeArray(arr.length, 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 0);
+		arr = makeInternalWhitespace([]);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 0);
 
-		arr = [1];
-		ordinals = makeArray(arr.length, 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		arr = makeInternalWhitespace([1]);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 1);
 
-		arr = [1, 3];
-		ordinals = makeArray(arr.length, 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 4, ordinals, 0), 2);
+		arr = makeInternalWhitespace([1, 3]);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 3, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 4, 0), 2);
 
-		arr = [1, 3, 5];
-		ordinals = makeArray(arr.length, 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 6, ordinals, 0), 3);
+		arr = makeInternalWhitespace([1, 3, 5]);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 3, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 4, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 5, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 6, 0), 3);
 
-		arr = [1, 3, 5];
-		ordinals = makeArray(arr.length, 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 3, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 5, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 6, ordinals, 0), 3);
+		arr = makeInternalWhitespace([1, 3, 5], 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 3, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 4, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 5, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 6, 0), 3);
 
-		arr = [1, 3, 5, 7];
-		ordinals = makeArray(arr.length, 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 8, ordinals, 0), 4);
+		arr = makeInternalWhitespace([1, 3, 5, 7]);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 3, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 4, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 5, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 6, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 7, 0), 4);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 8, 0), 4);
 
-		arr = [1, 3, 5, 7, 9];
-		ordinals = makeArray(arr.length, 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 8, ordinals, 0), 4);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 9, ordinals, 0), 5);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 10, ordinals, 0), 5);
+		arr = makeInternalWhitespace([1, 3, 5, 7, 9]);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 3, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 4, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 5, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 6, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 7, 0), 4);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 8, 0), 4);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 9, 0), 5);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 10, 0), 5);
 
-		arr = [1, 3, 5, 7, 9, 11];
-		ordinals = makeArray(arr.length, 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 8, ordinals, 0), 4);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 9, ordinals, 0), 5);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 10, ordinals, 0), 5);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 11, ordinals, 0), 6);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 12, ordinals, 0), 6);
+		arr = makeInternalWhitespace([1, 3, 5, 7, 9, 11]);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 3, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 4, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 5, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 6, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 7, 0), 4);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 8, 0), 4);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 9, 0), 5);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 10, 0), 5);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 11, 0), 6);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 12, 0), 6);
 
-		arr = [1, 3, 5, 7, 9, 11, 13];
-		ordinals = makeArray(arr.length, 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 8, ordinals, 0), 4);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 9, ordinals, 0), 5);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 10, ordinals, 0), 5);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 11, ordinals, 0), 6);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 12, ordinals, 0), 6);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 13, ordinals, 0), 7);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 14, ordinals, 0), 7);
+		arr = makeInternalWhitespace([1, 3, 5, 7, 9, 11, 13]);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 3, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 4, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 5, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 6, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 7, 0), 4);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 8, 0), 4);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 9, 0), 5);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 10, 0), 5);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 11, 0), 6);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 12, 0), 6);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 13, 0), 7);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 14, 0), 7);
 
-		arr = [1, 3, 5, 7, 9, 11, 13, 15];
-		ordinals = makeArray(arr.length, 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 8, ordinals, 0), 4);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 9, ordinals, 0), 5);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 10, ordinals, 0), 5);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 11, ordinals, 0), 6);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 12, ordinals, 0), 6);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 13, ordinals, 0), 7);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 14, ordinals, 0), 7);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 15, ordinals, 0), 8);
-		assert.equal(LinesLayout.findInsertionIndex(arr, 16, ordinals, 0), 8);
+		arr = makeInternalWhitespace([1, 3, 5, 7, 9, 11, 13, 15]);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 0, 0), 0);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 1, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 2, 0), 1);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 3, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 4, 0), 2);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 5, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 6, 0), 3);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 7, 0), 4);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 8, 0), 4);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 9, 0), 5);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 10, 0), 5);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 11, 0), 6);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 12, 0), 6);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 13, 0), 7);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 14, 0), 7);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 15, 0), 8);
+		assert.equal(LinesLayout.findInsertionIndex(arr, 16, 0), 8);
 	});
 
 	test('LinesLayout changeWhitespaceAfterLineNumber & getFirstWhitespaceIndexAfterLineNumber', () => {

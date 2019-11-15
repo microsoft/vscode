@@ -13,7 +13,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
+import { IWhitespaceChangeAccessor, EditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 
 export interface IMyViewZone {
 	whitespaceId: string;
@@ -74,6 +74,11 @@ export class ViewZones extends ViewPart {
 	// ---- begin view event handlers
 
 	private _recomputeWhitespacesProps(): boolean {
+		const whitespaces = this._context.viewLayout.getWhitespaces();
+		const oldWhitespaces = new Map<string, EditorWhitespace>();
+		for (const whitespace of whitespaces) {
+			oldWhitespaces.set(whitespace.id, whitespace);
+		}
 		return this._context.viewLayout.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
 			let hadAChange = false;
 
@@ -82,7 +87,9 @@ export class ViewZones extends ViewPart {
 				const id = keys[i];
 				const zone = this._zones[id];
 				const props = this._computeWhitespaceProps(zone.delegate);
-				if (whitespaceAccessor.changeOneWhitespace(id, props.afterViewLineNumber, props.heightInPx)) {
+				const oldWhitespace = oldWhitespaces.get(id);
+				if (oldWhitespace && (oldWhitespace.afterLineNumber !== props.afterViewLineNumber || oldWhitespace.heightInPx !== props.heightInPx)) {
+					whitespaceAccessor.changeOneWhitespace(id, props.afterViewLineNumber, props.heightInPx);
 					this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
 					hadAChange = true;
 				}
@@ -286,20 +293,19 @@ export class ViewZones extends ViewPart {
 	}
 
 	private _layoutZone(whitespaceAccessor: IWhitespaceChangeAccessor, id: string): boolean {
-		let changed = false;
 		if (this._zones.hasOwnProperty(id)) {
 			const zone = this._zones[id];
 			const props = this._computeWhitespaceProps(zone.delegate);
 			// const newOrdinal = this._getZoneOrdinal(zone.delegate);
-			changed = whitespaceAccessor.changeOneWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx) || changed;
+			whitespaceAccessor.changeOneWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx);
 			// TODO@Alex: change `newOrdinal` too
 
-			if (changed) {
-				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
-				this.setShouldRender();
-			}
+			this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
+			this.setShouldRender();
+
+			return true;
 		}
-		return changed;
+		return false;
 	}
 
 	public shouldSuppressMouseDownOnViewZone(id: string): boolean {
