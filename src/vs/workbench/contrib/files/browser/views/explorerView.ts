@@ -452,7 +452,7 @@ export class ExplorerView extends ViewletPanel {
 		const disposables = new DisposableStore();
 		let stat = e.element;
 
-		// compressed node context menu
+		// Compressed folders
 		if (stat) {
 			const result = getIconLabelNameFromHTMLElement(e.browserEvent.target);
 
