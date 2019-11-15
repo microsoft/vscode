@@ -138,26 +138,8 @@ export class EditorGroup extends Disposable {
 		return mru ? this.mru.slice(0) : this.editors.slice(0);
 	}
 
-	getEditor(index: number): EditorInput | undefined;
-	getEditor(resource: URI): EditorInput | undefined;
-	getEditor(arg1: number | URI): EditorInput | undefined {
-		if (typeof arg1 === 'number') {
-			return this.editors[arg1];
-		}
-
-		const resource: URI = arg1;
-		if (!this.containsEditorByResource(resource, SideBySideEditor.MASTER)) {
-			return undefined; // fast check for resource opened or not
-		}
-
-		for (const editor of this.editors) {
-			const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
-			if (editorResource?.toString() === resource.toString()) {
-				return editor;
-			}
-		}
-
-		return undefined;
+	getEditorByIndex(index: number): EditorInput | undefined {
+		return this.editors[index];
 	}
 
 	get activeEditor(): EditorInput | null {

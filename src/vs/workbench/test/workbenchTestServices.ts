@@ -809,7 +809,7 @@ export class TestEditorGroup implements IEditorGroupView {
 		return [];
 	}
 
-	getEditor(_index: number): IEditorInput {
+	getEditorByIndex(_index: number): IEditorInput {
 		throw new Error('not implemented');
 	}
 

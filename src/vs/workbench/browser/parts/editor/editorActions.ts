@@ -507,7 +507,7 @@ export class CloseOneEditorAction extends Action {
 
 		// Close specific editor in group
 		if (typeof editorIndex === 'number') {
-			const editorAtIndex = group.getEditor(editorIndex);
+			const editorAtIndex = group.getEditorByIndex(editorIndex);
 			if (editorAtIndex) {
 				return group.closeEditor(editorAtIndex);
 			}

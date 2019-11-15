@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroup, ISerializedEditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
-import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection, SideBySideEditor } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection, SideBySideEditor, toResource } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, TestContextService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -1170,25 +1170,40 @@ suite('Workbench editor groups', () => {
 		const group1 = createGroup();
 		const group2 = createGroup();
 
+		function getEditorByResource(group: EditorGroup, resource: URI): EditorInput | undefined {
+			if (!group.containsEditorByResource(resource)) {
+				return undefined; // fast check for resource opened or not
+			}
+
+			for (const editor of group.getEditors()) {
+				const editorResource = toResource(editor);
+				if (editorResource?.toString() === resource.toString()) {
+					return editor;
+				}
+			}
+
+			return undefined;
+		}
+
 		const input1Resource = URI.file('/hello/world.txt');
 		const input1ResourceUpper = URI.file('/hello/WORLD.txt');
 		const input1 = input(undefined, false, input1Resource);
 		group1.openEditor(input1);
 
 		assert.ok(group1.containsEditorByResource(input1Resource));
-		assert.equal(group1.getEditor(input1Resource), input1);
+		assert.equal(getEditorByResource(group1, input1Resource), input1);
 
-		assert.ok(!group1.getEditor(input1ResourceUpper));
+		assert.ok(!getEditorByResource(group1, input1ResourceUpper));
 		assert.ok(!group1.containsEditorByResource(input1ResourceUpper));
 
 		group2.openEditor(input1);
 		group1.closeEditor(input1);
 
 		assert.ok(!group1.containsEditorByResource(input1Resource));
-		assert.ok(!group1.getEditor(input1Resource));
-		assert.ok(!group1.getEditor(input1ResourceUpper));
+		assert.ok(!getEditorByResource(group1, input1Resource));
+		assert.ok(!getEditorByResource(group1, input1ResourceUpper));
 		assert.ok(group2.containsEditorByResource(input1Resource));
-		assert.equal(group2.getEditor(input1Resource), input1);
+		assert.equal(getEditorByResource(group2, input1Resource), input1);
 
 		const input1ResourceClone = URI.file('/hello/world.txt');
 		const input1Clone = input(undefined, false, input1ResourceClone);
@@ -1199,7 +1214,7 @@ suite('Workbench editor groups', () => {
 		group2.closeEditor(input1);
 
 		assert.ok(group1.containsEditorByResource(input1Resource));
-		assert.equal(group1.getEditor(input1Resource), input1Clone);
+		assert.equal(getEditorByResource(group1, input1Resource), input1Clone);
 		assert.ok(!group2.containsEditorByResource(input1Resource));
 
 		group1.closeEditor(input1Clone);
