@@ -239,7 +239,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			}
 			this.ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber);
 		}));
-		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
+		this.toDispose.push(this.editor.onMouseLeave(() => {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
 

@@ -810,9 +810,9 @@ export class DebugModel implements IDebugModel {
 	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsActivated = true;
-	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent | undefined>;
-	private readonly _onDidChangeCallStack: Emitter<void>;
-	private readonly _onDidChangeWatchExpressions: Emitter<IExpression | undefined>;
+	private readonly _onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent | undefined>();
+	private readonly _onDidChangeCallStack = new Emitter<void>();
+	private readonly _onDidChangeWatchExpressions = new Emitter<IExpression | undefined>();
 
 	constructor(
 		private breakpoints: Breakpoint[],
@@ -824,9 +824,6 @@ export class DebugModel implements IDebugModel {
 	) {
 		this.sessions = [];
 		this.toDispose = [];
-		this._onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent>();
-		this._onDidChangeCallStack = new Emitter<void>();
-		this._onDidChangeWatchExpressions = new Emitter<IExpression>();
 	}
 
 	getId(): string {
