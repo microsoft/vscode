@@ -764,7 +764,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			this.handleExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
+			if (isWeb) {
+				this.handleWebExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
+			} else {
+				this.handleExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
+			}
 		}
 		// In-Explorer DND (Move/Copy file)
 		else {
@@ -772,33 +776,31 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
-		if (isWeb) {
-			data.files.forEach(file => {
-				const reader = new FileReader();
-				reader.readAsArrayBuffer(file);
-				reader.onload = async (event) => {
-					const name = file.name;
-					if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
-						if (target.getChild(name)) {
-							const { confirmed } = await this.dialogService.confirm(fileOverwriteConfirm);
-							if (!confirmed) {
-								return;
-							}
-						}
-
-						const resource = joinPath(target.resource, name);
-						await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target?.result)));
-						if (data.files.length === 1) {
-							await this.editorService.openEditor({ resource, options: { pinned: true } });
+	private async handleWebExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+		data.files.forEach(file => {
+			const reader = new FileReader();
+			reader.readAsArrayBuffer(file);
+			reader.onload = async (event) => {
+				const name = file.name;
+				if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
+					if (target.getChild(name)) {
+						const { confirmed } = await this.dialogService.confirm(fileOverwriteConfirm);
+						if (!confirmed) {
+							return;
 						}
 					}
-				};
-			});
 
-			return;
-		}
+					const resource = joinPath(target.resource, name);
+					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target?.result)));
+					if (data.files.length === 1) {
+						await this.editorService.openEditor({ resource, options: { pinned: true } });
+					}
+				}
+			};
+		});
+	}
 
+	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
 		// Check for dropped external files to be folders
 		const result = await this.fileService.resolveAll(droppedResources);
