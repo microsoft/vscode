@@ -5,7 +5,7 @@
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IViewZone } from 'vs/editor/browser/editorBrowser';
+import { IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -13,7 +13,6 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-
 
 export interface IMyViewZone {
 	whitespaceId: string;
@@ -28,6 +27,8 @@ interface IComputedViewZoneProps {
 	heightInPx: number;
 	minWidthInPx: number;
 }
+
+const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class ViewZones extends ViewPart {
 
@@ -138,7 +139,6 @@ export class ViewZones extends ViewPart {
 		return 10000;
 	}
 
-
 	private _computeWhitespaceProps(zone: IViewZone): IComputedViewZoneProps {
 		if (zone.afterLineNumber === 0) {
 			return {
@@ -186,6 +186,39 @@ export class ViewZones extends ViewPart {
 			heightInPx: (isVisible ? this._heightInPixels(zone) : 0),
 			minWidthInPx: this._minWidthInPixels(zone)
 		};
+	}
+
+	public changeViewZones(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
+
+		let zonesHaveChanged = false;
+
+		const changeAccessor: IViewZoneChangeAccessor = {
+			addZone: (zone: IViewZone): string => {
+				zonesHaveChanged = true;
+				return this.addZone(zone);
+			},
+			removeZone: (id: string): void => {
+				if (!id) {
+					return;
+				}
+				zonesHaveChanged = this.removeZone(id) || zonesHaveChanged;
+			},
+			layoutZone: (id: string): void => {
+				if (!id) {
+					return;
+				}
+				zonesHaveChanged = this.layoutZone(id) || zonesHaveChanged;
+			}
+		};
+
+		safeInvoke1Arg(callback, changeAccessor);
+
+		// Invalidate changeAccessor
+		changeAccessor.addZone = invalidFunc;
+		changeAccessor.removeZone = invalidFunc;
+		changeAccessor.layoutZone = invalidFunc;
+
+		return zonesHaveChanged;
 	}
 
 	public addZone(zone: IViewZone): string {
@@ -363,5 +396,13 @@ export class ViewZones extends ViewPart {
 			this.domNode.setWidth(Math.max(ctx.scrollWidth, this._contentWidth));
 			this.marginDomNode.setWidth(this._contentLeft);
 		}
+	}
+}
+
+function safeInvoke1Arg(func: Function, arg1: any): any {
+	try {
+		return func(arg1);
+	} catch (e) {
+		onUnexpectedError(e);
 	}
 }
