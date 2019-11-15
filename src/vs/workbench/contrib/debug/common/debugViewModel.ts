@@ -17,9 +17,9 @@ export class ViewModel implements IViewModel {
 	private _focusedThread: IThread | undefined;
 	private selectedExpression: IExpression | undefined;
 	private selectedFunctionBreakpoint: IFunctionBreakpoint | undefined;
-	private readonly _onDidFocusSession: Emitter<IDebugSession | undefined>;
-	private readonly _onDidFocusStackFrame: Emitter<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
-	private readonly _onDidSelectExpression: Emitter<IExpression | undefined>;
+	private readonly _onDidFocusSession = new Emitter<IDebugSession | undefined>();
+	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined, explicit: boolean }>();
+	private readonly _onDidSelectExpression = new Emitter<IExpression | undefined>();
 	private multiSessionView: boolean;
 	private expressionSelectedContextKey: IContextKey<boolean>;
 	private breakpointSelectedContextKey: IContextKey<boolean>;
@@ -30,9 +30,6 @@ export class ViewModel implements IViewModel {
 	private jumpToCursorSupported: IContextKey<boolean>;
 
 	constructor(contextKeyService: IContextKeyService) {
-		this._onDidFocusSession = new Emitter<IDebugSession | undefined>();
-		this._onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame, explicit: boolean }>();
-		this._onDidSelectExpression = new Emitter<IExpression>();
 		this.multiSessionView = false;
 		this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
 		this.breakpointSelectedContextKey = CONTEXT_BREAKPOINT_SELECTED.bindTo(contextKeyService);

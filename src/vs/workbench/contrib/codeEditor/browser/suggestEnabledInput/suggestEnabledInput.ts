@@ -82,7 +82,7 @@ export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
 }
 
 type ISuggestEnabledInputStyles = {
-	[P in keyof ISuggestEnabledInputStyleOverrides]: Color;
+	[P in keyof ISuggestEnabledInputStyleOverrides]: Color | undefined;
 };
 
 export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {

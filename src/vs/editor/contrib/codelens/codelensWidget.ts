@@ -15,7 +15,6 @@ import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegis
 import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
 
@@ -61,31 +60,22 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	private readonly _commands = new Map<string, Command>();
 
 	private _widgetPosition?: editorBrowser.IContentWidgetPosition;
+	private _isEmpty: boolean = true;
 
 	constructor(
 		editor: editorBrowser.ICodeEditor,
+		className: string,
 		symbolRange: Range,
 		lenses: Array<CodeLens | undefined | null>
 	) {
-		this._id = 'codeLensWidget' + (++CodeLensContentWidget._idPool);
 		this._editor = editor;
+		this._id = (CodeLensContentWidget._idPool++).toString();
 
 		this.setSymbolRange(symbolRange);
 
 		this._domNode = document.createElement('span');
-		this._domNode.className = 'codelens-decoration';
-		this.updateHeight();
+		this._domNode.className = `codelens-decoration ${className}`;
 		this.withCommands(lenses, false);
-	}
-
-	updateHeight(): void {
-		const options = this._editor.getOptions();
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const lineHeight = options.get(EditorOption.lineHeight);
-		this._domNode.style.height = `${Math.round(lineHeight * 1.1)}px`;
-		this._domNode.style.lineHeight = `${lineHeight}px`;
-		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * 0.9)}px`;
-		this._domNode.style.paddingRight = `${Math.round(fontInfo.fontSize * 0.45)}px`;
 	}
 
 	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
@@ -119,12 +109,15 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 		} else {
 			// symbols and commands
-			const wasEmpty = this._domNode.innerHTML === '' || this._domNode.innerHTML === '&nbsp;';
-			this._domNode.innerHTML = innerHtml || '&nbsp;';
+			if (!innerHtml) {
+				innerHtml = '&nbsp;';
+			}
+			this._domNode.innerHTML = innerHtml;
 			this._editor.layoutContentWidget(this);
-			if (wasEmpty && animate) {
+			if (this._isEmpty && animate) {
 				dom.addClass(this._domNode, 'fadein');
 			}
+			this._isEmpty = false;
 		}
 	}
 
@@ -208,6 +201,7 @@ export class CodeLensWidget {
 	constructor(
 		data: CodeLensItem[],
 		editor: editorBrowser.ICodeEditor,
+		className: string,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor,
 		updateCallback: Function
@@ -236,7 +230,7 @@ export class CodeLensWidget {
 		});
 
 		if (range) {
-			this._contentWidget = new CodeLensContentWidget(editor, range, lenses);
+			this._contentWidget = new CodeLensContentWidget(editor, className, range, lenses);
 			this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallback);
 
 			this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
@@ -304,10 +298,6 @@ export class CodeLensWidget {
 				symbol.command = resolved.command || symbol.command;
 			}
 		}
-	}
-
-	updateHeight(): void {
-		this._contentWidget.updateHeight();
 	}
 
 	getCommand(link: HTMLLinkElement): Command | undefined {

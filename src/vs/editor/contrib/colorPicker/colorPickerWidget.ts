@@ -6,7 +6,7 @@
 import 'vs/css!./colorPicker';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger, GlobalPointerMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
+import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color, HSVA, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -157,11 +157,7 @@ class SaturationBox extends Disposable {
 	}
 
 	private onMouseDown(e: MouseEvent): void {
-		this.monitor = this._register(
-			BrowserFeatures.pointerEvents
-				? new GlobalPointerMoveMonitor<IStandardMouseMoveEventData>()
-				: new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>()
-		);
+		this.monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		const origin = dom.getDomNodePagePosition(this.domNode);
 
 		if (e.target !== this.selection) {
@@ -267,11 +263,7 @@ abstract class Strip extends Disposable {
 	}
 
 	private onMouseDown(e: MouseEvent): void {
-		const monitor = this._register(
-			BrowserFeatures.pointerEvents
-				? new GlobalPointerMoveMonitor<IStandardMouseMoveEventData>()
-				: new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>()
-		);
+		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		const origin = dom.getDomNodePagePosition(this.domNode);
 		dom.addClass(this.domNode, 'grabbing');
 

@@ -19,6 +19,23 @@
 	display: flex;
 }
 
+.monaco-workbench.windows .part.titlebar,
+.monaco-workbench.linux .part.titlebar,
+.monaco-workbench.web .part.titlebar {
+	/*
+	 * Explicitly put the part onto its own layer to help Chrome to
+	 * render the content with LCD-anti-aliasing. By partioning the
+	 * workbench into multiple layers, we can ensure that a bad
+	 * behaving part is not making another part fallback to greyscale
+	 * rendering.
+	 *
+	 * macOS: does not render LCD-anti-aliased.
+	 */
+	transform: translate3d(0px, 0px, 0px);
+	position: relative;
+	z-index: 1000;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-drag-region {
 	top: 0;
 	left: 0;
@@ -103,6 +120,7 @@
 	height: 100%;
 	width: 138px;
 	margin-left: auto;
+	transform: translate3d(0px, 0px, 0px);
 }
 
 .monaco-workbench.fullscreen .part.titlebar > .window-controls-container {

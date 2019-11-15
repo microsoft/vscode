@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
-import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, WorkingCopyCapabilities, SaveReason, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export interface IBackupMetaData {
@@ -252,9 +252,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
 	}
 
-	async revert(soft?: boolean): Promise<void> {
+	async revert(options?: IRevertOptions): Promise<boolean> {
 		if (!this.isResolved()) {
-			return;
+			return false;
 		}
 
 		// Cancel any running auto-save
@@ -265,7 +265,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const undo = this.setDirty(false);
 
 		// Force read from disk unless reverting soft
-		if (!soft) {
+		const softUndo = options?.soft;
+		if (!softUndo) {
 			try {
 				await this.load({ forceReadFromDisk: true });
 			} catch (error) {
@@ -284,6 +285,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (wasDirty) {
 			this._onDidChangeDirty.fire();
 		}
+
+		return true;
 	}
 
 	async load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
@@ -612,9 +615,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoSaveDisposable.value = toDisposable(() => clearTimeout(handle));
 	}
 
-	async save(options: ISaveOptions = Object.create(null)): Promise<void> {
+	async save(options: ITextFileSaveOptions = Object.create(null)): Promise<boolean> {
 		if (!this.isResolved()) {
-			return;
+			return false;
 		}
 
 		this.logService.trace('save() - enter', this.resource);
@@ -622,10 +625,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.autoSaveDisposable.clear();
 
-		return this.doSave(this.versionId, options);
+		await this.doSave(this.versionId, options);
+
+		return true;
 	}
 
-	private doSave(versionId: number, options: ISaveOptions): Promise<void> {
+	private doSave(versionId: number, options: ITextFileSaveOptions): Promise<void> {
 		if (isUndefinedOrNull(options.reason)) {
 			options.reason = SaveReason.EXPLICIT;
 		}

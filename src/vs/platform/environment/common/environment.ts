@@ -86,6 +86,7 @@ export interface ParsedArgs {
 	'disable-gpu'?: boolean;
 	'nolazy'?: boolean;
 	'force-device-scale-factor'?: string;
+	'force-renderer-accessibility'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

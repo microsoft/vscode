@@ -21,7 +21,7 @@ import { WebviewEditor } from '../browser/webviewEditor';
 import { WebviewInput } from '../browser/webviewEditorInput';
 import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
 
-(Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
+(Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(EditorDescriptor.create(
 	WebviewEditor,
 	WebviewEditor.ID,
 	localize('webview.editor.label', "webview editor")),
@@ -85,6 +85,6 @@ function registerWebViewCommands(editorId: string): void {
 registerWebViewCommands(WebviewEditor.ID);
 
 actionRegistry.registerWorkbenchAction(
-	new SyncActionDescriptor(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
+	SyncActionDescriptor.create(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
 	'Reload Webviews',
 	webviewDeveloperCategory);

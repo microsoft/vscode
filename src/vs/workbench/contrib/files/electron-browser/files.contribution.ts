@@ -13,7 +13,7 @@ import { NativeTextFileEditor } from 'vs/workbench/contrib/files/electron-browse
 
 // Register file editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		NativeTextFileEditor,
 		NativeTextFileEditor.ID,
 		nls.localize('textFileEditor', "Text File Editor")

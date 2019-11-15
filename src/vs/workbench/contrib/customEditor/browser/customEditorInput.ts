@@ -16,6 +16,7 @@ import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { CustomEditorModel } from './customEditorModel';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
@@ -118,5 +119,13 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public isDirty(): boolean {
 		return this._model ? this._model.isDirty() : false;
+	}
+
+	public save(options?: ISaveOptions): Promise<boolean> {
+		return this._model ? this._model.save(options) : Promise.resolve(false);
+	}
+
+	public revert(options?: IRevertOptions): Promise<boolean> {
+		return this._model ? this._model.revert(options) : Promise.resolve(false);
 	}
 }

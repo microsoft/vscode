@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { GlobalMouseMoveMonitor, GlobalPointerMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
+import { GlobalMouseMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
@@ -85,7 +84,7 @@ export class EditorMouseEvent extends StandardMouseEvent {
 }
 
 export interface EditorMouseEventMerger {
-	(lastEvent: EditorMouseEvent, currentEvent: EditorMouseEvent): EditorMouseEvent;
+	(lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent;
 }
 
 export class EditorMouseEventFactory {
@@ -125,7 +124,7 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
 		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'mousemove', callback, myMerger, minimumTimeMs);
@@ -163,7 +162,7 @@ export class EditorPointerEventFactory {
 	}
 
 	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
 		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'pointermove', callback, myMerger, minimumTimeMs);
@@ -179,11 +178,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 	constructor(editorViewDomNode: HTMLElement) {
 		super();
 		this._editorViewDomNode = editorViewDomNode;
-		this._globalMouseMoveMonitor = this._register(
-			BrowserFeatures.pointerEvents
-				? new GlobalPointerMoveMonitor<EditorMouseEvent>()
-				: new GlobalMouseMoveMonitor<EditorMouseEvent>()
-		);
+		this._globalMouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<EditorMouseEvent>());
 		this._keydownListener = null;
 	}
 
@@ -200,7 +195,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 			this._globalMouseMoveMonitor.stopMonitoring(true);
 		}, true);
 
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, new EditorMouseEvent(currentEvent, this._editorViewDomNode));
 		};
 

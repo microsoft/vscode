@@ -286,7 +286,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model.textEditorModel!.setValue('make dirty');
 		manager.disposeModel((model as TextFileEditorModel));
 		assert.ok(!model.isDisposed());
-		model.revert(true);
+		model.revert({ soft: true });
 		manager.disposeModel((model as TextFileEditorModel));
 		assert.ok(model.isDisposed());
 		manager.dispose();

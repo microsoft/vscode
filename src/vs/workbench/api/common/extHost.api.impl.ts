@@ -185,8 +185,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					}
 
 					return activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
-						args.unshift(activeTextEditor, edit);
-						callback.apply(thisArg, args);
+						callback.apply(thisArg, [activeTextEditor, edit, ...args]);
 
 					}).then((result) => {
 						if (!result) {

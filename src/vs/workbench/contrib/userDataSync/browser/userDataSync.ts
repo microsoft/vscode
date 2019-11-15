@@ -307,7 +307,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 
 		const signingInCommandId = 'workbench.userData.actions.signingin';
-		CommandsRegistry.registerCommand(signInCommandId, () => null);
+		CommandsRegistry.registerCommand(signingInCommandId, () => null);
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
