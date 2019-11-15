@@ -11,7 +11,7 @@ import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { isSafari } from 'vs/base/browser/browser';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -283,7 +283,7 @@ export class PointerHandler extends Disposable {
 		super();
 		if (window.navigator.msPointerEnabled) {
 			this.handler = this._register(new MsPointerHandler(context, viewController, viewHelper));
-		} else if (((<any>window).PointerEvent && isSafari)) {
+		} else if (((<any>window).PointerEvent && BrowserFeatures.pointerEvents)) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if ((<any>window).TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
