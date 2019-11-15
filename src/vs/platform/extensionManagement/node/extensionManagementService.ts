@@ -217,6 +217,16 @@ export class ExtensionManagementService extends Disposable implements IExtension
 									} else if (semver.gt(existing.manifest.version, manifest.version)) {
 										return this.uninstall(existing, true);
 									}
+								} else {
+									// Remove the extension with same version if it is already uninstalled.
+									// Installing a VSIX extension shall replace the existing extension always.
+									return this.unsetUninstalledAndGetLocal(identifierWithVersion)
+										.then(existing => {
+											if (existing) {
+												return this.removeExtension(existing, 'existing').then(null, e => Promise.reject(new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", manifest.displayName || manifest.name))));
+											}
+											return undefined;
+										});
 								}
 								return undefined;
 							})
