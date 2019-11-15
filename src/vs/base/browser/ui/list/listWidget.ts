@@ -1080,6 +1080,12 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		return this.dnd.onDragOver(data, targetElement, targetIndex, originalEvent);
 	}
 
+	onDragEnd(originalEvent: DragEvent): void {
+		if (this.dnd.onDragEnd) {
+			this.dnd.onDragEnd(originalEvent);
+		}
+	}
+
 	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
 		this.dnd.drop(data, targetElement, targetIndex, originalEvent);
 	}

@@ -911,12 +911,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.dnd.drop(dragData, event.element, event.index, event.browserEvent);
 	}
 
-	private onDragEnd(): void {
+	private onDragEnd(event: DragEvent): void {
 		this.canDrop = false;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
 		this.currentDragData = undefined;
 		StaticDND.CurrentDragAndDropData = undefined;
+
+		if (this.dnd.onDragEnd) {
+			this.dnd.onDragEnd(event);
+		}
 	}
 
 	private clearDragOverFeedback(): void {
