@@ -8,36 +8,10 @@ import * as nls from 'vscode-nls';
 import { Disposable } from './dispose';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
 import { Scale, ZoomStatusBarEntry } from './zoomStatusBarEntry';
+import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
-
-class BinarySize {
-	static readonly KB = 1024;
-	static readonly MB = BinarySize.KB * BinarySize.KB;
-	static readonly GB = BinarySize.MB * BinarySize.KB;
-	static readonly TB = BinarySize.GB * BinarySize.KB;
-
-	static formatSize(size: number): string {
-		if (size < BinarySize.KB) {
-			return localize('sizeB', "{0}B", size);
-		}
-
-		if (size < BinarySize.MB) {
-			return localize('sizeKB', "{0}KB", (size / BinarySize.KB).toFixed(2));
-		}
-
-		if (size < BinarySize.GB) {
-			return localize('sizeMB', "{0}MB", (size / BinarySize.MB).toFixed(2));
-		}
-
-		if (size < BinarySize.TB) {
-			return localize('sizeGB', "{0}GB", (size / BinarySize.GB).toFixed(2));
-		}
-
-		return localize('sizeTB', "{0}TB", (size / BinarySize.TB).toFixed(2));
-	}
-}
 
 export class PreviewManager {
 
@@ -49,6 +23,7 @@ export class PreviewManager {
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
 		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
+		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) { }
 
@@ -56,7 +31,7 @@ export class PreviewManager {
 		resource: vscode.Uri,
 		webviewEditor: vscode.WebviewPanel,
 	): vscode.WebviewEditorCapabilities {
-		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.zoomStatusBarEntry);
+		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 
@@ -106,6 +81,7 @@ class Preview extends Disposable {
 
 	private _previewState = PreviewState.Visible;
 	private _imageSize: string | undefined;
+	private _imageBinarySize: number | undefined;
 	private _imageZoom: Scale | undefined;
 
 	constructor(
@@ -113,6 +89,7 @@ class Preview extends Disposable {
 		private readonly resource: vscode.Uri,
 		private readonly webviewEditor: vscode.WebviewPanel,
 		private readonly sizeStatusBarEntry: SizeStatusBarEntry,
+		private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) {
 		super();
@@ -132,11 +109,8 @@ class Preview extends Disposable {
 			switch (message.type) {
 				case 'size':
 					{
-						vscode.workspace.fs.stat(resource).then(stat => {
-							const { size } = stat;
-							this._imageSize = `${message.value} ${BinarySize.formatSize(size)}`;
-							this.update();
-						});
+						this._imageSize = message.value;
+						this.update();
 						break;
 					}
 				case 'zoom':
@@ -162,6 +136,7 @@ class Preview extends Disposable {
 		this._register(webviewEditor.onDidDispose(() => {
 			if (this._previewState === PreviewState.Active) {
 				this.sizeStatusBarEntry.hide(this.id);
+				this.binarySizeStatusBarEntry.hide(this.id);
 				this.zoomStatusBarEntry.hide(this.id);
 			}
 			this._previewState = PreviewState.Disposed;
@@ -179,6 +154,10 @@ class Preview extends Disposable {
 			}
 		}));
 
+		(async () => {
+			const { size } = await vscode.workspace.fs.stat(resource);
+			this._imageBinarySize = size;
+		})();
 		this.render();
 		this.update();
 		this.webviewEditor.webview.postMessage({ type: 'setActive', value: this.webviewEditor.active });
@@ -210,10 +189,12 @@ class Preview extends Disposable {
 		if (this.webviewEditor.active) {
 			this._previewState = PreviewState.Active;
 			this.sizeStatusBarEntry.show(this.id, this._imageSize || '');
+			this.binarySizeStatusBarEntry.show(this.id, this._imageBinarySize || -1);
 			this.zoomStatusBarEntry.show(this.id, this._imageZoom || 'fit');
 		} else {
 			if (this._previewState === PreviewState.Active) {
 				this.sizeStatusBarEntry.hide(this.id);
+				this.binarySizeStatusBarEntry.hide(this.id);
 				this.zoomStatusBarEntry.hide(this.id);
 			}
 			this._previewState = PreviewState.Visible;
