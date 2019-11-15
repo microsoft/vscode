@@ -267,10 +267,10 @@ export class URI implements UriComponents {
 		}
 		return new _URI(
 			match[2] || _empty,
-			decodeURIComponent(match[4] || _empty),
-			decodeURIComponent(match[5] || _empty),
-			decodeURIComponent(match[7] || _empty),
-			decodeURIComponent(match[9] || _empty),
+			percentDecode(match[4] || _empty),
+			percentDecode(match[5] || _empty),
+			percentDecode(match[7] || _empty),
+			percentDecode(match[9] || _empty),
 			_strict
 		);
 	}
@@ -647,4 +647,27 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		res += !skipEncoding ? encodeURIComponentFast(fragment, false) : fragment;
 	}
 	return res;
+}
+
+// --- decode
+
+function decodeURIComponentGraceful(str: string): string {
+	try {
+		return decodeURIComponent(str);
+	} catch {
+		if (str.length > 3) {
+			return str.substr(0, 3) + decodeURIComponentGraceful(str.substr(3));
+		} else {
+			return str;
+		}
+	}
+}
+
+const _rEncodedAsHex = /(%[0-9A-Za-z][0-9A-Za-z])+/g;
+
+function percentDecode(str: string): string {
+	if (!str.match(_rEncodedAsHex)) {
+		return str;
+	}
+	return str.replace(_rEncodedAsHex, (match) => decodeURIComponentGraceful(match));
 }

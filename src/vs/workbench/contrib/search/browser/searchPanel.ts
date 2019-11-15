@@ -25,7 +25,7 @@ export class SearchPanel extends Panel {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(PANEL_ID, telemetryService, themeService, storageService);
-		this.searchView = this._register(instantiationService.createInstance(SearchView, { id: PANEL_ID, title: localize('search', "Search") }));
+		this.searchView = this._register(instantiationService.createInstance(SearchView, { id: PANEL_ID, title: localize('search', "Search"), actionRunner: this.getActionRunner() }));
 		this._register(this.searchView.onDidChangeTitleArea(() => this.updateTitleArea()));
 		this._register(this.onDidChangeVisibility(visible => this.searchView.setVisible(visible)));
 	}

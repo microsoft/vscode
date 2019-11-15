@@ -84,7 +84,11 @@ export class HighlightedLabel {
 		}
 
 		this.domNode.innerHTML = htmlContent;
-		this.domNode.title = this.title;
+		if (this.title) {
+			this.domNode.title = this.title;
+		} else {
+			this.domNode.removeAttribute('title');
+		}
 		this.didEverRender = true;
 	}
 

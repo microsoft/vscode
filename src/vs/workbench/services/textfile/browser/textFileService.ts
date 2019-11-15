@@ -809,7 +809,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
 		const confirm: IConfirmation = {
 			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
-			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", basename(dirname(resource))),
+			detail: nls.localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
 			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
 			type: 'warning'
 		};

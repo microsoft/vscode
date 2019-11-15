@@ -702,7 +702,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage, customButton: this.customButton } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
@@ -895,6 +895,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private idPrefix = 'quickInput_'; // Constant since there is still only one.
 	private ui: QuickInputUI | undefined;
+	private dimension?: dom.Dimension;
 	private comboboxAccessibility = false;
 	private enabled = true;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
@@ -1498,6 +1499,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	layout(dimension: dom.Dimension): void {
+		this.dimension = dimension;
 		this.updateLayout();
 	}
 
@@ -1512,7 +1514,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			style.marginLeft = '-' + (width / 2) + 'px';
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout();
+			this.ui.list.layout(this.dimension && this.dimension.height * 0.6);
 		}
 	}
 

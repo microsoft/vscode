@@ -498,4 +498,9 @@ suite('Filters', () => {
 			fuzzyScore
 		);
 	});
+
+	test('"Go to Symbol" with the exact method name doesn\'t work as expected #84787', function () {
+		const match = fuzzyScore(':get', ':get', 1, 'get', 'get', 0, true);
+		assert.ok(Boolean(match));
+	});
 });

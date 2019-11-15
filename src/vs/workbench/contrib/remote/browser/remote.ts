@@ -274,7 +274,7 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 	}
 }
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	RemoteViewlet,
 	VIEWLET_ID,
 	nls.localize('remote.explorer', "Remote Explorer"),
@@ -294,7 +294,7 @@ class OpenRemoteViewletAction extends ShowViewletAction {
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(OpenRemoteViewletAction, VIEWLET_ID, nls.localize('toggleRemoteViewlet', "Show Remote Explorer"), {
+	SyncActionDescriptor.create(OpenRemoteViewletAction, VIEWLET_ID, nls.localize('toggleRemoteViewlet', "Show Remote Explorer"), {
 		primary: 0
 	}),
 	'View: Show Remote Explorer',

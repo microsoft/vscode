@@ -7,6 +7,7 @@ import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export interface IAnchor {
 	x: number;
@@ -178,7 +179,7 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate!.canRelayout === false) {
+		if (this.delegate!.canRelayout === false && !BrowserFeatures.pointerEvents) {
 			this.hide();
 			return;
 		}
