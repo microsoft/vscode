@@ -107,8 +107,11 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 			// symbols but no commands
 			this._domNode.innerHTML = '<span>no commands</span>';
 
-		} else if (innerHtml) {
+		} else {
 			// symbols and commands
+			if (!innerHtml) {
+				innerHtml = '&nbsp;';
+			}
 			this._domNode.innerHTML = innerHtml;
 			this._editor.layoutContentWidget(this);
 			if (this._isEmpty && animate) {
