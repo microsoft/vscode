@@ -42,7 +42,6 @@ body {
 
 body.web {
 	position: fixed; /* prevent bounce effect */
-	touch-action: none; /* prevent scrolling on body with touch */
 }
 
 .monaco-workbench.web {
