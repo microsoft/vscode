@@ -80,7 +80,7 @@ class OpenDebugPanelAction extends TogglePanelAction {
 }
 
 // register viewlet
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	DebugViewlet,
 	VIEWLET_ID,
 	nls.localize('debug', "Debug"),
@@ -96,7 +96,7 @@ const openPanelKb: IKeybindings = {
 };
 
 // register repl panel
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 	Repl,
 	REPL_ID,
 	nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
@@ -166,7 +166,7 @@ registerDebugCommandPaletteItem(TOGGLE_INLINE_BREAKPOINT_ID, nls.localize('inlin
 
 // Register Quick Open
 (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		DebugQuickOpenHandler,
 		DebugQuickOpenHandler.ID,
 		'debug ',

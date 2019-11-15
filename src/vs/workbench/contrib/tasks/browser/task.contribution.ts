@@ -254,7 +254,7 @@ const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Q
 const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		QuickOpenHandler,
 		QuickOpenHandler.ID,
 		'task ',

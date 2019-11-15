@@ -20,7 +20,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditor(new EditorDescriptor(
+	.registerEditor(EditorDescriptor.create(
 		WalkThroughPart,
 		WalkThroughPart.ID,
 		localize('walkThrough.editor.label', "Interactive Playground"),

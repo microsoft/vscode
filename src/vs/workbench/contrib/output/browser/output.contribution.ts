@@ -41,7 +41,7 @@ ModesRegistry.registerLanguage({
 });
 
 // Register Output Panel
-Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
+Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(PanelDescriptor.create(
 	OutputPanel,
 	OUTPUT_PANEL_ID,
 	nls.localize('output', "Output"),
@@ -51,7 +51,7 @@ Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
 ));
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		LogViewer,
 		LogViewer.LOG_VIEWER_EDITOR_ID,
 		nls.localize('logViewer', "Log Viewer")

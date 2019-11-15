@@ -92,7 +92,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 
 
 // markers panel
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 	MarkersPanel,
 	Constants.MARKERS_PANEL_ID,
 	Messages.MARKERS_PANEL_TITLE_PROBLEMS,

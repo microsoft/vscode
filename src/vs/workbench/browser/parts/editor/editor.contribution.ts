@@ -57,7 +57,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		TextResourceEditor,
 		TextResourceEditor.ID,
 		nls.localize('textEditor', "Text Editor"),
@@ -70,7 +70,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register Text Diff Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		TextDiffEditor,
 		TextDiffEditor.ID,
 		nls.localize('textDiffEditor', "Text Diff Editor")
@@ -82,7 +82,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register Binary Resource Diff Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		BinaryResourceDiffEditor,
 		BinaryResourceDiffEditor.ID,
 		nls.localize('binaryDiffEditor', "Binary Diff Editor")
@@ -93,7 +93,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		SideBySideEditor,
 		SideBySideEditor.ID,
 		nls.localize('sideBySideEditor', "Side by Side Editor")
@@ -279,7 +279,7 @@ const editorPickerContextKey = 'inEditorsPicker';
 const editorPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(editorPickerContextKey));
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		ActiveEditorGroupPicker,
 		ActiveEditorGroupPicker.ID,
 		editorCommands.NAVIGATE_IN_ACTIVE_GROUP_PREFIX,
@@ -295,7 +295,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 );
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		AllEditorsPicker,
 		AllEditorsPicker.ID,
 		editorCommands.NAVIGATE_ALL_EDITORS_GROUP_PREFIX,

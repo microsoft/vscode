@@ -48,7 +48,7 @@ const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Q
 const inTerminalsPicker = 'inTerminalPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		TerminalPickerHandler,
 		TerminalPickerHandler.ID,
 		TERMINAL_PICKER_PREFIX,

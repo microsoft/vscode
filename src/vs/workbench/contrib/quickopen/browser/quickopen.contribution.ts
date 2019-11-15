@@ -72,7 +72,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 // Register Quick Open Handler
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		CommandsHandler,
 		CommandsHandler.ID,
 		ALL_COMMANDS_PREFIX,
@@ -82,7 +82,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 );
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		GotoLineHandler,
 		GotoLineHandler.ID,
 		GOTO_LINE_PREFIX,
@@ -98,7 +98,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 );
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		GotoSymbolHandler,
 		GotoSymbolHandler.ID,
 		GOTO_SYMBOL_PREFIX,
@@ -119,7 +119,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 );
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		HelpHandler,
 		HelpHandler.ID,
 		HELP_PREFIX,
@@ -129,7 +129,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 );
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		ViewPickerHandler,
 		ViewPickerHandler.ID,
 		VIEW_PICKER_PREFIX,

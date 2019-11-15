@@ -274,7 +274,7 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 	}
 }
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	RemoteViewlet,
 	VIEWLET_ID,
 	nls.localize('remote.explorer', "Remote Explorer"),

@@ -34,7 +34,7 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, Lifecycl
 
 // Running Extensions Editor
 
-const runtimeExtensionsEditorDescriptor = new EditorDescriptor(
+const runtimeExtensionsEditorDescriptor = EditorDescriptor.create(
 	RuntimeExtensionsEditor,
 	RuntimeExtensionsEditor.ID,
 	localize('runtimeExtension', "Running Extensions")

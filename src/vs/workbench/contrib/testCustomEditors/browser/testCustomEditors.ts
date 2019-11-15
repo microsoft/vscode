@@ -207,7 +207,7 @@ class TestCustomEditorModel extends EditorModel {
 
 if (ENABLE) {
 	Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-		new EditorDescriptor(
+		EditorDescriptor.create(
 			TestCustomEditor,
 			TestCustomEditor.ID,
 			nls.localize('testCustomEditor', "Test Custom Editor")

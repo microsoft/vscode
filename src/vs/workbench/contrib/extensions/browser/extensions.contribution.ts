@@ -54,7 +54,7 @@ Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 
 // Quickopen
 Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		ExtensionsHandler,
 		ExtensionsHandler.ID,
 		'ext ',
@@ -66,7 +66,7 @@ Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
 
 // Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		ExtensionEditor,
 		ExtensionEditor.ID,
 		localize('extension', "Extension")
@@ -76,7 +76,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]);
 
 // Viewlet
-const viewletDescriptor = new ViewletDescriptor(
+const viewletDescriptor = ViewletDescriptor.create(
 	ExtensionsViewlet,
 	VIEWLET_ID,
 	localize('extensions', "Extensions"),
@@ -350,7 +350,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 
 		if (canManageExtensions) {
 			Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
-				new QuickOpenHandlerDescriptor(
+				QuickOpenHandlerDescriptor.create(
 					GalleryExtensionsHandler,
 					GalleryExtensionsHandler.ID,
 					'ext install ',

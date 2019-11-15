@@ -502,7 +502,7 @@ class ShowAllSymbolsAction extends Action {
 	}
 }
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	SearchViewlet,
 	VIEWLET_ID,
 	nls.localize('name', "Search"),
@@ -510,7 +510,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	1
 ));
 
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 	SearchPanel,
 	PANEL_ID,
 	nls.localize('name', "Search"),
@@ -530,7 +530,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 			const config = configurationService.getValue<ISearchConfiguration>();
 			if (config.search.location === 'panel') {
 				viewsRegistry.deregisterViews(viewsRegistry.getViews(VIEW_CONTAINER), VIEW_CONTAINER);
-				Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+				Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 					SearchPanel,
 					PANEL_ID,
 					nls.localize('name', "Search"),
@@ -626,7 +626,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(ClearSearchResultsA
 
 // Register Quick Open Handler
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		OpenAnythingHandler,
 		OpenAnythingHandler.ID,
 		'',
@@ -636,7 +636,7 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerDefaultQu
 );
 
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		OpenSymbolHandler,
 		OpenSymbolHandler.ID,
 		ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX,

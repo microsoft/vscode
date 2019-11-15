@@ -335,7 +335,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					super(id, `${id}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 				}
 			}
-			const viewletDescriptor = new ViewletDescriptor(
+			const viewletDescriptor = ViewletDescriptor.create(
 				CustomViewlet,
 				id,
 				title,
