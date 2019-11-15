@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -55,8 +56,10 @@ suite('CodeActionModel', () => {
 
 		const contextKeys = new MockContextKeyService();
 		const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
-		disposables.add(model.onDidChangeState((e: CodeActionsState.Triggered) => {
-			assert.equal(e.trigger.type, 'auto');
+		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+			assertType(e.type === CodeActionsState.Type.Triggered);
+
+			assert.strictEqual(e.trigger.type, 'auto');
 			assert.ok(e.actions);
 
 			e.actions.then(fixes => {
@@ -94,7 +97,9 @@ suite('CodeActionModel', () => {
 		return new Promise((resolve, reject) => {
 			const contextKeys = new MockContextKeyService();
 			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
-			disposables.add(model.onDidChangeState((e: CodeActionsState.Triggered) => {
+			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+				assertType(e.type === CodeActionsState.Type.Triggered);
+
 				assert.equal(e.trigger.type, 'auto');
 				assert.ok(e.actions);
 				e.actions.then(fixes => {
@@ -130,7 +135,9 @@ suite('CodeActionModel', () => {
 		await new Promise(resolve => {
 			const contextKeys = new MockContextKeyService();
 			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
-			disposables.add(model.onDidChangeState((e: CodeActionsState.Triggered) => {
+			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+				assertType(e.type === CodeActionsState.Type.Triggered);
+
 				assert.equal(e.trigger.type, 'auto');
 				const selection = <Selection>e.rangeOrSelection;
 				assert.deepEqual(selection.selectionStartLineNumber, 1);
@@ -153,7 +160,9 @@ suite('CodeActionModel', () => {
 		let triggerCount = 0;
 		const contextKeys = new MockContextKeyService();
 		const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
-		disposables.add(model.onDidChangeState((e: CodeActionsState.Triggered) => {
+		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
+			assertType(e.type === CodeActionsState.Type.Triggered);
+
 			assert.equal(e.trigger.type, 'auto');
 			++triggerCount;
 
