@@ -47,6 +47,7 @@ import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/service
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isArray } from 'vs/base/common/types';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { isIOS } from 'vs/base/common/platform';
 
 const $ = DOM.$;
 
@@ -911,7 +912,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const common = this.renderCommonTemplate(null, container, 'enum');
 
 		const selectBox = new SelectBox([], 0, this._contextViewService, undefined, {
-			useCustomDrawn: !BrowserFeatures.pointerEvents
+			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
 		});
 
 		common.toDispose.push(selectBox);
