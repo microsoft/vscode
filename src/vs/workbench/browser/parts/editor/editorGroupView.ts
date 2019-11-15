@@ -514,20 +514,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editorsToClose = [editor];
 
 		// Include both sides of side by side editors when being closed and not opened multiple times
-		if (editor instanceof SideBySideEditorInput && !this.accessor.groups.some(groupView => groupView.group.containsEditorByInstance(editor))) {
+		if (editor instanceof SideBySideEditorInput && !this.accessor.groups.some(groupView => groupView.group.contains(editor))) {
 			editorsToClose.push(editor.master, editor.details);
 		}
 
 		// Dispose the editor when it is no longer open in any group including diff editors
 		editorsToClose.forEach(editorToClose => {
-			const resource = editorToClose ? editorToClose.getResource() : undefined; // prefer resource to not close right-hand side editors of a diff editor
-			if (!this.accessor.groups.some(groupView => {
-				if (resource) {
-					return groupView.group.containsEditorByResource(resource, SideBySideEditor.MASTER);
-				}
-
-				return groupView.group.containsEditorByInstance(editorToClose);
-			})) {
+			if (!this.accessor.groups.some(groupView => groupView.group.contains(editorToClose, true /* include side by side editor master & details */))) {
 				editorToClose.dispose();
 			}
 		});
@@ -584,7 +577,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		editors.forEach(editor => {
 			if (this._group.isActive(editor)) {
 				activeEditor = editor;
-			} else if (this._group.containsEditorByInstance(editor)) {
+			} else if (this._group.contains(editor)) {
 				inactiveEditors.push(editor);
 			}
 		});
@@ -776,7 +769,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	isOpened(editor: EditorInput): boolean {
-		return this._group.containsEditorByInstance(editor);
+		return this._group.contains(editor);
 	}
 
 	focus(): void {
@@ -1287,11 +1280,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 
 			const otherGroup = groupView.group;
-			if (otherGroup.containsEditorByInstance(editor)) {
+			if (otherGroup.contains(editor)) {
 				return true; // exact editor still opened
 			}
 
-			if (editor instanceof SideBySideEditorInput && otherGroup.containsEditorByInstance(editor.master)) {
+			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.master)) {
 				return true; // master side of side by side editor still opened
 			}
 

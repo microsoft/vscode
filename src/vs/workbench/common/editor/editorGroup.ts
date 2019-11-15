@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, CloseDirection, IEditorInput, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ResourceMap } from 'vs/base/common/map';
 import { coalesce } from 'vs/base/common/arrays';
 
 const EditorOpenPositioning = {
@@ -93,10 +91,6 @@ export class EditorGroup extends Disposable {
 
 	private editors: EditorInput[] = [];
 	private mru: EditorInput[] = [];
-
-	private mapResourceToEditorCount = new ResourceMap<number>();
-	private mapResourceToMasterEditorCount = new ResourceMap<number>();
-	private mapResourceToDetailsEditorCount = new ResourceMap<number>();
 
 	private preview: EditorInput | null = null; // editor in preview state
 	private active: EditorInput | null = null;  // editor in active state
@@ -494,7 +488,6 @@ export class EditorGroup extends Disposable {
 		// Add
 		if (!del && editor) {
 			this.mru.push(editor); // make it LRU editor
-			this.updateResourceCounterMap(editor, false /* add */); // add new to resource map
 		}
 
 		// Remove / Replace
@@ -504,63 +497,12 @@ export class EditorGroup extends Disposable {
 			// Remove
 			if (del && !editor) {
 				this.mru.splice(indexInMRU, 1); // remove from MRU
-				this.updateResourceCounterMap(editorToDeleteOrReplace, true /* delete */); // remove from resource map
 			}
 
 			// Replace
 			else if (del && editor) {
 				this.mru.splice(indexInMRU, 1, editor); // replace MRU at location
-				this.updateResourceCounterMap(editor, false /* add */); // add new to resource map
-				this.updateResourceCounterMap(editorToDeleteOrReplace, true /* delete */); // remove replaced from resource map
 			}
-		}
-	}
-
-	private updateResourceCounterMap(editor: EditorInput, remove: boolean): void {
-
-		// Remember editor resource in map for fast lookup
-		const resource = toResource(editor);
-		if (resource) {
-			this.doUpdateResourceCounterMap(resource, this.mapResourceToEditorCount, remove);
-		}
-
-		// Side by Side editor: store resource information
-		// for master and details side in separate maps
-		// to be able to lookup properly.
-		if (editor instanceof SideBySideEditorInput) {
-			const masterResource = toResource(editor.master);
-			if (masterResource) {
-				this.doUpdateResourceCounterMap(masterResource, this.mapResourceToMasterEditorCount, remove);
-			}
-
-			const detailsResource = toResource(editor.details);
-			if (detailsResource) {
-				this.doUpdateResourceCounterMap(detailsResource, this.mapResourceToDetailsEditorCount, remove);
-			}
-		}
-	}
-
-	private doUpdateResourceCounterMap(resource: URI, map: ResourceMap<number>, remove: boolean): void {
-
-		// It is possible to have the same resource opened twice (once as normal input and once as diff input)
-		// So we need to do ref counting on the resource to provide the correct picture
-		const counter = map.get(resource) || 0;
-
-		// Add
-		let newCounter: number;
-		if (!remove) {
-			newCounter = counter + 1;
-		}
-
-		// Delete
-		else {
-			newCounter = counter - 1;
-		}
-
-		if (newCounter > 0) {
-			map.set(resource, newCounter);
-		} else {
-			map.delete(resource);
 		}
 	}
 
@@ -578,25 +520,17 @@ export class EditorGroup extends Disposable {
 		return -1;
 	}
 
-	containsEditorByResource(resource: URI, supportSideBySide?: SideBySideEditor): boolean {
+	contains(candidate: EditorInput, searchInSideBySideEditors?: boolean): boolean {
+		for (const editor of this.editors) {
+			if (this.matches(editor, candidate)) {
+				return true;
+			}
 
-		// Check if exact editor match is contained
-		let counter = this.mapResourceToEditorCount.get(resource);
-
-		// Optionally search by master/detail resource if instructed
-		if (supportSideBySide === SideBySideEditor.MASTER) {
-			counter = counter || this.mapResourceToMasterEditorCount.get(resource);
-		} else if (supportSideBySide === SideBySideEditor.DETAILS) {
-			counter = counter || this.mapResourceToDetailsEditorCount.get(resource);
-		}
-
-		return typeof counter === 'number' && counter > 0;
-	}
-
-	containsEditorByInstance(editor: EditorInput): boolean {
-		const index = this.indexOf(editor);
-		if (index >= 0) {
-			return true;
+			if (searchInSideBySideEditors && editor instanceof SideBySideEditorInput) {
+				if (this.matches(editor.master, candidate) || this.matches(editor.details, candidate)) {
+					return true;
+				}
+			}
 		}
 
 		return false;
@@ -625,9 +559,6 @@ export class EditorGroup extends Disposable {
 		const group = this.instantiationService.createInstance(EditorGroup, undefined);
 		group.editors = this.editors.slice(0);
 		group.mru = this.mru.slice(0);
-		group.mapResourceToEditorCount = this.mapResourceToEditorCount.clone();
-		group.mapResourceToMasterEditorCount = this.mapResourceToMasterEditorCount.clone();
-		group.mapResourceToDetailsEditorCount = this.mapResourceToDetailsEditorCount.clone();
 		group.preview = this.preview;
 		group.active = this.active;
 		group.editorOpenPositioning = this.editorOpenPositioning;
@@ -686,7 +617,6 @@ export class EditorGroup extends Disposable {
 				const editor = factory.deserialize(this.instantiationService, e.value);
 				if (editor) {
 					this.registerEditorListeners(editor);
-					this.updateResourceCounterMap(editor, false /* add */);
 				}
 
 				return editor;
