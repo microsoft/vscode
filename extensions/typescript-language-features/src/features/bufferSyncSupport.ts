@@ -72,9 +72,7 @@ class BufferSynchronizer {
 
 	public open(resource: vscode.Uri, args: Proto.OpenRequestArgs) {
 		if (this.supportsBatching) {
-			this.updatePending(resource, pending => {
-				pending.set(resource, new OpenOperation(args));
-			});
+			this.updatePending(resource, new OpenOperation(args));
 		} else {
 			this.client.executeWithoutWaitingForResponse('open', args);
 		}
@@ -82,9 +80,7 @@ class BufferSynchronizer {
 
 	public close(resource: vscode.Uri, filepath: string) {
 		if (this.supportsBatching) {
-			this.updatePending(resource, pending => {
-				pending.set(resource, new CloseOperation(filepath));
-			});
+			this.updatePending(resource, new CloseOperation(filepath));
 		} else {
 			const args: Proto.FileRequestArgs = { file: filepath };
 			this.client.executeWithoutWaitingForResponse('close', args);
@@ -97,16 +93,14 @@ class BufferSynchronizer {
 		}
 
 		if (this.supportsBatching) {
-			this.updatePending(resource, pending => {
-				pending.set(resource, new ChangeOperation({
-					fileName: filepath,
-					textChanges: events.map((change): Proto.CodeEdit => ({
-						newText: change.text,
-						start: typeConverters.Position.toLocation(change.range.start),
-						end: typeConverters.Position.toLocation(change.range.end),
-					})).reverse(), // Send the edits end-of-document to start-of-document order
-				}));
-			});
+			this.updatePending(resource, new ChangeOperation({
+				fileName: filepath,
+				textChanges: events.map((change): Proto.CodeEdit => ({
+					newText: change.text,
+					start: typeConverters.Position.toLocation(change.range.start),
+					end: typeConverters.Position.toLocation(change.range.end),
+				})).reverse(), // Send the edits end-of-document to start-of-document order
+			}));
 		} else {
 			for (const { range, text } of events) {
 				const args: Proto.ChangeRequestArgs = {
@@ -157,12 +151,23 @@ class BufferSynchronizer {
 		return this.client.apiVersion.gte(API.v340);
 	}
 
-	private updatePending(resource: vscode.Uri, f: (pending: ResourceMap<CloseOperation | OpenOperation | ChangeOperation>) => void): void {
+	private updatePending(resource: vscode.Uri, op: CloseOperation | OpenOperation | ChangeOperation): void {
+		switch (op.type) {
+			case 'close':
+				const existing = this._pending.get(resource);
+				switch (existing?.type) {
+					case 'open':
+						this._pending.delete(resource);
+						return; // Open then close. No need to do anything
+				}
+				break;
+		}
+
 		if (this._pending.has(resource)) {
 			// we saw this file before, make sure we flush before working with it again
 			this.flush();
 		}
-		f(this._pending);
+		this._pending.set(resource, op);
 	}
 }
 
