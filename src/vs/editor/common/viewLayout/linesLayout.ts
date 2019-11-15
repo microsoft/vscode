@@ -25,13 +25,12 @@ export interface IWhitespaceChangeAccessor {
 	removeWhitespace(id: string): void;
 }
 
-interface IPendingInsert { id: string; afterLineNumber: number; ordinal: number; heightInPx: number; minWidth: number; }
 interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number; }
 interface IPendingRemove { id: string; }
 
 class PendingChanges {
 	private _hasPending: boolean;
-	private _inserts: IPendingInsert[];
+	private _inserts: InternalWhitespace[];
 	private _changes: IPendingChange[];
 	private _removes: IPendingRemove[];
 
@@ -42,7 +41,7 @@ class PendingChanges {
 		this._removes = [];
 	}
 
-	public insert(x: IPendingInsert): void {
+	public insert(x: InternalWhitespace): void {
 		this._hasPending = true;
 		this._inserts.push(x);
 	}
@@ -210,7 +209,7 @@ export class LinesLayout {
 					minWidth = minWidth | 0;
 
 					const id = this._instanceId + (++this._lastWhitespaceId);
-					this._pendingChanges.insert({ id, afterLineNumber, ordinal, heightInPx, minWidth });
+					this._pendingChanges.insert(new InternalWhitespace(id, afterLineNumber, ordinal, heightInPx, minWidth));
 					return id;
 					// return this._insertWhitespace(afterLineNumber, ordinal, heightInPx, minWidth);
 				},
@@ -232,9 +231,12 @@ export class LinesLayout {
 		}
 	}
 
-	public _commitPendingChanges(inserts: IPendingInsert[], changes: IPendingChange[], removes: IPendingRemove[]): void {
+	public _commitPendingChanges(inserts: InternalWhitespace[], changes: IPendingChange[], removes: IPendingRemove[]): void {
+		// const magnitude = inserts.length + changes.length + removes.length;
+		// if (magnitude === 1) {
+		// 	// when only one thing
 		for (const insert of inserts) {
-			this._insertWhitespace(insert.id, insert.afterLineNumber, insert.ordinal, insert.heightInPx, insert.minWidth);
+			this._insertWhitespace(insert);
 		}
 		for (const change of changes) {
 			this._changeOneWhitespace(change.id, change.newAfterLineNumber, change.newHeight);
@@ -242,6 +244,10 @@ export class LinesLayout {
 		for (const remove of removes) {
 			this._removeWhitespace(remove.id);
 		}
+		return;
+		// }
+
+		// console.log(`magnitude: ${magnitude} -- inserts: ${inserts.length}, changes: ${changes.length}, removes: ${removes.length}`);
 		// console.log(`TODO: `, inserts, changes, removes);
 	}
 
@@ -251,21 +257,10 @@ export class LinesLayout {
 		}
 	}
 
-	/**
-	 * Insert a new whitespace of a certain height after a line number.
-	 * The whitespace has a "sticky" characteristic.
-	 * Irrespective of edits above or below `afterLineNumber`, the whitespace will follow the initial line.
-	 *
-	 * @param afterLineNumber The conceptual position of this whitespace. The whitespace will follow this line as best as possible even when deleting/inserting lines above/below.
-	 * @param heightInPx The height of the whitespace, in pixels.
-	 * @return An id that can be used later to mutate or delete the whitespace
-	 */
-	private _insertWhitespace(id: string, afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string {
-		const whitespace = new InternalWhitespace(id, afterLineNumber, ordinal, heightInPx, minWidth);
+	private _insertWhitespace(whitespace: InternalWhitespace): void {
 		const insertionIndex = LinesLayout.findInsertionIndex(this._arr, whitespace.afterLineNumber, whitespace.ordinal);
 		this._insertWhitespaceAtIndex(insertionIndex, whitespace);
 		this._minWidth = -1; /* marker for not being computed */
-		return id;
 	}
 
 	private _insertWhitespaceAtIndex(insertIndex: number, whitespace: InternalWhitespace): void {
@@ -283,9 +278,6 @@ export class LinesLayout {
 		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, insertIndex - 1);
 	}
 
-	/**
-	 * Change properties associated with a certain whitespace.
-	 */
 	private _changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): void {
 		if (this._whitespaceId2Index.hasOwnProperty(id)) {
 			const index = this._whitespaceId2Index[id];
@@ -311,12 +303,6 @@ export class LinesLayout {
 		}
 	}
 
-	/**
-	 * Remove an existing whitespace.
-	 *
-	 * @param id The whitespace to remove
-	 * @return Returns true if the whitespace is found and it is removed.
-	 */
 	private _removeWhitespace(id: string): void {
 		if (this._whitespaceId2Index.hasOwnProperty(id)) {
 			const index = this._whitespaceId2Index[id];
