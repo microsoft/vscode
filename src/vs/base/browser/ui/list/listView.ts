@@ -847,10 +847,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort();
 		feedback = feedback[0] === -1 ? [-1] : feedback;
 
-		if (feedback.length === 0) {
-			throw new Error('Invalid empty feedback list');
-		}
-
 		if (equalsDragFeedback(this.currentDragFeedback, feedback)) {
 			return true;
 		}

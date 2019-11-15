@@ -101,7 +101,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 			}, 500);
 		}
 
-		if (typeof result === 'boolean' || !result.accept || typeof result.bubble === 'undefined') {
+		if (typeof result === 'boolean' || !result.accept || typeof result.bubble === 'undefined' || result.feedback) {
 			if (!raw) {
 				const accept = typeof result === 'boolean' ? result : result.accept;
 				const effect = typeof result === 'boolean' ? undefined : result.effect;
