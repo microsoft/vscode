@@ -19,8 +19,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { platform } from 'vs/base/common/process';
 import { ILogService } from 'vs/platform/log/common/log';
-import { matchesScheme } from 'vs/platform/opener/common/opener';
-import { Schemas } from 'vs/base/common/network';
 
 
 interface LoadFunction {
@@ -241,15 +239,15 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 		const mainThreadWindow = rpcService.getProxy(MainContext.MainThreadWindow);
 
 		this._impl = (target, options) => {
+			const uri: URI = URI.parse(target);
 			// If we have options use the original method.
 			if (options) {
 				return this.callOriginal(target, options);
 			}
-			if (matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {
-				return mainThreadWindow.$openUri(target, { allowTunneling: true });
-
-			} else if (matchesScheme(target, Schemas.mailto) || matchesScheme(target, this._appUriScheme)) {
-				return mainThreadWindow.$openUri(target, {});
+			if (uri.scheme === 'http' || uri.scheme === 'https') {
+				return mainThreadWindow.$openUri(uri, { allowTunneling: true });
+			} else if (uri.scheme === 'mailto' || uri.scheme === this._appUriScheme) {
+				return mainThreadWindow.$openUri(uri, {});
 			}
 			return this.callOriginal(target, options);
 		};

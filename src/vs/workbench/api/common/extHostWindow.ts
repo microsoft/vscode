@@ -39,6 +39,18 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	}
 
 	openUri(stringOrUri: string | URI, options: IOpenUriOptions): Promise<boolean> {
+		if (typeof stringOrUri === 'string') {
+			try {
+				stringOrUri = URI.parse(stringOrUri);
+			} catch (e) {
+				return Promise.reject(`Invalid uri - '${stringOrUri}'`);
+			}
+		}
+		if (isFalsyOrWhitespace(stringOrUri.scheme)) {
+			return Promise.reject('Invalid scheme - cannot be empty');
+		} else if (stringOrUri.scheme === Schemas.command) {
+			return Promise.reject(`Invalid scheme '${stringOrUri.scheme}'`);
+		}
 		return this._proxy.$openUri(stringOrUri, options);
 	}
 

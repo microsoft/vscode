@@ -10,8 +10,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostWindowShape, IExtHostContext, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Schemas } from 'vs/base/common/network';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -44,25 +42,9 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		return Promise.resolve(this.hostService.hasFocus);
 	}
 
-	async $openUri(stringOrComp: UriComponents | string, options: IOpenUriOptions): Promise<boolean> {
-
-		const uri = typeof stringOrComp === 'string'
-			? URI.parse(stringOrComp)
-			: URI.revive(stringOrComp);
-
-		// validate
-		if (isFalsyOrWhitespace(uri.scheme)) {
-			return Promise.reject('Invalid scheme - cannot be empty');
-		} else if (uri.scheme === Schemas.command) {
-			return Promise.reject(`Invalid scheme '${uri.scheme}'`);
-		}
-
-		// open AS-IS, keep string alive
-		if (typeof stringOrComp === 'string') {
-			return this.openerService.open(stringOrComp, { openExternal: true, allowTunneling: options.allowTunneling });
-		} else {
-			return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
-		}
+	async $openUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<boolean> {
+		const uri = URI.from(uriComponents);
+		return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
 	}
 
 	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
