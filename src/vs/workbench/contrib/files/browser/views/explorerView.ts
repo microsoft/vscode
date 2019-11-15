@@ -29,7 +29,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, getIconLabelNameFromHTMLElement } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
+import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -464,17 +464,14 @@ export class ExplorerView extends ViewletPanel {
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
 		const disposables = new DisposableStore();
 		let stat = e.element;
+		let anchor = e.anchor;
 
 		// Compressed folders
 		if (stat) {
 			const controller = this.renderer.getCompressedNavigationController(stat);
 
 			if (controller) {
-				const result = getIconLabelNameFromHTMLElement(e.browserEvent.target);
-
-				if (result) {
-					controller.setIndex(result.index);
-				}
+				anchor = controller.labels[controller.index];
 			}
 		}
 
@@ -490,7 +487,7 @@ export class ExplorerView extends ViewletPanel {
 		disposables.add(createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions, this.contextMenuService));
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
@@ -525,7 +522,7 @@ export class ExplorerView extends ViewletPanel {
 		}
 
 		this.compressedFocusContext.set(true);
-		this.compressedNavigationController.last();
+		// this.compressedNavigationController.last();
 		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
 	}
 

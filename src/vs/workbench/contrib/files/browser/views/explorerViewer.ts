@@ -53,6 +53,7 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
+import { domEvent } from 'vs/base/browser/event';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -119,6 +120,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 export interface ICompressedNavigationController {
 	readonly current: ExplorerItem;
 	readonly items: ExplorerItem[];
+	readonly labels: HTMLElement[];
 	readonly index: number;
 	readonly count: number;
 	previous(): void;
@@ -131,7 +133,7 @@ export interface ICompressedNavigationController {
 export class CompressedNavigationController implements ICompressedNavigationController {
 
 	private _index: number;
-	private labels: HTMLElement[];
+	readonly labels: HTMLElement[];
 
 	get index(): number { return this._index; }
 	get count(): number { return this.items.length; }
@@ -264,7 +266,18 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 			const compressedNavigationController = new CompressedNavigationController(node.element.elements, templateData);
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
-			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
+
+			domEvent(templateData.container, 'mousedown')(e => {
+				const result = getIconLabelNameFromHTMLElement(e.target);
+
+				if (result) {
+					compressedNavigationController.setIndex(result.index);
+				}
+			}, undefined, disposables);
+
+			disposables.add(toDisposable(() => {
+				this.compressedNavigationControllers.delete(stat);
+			}));
 
 			templateData.elementDisposable = disposables;
 		}
@@ -1056,7 +1069,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 }
 
-export function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement, count: number, index: number } | null {
+function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement, count: number, index: number } | null {
 	if (!(target instanceof HTMLElement)) {
 		return null;
 	}
