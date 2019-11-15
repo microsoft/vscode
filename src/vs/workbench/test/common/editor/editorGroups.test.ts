@@ -187,7 +187,7 @@ suite('Workbench editor groups', () => {
 		assert.equal(clone.isActive(input3), true);
 	});
 
-	test('contains() with diff editor support', function () {
+	test('containsEditorByInstance()', function () {
 		const group = createGroup();
 
 		const input1 = input();
@@ -196,14 +196,61 @@ suite('Workbench editor groups', () => {
 		const diffInput1 = new DiffEditorInput('name', 'description', input1, input2);
 		const diffInput2 = new DiffEditorInput('name', 'description', input2, input1);
 
+		group.openEditor(input1, { pinned: true, active: true });
+
+		assert.equal(group.containsEditorByInstance(input1), true);
+		assert.equal(group.containsEditorByInstance(input2), false);
+		assert.equal(group.containsEditorByInstance(diffInput1), false);
+		assert.equal(group.containsEditorByInstance(diffInput2), false);
+
 		group.openEditor(input2, { pinned: true, active: true });
 
-		assert.equal(group.containsEditorByInstance(input2, SideBySideEditor.MASTER), true);
+		assert.equal(group.containsEditorByInstance(input1), true);
+		assert.equal(group.containsEditorByInstance(input2), true);
 		assert.equal(group.containsEditorByInstance(diffInput1), false);
-		assert.equal(group.containsEditorByInstance(diffInput1, SideBySideEditor.MASTER), true);
-		assert.equal(group.containsEditorByInstance(diffInput1, SideBySideEditor.DETAILS), false);
-		assert.equal(group.containsEditorByInstance(diffInput2, SideBySideEditor.MASTER), false);
-		assert.equal(group.containsEditorByInstance(diffInput2, SideBySideEditor.DETAILS), true);
+		assert.equal(group.containsEditorByInstance(diffInput2), false);
+
+		group.openEditor(diffInput1, { pinned: true, active: true });
+
+		assert.equal(group.containsEditorByInstance(input1), true);
+		assert.equal(group.containsEditorByInstance(input2), true);
+		assert.equal(group.containsEditorByInstance(diffInput1), true);
+		assert.equal(group.containsEditorByInstance(diffInput2), false);
+
+		group.openEditor(diffInput2, { pinned: true, active: true });
+
+		assert.equal(group.containsEditorByInstance(input1), true);
+		assert.equal(group.containsEditorByInstance(input2), true);
+		assert.equal(group.containsEditorByInstance(diffInput1), true);
+		assert.equal(group.containsEditorByInstance(diffInput2), true);
+
+		group.closeEditor(input1);
+
+		assert.equal(group.containsEditorByInstance(input1), false);
+		assert.equal(group.containsEditorByInstance(input2), true);
+		assert.equal(group.containsEditorByInstance(diffInput1), true);
+		assert.equal(group.containsEditorByInstance(diffInput2), true);
+
+		group.closeEditor(input2);
+
+		assert.equal(group.containsEditorByInstance(input1), false);
+		assert.equal(group.containsEditorByInstance(input2), false);
+		assert.equal(group.containsEditorByInstance(diffInput1), true);
+		assert.equal(group.containsEditorByInstance(diffInput2), true);
+
+		group.closeEditor(diffInput1);
+
+		assert.equal(group.containsEditorByInstance(input1), false);
+		assert.equal(group.containsEditorByInstance(input2), false);
+		assert.equal(group.containsEditorByInstance(diffInput1), false);
+		assert.equal(group.containsEditorByInstance(diffInput2), true);
+
+		group.closeEditor(diffInput2);
+
+		assert.equal(group.containsEditorByInstance(input1), false);
+		assert.equal(group.containsEditorByInstance(input2), false);
+		assert.equal(group.containsEditorByInstance(diffInput1), false);
+		assert.equal(group.containsEditorByInstance(diffInput2), false);
 	});
 
 	test('group serialization', function () {

@@ -593,20 +593,10 @@ export class EditorGroup extends Disposable {
 		return typeof counter === 'number' && counter > 0;
 	}
 
-	containsEditorByInstance(editor: EditorInput, supportSideBySide?: SideBySideEditor): boolean {
-
-		// Check if exact editor match is contained
+	containsEditorByInstance(editor: EditorInput): boolean {
 		const index = this.indexOf(editor);
 		if (index >= 0) {
 			return true;
-		}
-
-		// Optionally search by master/detail input if instructed
-		if (supportSideBySide && editor instanceof SideBySideEditorInput) {
-			const index = this.indexOf(supportSideBySide === SideBySideEditor.MASTER ? editor.master : editor.details);
-			if (index >= 0) {
-				return true;
-			}
 		}
 
 		return false;
