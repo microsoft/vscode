@@ -15,7 +15,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { CustomEditorModel } from './customEditorModel';
+import { CustomEditorModel } from '../common/customEditorModel';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {

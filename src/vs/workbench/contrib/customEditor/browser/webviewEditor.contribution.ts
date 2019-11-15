@@ -10,6 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { CustomEditoInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
@@ -18,7 +19,6 @@ import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEdito
 import './commands';
 import { CustomFileEditorInput } from './customEditorInput';
 import { CustomEditorContribution, customEditorsAssociationsKey, CustomEditorService } from './customEditors';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 

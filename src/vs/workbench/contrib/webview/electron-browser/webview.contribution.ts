@@ -38,4 +38,4 @@ function registerWebViewCommands(editorId: string): void {
 	}
 }
 
-registerWebViewCommands(WebviewEditor.WebviewEditorID);
+registerWebViewCommands(WebviewEditor.ID);
