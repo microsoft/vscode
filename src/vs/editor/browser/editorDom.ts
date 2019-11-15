@@ -84,7 +84,7 @@ export class EditorMouseEvent extends StandardMouseEvent {
 }
 
 export interface EditorMouseEventMerger {
-	(lastEvent: EditorMouseEvent, currentEvent: EditorMouseEvent): EditorMouseEvent;
+	(lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent;
 }
 
 export class EditorMouseEventFactory {
@@ -124,7 +124,7 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
 		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'mousemove', callback, myMerger, minimumTimeMs);
@@ -162,7 +162,7 @@ export class EditorPointerEventFactory {
 	}
 
 	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
 		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'pointermove', callback, myMerger, minimumTimeMs);
@@ -195,7 +195,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 			this._globalMouseMoveMonitor.stopMonitoring(true);
 		}, true);
 
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, new EditorMouseEvent(currentEvent, this._editorViewDomNode));
 		};
 

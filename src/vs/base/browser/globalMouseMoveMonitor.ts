@@ -16,7 +16,7 @@ export interface IStandardMouseMoveEventData {
 }
 
 export interface IEventMerger<R> {
-	(lastEvent: R, currentEvent: MouseEvent): R;
+	(lastEvent: R | null, currentEvent: MouseEvent): R;
 }
 
 export interface IMouseMoveCallback<R> {
@@ -90,7 +90,7 @@ export class GlobalMouseMoveMonitor<R> implements IDisposable {
 		for (const element of windowChain) {
 			this.hooks.add(dom.addDisposableThrottledListener(element.window.document, mouseMove,
 				(data: R) => this.mouseMoveCallback!(data),
-				(lastEvent: R, currentEvent) => this.mouseMoveEventMerger!(lastEvent, currentEvent as MouseEvent)
+				(lastEvent: R | null, currentEvent) => this.mouseMoveEventMerger!(lastEvent, currentEvent as MouseEvent)
 			));
 			this.hooks.add(dom.addDisposableListener(element.window.document, mouseUp, (e: MouseEvent) => this.stopMonitoring(true)));
 		}
