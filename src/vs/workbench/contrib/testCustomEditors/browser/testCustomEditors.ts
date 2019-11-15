@@ -143,6 +143,10 @@ class TestCustomEditorInput extends EditorInput implements IWorkingCopy {
 
 	setValue(value: string) {
 		if (this.model) {
+			if (this.model.value === value) {
+				return;
+			}
+
 			this.model.value = value;
 		}
 

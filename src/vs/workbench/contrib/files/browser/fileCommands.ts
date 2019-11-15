@@ -29,7 +29,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
+import { getResourceForCommand, getMultiSelectedResources, getMultiSelectedEditors } from 'vs/workbench/contrib/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
@@ -44,6 +44,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
 import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
+import { assign } from 'vs/base/common/objects';
 
 // Commands
 
@@ -124,8 +125,17 @@ async function save(
 		return doSaveAs(resource, isSaveAs, options, editorService, fileService, untitledTextEditorService, textFileService, editorGroupService, environmentService);
 	}
 
-	// Save
-	return doSave(resource, options, editorService, textFileService);
+	// Pin the active editor if we are saving it
+	const activeControl = editorService.activeControl;
+	const activeEditorResource = activeControl?.input?.getResource();
+	if (activeControl && activeEditorResource && isEqual(activeEditorResource, resource)) {
+		activeControl.group.pinEditor(activeControl.input);
+	}
+
+	// Just save (force a change to the file to trigger external watchers if any)
+	options = assign({ force: true }, options || Object.create(null));
+
+	return textFileService.save(resource, options);
 }
 
 async function doSaveAs(
@@ -162,7 +172,7 @@ async function doSaveAs(
 
 		// Force a change to the file to trigger external watchers if any
 		// fixes https://github.com/Microsoft/vscode/issues/59655
-		options = ensureForcedSave(options);
+		options = assign({ force: true }, options || Object.create(null));
 
 		target = await textFileService.saveAs(resource, undefined, options);
 	}
@@ -186,36 +196,6 @@ async function doSaveAs(
 		}], group)));
 
 	return true;
-}
-
-async function doSave(
-	resource: URI,
-	options: ISaveOptions | undefined,
-	editorService: IEditorService,
-	textFileService: ITextFileService
-): Promise<boolean> {
-
-	// Pin the active editor if we are saving it
-	const activeControl = editorService.activeControl;
-	const activeEditorResource = activeControl?.input?.getResource();
-	if (activeControl && activeEditorResource && isEqual(activeEditorResource, resource)) {
-		activeControl.group.pinEditor(activeControl.input);
-	}
-
-	// Just save (force a change to the file to trigger external watchers if any)
-	options = ensureForcedSave(options);
-
-	return textFileService.save(resource, options);
-}
-
-function ensureForcedSave(options?: ISaveOptions): ISaveOptions {
-	if (!options) {
-		options = { force: true };
-	} else {
-		options.force = true;
-	}
-
-	return options;
 }
 
 async function saveAll(saveAllArguments: any, editorService: IEditorService, untitledTextEditorService: IUntitledTextEditorService,
@@ -268,17 +248,23 @@ async function saveAll(saveAllArguments: any, editorService: IEditorService, unt
 CommandsRegistry.registerCommand({
 	id: REVERT_FILE_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
-		const editorService = accessor.get(IEditorService);
-		const textFileService = accessor.get(ITextFileService);
 		const notificationService = accessor.get(INotificationService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService)
-			.filter(resource => resource.scheme !== Schemas.untitled);
+		const listService = accessor.get(IListService);
+		const editorService = accessor.get(IEditorService);
 
-		if (resources.length) {
+		const editors = getMultiSelectedEditors(listService, editorService);
+		if (editors.length) {
 			try {
-				await textFileService.revertAll(resources, { force: true });
+				await Promise.all(editors.map(async editor => {
+					const resource = editor.getResource();
+					if (resource && resource.scheme === Schemas.untitled) {
+						return; // we do not allow to revert untitled files
+					}
+
+					return editor.revert({ force: true });
+				}));
 			} catch (error) {
-				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => basename(r)).join(', '), toErrorMessage(error, false)));
+				notificationService.error(nls.localize('genericRevertResourcesError', "Failed to revert '{0}': {1}", editors.map(e => e.getName()).join(', '), toErrorMessage(error, false)));
 			}
 		}
 	}
