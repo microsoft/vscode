@@ -84,7 +84,7 @@ export class ElementsDragAndDropData<T> implements IDragAndDropData {
 
 	update(): void { }
 
-	getData(): any {
+	getData(): T[] {
 		return this.elements;
 	}
 }
@@ -99,7 +99,7 @@ export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
 
 	update(): void { }
 
-	getData(): any {
+	getData(): T[] {
 		return this.elements;
 	}
 }
