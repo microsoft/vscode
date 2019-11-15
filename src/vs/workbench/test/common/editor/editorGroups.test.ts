@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroup, ISerializedEditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
-import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, TestContextService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -193,13 +193,17 @@ suite('Workbench editor groups', () => {
 		const input1 = input();
 		const input2 = input();
 
-		const diffInput = new DiffEditorInput('name', 'description', input1, input2);
+		const diffInput1 = new DiffEditorInput('name', 'description', input1, input2);
+		const diffInput2 = new DiffEditorInput('name', 'description', input2, input1);
 
 		group.openEditor(input2, { pinned: true, active: true });
 
-		assert.equal(group.contains(input2), true);
-		assert.equal(group.contains(diffInput), false);
-		assert.equal(group.contains(diffInput, true), true);
+		assert.equal(group.containsEditorByInstance(input2, SideBySideEditor.MASTER), true);
+		assert.equal(group.containsEditorByInstance(diffInput1), false);
+		assert.equal(group.containsEditorByInstance(diffInput1, SideBySideEditor.MASTER), true);
+		assert.equal(group.containsEditorByInstance(diffInput1, SideBySideEditor.DETAILS), false);
+		assert.equal(group.containsEditorByInstance(diffInput2, SideBySideEditor.MASTER), false);
+		assert.equal(group.containsEditorByInstance(diffInput2, SideBySideEditor.DETAILS), true);
 	});
 
 	test('group serialization', function () {
@@ -1171,36 +1175,53 @@ suite('Workbench editor groups', () => {
 		const input1 = input(undefined, false, input1Resource);
 		group1.openEditor(input1);
 
-		assert.ok(group1.contains(input1Resource));
+		assert.ok(group1.containsEditorByResource(input1Resource));
 		assert.equal(group1.getEditor(input1Resource), input1);
 
 		assert.ok(!group1.getEditor(input1ResourceUpper));
-		assert.ok(!group1.contains(input1ResourceUpper));
+		assert.ok(!group1.containsEditorByResource(input1ResourceUpper));
 
 		group2.openEditor(input1);
 		group1.closeEditor(input1);
 
-		assert.ok(!group1.contains(input1Resource));
+		assert.ok(!group1.containsEditorByResource(input1Resource));
 		assert.ok(!group1.getEditor(input1Resource));
 		assert.ok(!group1.getEditor(input1ResourceUpper));
-		assert.ok(group2.contains(input1Resource));
+		assert.ok(group2.containsEditorByResource(input1Resource));
 		assert.equal(group2.getEditor(input1Resource), input1);
 
 		const input1ResourceClone = URI.file('/hello/world.txt');
 		const input1Clone = input(undefined, false, input1ResourceClone);
 		group1.openEditor(input1Clone);
 
-		assert.ok(group1.contains(input1Resource));
+		assert.ok(group1.containsEditorByResource(input1Resource));
 
 		group2.closeEditor(input1);
 
-		assert.ok(group1.contains(input1Resource));
+		assert.ok(group1.containsEditorByResource(input1Resource));
 		assert.equal(group1.getEditor(input1Resource), input1Clone);
-		assert.ok(!group2.contains(input1Resource));
+		assert.ok(!group2.containsEditorByResource(input1Resource));
 
 		group1.closeEditor(input1Clone);
 
-		assert.ok(!group1.contains(input1Resource));
+		assert.ok(!group1.containsEditorByResource(input1Resource));
+
+		const masterResource = URI.file('/hello/world2.txt');
+		const masterInput = input(undefined, false, masterResource);
+
+		const detailsResource = URI.file('/hello/world3.txt');
+		const detailsInput = input(undefined, false, detailsResource);
+
+		const diffEditorInput = new DiffEditorInput('name', 'description', detailsInput, masterInput);
+		group1.openEditor(diffEditorInput);
+
+		assert.equal(group1.containsEditorByResource(masterResource), false);
+		assert.equal(group1.containsEditorByResource(masterResource, SideBySideEditor.MASTER), true);
+		assert.equal(group1.containsEditorByResource(masterResource, SideBySideEditor.DETAILS), false);
+
+		assert.equal(group1.containsEditorByResource(detailsResource), false);
+		assert.equal(group1.containsEditorByResource(detailsResource, SideBySideEditor.MASTER), false);
+		assert.equal(group1.containsEditorByResource(detailsResource, SideBySideEditor.DETAILS), true);
 	});
 
 	test('Multiple Editors - Editor Dispose', function () {

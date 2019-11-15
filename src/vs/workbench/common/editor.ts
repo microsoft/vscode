@@ -333,14 +333,14 @@ export interface IEditorInput extends IDisposable {
  */
 export abstract class EditorInput extends Disposable implements IEditorInput {
 
-	protected readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
+	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	protected readonly _onDidChangeLabel: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeLabel: Event<void> = this._onDidChangeLabel.event;
+	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
+	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
-	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDispose: Event<void> = this._onDispose.event;
+	private readonly _onDispose = this._register(new Emitter<void>());
+	readonly onDispose = this._onDispose.event;
 
 	private disposed: boolean = false;
 
@@ -427,13 +427,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 */
 	revert(options?: IRevertOptions): Promise<boolean> {
 		return Promise.resolve(true);
-	}
-
-	/**
-	 * Called when this input is no longer opened in any editor. Subclasses can free resources as needed.
-	 */
-	close(): void {
-		this.dispose();
 	}
 
 	/**
@@ -640,8 +633,8 @@ export interface ITextEditorModel extends IEditorModel {
  */
 export class EditorModel extends Disposable implements IEditorModel {
 
-	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDispose: Event<void> = this._onDispose.event;
+	private readonly _onDispose = this._register(new Emitter<void>());
+	readonly onDispose = this._onDispose.event;
 
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
