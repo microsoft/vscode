@@ -8,8 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { IRevertOptions } from 'vs/workbench/common/editor';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { SaveReason, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService, FileOperationError, FileOperationResult, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
@@ -477,7 +477,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#region save/revert
 
-	async save(resource: URI, options?: ISaveOptions): Promise<boolean> {
+	async save(resource: URI, options?: ITextFileSaveOptions): Promise<boolean> {
 
 		// Run a forced save if we detect the file is not dirty so that save participants can still run
 		if (options?.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
@@ -496,9 +496,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return result.results.length === 1 && !!result.results[0].success;
 	}
 
-	saveAll(includeUntitled?: boolean, options?: ISaveOptions): Promise<ITextFileOperationResult>;
-	saveAll(resources: URI[], options?: ISaveOptions): Promise<ITextFileOperationResult>;
-	saveAll(arg1?: boolean | URI[], options?: ISaveOptions): Promise<ITextFileOperationResult> {
+	saveAll(includeUntitled?: boolean, options?: ITextFileSaveOptions): Promise<ITextFileOperationResult>;
+	saveAll(resources: URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult>;
+	saveAll(arg1?: boolean | URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult> {
 
 		// get all dirty
 		let toSave: URI[] = [];
@@ -522,7 +522,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.doSaveAll(filesToSave, untitledToSave, options);
 	}
 
-	private async doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ISaveOptions): Promise<ITextFileOperationResult> {
+	private async doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult> {
 
 		// Handle files first that can just be saved
 		const result = await this.doSaveAllFiles(fileResources, options);
@@ -627,7 +627,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return options;
 	}
 
-	private async doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
+	private async doSaveAllFiles(resources?: URI[], options: ITextFileSaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
 		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : undefined /* Save All */)
 			.filter(model => {
 				if ((model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
@@ -675,7 +675,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.getFileModels(resources).filter(model => model.isDirty());
 	}
 
-	async saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): Promise<URI | undefined> {
+	async saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 
 		// Get to target resource
 		if (!targetResource) {
@@ -702,7 +702,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.doSaveAs(resource, targetResource, options);
 	}
 
-	private async doSaveAs(resource: URI, target: URI, options?: ISaveOptions): Promise<URI> {
+	private async doSaveAs(resource: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI> {
 
 		// Retrieve text model from provided resource if any
 		let model: ITextFileEditorModel | UntitledTextEditorModel | undefined;
@@ -736,7 +736,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return target;
 	}
 
-	private async doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledTextEditorModel, resource: URI, target: URI, options?: ISaveOptions): Promise<boolean> {
+	private async doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledTextEditorModel, resource: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
 
 		// Prefer an existing model if it is already loaded for the given target resource
 		let targetExists: boolean = false;
@@ -809,7 +809,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
 		const confirm: IConfirmation = {
 			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
-			detail: nls.localize('irreversible', "A file or folder with the same name already exists in the folder {0}. Replacing it will overwrite its current contents.", basename(dirname(resource))),
+			detail: nls.localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
 			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
 			type: 'warning'
 		};
@@ -866,7 +866,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		await Promise.all(fileModels.map(async model => {
 			try {
-				await model.revert(options?.soft);
+				await model.revert(options);
 
 				if (!model.isDirty()) {
 					const result = mapResourceToResult.get(model.resource);

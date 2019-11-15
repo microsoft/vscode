@@ -401,7 +401,10 @@ export default class BufferSyncSupport extends Disposable {
 		this.pendingGetErr?.cancel();
 		this.pendingDiagnostics.clear();
 		this.synchronizer.reset();
+	}
 
+	public reinitialize(): void {
+		this.reset();
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			buffer.open();
 		}

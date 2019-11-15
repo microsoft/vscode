@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
@@ -127,12 +126,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			inline: true,
 			actionHandler: {
 				callback: (content) => {
-					try {
-						const uri = URI.parse(content);
-						this.openerService.open(uri).catch(onUnexpectedError);
-					} catch (err) {
-						// ignore
-					}
+					this.openerService.open(content).catch(onUnexpectedError);
 				},
 				disposeables: disposables
 			}

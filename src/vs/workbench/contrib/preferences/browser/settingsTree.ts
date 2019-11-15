@@ -28,7 +28,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -485,15 +484,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
-						let uri: URI | undefined;
-						try {
-							uri = URI.parse(content);
-						} catch (err) {
-							// ignore
-						}
-						if (uri) {
-							this._openerService.open(uri).catch(onUnexpectedError);
-						}
+						this._openerService.open(content).catch(onUnexpectedError);
 					}
 				},
 				disposeables

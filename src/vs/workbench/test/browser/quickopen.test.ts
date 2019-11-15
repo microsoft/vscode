@@ -54,7 +54,7 @@ suite('QuickOpen', () => {
 
 	test('QuickOpen Handler and Registry', () => {
 		let registry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
-		let handler = new QuickOpenHandlerDescriptor(
+		let handler = QuickOpenHandlerDescriptor.create(
 			TestHandler,
 			'testhandler',
 			',',

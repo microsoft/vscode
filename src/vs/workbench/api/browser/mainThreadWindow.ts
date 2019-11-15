@@ -42,9 +42,17 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		return Promise.resolve(this.hostService.hasFocus);
 	}
 
-	async $openUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<boolean> {
+	async $openUri(uriComponents: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean> {
 		const uri = URI.from(uriComponents);
-		return this.openerService.open(uri, { openExternal: true, allowTunneling: options.allowTunneling });
+		let target: URI | string;
+		if (uriString && URI.parse(uriString).toString() === uri.toString()) {
+			// called with string and no transformation happened -> keep string
+			target = uriString;
+		} else {
+			// called with URI or transformed -> use uri
+			target = uri;
+		}
+		return this.openerService.open(target, { openExternal: true, allowTunneling: options.allowTunneling });
 	}
 
 	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {

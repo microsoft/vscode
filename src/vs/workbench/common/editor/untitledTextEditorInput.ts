@@ -15,6 +15,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -146,11 +147,11 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 		return false;
 	}
 
-	save(): Promise<boolean> {
-		return this.textFileService.save(this.resource);
+	save(options?: ISaveOptions): Promise<boolean> {
+		return this.textFileService.save(this.resource, options);
 	}
 
-	revert(): Promise<boolean> {
+	revert(options?: IRevertOptions): Promise<boolean> {
 		if (this.cachedModel) {
 			this.cachedModel.revert();
 		}

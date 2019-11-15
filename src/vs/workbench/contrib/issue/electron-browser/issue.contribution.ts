@@ -19,7 +19,7 @@ const helpCategory = { value: nls.localize('help', "Help"), original: 'Help' };
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
 if (!!product.reportIssueUrl) {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueUsingReporterAction, ReportPerformanceIssueUsingReporterAction.ID, ReportPerformanceIssueUsingReporterAction.LABEL), 'Help: Report Performance Issue', helpCategory.value);
+	workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ReportPerformanceIssueUsingReporterAction, ReportPerformanceIssueUsingReporterAction.ID, ReportPerformanceIssueUsingReporterAction.LABEL), 'Help: Report Performance Issue', helpCategory.value);
 
 	const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 	const OpenIssueReporterActionLabel = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
@@ -43,7 +43,7 @@ if (!!product.reportIssueUrl) {
 }
 
 const developerCategory = nls.localize('developer', "Developer");
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenProcessExplorer, OpenProcessExplorer.ID, OpenProcessExplorer.LABEL), 'Developer: Open Process Explorer', developerCategory);
+workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.create(OpenProcessExplorer, OpenProcessExplorer.ID, OpenProcessExplorer.LABEL), 'Developer: Open Process Explorer', developerCategory);
 
 registerSingleton(IWorkbenchIssueService, WorkbenchIssueService, true);
 

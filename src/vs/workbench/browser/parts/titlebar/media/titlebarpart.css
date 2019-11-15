@@ -32,6 +32,8 @@
 	 * macOS: does not render LCD-anti-aliased.
 	 */
 	transform: translate3d(0px, 0px, 0px);
+	position: relative;
+	z-index: 1;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-drag-region {
@@ -118,6 +120,7 @@
 	height: 100%;
 	width: 138px;
 	margin-left: auto;
+	transform: translate3d(0px, 0px, 0px);
 }
 
 .monaco-workbench.fullscreen .part.titlebar > .window-controls-container {

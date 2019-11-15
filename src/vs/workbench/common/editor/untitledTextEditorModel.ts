@@ -16,7 +16,8 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, ISaveOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IEncodingSupport, IWorkingCopy {
 
@@ -48,7 +49,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 		@IModelService modelService: IModelService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super(modelService, modeService);
 
@@ -115,11 +117,17 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 		this._onDidChangeDirty.fire();
 	}
 
-	revert(): void {
+	save(options?: ISaveOptions): Promise<boolean> {
+		return this.textFileService.save(this.resource, options);
+	}
+
+	async revert(): Promise<boolean> {
 		this.setDirty(false);
 
 		// Handle content change event buffered
 		this.contentChangeEventScheduler.schedule();
+
+		return true;
 	}
 
 	backup(): Promise<void> {

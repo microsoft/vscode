@@ -8150,10 +8150,10 @@ strip-json-comments@^2.0.1, strip-json-comments@~2.0.1:
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-2.0.1.tgz#3c531942e908c2697c0ec344858c286c7ca0a60a"
   integrity sha1-PFMZQukIwml8DsNEhYwobHygpgo=
 
-sudo-prompt@9.1.0:
-  version "9.1.0"
-  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-9.1.0.tgz#9618823e748ce19e2d9e481feaf3ada7d52df52f"
-  integrity sha512-bJigY3ELFd2ZA7gfyQ4wMZIp1EICPFQcMe3RgSz5OQTzrPPaeryhgaxbInO/G62vpiqJs37qlGdb9TaqHeF2yA==
+sudo-prompt@9.1.1:
+  version "9.1.1"
+  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-9.1.1.tgz#73853d729770392caec029e2470db9c221754db0"
+  integrity sha512-es33J1g2HjMpyAhz8lOR+ICmXXAqTuKbuXuUWLhOLew20oN9oUCgCJx615U/v7aioZg7IX5lIh9x34vwneu4pA==
 
 supports-color@1.2.0:
   version "1.2.0"

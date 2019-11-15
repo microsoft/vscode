@@ -97,7 +97,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	constructor(
 		editor: ICodeEditor,
 		modeService: IModeService,
-		openerService: IOpenerService | null = NullOpenerService,
+		openerService: IOpenerService = NullOpenerService,
 	) {
 		super(ModesGlyphHoverWidget.ID, editor);
 

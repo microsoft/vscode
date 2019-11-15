@@ -207,7 +207,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		private readonly _themeService: IThemeService,
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _modeService: IModeService,
-		private readonly _openerService: IOpenerService | null = NullOpenerService,
+		private readonly _openerService: IOpenerService = NullOpenerService,
 	) {
 		super(ModesContentHoverWidget.ID, editor);
 

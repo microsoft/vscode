@@ -41,7 +41,7 @@ ModesRegistry.registerLanguage({
 });
 
 // Register Output Panel
-Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
+Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(PanelDescriptor.create(
 	OutputPanel,
 	OUTPUT_PANEL_ID,
 	nls.localize('output', "Output"),
@@ -51,7 +51,7 @@ Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
 ));
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		LogViewer,
 		LogViewer.LOG_VIEWER_EDITOR_ID,
 		nls.localize('logViewer', "Log Viewer")
@@ -74,19 +74,19 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // register toggle output action globally
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputAction, ToggleOutputAction.ID, ToggleOutputAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleOutputAction, ToggleOutputAction.ID, ToggleOutputAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
 	linux: {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
 	}
 }), 'View: Toggle Output', nls.localize('viewCategory', "View"));
 
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
 	'View: Clear Output', nls.localize('viewCategory', "View"));
 
 const devCategory = nls.localize('developer', "Developer");
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogsOutputChannelAction, ShowLogsOutputChannelAction.ID, ShowLogsOutputChannelAction.LABEL), 'Developer: Show Logs...', devCategory);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenOutputLogFileAction, OpenOutputLogFileAction.ID, OpenOutputLogFileAction.LABEL), 'Developer: Open Log File...', devCategory);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ShowLogsOutputChannelAction, ShowLogsOutputChannelAction.ID, ShowLogsOutputChannelAction.LABEL), 'Developer: Show Logs...', devCategory);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(OpenOutputLogFileAction, OpenOutputLogFileAction.ID, OpenOutputLogFileAction.LABEL), 'Developer: Open Log File...', devCategory);
 
 // Define clear command, contribute to editor context menu
 registerAction({

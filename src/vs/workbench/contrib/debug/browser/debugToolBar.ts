@@ -117,6 +117,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
 	private disposeOnUpdate: IDisposable | undefined;
+	private yCoordinate = 0;
 
 	private isVisible = false;
 	private isBuilt = false;
@@ -270,9 +271,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	private setYCoordinate(y = 0): void {
+	private setYCoordinate(y = this.yCoordinate): void {
 		const titlebarOffset = this.layoutService.getTitleBarOffset();
 		this.$el.style.top = `${titlebarOffset + y}px`;
+		this.yCoordinate = y;
 	}
 
 	private setCoordinates(x?: number, y?: number): void {

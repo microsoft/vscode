@@ -1124,7 +1124,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				if (context.res.statusCode !== 200) {
 					return Promise.resolve(undefined);
 				}
-				return asJson(context).then((result: { [key: string]: any }) => {
+				return asJson(context).then((result: { [key: string]: any } | null) => {
 					if (!result) {
 						return;
 					}

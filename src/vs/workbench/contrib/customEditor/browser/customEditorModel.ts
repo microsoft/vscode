@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IWorkingCopy, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyService, WorkingCopyCapabilities, ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 type Edit = string;
 
@@ -56,9 +56,19 @@ export class CustomEditorModel extends Disposable implements IWorkingCopy {
 		this._onDidChangeDirty.fire();
 	}
 
-	public save() {
+	public async save(options?: ISaveOptions) {
 		this._savePoint = this._edits.length;
 		this.updateDirty();
+
+		return true;
+	}
+
+	public async revert(options?: IRevertOptions) {
+		while (this._currentEditIndex > 0) {
+			this.undo();
+		}
+
+		return true;
 	}
 
 	public undo() {
