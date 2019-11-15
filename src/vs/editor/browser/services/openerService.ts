@@ -16,6 +16,71 @@ import { IOpener, IOpenerService, IValidator, IExternalUriResolver, OpenOptions,
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
 
 
+class CommandOpener implements IOpener {
+
+	constructor(@ICommandService private readonly _commandService: ICommandService) { }
+
+	async open(target: URI | string) {
+		if (!matchesScheme(target, Schemas.command)) {
+			return false;
+		}
+		// run command or bail out if command isn't known
+		if (typeof target === 'string') {
+			target = URI.parse(target);
+		}
+		if (!CommandsRegistry.getCommand(target.path)) {
+			throw new Error(`command '${target.path}' NOT known`);
+		}
+		// execute as command
+		let args: any = [];
+		try {
+			args = parse(target.query);
+			if (!Array.isArray(args)) {
+				args = [args];
+			}
+		} catch (e) {
+			// ignore error
+		}
+		await this._commandService.executeCommand(target.path, ...args);
+		return true;
+	}
+}
+
+class EditorOpener implements IOpener {
+
+	constructor(@ICodeEditorService private readonly _editorService: ICodeEditorService) { }
+
+	async open(target: URI | string, options: OpenOptions) {
+		if (typeof target === 'string') {
+			target = URI.parse(target);
+		}
+		let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
+		const match = /^L?(\d+)(?:,(\d+))?/.exec(target.fragment);
+		if (match) {
+			// support file:///some/file.js#73,84
+			// support file:///some/file.js#L73
+			selection = {
+				startLineNumber: parseInt(match[1]),
+				startColumn: match[2] ? parseInt(match[2]) : 1
+			};
+			// remove fragment
+			target = target.with({ fragment: '' });
+		}
+
+		if (target.scheme === Schemas.file) {
+			target = normalizePath(target); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
+		}
+
+		await this._editorService.openCodeEditor(
+			{ resource: target, options: { selection, context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API } },
+			this._editorService.getFocusedCodeEditor(),
+			options?.openToSide
+		);
+
+		return true;
+	}
+}
+
 export class OpenerService implements IOpenerService {
 
 	_serviceBrand: undefined;
@@ -25,9 +90,6 @@ export class OpenerService implements IOpenerService {
 	private readonly _resolvers = new LinkedList<IExternalUriResolver>();
 
 	private _externalOpener: IExternalOpener;
-	private _openerAsExternal: IOpener;
-	private _openerAsCommand: IOpener;
-	private _openerAsEditor: IOpener;
 
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
@@ -42,7 +104,7 @@ export class OpenerService implements IOpenerService {
 		};
 
 		// Default opener: maito, http(s), command, and catch-all-editors
-		this._openerAsExternal = {
+		this._openers.push({
 			open: async (target: URI | string, options?: OpenOptions) => {
 				if (options?.openExternal || matchesScheme(target, Schemas.mailto) || matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {
 					// open externally
@@ -51,70 +113,13 @@ export class OpenerService implements IOpenerService {
 				}
 				return false;
 			}
-		};
-
-		this._openerAsCommand = {
-			open: async (target) => {
-				if (!matchesScheme(target, Schemas.command)) {
-					return false;
-				}
-				// run command or bail out if command isn't known
-				if (typeof target === 'string') {
-					target = URI.parse(target);
-				}
-				if (!CommandsRegistry.getCommand(target.path)) {
-					throw new Error(`command '${target.path}' NOT known`);
-				}
-				// execute as command
-				let args: any = [];
-				try {
-					args = parse(target.query);
-					if (!Array.isArray(args)) {
-						args = [args];
-					}
-				} catch (e) {
-					// ignore error
-				}
-				await commandService.executeCommand(target.path, ...args);
-				return true;
-			}
-		};
-
-		this._openerAsEditor = {
-			open: async (target, options: OpenOptions) => {
-				if (typeof target === 'string') {
-					target = URI.parse(target);
-				}
-				let selection: { startLineNumber: number; startColumn: number; } | undefined = undefined;
-				const match = /^L?(\d+)(?:,(\d+))?/.exec(target.fragment);
-				if (match) {
-					// support file:///some/file.js#73,84
-					// support file:///some/file.js#L73
-					selection = {
-						startLineNumber: parseInt(match[1]),
-						startColumn: match[2] ? parseInt(match[2]) : 1
-					};
-					// remove fragment
-					target = target.with({ fragment: '' });
-				}
-
-				if (target.scheme === Schemas.file) {
-					target = normalizePath(target); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
-				}
-
-				await editorService.openCodeEditor(
-					{ resource: target, options: { selection, context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API } },
-					editorService.getFocusedCodeEditor(),
-					options?.openToSide
-				);
-
-				return true;
-			}
-		};
+		});
+		this._openers.push(new CommandOpener(commandService));
+		this._openers.push(new EditorOpener(editorService));
 	}
 
 	registerOpener(opener: IOpener): IDisposable {
-		const remove = this._openers.push(opener);
+		const remove = this._openers.unshift(opener);
 		return { dispose: remove };
 	}
 
@@ -149,13 +154,7 @@ export class OpenerService implements IOpenerService {
 			}
 		}
 
-		// use default openers
-		for (const opener of [this._openerAsExternal, this._openerAsCommand, this._openerAsEditor]) {
-			if (await opener.open(target, options)) {
-				break;
-			}
-		}
-		return true;
+		return false;
 	}
 
 	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
