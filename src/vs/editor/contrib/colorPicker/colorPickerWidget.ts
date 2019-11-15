@@ -14,7 +14,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 const $ = dom.$;
 
