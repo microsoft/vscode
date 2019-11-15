@@ -25,7 +25,6 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
@@ -165,7 +164,7 @@ export class CallStackView extends ViewletPanel {
 			expandOnlyOnTwistieClick: true
 		});
 
-		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
+		this.tree.setInput(this.debugService.getModel());
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this._register(callstackNavigator);
@@ -644,7 +643,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			if (sessions.length === 0) {
 				return Promise.resolve([]);
 			}
-			if (sessions.length > 1) {
+			if (sessions.length > 1 || this.debugService.getViewModel().isMultiSessionView()) {
 				return Promise.resolve(sessions.filter(s => !s.parentSession));
 			}
 

@@ -19,6 +19,63 @@ export const enum WorkingCopyCapabilities {
 	AutoSave = 1 << 1
 }
 
+export const enum SaveReason {
+
+	/**
+	 * Explicit user gesture.
+	 */
+	EXPLICIT = 1,
+
+	/**
+	 * Auto save after a timeout.
+	 */
+	AUTO = 2,
+
+	/**
+	 * Auto save after editor focus change.
+	 */
+	FOCUS_CHANGE = 3,
+
+	/**
+	 * Auto save after window change.
+	 */
+	WINDOW_CHANGE = 4
+}
+
+export interface ISaveOptions {
+
+	/**
+	 * An indicator how the save operation was triggered.
+	 */
+	reason?: SaveReason;
+
+	/**
+	 * Forces to load the contents of the working copy
+	 * again even if the working copy is not dirty.
+	 */
+	force?: boolean;
+
+	/**
+	 * Instructs the save operation to skip any save participants.
+	 */
+	skipSaveParticipants?: boolean;
+}
+
+export interface IRevertOptions {
+
+	/**
+	 * Forces to load the contents of the working copy
+	 * again even if the working copy is not dirty.
+	 */
+	force?: boolean;
+
+	/**
+	 * A soft revert will clear dirty state of a working copy
+	 * but will not attempt to load it from its persisted state.
+	 */
+	soft?: boolean;
+}
+
 export interface IWorkingCopy {
 
 	//#region Dirty Tracking
@@ -28,6 +85,16 @@ export interface IWorkingCopy {
 	isDirty(): boolean;
 
 	//#endregion
+
+
+	//#region Save/Revert
+
+	save(options?: ISaveOptions): Promise<boolean>;
+
+	revert(options?: IRevertOptions): Promise<boolean>;
+
+	//#endregion
+
 
 	readonly resource: URI;
 
@@ -50,6 +117,8 @@ export interface IWorkingCopyService {
 
 	isDirty(resource: URI): boolean;
 
+	getDirty(...resources: URI[]): IWorkingCopy[];
+
 	//#endregion
 
 
@@ -68,6 +137,34 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IWorkingCopy>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	getDirty(...resources: URI[]): IWorkingCopy[] {
+		const dirtyWorkingCopies: IWorkingCopy[] = [];
+
+		// Specific resource(s)
+		if (resources.length > 0) {
+			for (const resource of resources) {
+				this.fillDirty(this.mapResourceToWorkingCopy.get(resource.toString()), dirtyWorkingCopies);
+			}
+		}
+
+		// All resources
+		else {
+			this.fillDirty(this.workingCopies, dirtyWorkingCopies);
+		}
+
+		return dirtyWorkingCopies;
+	}
+
+	private fillDirty(workingCopies: Set<IWorkingCopy> | undefined, target: IWorkingCopy[]): void {
+		if (workingCopies) {
+			for (const workingCopy of workingCopies) {
+				if (workingCopy.isDirty()) {
+					target.push(workingCopy);
+				}
+			}
+		}
+	}
 
 	isDirty(resource: URI): boolean {
 		const workingCopies = this.mapResourceToWorkingCopy.get(resource.toString());

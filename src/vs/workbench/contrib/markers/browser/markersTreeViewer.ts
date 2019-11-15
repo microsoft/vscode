@@ -314,6 +314,7 @@ class MarkerWidget extends Disposable {
 		const lineMatches = filterData && filterData.lineMatches || [];
 
 		let lastLineElement: HTMLElement | undefined = undefined;
+		this.messageAndDetailsContainer.title = element.marker.message;
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
 			lastLineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
 			const messageElement = dom.append(lastLineElement, dom.$('.marker-message'));
@@ -551,7 +552,7 @@ export class MarkerViewModel extends Disposable {
 				if (model) {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
-							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken).then(actions => {
+							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { include: CodeActionKind.QuickFix } }, cancellationToken).then(actions => {
 								return this._register(actions);
 							});
 						});

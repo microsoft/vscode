@@ -50,19 +50,19 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const _href = function (href: string, isDomUri: boolean): string {
 		const data = markdown.uris && markdown.uris[href];
 		if (!data) {
-			return href;
+			return href; // no uri exists
 		}
 		let uri = URI.revive(data);
+		if (URI.parse(href).toString() === uri.toString()) {
+			return href; // no tranformation performed
+		}
 		if (isDomUri) {
 			uri = DOM.asDomUri(uri);
 		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
 		}
-		if (data) {
-			href = uri.toString(true);
-		}
-		return href;
+		return uri.toString();
 	};
 
 	// signal to code-block render that the

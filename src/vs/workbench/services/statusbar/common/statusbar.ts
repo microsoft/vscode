@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { Event } from 'vs/base/common/event';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -72,6 +73,16 @@ export interface IStatusbarService {
 	 * in their respective alignment slot
 	 */
 	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+
+	/**
+	 * An event that is triggered when an entry's visibility is changed.
+	 */
+	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
+
+	/**
+	 * Return if an entry is visible or not.
+	 */
+	isEntryVisible(id: string): boolean;
 
 	/**
 	 * Allows to update an entry's visibility with the provided ID.

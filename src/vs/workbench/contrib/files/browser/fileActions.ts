@@ -19,7 +19,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -46,7 +45,8 @@ import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common
 import { onUnexpectedError, getErrorMessage } from 'vs/base/common/errors';
 import { asDomUri, triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IAutoSaveConfigurationService } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -496,13 +496,13 @@ export class ToggleAutoSaveAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<any> {
-		return this.autoSaveConfigurationService.toggleAutoSave();
+		return this.filesConfigurationService.toggleAutoSave();
 	}
 }
 
@@ -512,38 +512,30 @@ export abstract class BaseSaveAllAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@ICommandService protected commandService: ICommandService,
 		@INotificationService private notificationService: INotificationService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super(id, label);
 
-		this.lastIsDirty = this.textFileService.isDirty();
+		this.lastIsDirty = this.workingCopyService.hasDirty;
 		this.enabled = this.lastIsDirty;
 
 		this.registerListeners();
 	}
 
-	protected abstract includeUntitled(): boolean;
 	protected abstract doRun(context: any): Promise<any>;
 
 	private registerListeners(): void {
 
-		// listen to files being changed locally
-		this._register(this.textFileService.models.onModelsDirty(e => this.updateEnablement(true)));
-		this._register(this.textFileService.models.onModelsSaved(e => this.updateEnablement(false)));
-		this._register(this.textFileService.models.onModelsReverted(e => this.updateEnablement(false)));
-		this._register(this.textFileService.models.onModelsSaveError(e => this.updateEnablement(true)));
-
-		if (this.includeUntitled()) {
-			this._register(this.untitledTextEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledTextEditorService.isDirty(resource))));
-		}
+		// update enablement based on working copy changes
+		this._register(this.workingCopyService.onDidChangeDirty(() => this.updateEnablement()));
 	}
 
-	private updateEnablement(isDirty: boolean): void {
-		if (this.lastIsDirty !== isDirty) {
-			this.enabled = this.textFileService.isDirty();
+	private updateEnablement(): void {
+		const hasDirty = this.workingCopyService.hasDirty;
+		if (this.lastIsDirty !== hasDirty) {
+			this.enabled = hasDirty;
 			this.lastIsDirty = this.enabled;
 		}
 	}
@@ -569,10 +561,6 @@ export class SaveAllAction extends BaseSaveAllAction {
 	protected doRun(context: any): Promise<any> {
 		return this.commandService.executeCommand(SAVE_ALL_COMMAND_ID);
 	}
-
-	protected includeUntitled(): boolean {
-		return true;
-	}
 }
 
 export class SaveAllInGroupAction extends BaseSaveAllAction {
@@ -586,10 +574,6 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 	protected doRun(context: any): Promise<any> {
 		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID, {}, context);
-	}
-
-	protected includeUntitled(): boolean {
-		return true;
 	}
 }
 

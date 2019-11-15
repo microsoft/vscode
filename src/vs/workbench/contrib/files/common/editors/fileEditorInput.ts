@@ -7,17 +7,18 @@ import { localize } from 'vs/nls';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
+import { EncodingMode, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity } from 'vs/workbench/common/editor';
+import { IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService, ModelState, TextFileModelChangeEvent, LoadReason, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, TextFileModelChangeEvent, LoadReason, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IAutoSaveConfigurationService, AutoSaveMode } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const enum ForceOpenAs {
 	None,
@@ -51,7 +52,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -236,19 +237,15 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			return true; // always indicate dirty state if we are in conflict or error state
 		}
 
-		if (this.autoSaveConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 			return false; // fast auto save enabled so we do not declare dirty
 		}
 
 		return model.isDirty();
 	}
 
-	confirmSave(): Promise<ConfirmResult> {
-		return this.textFileService.confirmSave([this.resource]);
-	}
-
-	save(): Promise<boolean> {
-		return this.textFileService.save(this.resource);
+	save(options?: ITextFileSaveOptions): Promise<boolean> {
+		return this.textFileService.save(this.resource, options);
 	}
 
 	revert(options?: IRevertOptions): Promise<boolean> {

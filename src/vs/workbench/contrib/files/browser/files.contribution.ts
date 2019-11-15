@@ -75,7 +75,7 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 }
 
 // Register Viewlet
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	ExplorerViewlet,
 	VIEWLET_ID,
 	nls.localize('explore', "Explorer"),
@@ -94,14 +94,14 @@ const openViewletKb: IKeybindings = {
 // Register Action to Open Viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(
-	new SyncActionDescriptor(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
+	SyncActionDescriptor.create(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
 	'View: Show Explorer',
 	nls.localize('view', "View")
 );
 
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		BinaryFileEditor,
 		BinaryFileEditor.ID,
 		nls.localize('binaryFileEditor', "Binary File Editor")

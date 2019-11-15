@@ -26,7 +26,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(CustomEditorContribution, LifecyclePhase.Starting);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		WebviewEditor,
 		WebviewEditor.ID,
 		'Webview Editor',

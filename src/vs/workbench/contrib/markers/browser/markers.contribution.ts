@@ -92,7 +92,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 
 
 // markers panel
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 	MarkersPanel,
 	Constants.MARKERS_PANEL_ID,
 	Messages.MARKERS_PANEL_TITLE_PROBLEMS,
@@ -107,10 +107,10 @@ workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.
 
 // actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL, {
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
 }), 'View: Toggle Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ShowProblemsPanelAction, ShowProblemsPanelAction.ID, ShowProblemsPanelAction.LABEL), 'View: Focus Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowProblemsPanelAction, ShowProblemsPanelAction.ID, ShowProblemsPanelAction.LABEL), 'View: Focus Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
 registerAction({
 	id: Constants.MARKER_COPY_ACTION_ID,
 	title: { value: localize('copyMarker', "Copy"), original: 'Copy' },

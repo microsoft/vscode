@@ -105,7 +105,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		this._configurationService = configurationService;
 		this._extensionService = extensionService;
 
-		languagesExtPoint.setHandler((extensions: IExtensionPointUser<IRawLanguageExtensionPoint[]>[]) => {
+		languagesExtPoint.setHandler((extensions: readonly IExtensionPointUser<IRawLanguageExtensionPoint[]>[]) => {
 			let allValidLanguages: ILanguageExtensionPoint[] = [];
 
 			for (let i = 0, len = extensions.length; i < len; i++) {

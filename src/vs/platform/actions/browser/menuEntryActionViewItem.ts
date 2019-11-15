@@ -236,28 +236,52 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	_updateItemClass(item: ICommandAction): void {
 		this._itemClassDispose.value = undefined;
 
-		if (item.iconLocation) {
-			let iconClass: string;
-
-			const iconPathMapKey = item.iconLocation.dark.toString();
-
-			if (MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-				iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
-			} else {
-				iconClass = ids.nextId();
-				createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.light || item.iconLocation.dark)}`);
-				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.dark)}`);
-				MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
-			}
+		// icon class
+		if (item.iconClassName) {
+			let iconClass = item.iconClassName;
 
 			if (this.label) {
-				addClasses(this.label, 'icon', iconClass);
+				addClasses(this.label, 'codicon', iconClass);
 				this._itemClassDispose.value = toDisposable(() => {
 					if (this.label) {
-						removeClasses(this.label, 'icon', iconClass);
+						removeClasses(this.label, 'codicon', iconClass);
 					}
 				});
 			}
+
+		}
+
+		// icon path
+		else if (item.iconLocation) {
+			let iconClass: string;
+
+			if (item.iconLocation?.dark?.scheme) {
+
+				const iconPathMapKey = item.iconLocation.dark.toString();
+
+				if (MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
+					iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
+				} else {
+					iconClass = ids.nextId();
+					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.light || item.iconLocation.dark)}`);
+					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.dark)}`);
+					MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
+				}
+
+				if (this.label) {
+
+					addClasses(this.label, 'icon', iconClass);
+					this._itemClassDispose.value = toDisposable(() => {
+						if (this.label) {
+							removeClasses(this.label, 'icon', iconClass);
+						}
+					});
+				}
+
+			}
+
+
+
 		}
 	}
 }

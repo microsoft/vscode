@@ -26,7 +26,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IAutoSaveConfigurationService } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[] | undefined;
@@ -46,9 +46,9 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IHostService hostService: IHostService,
-		@IAutoSaveConfigurationService autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, hostService, autoSaveConfigurationService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, hostService, filesConfigurationService);
 
 		this.scopedInstantiationService = instantiationService;
 	}

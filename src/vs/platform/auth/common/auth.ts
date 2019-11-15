@@ -8,9 +8,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
 export const enum AuthTokenStatus {
-	Disabled = 'Disabled',
 	Inactive = 'Inactive',
-	Active = 'Active'
+	Active = 'Active',
+	SigningIn = 'SigningIn'
 }
 
 export const IAuthTokenService = createDecorator<IAuthTokenService>('IAuthTokenService');

@@ -8,6 +8,7 @@ import { $, append } from 'vs/base/browser/dom';
 import { format } from 'vs/base/common/strings';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { IThemable } from 'vs/base/common/styler';
 
 export interface ICountBadgeOptions extends ICountBadgetyles {
 	count?: number;
@@ -26,7 +27,7 @@ const defaultOpts = {
 	badgeForeground: Color.fromHex('#FFFFFF')
 };
 
-export class CountBadge {
+export class CountBadge implements IThemable {
 
 	private element: HTMLElement;
 	private count: number = 0;

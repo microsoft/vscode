@@ -335,7 +335,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					super(id, `${id}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 				}
 			}
-			const viewletDescriptor = new ViewletDescriptor(
+			const viewletDescriptor = ViewletDescriptor.create(
 				CustomViewlet,
 				id,
 				title,
@@ -359,7 +359,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			}
 			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 			registry.registerWorkbenchAction(
-				new SyncActionDescriptor(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
+				SyncActionDescriptor.create(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
 				`View: Show ${title}`,
 				localize('view', "View")
 			);

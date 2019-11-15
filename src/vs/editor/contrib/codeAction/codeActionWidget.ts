@@ -54,7 +54,9 @@ export class CodeActionWidget extends Disposable {
 	) {
 		super();
 
-		this._keybindingResolver = new CodeActionKeybindingResolver(keybindingService);
+		this._keybindingResolver = new CodeActionKeybindingResolver({
+			getKeybindings: () => keybindingService.getKeybindings()
+		});
 	}
 
 	get isVisible(): boolean {

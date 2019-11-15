@@ -109,6 +109,10 @@ abstract class ViewItem {
 	get priority(): LayoutPriority | undefined { return this.view.priority; }
 	get snap(): boolean { return !!this.view.snap; }
 
+	set enabled(enabled: boolean) {
+		this.container.style.pointerEvents = enabled ? null : 'none';
+	}
+
 	constructor(
 		protected container: HTMLElement,
 		private view: IView,
@@ -430,6 +434,10 @@ export class SplitView extends Disposable {
 	}
 
 	private onSashStart({ sash, start, alt }: ISashEvent): void {
+		for (const item of this.viewItems) {
+			item.enabled = false;
+		}
+
 		const index = firstIndex(this.sashItems, item => item.sash === sash);
 
 		// This way, we can press Alt while we resize a sash, macOS style!
@@ -535,6 +543,10 @@ export class SplitView extends Disposable {
 		this._onDidSashChange.fire(index);
 		this.sashDragState!.disposable.dispose();
 		this.saveProportions();
+
+		for (const item of this.viewItems) {
+			item.enabled = true;
+		}
 	}
 
 	private onViewChange(item: ViewItem, size: number | undefined): void {

@@ -38,6 +38,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugServiceShape {
 
@@ -114,7 +115,7 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 
 		this._onDidStartDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession>();
+		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession | undefined>();
 		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
 
 		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
@@ -136,6 +137,32 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 			});
 			this.registerAllDebugTypes(extensionRegistry);
 		});
+	}
+
+	public asDebugSourceUri(src: vscode.DebugSource, session?: vscode.DebugSession): URI {
+
+		const source = <any>src;
+
+		if (typeof source.sourceReference === 'number') {
+			// src can be retrieved via DAP's "source" request
+
+			let debug = `debug:${encodeURIComponent(source.path || '')}`;
+			let sep = '?';
+
+			if (session) {
+				debug += `${sep}session=${encodeURIComponent(session.id)}`;
+				sep = '&';
+			}
+
+			debug += `${sep}ref=${source.sourceReference}`;
+
+			return URI.parse(debug);
+		} else if (source.path) {
+			// src is just a local file path
+			return URI.file(source.path);
+		} else {
+			throw new Error(`cannot create uri from DAP 'source' object; properties 'path' and 'sourceReference' are both missing.`);
+		}
 	}
 
 	private registerAllDebugTypes(extensionRegistry: ExtensionDescriptionRegistry) {
@@ -485,11 +512,11 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 						}
 						this._debugServiceProxy.$acceptDAError(debugAdapterHandle, err.name, err.message, err.stack);
 					});
-					debugAdapter.onExit((code: number) => {
+					debugAdapter.onExit((code: number | null) => {
 						if (tracker && tracker.onExit) {
-							tracker.onExit(code, undefined);
+							tracker.onExit(withNullAsUndefined(code), undefined);
 						}
-						this._debugServiceProxy.$acceptDAExit(debugAdapterHandle, code, undefined);
+						this._debugServiceProxy.$acceptDAExit(debugAdapterHandle, withNullAsUndefined(code), undefined);
 					});
 
 					if (tracker && tracker.onWillStartSession) {

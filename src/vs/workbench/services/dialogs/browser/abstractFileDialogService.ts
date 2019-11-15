@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -20,8 +20,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import Severity from 'vs/base/common/severity';
 
-export abstract class AbstractFileDialogService {
+export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	_serviceBrand: undefined;
 
@@ -34,6 +35,7 @@ export abstract class AbstractFileDialogService {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IFileService protected readonly fileService: IFileService,
 		@IOpenerService protected readonly openerService: IOpenerService,
+		@IDialogService private readonly dialogService: IDialogService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -76,6 +78,40 @@ export abstract class AbstractFileDialogService {
 
 		// ...then fallback to default file path
 		return this.defaultFilePath(schemeFilter);
+	}
+
+	async showSaveConfirm(fileNameOrResources: string | URI[]): Promise<ConfirmResult> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
+		}
+
+		if (Array.isArray(fileNameOrResources) && fileNameOrResources.length === 0) {
+			return ConfirmResult.DONT_SAVE;
+		}
+
+		let message: string;
+		if (typeof fileNameOrResources === 'string' || fileNameOrResources.length === 1) {
+			message = nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", typeof fileNameOrResources === 'string' ? fileNameOrResources : resources.basename(fileNameOrResources[0]));
+		} else {
+			message = getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", fileNameOrResources.length), fileNameOrResources);
+		}
+
+		const buttons: string[] = [
+			Array.isArray(fileNameOrResources) && fileNameOrResources.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+			nls.localize('cancel', "Cancel")
+		];
+
+		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons, {
+			cancelId: 2,
+			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
+		});
+
+		switch (choice) {
+			case 0: return ConfirmResult.SAVE;
+			case 1: return ConfirmResult.DONT_SAVE;
+			default: return ConfirmResult.CANCEL;
+		}
 	}
 
 	protected abstract addFileSchemaIfNeeded(schema: string): string[];
@@ -179,4 +215,12 @@ export abstract class AbstractFileDialogService {
 	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {
 		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow();
 	}
+
+	abstract pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	abstract pickFileAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	abstract pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	abstract pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	abstract pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
+	abstract showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
+	abstract showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 }
