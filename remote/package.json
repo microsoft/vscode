@@ -21,7 +21,6 @@
     "vscode-proxy-agent": "^0.5.2",
     "vscode-ripgrep": "^1.5.7",
     "vscode-textmate": "^4.3.0",
-    "vsda": "https://github.com/microsoft/vsda.git#45edd3db96a5e308a5cfc817d1ee42f6d96e1659",
     "xterm": "4.3.0-beta17",
     "xterm-addon-search": "0.4.0-beta4",
     "xterm-addon-web-links": "0.2.1",
