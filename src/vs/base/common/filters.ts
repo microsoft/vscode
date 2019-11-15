@@ -543,7 +543,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 	const patternLen = pattern.length > _maxLen ? _maxLen : pattern.length;
 	const wordLen = word.length > _maxLen ? _maxLen : word.length;
 
-	if (patternStart >= patternLen || wordStart >= wordLen || patternLen > wordLen) {
+	if (patternStart >= patternLen || wordStart >= wordLen || (patternLen - patternStart) > (wordLen - wordStart)) {
 		return undefined;
 	}
 
