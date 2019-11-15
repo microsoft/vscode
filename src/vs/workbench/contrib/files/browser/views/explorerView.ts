@@ -51,6 +51,17 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
+import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
+import { Color } from 'vs/base/common/color';
+
+interface IExplorerViewColors extends IColorMapping {
+	listDropBackground?: ColorValue | undefined;
+}
+
+interface IExplorerViewStyles {
+	listDropBackground?: Color;
+}
 
 export class ExplorerView extends ViewletPanel {
 	static readonly ID: string = 'workbench.explorer.fileView';
@@ -67,6 +78,7 @@ export class ExplorerView extends ViewletPanel {
 
 	private renderer!: FilesRenderer;
 
+	private styleElement!: HTMLStyleElement;
 	private compressedFocusContext: IContextKey<boolean>;
 	private compressedFocusFirstContext: IContextKey<boolean>;
 	private compressedFocusLastContext: IContextKey<boolean>;
@@ -173,6 +185,10 @@ export class ExplorerView extends ViewletPanel {
 
 	renderBody(container: HTMLElement): void {
 		const treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
+
+		this.styleElement = DOM.createStyleSheet(treeContainer);
+		attachStyler<IExplorerViewColors>(this.themeService, { listDropBackground }, this.styleListDropBackground.bind(this));
+
 		this.createTree(treeContainer);
 
 		if (this.toolbar) {
@@ -450,7 +466,6 @@ export class ExplorerView extends ViewletPanel {
 				}
 
 				DOM.addClass(labelName, 'context-active');
-
 				disposables.add(toDisposable(() => DOM.removeClass(labelName, 'context-active')));
 			}
 		}
@@ -695,6 +710,21 @@ export class ExplorerView extends ViewletPanel {
 	private updateCompressedNavigationContextKeys(controller: ICompressedNavigationController): void {
 		this.compressedFocusFirstContext.set(controller.index === 0);
 		this.compressedFocusLastContext.set(controller.index === controller.count - 1);
+	}
+
+	styleListDropBackground(styles: IExplorerViewStyles): void {
+		const content: string[] = [];
+
+		if (styles.listDropBackground) {
+			content.push(`.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.drop-target { background-color: ${styles.listDropBackground}; }`);
+		}
+
+		console.log(styles.listDropBackground);
+
+		const newStyles = content.join('\n');
+		if (newStyles !== this.styleElement.innerHTML) {
+			this.styleElement.innerHTML = newStyles;
+		}
 	}
 
 	dispose(): void {

@@ -41,7 +41,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import { ITask, sequence } from 'vs/base/common/async';
+import { ITask, sequence, disposableTimeout } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
@@ -53,6 +53,7 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
+import { domEvent } from 'vs/base/browser/event';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -257,9 +258,52 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			disposables.add(this.renderStat(stat, label, node.filterData, templateData));
 
 			const compressedNavigationController = new CompressedNavigationController(node.element.elements, templateData);
-
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
 			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
+
+			// Compressed folders: drag over feedback
+			let dragOverElement: HTMLElement | undefined;
+			let dragLeaveTimeout: IDisposable = Disposable.None;
+			let dropTargetDisposable: IDisposable = Disposable.None;
+
+			domEvent(templateData.container, 'dragover')(e => {
+				dragLeaveTimeout.dispose();
+
+				const target = getIconLabelNameFromHTMLElement(e.target);
+
+				if (!target) {
+					dropTargetDisposable.dispose();
+					return;
+				}
+
+				e.stopPropagation();
+
+				if (target.element === dragOverElement) {
+					return;
+				}
+
+				dragOverElement = target.element;
+				dropTargetDisposable.dispose();
+				dropTargetDisposable = toDisposable(() => {
+					DOM.removeClass(target.element, 'drop-target');
+					dragOverElement = undefined;
+				});
+				DOM.addClass(target.element, 'drop-target');
+			}, undefined, disposables);
+
+			domEvent(templateData.container, 'drop')(() => {
+				// TODO@joao drop
+			}, undefined, disposables);
+
+			domEvent(templateData.container, 'dragleave')(() => {
+				dragLeaveTimeout.dispose();
+				dragLeaveTimeout = disposableTimeout(() => dropTargetDisposable.dispose(), 100);
+			}, undefined, disposables);
+
+			domEvent(window, 'dragend')(() => {
+				dragLeaveTimeout.dispose();
+				dropTargetDisposable.dispose();
+			}, undefined, disposables);
 
 			templateData.elementDisposable = disposables;
 		}
