@@ -271,7 +271,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 				const target = getIconLabelNameFromHTMLElement(e.target);
 
-				if (!target) {
+				if (!target || target.index === target.count - 1) {
 					dropTargetDisposable.dispose();
 					return;
 				}
