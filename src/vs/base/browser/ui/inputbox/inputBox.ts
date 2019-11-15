@@ -220,6 +220,8 @@ export class InputBox extends Widget {
 			});
 		}
 
+		this.ignoreGesture(this.input);
+
 		setTimeout(() => this.updateMirror(), 0);
 
 		// Support actions
