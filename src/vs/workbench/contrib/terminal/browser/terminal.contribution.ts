@@ -209,11 +209,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'terminal.integrated.rendererType': {
 			type: 'string',
-			enum: ['auto', 'canvas', 'dom'],
+			enum: ['auto', 'canvas', 'dom', 'experimentalWebgl'],
 			enumDescriptions: [
 				nls.localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
-				nls.localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer"),
-				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer.")
+				nls.localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
+				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
+				nls.localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl) and this will only be enabled for new terminals (not hot swappable like the other renderers).")
 			],
 			default: 'auto',
 			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")

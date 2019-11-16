@@ -87,7 +87,7 @@ export interface ITerminalConfiguration {
 	};
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	rendererType: 'auto' | 'canvas' | 'dom';
+	rendererType: 'auto' | 'canvas' | 'dom' | 'experimentalWebgl';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
