@@ -231,18 +231,18 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 	private getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string) {
 		switch (resource.scheme) {
 			case 'data':
-				return encodeURI(resource.toString(true));
+				return resource.toString(true);
 
 			case 'git':
 				// Show blank image
-				return encodeURI('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==');
+				return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==';
 
 			default:
 				// Avoid adding cache busting if there is already a query string
 				if (resource.query) {
-					return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true));
+					return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString());
 				}
-				return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true) + `?version=${version}`);
+				return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString() + `?version=${version}`);
 		}
 	}
 

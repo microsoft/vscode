@@ -303,7 +303,7 @@
 		document.body.classList.remove('loading');
 	});
 
-	image.src = decodeURI(settings.src);
+	image.src = settings.src;
 
 	window.addEventListener('message', e => {
 		switch (e.data.type) {
