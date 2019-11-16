@@ -120,12 +120,20 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		});
 	}
 
-	public runCommand(accessor: ServicesAccessor, _args: any): void {
+	public runCommand(accessor: ServicesAccessor): void {
 		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
-		if (!customEditorService.activeCustomEditor) {
+
+		const activeCustomEditor = customEditorService.activeCustomEditor;
+		if (!activeCustomEditor) {
 			return;
 		}
-		console.log(customEditorService.activeCustomEditor);
+
+		const model = customEditorService.models.get(activeCustomEditor.resource, activeCustomEditor.viewType);
+		if (!model) {
+			return;
+		}
+
+		model.undo();
 	}
 }).register();
 
@@ -147,7 +155,19 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		});
 	}
 
-	public runCommand(_accessor: ServicesAccessor, args: any): void {
-		console.log('redo', args);
+	public runCommand(accessor: ServicesAccessor): void {
+		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
+
+		const activeCustomEditor = customEditorService.activeCustomEditor;
+		if (!activeCustomEditor) {
+			return;
+		}
+
+		const model = customEditorService.models.get(activeCustomEditor.resource, activeCustomEditor.viewType);
+		if (!model) {
+			return;
+		}
+
+		model.redo();
 	}
 }).register();

@@ -11,7 +11,7 @@ import * as nls from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewEditorOverlay, webviewHasOwnEditFunctionsContextKey } from 'vs/workbench/contrib/webview/browser/webview';
 import { getActiveWebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewCommands';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
@@ -119,7 +119,7 @@ export class UndoWebviewEditorCommand extends Command {
 	constructor(contextKeyExpr: ContextKeyExpr) {
 		super({
 			id: UndoWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
+			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey), ContextKeyExpr.not(webviewHasOwnEditFunctionsContextKey)),
 			kbOpts: {
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z,
 				weight: KeybindingWeight.EditorContrib
@@ -138,7 +138,7 @@ export class RedoWebviewEditorCommand extends Command {
 	constructor(contextKeyExpr: ContextKeyExpr) {
 		super({
 			id: RedoWebviewEditorCommand.ID,
-			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey)),
+			precondition: ContextKeyExpr.and(contextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey), ContextKeyExpr.not(webviewHasOwnEditFunctionsContextKey)),
 			kbOpts: {
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],

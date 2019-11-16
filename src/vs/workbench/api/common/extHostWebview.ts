@@ -252,6 +252,10 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 		assertIsDefined(this._capabilities).editingCapability?.undoEdits(edits);
 	}
 
+	_redoEdits(edits: string[]): void {
+		assertIsDefined(this._capabilities).editingCapability?.applyEdits(edits);
+	}
+
 	private assertNotDisposed() {
 		if (this._isDisposed) {
 			throw new Error('Webview is disposed');
@@ -445,6 +449,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			return;
 		}
 		panel._undoEdits(edits);
+	}
+
+	$redoEdits(handle: WebviewPanelHandle, edits: string[]): void {
+		const panel = this.getWebviewPanel(handle);
+		if (!panel) {
+			return;
+		}
+		panel._redoEdits(edits);
 	}
 
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewEditor | undefined {

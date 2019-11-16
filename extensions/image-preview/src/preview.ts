@@ -260,9 +260,9 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 
 	async hotExit() { }
 
-	async applyEdits(_edits: any[]) { }
-
 	async undoEdits(edits: any[]) { console.log('undo', edits); }
+
+	async applyEdits(edits: any[]) { console.log('apply', edits); }
 
 	//#endregion
 
