@@ -186,10 +186,6 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private async showSelectionEvaluation(selection: Selection, model: ITextModel, session: IDebugSession): Promise<IExpression | undefined> {
-		if (!session.capabilities.supportsEvaluateForHovers) {
-			return undefined;
-		}
-
 		const selectedText = model.getValueInRange(selection);
 		const expression = new Expression(selectedText);
 		await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover');
