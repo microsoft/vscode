@@ -6,6 +6,8 @@
 import { ITextModel, IModelDecorationOptions, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FoldingRegions, ILineRange, FoldingRegion } from './foldingRanges';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean): IModelDecorationOptions;
@@ -84,13 +86,18 @@ export class FoldingModel {
 			let maxColumn = this._textModel.getLineMaxColumn(startLineNumber);
 			let decorationRange = {
 				startLineNumber: startLineNumber,
-				startColumn: maxColumn,
+				startColumn: 0,
 				endLineNumber: startLineNumber,
 				endColumn: maxColumn
 			};
 			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed) });
 		};
-
+		registerThemingParticipant((theme, collector) => {
+			const highlightCollapsedBackground = theme.getColor(editorSelectionBackground);
+			if (highlightCollapsedBackground) {
+				collector.addRule(`.monaco-editor .folded-background { background-color: ${highlightCollapsedBackground}; }`);
+			}
+		});
 		let i = 0;
 		let nextCollapsed = () => {
 			while (i < this._regions.length) {
