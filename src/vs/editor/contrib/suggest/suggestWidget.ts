@@ -60,6 +60,7 @@ interface ISuggestionTemplateData {
 export const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
 export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
 export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hc: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
+export const editorSuggestWidgetShadowColor = registerColor('editorSuggestWidget.shadow', { dark: null, light: null, hc: null }, nls.localize('editorSuggestWidgetShaodw', 'Shaodw color of the suggest widget.'));
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: listFocusBackground, light: listFocusBackground, hc: listFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
 
@@ -1208,7 +1209,11 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const foreground = theme.getColor(editorSuggestWidgetForeground);
 	if (foreground) {
-		collector.addRule(`.monaco-editor .suggest-widget { color: ${foreground}; }`);
+		collector.addRule(`.monaco-editor .suggest-widget { color: ${foreground};  }`);
+	}
+	const editorSuggestWidgetShadow = theme.getColor(editorSuggestWidgetShadowColor);
+	if (editorSuggestWidgetShadow) {
+		collector.addRule(`.monaco-editor .suggest-widget > .tree, .monaco-editor .suggest-widget > .details {box-shadow: 0 1px 6px 0 ${editorSuggestWidgetShadow}; border-radius:6px; overflow: hidden;}`);
 	}
 
 	const link = theme.getColor(textLinkForeground);

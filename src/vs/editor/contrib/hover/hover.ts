@@ -21,7 +21,7 @@ import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHov
 import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground, editorHoverForeground, editorHoverShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -314,6 +314,7 @@ registerThemingParticipant((theme, collector) => {
 	if (hoverBackground) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover { background-color: ${hoverBackground}; }`);
 	}
+
 	const hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
@@ -321,6 +322,11 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .monaco-editor-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .monaco-editor-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
 	}
+	const hoverShadow = theme.getColor(editorHoverShadow);
+	if (hoverShadow) {
+		collector.addRule(`.monaco-editor .monaco-editor-hover { box-shadow: 0 1px 6px 0 ${hoverShadow}; border-radius: 4px ; border:none}`);
+	}
+
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover a { color: ${link}; }`);
