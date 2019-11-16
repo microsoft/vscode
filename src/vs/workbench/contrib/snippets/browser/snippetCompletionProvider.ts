@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { compare, commonPrefixLength } from 'vs/base/common/strings';
+import { compare, startsWith } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -113,7 +113,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				availableSnippets.forEach(snippet => {
 					if (isPatternInWord(linePrefixLow, start, linePrefixLow.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
 						const snippetPrefixSubstr = snippet.prefixLow.substr(linePrefixLow.length - start);
-						const endColumn = commonPrefixLength(snippetPrefixSubstr, lineSuffixLow) === snippetPrefixSubstr.length ? position.column + snippetPrefixSubstr.length : position.column;
+						const endColumn = startsWith(lineSuffixLow, snippetPrefixSubstr) ? position.column + snippetPrefixSubstr.length : position.column;
 						const replace = Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), { lineNumber: position.lineNumber, column: endColumn });
 						const insert = replace.setEndPosition(position.lineNumber, position.column);
 
