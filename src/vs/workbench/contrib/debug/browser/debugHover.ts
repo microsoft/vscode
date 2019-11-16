@@ -210,7 +210,7 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		let expression: IExpression | undefined;
-		const evaluateSelectionText = this.configurationService.getValue<IDebugConfiguration>('debug').evaluateSelectedText;
+		const evaluateSelectionText = this.configurationService.getValue<IDebugConfiguration>('debug').evaluateSelectionOnHover;
 		if (!evaluateSelectionText) {
 			expression = await this.showRegularHoverEvaluation(range, pos, this.editor.getModel(), session);
 		} else {

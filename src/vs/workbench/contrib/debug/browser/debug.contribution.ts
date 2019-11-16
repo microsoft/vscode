@@ -196,9 +196,9 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session."),
 			default: false
 		},
-		'debug.evaluateSelectedText': {
+		'debug.evaluateSelectionOnHover': {
 			type: 'boolean',
-			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'evaluateSelectedText' }, "Evaluate and show the selected text when hovered, just like it was in the Watch Window.\n\n**Warning**: Evaluating the selection may cause side-effects. For instance, you can accidentally evaluate an unwanted function call."),
+			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'evaluateSelectionOnHover' }, "Evaluate and show the selected text when hovered.\n\n**Warning**: Evaluating the selection may cause side-effects. For instance, you can accidentally evaluate an unwanted function call."),
 			default: false
 		},
 		'debug.inlineValues': {

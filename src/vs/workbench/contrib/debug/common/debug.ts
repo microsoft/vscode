@@ -452,7 +452,7 @@ export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
 	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
 	openExplorerOnEnd: boolean;
-	evaluateSelectedText: boolean;
+	evaluateSelectionOnHover: boolean;
 	inlineValues: boolean;
 	toolBarLocation: 'floating' | 'docked' | 'hidden';
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
