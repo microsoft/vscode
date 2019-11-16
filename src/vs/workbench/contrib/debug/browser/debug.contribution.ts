@@ -199,7 +199,7 @@ configurationRegistry.registerConfiguration({
 		'debug.evaluateSelectionOnHover': {
 			type: 'boolean',
 			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'evaluateSelectionOnHover' }, "Evaluate and show the selected text when hovered.\n\n**Warning**: Evaluating the selection may cause side-effects. For instance, you can accidentally evaluate an unwanted function call."),
-			default: false
+			default: true
 		},
 		'debug.inlineValues': {
 			type: 'boolean',
