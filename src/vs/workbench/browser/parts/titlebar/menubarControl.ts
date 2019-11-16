@@ -12,7 +12,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, isIOS } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -42,6 +42,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 // tslint:disable-next-line: import-patterns layering TODO@sbatten
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export abstract class MenubarControl extends Disposable {
 
@@ -673,7 +674,7 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		this._register(DOM.addDisposableListener(window, DOM.EventType.RESIZE, () => {
-			if (this.menubar) {
+			if (this.menubar && !(isIOS && BrowserFeatures.pointerEvents)) {
 				this.menubar.blur();
 			}
 		}));

@@ -283,10 +283,10 @@ normalize-path@^3.0.0, normalize-path@~3.0.0:
   resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-3.0.0.tgz#0dcd69ff23a1c9b11fd0978316644a0388216a65"
   integrity sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==
 
-onigasm-umd@^2.2.2:
-  version "2.2.2"
-  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.2.tgz#b989d762df61f899a3052ac794a50bd93fe20257"
-  integrity sha512-v2eMOJu7iE444L2iJN+U6s6s5S0y7oj/N0DAkrd6wokRtTVoq/v/yaDI1lIqFrTeJbNtqNzYvguDF5yNzW3Rvw==
+onigasm-umd@^2.2.4:
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.4.tgz#27ee87f7496c66ad40cebfbc0d418c19bb7db5ec"
+  integrity sha512-N9VqCUhl9KBuzm47vcK8T/xUnbYylIhMN45Rwltlo1sZc3QUDda6SxIlyVB8r0SJQwURv8JOHjyXjjCriGvzRg==
 
 oniguruma@^7.2.0:
   version "7.2.0"
@@ -369,10 +369,10 @@ universalify@^0.1.0:
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
   integrity sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==
 
-vscode-minimist@^1.2.1:
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/vscode-minimist/-/vscode-minimist-1.2.1.tgz#e63d3f4a9bf3680dcb8f9304eed612323fd6926a"
-  integrity sha512-cmB72+qDoiCFJ1UKnGUBdGYfXzdpJ3bQM/D/+XhkVk5v7uZgLbYiCz5JcwVyk7NC7hSi5VGtQ4wihzmi12NeXw==
+vscode-minimist@^1.2.2:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/vscode-minimist/-/vscode-minimist-1.2.2.tgz#65403f44f0c6010d259b2271d36eb5c6f4ad8aab"
+  integrity sha512-DXMNG2QgrXn1jOP12LzjVfvxVkzxv/0Qa27JrMBj/XP2esj+fJ/wP2T4YUH5derj73Lc96dC8F25WyfDUbTpxQ==
 
 vscode-nsfw@1.2.8:
   version "1.2.8"
@@ -427,6 +427,11 @@ xterm-addon-web-links@0.2.1:
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.1.tgz#6d1f2ce613e09870badf17615e7a1170a31542b2"
   integrity sha512-2KnHtiq0IG7hfwv3jw2/jQeH1RBk2d5CH4zvgwQe00rLofSJqSfgnJ7gwowxxpGHrpbPr6Lv4AmH/joaNw2+HQ==
+
+xterm-addon-webgl@0.4.0-beta6:
+  version "0.4.0-beta6"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.4.0-beta6.tgz#23d152a0467d8b1f96ab3da7ac9a49bfa0b08c98"
+  integrity sha512-gtM8XtRyrNFCtxHBIU3pqTlBeAi5VOoymJAXKQQ7RsHEVJX79OTk1dQ9Q6Ow14+REGwQU/zFECV050jbLTfvrQ==
 
 xterm@4.3.0-beta17:
   version "4.3.0-beta17"

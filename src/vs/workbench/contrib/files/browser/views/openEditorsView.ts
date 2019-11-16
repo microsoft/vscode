@@ -15,8 +15,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
-import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -41,8 +39,9 @@ import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
-import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 import { isWeb } from 'vs/base/common/platform';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 const $ = dom.$;
 
@@ -67,16 +66,15 @@ export class OpenEditorsView extends ViewletPanel {
 		options: IViewletViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super({
 			...(options as IViewletPanelOptions),
@@ -100,11 +98,7 @@ export class OpenEditorsView extends ViewletPanel {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
-		this._register(this.untitledTextEditorService.onDidChangeDirty(() => this.updateDirtyIndicator()));
-		this._register(this.textFileService.models.onModelsDirty(() => this.updateDirtyIndicator()));
-		this._register(this.textFileService.models.onModelsSaved(() => this.updateDirtyIndicator()));
-		this._register(this.textFileService.models.onModelsSaveError(() => this.updateDirtyIndicator()));
-		this._register(this.textFileService.models.onModelsReverted(() => this.updateDirtyIndicator()));
+		this._register(this.workingCopyService.onDidChangeDirty(() => this.updateDirtyIndicator()));
 	}
 
 	private registerUpdateEvents(): void {
@@ -246,7 +240,7 @@ export class OpenEditorsView extends ViewletPanel {
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
 				const resource = element.getResource();
-				this.dirtyEditorFocusedContext.set(this.textFileService.isDirty(resource));
+				this.dirtyEditorFocusedContext.set(element.editor.isDirty());
 				this.resourceContext.set(withUndefinedAsNull(resource));
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
@@ -413,14 +407,25 @@ export class OpenEditorsView extends ViewletPanel {
 	}
 
 	private updateDirtyIndicator(): void {
-		let dirty = this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY ? this.textFileService.getDirty().length
-			: this.untitledTextEditorService.getDirty().length;
+		let dirty = this.dirtyCount;
 		if (dirty === 0) {
 			dom.addClass(this.dirtyCountElement, 'hidden');
 		} else {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
 			dom.removeClass(this.dirtyCountElement, 'hidden');
 		}
+	}
+
+	private get dirtyCount(): number {
+		let dirtyCount = 0;
+
+		for (const element of this.elements) {
+			if (element instanceof OpenEditor && element.editor.isDirty()) {
+				dirtyCount++;
+			}
+		}
+
+		return dirtyCount;
 	}
 
 	private get elementCount(): number {
@@ -614,13 +619,13 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		return null;
 	}
 
-	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string | undefined {
+	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string {
 		if (elements.length > 1) {
 			return String(elements.length);
 		}
 		const element = elements[0];
 
-		return element instanceof OpenEditor ? withNullAsUndefined(element.editor.getName()) : element.label;
+		return element instanceof OpenEditor ? element.editor.getName() : element.label;
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {

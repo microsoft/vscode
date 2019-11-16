@@ -23,7 +23,7 @@ import { DefaultPanelDndController } from 'vs/base/browser/ui/splitview/panelvie
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { localize } from 'vs/nls';
@@ -328,12 +328,11 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 	private constantViewDescriptors: Map<string, IViewDescriptor> = new Map();
 	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
-	private filterValue: string;
-
-	protected onDidChangeFilterValue: Emitter<string> = new Emitter();
+	private filterValue: string | undefined;
 
 	constructor(
 		viewletId: string,
+		onDidChangeFilterValue: Event<string>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -345,26 +344,30 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(viewletId, `${viewletId}.state`, false, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-		this._register(this.onDidChangeFilterValue.event(newFilterValue => {
+		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);
 		}));
 
 		this._register(this.viewsModel.onDidChangeActiveViews((viewDescriptors) => {
-			viewDescriptors.forEach(descriptor => {
-				let filterOnValue = this.getFilterOn(descriptor);
-				if (!filterOnValue) {
-					return;
-				}
-				if (!this.allViews.has(filterOnValue)) {
-					this.allViews.set(filterOnValue, new Map());
-				}
-				this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
-				if (filterOnValue !== this.filterValue) {
-					this.viewsModel.setVisible(descriptor.id, false);
-				}
-			});
+			this.updateAllViews(viewDescriptors);
 		}));
+	}
+
+	private updateAllViews(viewDescriptors: IViewDescriptor[]) {
+		viewDescriptors.forEach(descriptor => {
+			let filterOnValue = this.getFilterOn(descriptor);
+			if (!filterOnValue) {
+				return;
+			}
+			if (!this.allViews.has(filterOnValue)) {
+				this.allViews.set(filterOnValue, new Map());
+			}
+			this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
+			if (filterOnValue !== this.filterValue) {
+				this.viewsModel.setVisible(descriptor.id, false);
+			}
+		});
 	}
 
 	protected addConstantViewDescriptors(constantViewDescriptors: IViewDescriptor[]) {
@@ -416,6 +419,10 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 	}
 
 	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
+		// Check that allViews is ready
+		if (this.allViews.size === 0) {
+			this.updateAllViews(this.viewsModel.viewDescriptors);
+		}
 		const panels: ViewletPanel[] = super.onDidAddViews(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {

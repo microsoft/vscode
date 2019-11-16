@@ -11,7 +11,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { ITextAreaHandlerHelper, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
@@ -51,16 +51,14 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export interface IContentWidgetData {
-	widget: editorBrowser.IContentWidget;
-	position: editorBrowser.IContentWidgetPosition | null;
+	widget: IContentWidget;
+	position: IContentWidgetPosition | null;
 }
 
 export interface IOverlayWidgetData {
-	widget: editorBrowser.IOverlayWidget;
-	position: editorBrowser.IOverlayWidgetPosition | null;
+	widget: IOverlayWidget;
+	position: IOverlayWidgetPosition | null;
 }
-
-const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class View extends ViewEventHandler {
 
@@ -348,7 +346,7 @@ export class View extends ViewEventHandler {
 		super.dispose();
 	}
 
-	private _renderOnce(callback: () => any): any {
+	private _renderOnce<T>(callback: () => T): T {
 		const r = safeInvokeNoArg(callback);
 		this._scheduleRender();
 		return r;
@@ -458,7 +456,7 @@ export class View extends ViewEventHandler {
 		return visibleRange.left;
 	}
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget | null {
+	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
 		return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
 	}
 
@@ -466,42 +464,15 @@ export class View extends ViewEventHandler {
 		return new OverviewRuler(this._context, cssClassName);
 	}
 
-	public change(callback: (changeAccessor: editorBrowser.IViewZoneChangeAccessor) => any): boolean {
-		let zonesHaveChanged = false;
-
-		this._renderOnce(() => {
-			const changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
-				addZone: (zone: editorBrowser.IViewZone): string => {
-					zonesHaveChanged = true;
-					return this.viewZones.addZone(zone);
-				},
-				removeZone: (id: string): void => {
-					if (!id) {
-						return;
-					}
-					zonesHaveChanged = this.viewZones.removeZone(id) || zonesHaveChanged;
-				},
-				layoutZone: (id: string): void => {
-					if (!id) {
-						return;
-					}
-					zonesHaveChanged = this.viewZones.layoutZone(id) || zonesHaveChanged;
-				}
-			};
-
-			safeInvoke1Arg(callback, changeAccessor);
-
-			// Invalidate changeAccessor
-			changeAccessor.addZone = invalidFunc;
-			changeAccessor.removeZone = invalidFunc;
-			changeAccessor.layoutZone = invalidFunc;
-
+	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
+		return this._renderOnce(() => {
+			const zonesHaveChanged = this.viewZones.changeViewZones(callback);
 			if (zonesHaveChanged) {
 				this._context.viewLayout.onHeightMaybeChanged();
 				this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
 			}
+			return zonesHaveChanged;
 		});
-		return zonesHaveChanged;
 	}
 
 	public render(now: boolean, everything: boolean): void {
@@ -582,10 +553,3 @@ function safeInvokeNoArg(func: Function): any {
 	}
 }
 
-function safeInvoke1Arg(func: Function, arg1: any): any {
-	try {
-		return func(arg1);
-	} catch (e) {
-		onUnexpectedError(e);
-	}
-}

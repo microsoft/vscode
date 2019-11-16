@@ -65,7 +65,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 
 	private _isVisible: boolean = false;
 	readonly id: string;
-	readonly title: string;
+	title: string;
 
 	protected actionRunner?: IActionRunner;
 	protected toolbar?: ToolBar;
@@ -169,6 +169,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		if (this.titleContainer) {
 			this.titleContainer.textContent = title;
 		}
+		this.title = title;
 		this._onDidChangeTitleArea.fire();
 	}
 

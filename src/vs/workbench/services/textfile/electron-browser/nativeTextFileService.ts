@@ -31,18 +31,16 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ConfirmResult } from 'vs/workbench/common/editor';
 import { assign } from 'vs/base/common/objects';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -52,22 +50,21 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IHistoryService historyService: IHistoryService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IElectronService private readonly electronService: IElectronService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, configurationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, contextKeyService, dialogService, fileDialogService, editorService, textResourceConfigurationService);
+		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService);
 	}
 
 	private _encoding: EncodingOracle | undefined;
@@ -316,16 +313,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 	protected getWindowCount(): Promise<number> {
 		return this.electronService.getWindowCount();
-	}
-
-	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment) {
-			if (!this.environmentService.args['extension-development-confirm-save']) {
-				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
-			}
-		}
-
-		return super.confirmSave(resources);
 	}
 }
 

@@ -7,10 +7,10 @@ nan@^2.14.0:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
 
-onigasm-umd@^2.2.2:
-  version "2.2.2"
-  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.2.tgz#b989d762df61f899a3052ac794a50bd93fe20257"
-  integrity sha512-v2eMOJu7iE444L2iJN+U6s6s5S0y7oj/N0DAkrd6wokRtTVoq/v/yaDI1lIqFrTeJbNtqNzYvguDF5yNzW3Rvw==
+onigasm-umd@^2.2.4:
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.4.tgz#27ee87f7496c66ad40cebfbc0d418c19bb7db5ec"
+  integrity sha512-N9VqCUhl9KBuzm47vcK8T/xUnbYylIhMN45Rwltlo1sZc3QUDda6SxIlyVB8r0SJQwURv8JOHjyXjjCriGvzRg==
 
 oniguruma@^7.2.0:
   version "7.2.0"
@@ -40,6 +40,11 @@ xterm-addon-web-links@0.2.1:
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.1.tgz#6d1f2ce613e09870badf17615e7a1170a31542b2"
   integrity sha512-2KnHtiq0IG7hfwv3jw2/jQeH1RBk2d5CH4zvgwQe00rLofSJqSfgnJ7gwowxxpGHrpbPr6Lv4AmH/joaNw2+HQ==
+
+xterm-addon-webgl@0.4.0-beta6:
+  version "0.4.0-beta6"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.4.0-beta6.tgz#23d152a0467d8b1f96ab3da7ac9a49bfa0b08c98"
+  integrity sha512-gtM8XtRyrNFCtxHBIU3pqTlBeAi5VOoymJAXKQQ7RsHEVJX79OTk1dQ9Q6Ow14+REGwQU/zFECV050jbLTfvrQ==
 
 xterm@4.3.0-beta17:
   version "4.3.0-beta17"

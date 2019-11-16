@@ -105,7 +105,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, accessor.get(IExtHostOutputService));
 
 	// manually create and register addressable instances
-	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.environment, extHostWorkspace));
+	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.environment, extHostWorkspace, extHostLogService));
 	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
@@ -185,8 +185,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					}
 
 					return activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
-						args.unshift(activeTextEditor, edit);
-						callback.apply(thisArg, args);
+						callback.apply(thisArg, [activeTextEditor, edit, ...args]);
 
 					}).then((result) => {
 						if (!result) {
@@ -778,7 +777,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (!parentSessionOrOptions || (typeof parentSessionOrOptions === 'object' && 'configuration' in parentSessionOrOptions)) {
 					return extHostDebugService.startDebugging(folder, nameOrConfig, { parentSession: parentSessionOrOptions });
 				}
-				checkProposedApiEnabled(extension);
 				return extHostDebugService.startDebugging(folder, nameOrConfig, parentSessionOrOptions || {});
 			},
 			addBreakpoints(breakpoints: vscode.Breakpoint[]) {
@@ -786,6 +784,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			removeBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.removeBreakpoints(breakpoints);
+			},
+			asDebugSourceUri(source: vscode.DebugSource, session?: vscode.DebugSession): vscode.Uri {
+				checkProposedApiEnabled(extension);
+				return extHostDebugService.asDebugSourceUri(source, session);
 			}
 		};
 

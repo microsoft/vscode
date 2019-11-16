@@ -6,10 +6,11 @@
 import { URI as Uri } from 'vs/base/common/uri';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITextFileService, TextFileModelChangeEvent, StateChange, IAutoSaveConfiguration } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
+import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const AUTO_SAVE_AFTER_DELAY_DISABLED_TIME = CONTENT_CHANGE_EVENT_BUFFER_DELAY + 500;
 
@@ -21,6 +22,7 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -38,8 +40,8 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 		this._register(this.untitledTextEditorService.onDidChangeContent(e => this.onUntitledModelChanged(e)));
 		this._register(this.untitledTextEditorService.onDidDisposeModel(e => this.discardBackup(e)));
 
-		// Listen to config changes
-		this._register(this.textFileService.onAutoSaveConfigurationChange(c => this.onAutoSaveConfigurationChange(c)));
+		// Listen to auto save config changes
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(c => this.onAutoSaveConfigurationChange(c)));
 	}
 
 	private onAutoSaveConfigurationChange(configuration: IAutoSaveConfiguration): void {

@@ -4,18 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, IEditor } from 'vs/workbench/common/editor';
+import { CustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditorModel';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
 export const CONTEXT_HAS_CUSTOM_EDITORS = new RawContextKey<boolean>('hasCustomEditors', false);
+export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boolean>('focusedCustomEditorIsEditable', false);
+
+export interface ICustomEditor {
+	readonly resource: URI;
+	readonly model: CustomEditorModel | undefined;
+}
 
 export interface ICustomEditorService {
 	_serviceBrand: any;
+
+	readonly activeCustomEditor: ICustomEditor | undefined;
 
 	getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[];
 	getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[];

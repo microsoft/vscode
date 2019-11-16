@@ -46,7 +46,7 @@ export abstract class Part extends Component implements ISerializableView {
 		private options: IPartOptions,
 		themeService: IThemeService,
 		storageService: IStorageService,
-		layoutService: IWorkbenchLayoutService
+		protected readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, themeService, storageService);
 

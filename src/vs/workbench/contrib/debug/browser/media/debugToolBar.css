@@ -17,9 +17,9 @@
 
 .monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container {
 	margin-right: 7px;
-
 }
 
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container .monaco-select-box,
 .monaco-workbench .start-debug-action-item .select-container .monaco-select-box {
 	padding: 0 22px 0 6px;
 }
@@ -43,4 +43,7 @@
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }

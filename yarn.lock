@@ -204,6 +204,16 @@
     "@types/uglify-js" "*"
     source-map "^0.6.0"
 
+"@types/windows-foreground-love@^0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@types/windows-foreground-love/-/windows-foreground-love-0.3.0.tgz#26bc230b2568aa7ab7c56d35bb5653c0a6965a42"
+  integrity sha512-tFUVA/fiofNqOh6lZlymvQiQYPY+cZXZPR9mn9wN6/KS8uwx0zgH4Ij/jmFyRYr+x+DGZWEIeknS2BMi7FZJAQ==
+
+"@types/windows-process-tree@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@types/windows-process-tree/-/windows-process-tree-0.2.0.tgz#2fa205c838a8ef0a07697cd747c954653978d22c"
+  integrity sha512-vQAnkWpMX4HUPjubkxKta4Rfh2EDy2ksalnr37gFHNrmk+uxx50PRH+/fM5nTsEBCi4ESFT/7t7Za3jGqyTZ4g==
+
 "@types/winreg@^1.2.30":
   version "1.2.30"
   resolved "https://registry.yarnpkg.com/@types/winreg/-/winreg-1.2.30.tgz#91d6710e536d345b9c9b017c574cf6a8da64c518"
@@ -6058,10 +6068,10 @@ onetime@^2.0.0:
   dependencies:
     mimic-fn "^1.0.0"
 
-onigasm-umd@^2.2.2:
-  version "2.2.2"
-  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.2.tgz#b989d762df61f899a3052ac794a50bd93fe20257"
-  integrity sha512-v2eMOJu7iE444L2iJN+U6s6s5S0y7oj/N0DAkrd6wokRtTVoq/v/yaDI1lIqFrTeJbNtqNzYvguDF5yNzW3Rvw==
+onigasm-umd@^2.2.4:
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.4.tgz#27ee87f7496c66ad40cebfbc0d418c19bb7db5ec"
+  integrity sha512-N9VqCUhl9KBuzm47vcK8T/xUnbYylIhMN45Rwltlo1sZc3QUDda6SxIlyVB8r0SJQwURv8JOHjyXjjCriGvzRg==
 
 oniguruma@^7.2.0:
   version "7.2.0"
@@ -8140,10 +8150,10 @@ strip-json-comments@^2.0.1, strip-json-comments@~2.0.1:
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-2.0.1.tgz#3c531942e908c2697c0ec344858c286c7ca0a60a"
   integrity sha1-PFMZQukIwml8DsNEhYwobHygpgo=
 
-sudo-prompt@9.0.0:
-  version "9.0.0"
-  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-9.0.0.tgz#eebedeee9fcd6f661324e6bb46335e3288e8dc8a"
-  integrity sha512-kUn5fiOk0nhY2oKD9onIkcNCE4Zt85WTsvOfSmqCplmlEvXCcPOmp1npH5YWuf8Bmyy9wLWkIxx+D+8cThBORQ==
+sudo-prompt@9.1.1:
+  version "9.1.1"
+  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-9.1.1.tgz#73853d729770392caec029e2470db9c221754db0"
+  integrity sha512-es33J1g2HjMpyAhz8lOR+ICmXXAqTuKbuXuUWLhOLew20oN9oUCgCJx615U/v7aioZg7IX5lIh9x34vwneu4pA==
 
 supports-color@1.2.0:
   version "1.2.0"
@@ -9007,10 +9017,10 @@ vscode-debugprotocol@1.37.0:
   resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.37.0.tgz#e8c4694a078d18ea1a639553a7a241b35c1e6f6d"
   integrity sha512-ppZLEBbFRVNsK0YpfgFi/x2CDyihx0F+UpdKmgeJcvi05UgSXYdO0n9sDVYwoGvvYQPvlpDQeWuY0nloOC4mPA==
 
-vscode-minimist@^1.2.1:
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/vscode-minimist/-/vscode-minimist-1.2.1.tgz#e63d3f4a9bf3680dcb8f9304eed612323fd6926a"
-  integrity sha512-cmB72+qDoiCFJ1UKnGUBdGYfXzdpJ3bQM/D/+XhkVk5v7uZgLbYiCz5JcwVyk7NC7hSi5VGtQ4wihzmi12NeXw==
+vscode-minimist@^1.2.2:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/vscode-minimist/-/vscode-minimist-1.2.2.tgz#65403f44f0c6010d259b2271d36eb5c6f4ad8aab"
+  integrity sha512-DXMNG2QgrXn1jOP12LzjVfvxVkzxv/0Qa27JrMBj/XP2esj+fJ/wP2T4YUH5derj73Lc96dC8F25WyfDUbTpxQ==
 
 vscode-nls-dev@^3.3.1:
   version "3.3.1"
@@ -9358,6 +9368,11 @@ xterm-addon-web-links@0.2.1:
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.2.1.tgz#6d1f2ce613e09870badf17615e7a1170a31542b2"
   integrity sha512-2KnHtiq0IG7hfwv3jw2/jQeH1RBk2d5CH4zvgwQe00rLofSJqSfgnJ7gwowxxpGHrpbPr6Lv4AmH/joaNw2+HQ==
+
+xterm-addon-webgl@0.4.0-beta6:
+  version "0.4.0-beta6"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.4.0-beta6.tgz#23d152a0467d8b1f96ab3da7ac9a49bfa0b08c98"
+  integrity sha512-gtM8XtRyrNFCtxHBIU3pqTlBeAi5VOoymJAXKQQ7RsHEVJX79OTk1dQ9Q6Ow14+REGwQU/zFECV050jbLTfvrQ==
 
 xterm@4.3.0-beta17:
   version "4.3.0-beta17"

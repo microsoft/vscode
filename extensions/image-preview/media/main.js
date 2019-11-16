@@ -241,7 +241,11 @@
 	});
 
 	container.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
-		e.preventDefault();
+		// Prevent pinch to zoom
+		if (e.ctrlKey) {
+			e.preventDefault();
+		}
+
 		if (!image || !hasLoadedImage) {
 			return;
 		}
@@ -260,8 +264,6 @@
 	}, { passive: false });
 
 	window.addEventListener('scroll', e => {
-		e.preventDefault();
-
 		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit') {
 			return;
 		}
@@ -270,7 +272,7 @@
 		if (entry) {
 			vscode.setState({ scale: entry.scale, offsetX: window.scrollX, offsetY: window.scrollY });
 		}
-	}, { passive: false });
+	}, { passive: true });
 
 	container.classList.add('image');
 

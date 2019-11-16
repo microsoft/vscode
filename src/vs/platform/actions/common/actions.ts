@@ -5,7 +5,7 @@
 
 import { Action } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature2, createDecorator, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -22,7 +22,8 @@ export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-	iconLocation?: { dark: URI; light?: URI; };
+	iconClassName?: string;
+	iconLocation?: { dark?: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
 	toggled?: ContextKeyExpr;
 }
@@ -295,7 +296,13 @@ export class SyncActionDescriptor {
 	private readonly _keybindingContext: ContextKeyExpr | undefined;
 	private readonly _keybindingWeight: number | undefined;
 
-	constructor(ctor: IConstructorSignature2<string, string, Action>,
+	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
+		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
+	): SyncActionDescriptor {
+		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
+	}
+
+	private constructor(ctor: IConstructorSignature2<string, string, Action>,
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpr, keybindingWeight?: number
 	) {
 		this._id = id;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, IUserDataSyncLogService, UserDataSyncStoreError, UserDataSyncStoreErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
@@ -164,13 +164,6 @@ export class UserDataAutoSync extends Disposable {
 			try {
 				await this.userDataSyncService.sync();
 			} catch (e) {
-				if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Unauthroized) {
-					if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Unauthroized && this.authTokenService.status === AuthTokenStatus.Disabled) {
-						this.logService.error('Sync failed because the server requires authorization. Please enable authorization.');
-					} else {
-						this.logService.error(e);
-					}
-				}
 				this.logService.error(e);
 			}
 			if (loop) {

@@ -24,6 +24,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import * as Platform from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -374,6 +375,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 	protected readonly _editorService: IExtHostDocumentsAndEditors;
 	protected readonly _configurationService: IExtHostConfiguration;
 	protected readonly _terminalService: IExtHostTerminalService;
+	protected readonly _logService: ILogService;
 	protected _handleCounter: number;
 	protected _handlers: Map<number, HandlerData>;
 	protected _taskExecutions: Map<string, TaskExecutionImpl>;
@@ -393,7 +395,8 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
 		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
+		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
+		@ILogService logService: ILogService
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTask);
 		this._workspaceProvider = workspaceService;
@@ -406,6 +409,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		this._providedCustomExecutions2 = new Map<string, types.CustomExecution>();
 		this._notProvidedCustomExecutions = new Set<string>();
 		this._activeCustomExecutions2 = new Map<string, types.CustomExecution>();
+		this._logService = logService;
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable {
@@ -661,9 +665,10 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
 		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
+		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
+		@ILogService logService: ILogService
 	) {
-		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService);
+		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService);
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this.registerTaskSystem(Schemas.vscodeRemote, {
 				scheme: Schemas.vscodeRemote,
@@ -696,7 +701,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		if (value) {
 			for (let task of value) {
 				if (!task.definition || !validTypes[task.definition.type]) {
-					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+					this._logService.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
 
 				const taskDTO: tasks.TaskDTO | undefined = TaskDTO.from(task, handler.extension);
@@ -707,7 +712,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 					// is invoked, we have to be able to map it back to our data.
 					taskIdPromises.push(this.addCustomExecution(taskDTO, task, true));
 				} else {
-					console.warn('Only custom execution tasks supported.');
+					this._logService.warn('Only custom execution tasks supported.');
 				}
 			}
 		}
@@ -721,7 +726,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
 			return resolvedTaskDTO;
 		} else {
-			console.warn('Only custom execution tasks supported.');
+			this._logService.warn('Only custom execution tasks supported.');
 		}
 		return undefined;
 	}
