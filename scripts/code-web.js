@@ -26,11 +26,13 @@ const args = minimist(process.argv, {
 		'host'
 	],
 	number: [
-		'port'
+		'port',
+		'local_port'
 	]
 });
 
 const PORT = args.port || process.env.PORT || 8080;
+const LOCAL_PORT = args.local_port || process.env.LOCAL_PORT || PORT;
 const SCHEME = args.scheme || process.env.VSCODE_SCHEME || 'http';
 const HOST = args.host || 'localhost';
 const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
@@ -65,7 +67,7 @@ const server = http.createServer((req, res) => {
 	}
 });
 
-server.listen(PORT, () => {
+server.listen(LOCAL_PORT, () => {
 	console.log(`Web UI available at ${SCHEME}://${AUTHORITY}`);
 });
 
