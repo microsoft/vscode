@@ -15,7 +15,7 @@ import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } fr
 
 const localize = nls.loadMessageBundle();
 
-class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
@@ -62,6 +62,7 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 			case PConst.Kind.const:
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
+			case PConst.Kind.function:
 				// Only show references for exported variables
 				if (!item.kindModifiers.match(/\bexport\b/)) {
 					break;
@@ -74,7 +75,6 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 				}
 			// fallthrough
 
-			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:

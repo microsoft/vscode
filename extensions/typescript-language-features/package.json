@@ -165,6 +165,12 @@
           "description": "%typescript.referencesCodeLens.enabled%",
           "scope": "window"
         },
+        "typescript.referencesCodeLens.showOnAllFunctions": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.referencesCodeLens.showOnAllFunctions%",
+          "scope": "window"
+        },
         "typescript.implementationsCodeLens.enabled": {
           "type": "boolean",
           "default": false,
