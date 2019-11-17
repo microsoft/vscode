@@ -44,8 +44,7 @@
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name > .label-separator {
-	margin-left: 3px;
-	margin-right: 1px;
+	margin: 0 2px;
 	opacity: 0.5;
 }
 
