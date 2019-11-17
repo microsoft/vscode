@@ -441,7 +441,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
 		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
 		// Pseudoterminal.start
-
 		const terminal = await this._getTerminalByIdEventually(id);
 		if (!terminal) {
 			return;
