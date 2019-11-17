@@ -6,7 +6,7 @@
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
+import { Selection, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, GitErrorCodes, Ref, RefType, Status } from './api/git';
@@ -980,7 +980,10 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._stageChanges(textEditor, [changes[index]]);
+		await this._stageChanges(textEditor, [changes[index]]).then(() => {
+			const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+			textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
+		});
 	}
 
 	@command('git.stageSelectedRanges', { diff: true })
@@ -1027,7 +1030,10 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]);
+		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]).then(() => {
+			const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+			textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
+		});
 	}
 
 	@command('git.revertSelectedRanges', { diff: true })
@@ -1049,7 +1055,10 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._revertChanges(textEditor, selectedChanges);
+		const selectionsBeforeRevert = textEditor.selections;
+		await this._revertChanges(textEditor, selectedChanges).then(() => {
+			textEditor.selections = selectionsBeforeRevert;
+		});
 	}
 
 	private async _revertChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
@@ -1062,7 +1071,6 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selectionsBeforeRevert = textEditor.selections;
 		const visibleRangesBeforeRevert = textEditor.visibleRanges;
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 
@@ -1072,7 +1080,6 @@ export class CommandCenter {
 
 		await modifiedDocument.save();
 
-		textEditor.selections = selectionsBeforeRevert;
 		textEditor.revealRange(visibleRangesBeforeRevert[0]);
 	}
 
