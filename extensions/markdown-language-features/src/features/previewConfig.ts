@@ -22,9 +22,11 @@ export class MarkdownPreviewConfiguration {
 	public readonly fontSize: number;
 	public readonly fontFamily: string | undefined;
 	public readonly styles: string[];
+	public readonly showIcon: boolean;
 
 	private constructor(resource: vscode.Uri) {
 		const editorConfig = vscode.workspace.getConfiguration('editor', resource);
+		const workbenchConfig = vscode.workspace.getConfiguration('workbench', resource);
 		const markdownConfig = vscode.workspace.getConfiguration('markdown', resource);
 		const markdownEditorConfig = vscode.workspace.getConfiguration('[markdown]', resource);
 
@@ -34,7 +36,7 @@ export class MarkdownPreviewConfiguration {
 		if (markdownEditorConfig && markdownEditorConfig['editor.wordWrap']) {
 			this.wordWrap = markdownEditorConfig['editor.wordWrap'] !== 'off';
 		}
-
+		this.showIcon = workbenchConfig.get<boolean>('editor.showIcons', true);
 		this.scrollPreviewWithEditor = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditor', true);
 		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
 		this.lineBreaks = !!markdownConfig.get<boolean>('preview.breaks', false);
