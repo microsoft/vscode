@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, EditorOptions } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -160,11 +160,21 @@ class TestCustomEditorInput extends EditorInput implements IWorkingCopy {
 		}
 	}
 
+	isReadonly(): boolean {
+		return false;
+	}
+
 	isDirty(): boolean {
 		return this.dirty;
 	}
 
 	async save(options?: ISaveOptions): Promise<boolean> {
+		this.setDirty(false);
+
+		return true;
+	}
+
+	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.setDirty(false);
 
 		return true;

@@ -18,8 +18,8 @@ import { URI } from 'vs/base/common/uri';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, EditorsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -28,6 +28,7 @@ import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/wor
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -651,6 +652,93 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
 		return this.labelService.getUriLabel(res, { relative: true });
+	}
+
+	//#endregion
+
+	//#region save
+
+	async save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> {
+
+		// Convert to array
+		if (!Array.isArray(editors)) {
+			editors = [editors];
+		}
+
+		// Split editors up into a bucket that is saved in parallel
+		// and sequentially. Unless "Save As", all non-untitled editors
+		// can be saved in parallel to speed up the operation. Remaining
+		// editors are potentially bringing up some UI and thus run
+		// sequentially.
+		const editorsToSaveParallel: IEditorIdentifier[] = [];
+		const editorsToSaveAsSequentially: IEditorIdentifier[] = [];
+		if (options?.saveAs) {
+			editorsToSaveAsSequentially.push(...editors);
+		} else {
+			for (const { groupId, editor } of editors) {
+				if (editor.isUntitled()) {
+					editorsToSaveAsSequentially.push({ groupId, editor });
+				} else {
+					editorsToSaveParallel.push({ groupId, editor });
+				}
+			}
+		}
+
+		// Editors to save in parallel
+		await Promise.all(editorsToSaveParallel.map(({ groupId, editor }) => {
+
+			// Use save as a hint to pin the editor
+			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
+
+			// Save
+			return editor.save(options);
+		}));
+
+		// Editors to save sequentially
+		for (const { groupId, editor } of editorsToSaveAsSequentially) {
+			if (editor.isDisposed()) {
+				continue; // might have been disposed from from the save already
+			}
+
+			const result = await editor.saveAs(groupId, options);
+			if (!result) {
+				return false; // failed or cancelled, abort
+			}
+		}
+
+		return true;
+	}
+
+	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> {
+		const editors: IEditorIdentifier[] = [];
+
+		// Collect all editors in MRU order that are dirty
+		this.forEachDirtyEditor(({ groupId, editor }) => {
+			if (!editor.isUntitled() || options?.includeUntitled) {
+				editors.push({ groupId, editor });
+			}
+		});
+
+		return this.save(editors, options);
+	}
+
+	async revertAll(options?: IRevertOptions): Promise<void> {
+
+		// Revert each editor in MRU order
+		const reverts: Promise<boolean>[] = [];
+		this.forEachDirtyEditor(({ editor }) => reverts.push(editor.revert(options)));
+
+		await Promise.all(reverts);
+	}
+
+	private forEachDirtyEditor(callback: (editor: IEditorIdentifier) => void): void {
+		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+				if (editor.isDirty()) {
+					callback({ groupId: group.id, editor });
+				}
+			}
+		}
 	}
 
 	//#endregion

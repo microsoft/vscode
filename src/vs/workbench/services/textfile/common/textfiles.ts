@@ -418,7 +418,6 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
 	writeElevated?: boolean;
-	availableFileSystems?: readonly string[];
 }
 
 export interface ILoadOptions {

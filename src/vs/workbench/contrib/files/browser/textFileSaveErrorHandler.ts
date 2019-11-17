@@ -41,8 +41,8 @@ const LEARN_MORE_DIRTY_WRITE_IGNORE_KEY = 'learnMoreDirtyWriteError';
 
 const conflictEditorHelp = nls.localize('userGuide', "Use the actions in the editor tool bar to either undo your changes or overwrite the content of the file with your changes.");
 
-// A handler for save error happening with conflict resolution actions
-export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
+// A handler for text file save error happening with conflict resolution actions
+export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
 	private messages: ResourceMap<INotificationHandle>;
 	private conflictResolutionContext: IContextKey<boolean>;
 	private activeConflictResolutionResource?: URI;

@@ -44,7 +44,7 @@ import { onUnexpectedError, getErrorMessage } from 'vs/base/common/errors';
 import { asDomUri, triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -527,11 +527,11 @@ export abstract class BaseSaveAllAction extends Action {
 	private registerListeners(): void {
 
 		// update enablement based on working copy changes
-		this._register(this.workingCopyService.onDidChangeDirty(() => this.updateEnablement()));
+		this._register(this.workingCopyService.onDidChangeDirty(w => this.updateEnablement(w)));
 	}
 
-	private updateEnablement(): void {
-		const hasDirty = this.workingCopyService.hasDirty;
+	private updateEnablement(workingCopy: IWorkingCopy): void {
+		const hasDirty = workingCopy.isDirty() || this.workingCopyService.hasDirty;
 		if (this.lastIsDirty !== hasDirty) {
 			this.enabled = hasDirty;
 			this.lastIsDirty = this.enabled;

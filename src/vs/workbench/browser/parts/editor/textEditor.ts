@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone, assign } from 'vs/base/common/objects';
-import { isObject, assertIsDefined } from 'vs/base/common/types';
+import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput, EditorOptions, IEditorMemento, ITextEditor } from 'vs/workbench/common/editor';
@@ -247,6 +247,15 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		}
 
 		this.editorMemento.saveEditorState(this.group, resource, editorViewState);
+	}
+
+	getViewState(): IEditorViewState | undefined {
+		const resource = this.input?.getResource();
+		if (resource) {
+			return withNullAsUndefined(this.retrieveTextEditorViewState(resource));
+		}
+
+		return undefined;
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState | null {

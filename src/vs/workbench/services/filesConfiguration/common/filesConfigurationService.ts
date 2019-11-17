@@ -14,7 +14,7 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { equals } from 'vs/base/common/objects';
 
-export const AutoSaveContext = new RawContextKey<string>('config.files.autoSave', undefined);
+export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false);
 
 export interface IAutoSaveConfiguration {
 	autoSaveDelay?: number;
@@ -69,7 +69,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private configuredAutoSaveOnFocusChange: boolean | undefined;
 	private configuredAutoSaveOnWindowChange: boolean | undefined;
 
-	private autoSaveContext: IContextKey<string>;
+	private autoSaveAfterShortDelayContext: IContextKey<boolean>;
 
 	private currentFilesAssociationConfig: { [key: string]: string; };
 
@@ -82,7 +82,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	) {
 		super();
 
-		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
+		this.autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(contextKeyService);
 
 		const configuration = configurationService.getValue<IFilesConfiguration>();
 
@@ -108,7 +108,6 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 		// Auto Save
 		const autoSaveMode = configuration?.files?.autoSave || AutoSaveConfiguration.OFF;
-		this.autoSaveContext.set(autoSaveMode);
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration?.files?.autoSaveDelay;
@@ -134,6 +133,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				this.configuredAutoSaveOnWindowChange = false;
 				break;
 		}
+
+		this.autoSaveAfterShortDelayContext.set(this.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY);
 
 		// Emit as event
 		this._onAutoSaveConfigurationChange.fire(this.getAutoSaveConfiguration());

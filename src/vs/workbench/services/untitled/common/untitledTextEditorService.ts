@@ -160,7 +160,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		untitledInputs.forEach(input => {
 			if (input) {
 				input.revert();
-				input.dispose();
 
 				reverted.push(input.getResource());
 			}

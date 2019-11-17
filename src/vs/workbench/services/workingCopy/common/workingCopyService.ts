@@ -59,6 +59,11 @@ export interface ISaveOptions {
 	 * Instructs the save operation to skip any save participants.
 	 */
 	skipSaveParticipants?: boolean;
+
+	/**
+	 * A hint as to which file systems should be available for saving.
+	 */
+	availableFileSystems?: string[];
 }
 
 export interface IRevertOptions {

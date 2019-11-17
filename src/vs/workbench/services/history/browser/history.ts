@@ -482,10 +482,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
-		const input = editor?.input;
 
-		// Ensure we have not configured to exclude input
-		if (!input || !this.include(input)) {
+		// Ensure we have not configured to exclude input and don't track invalid inputs
+		const input = editor?.input;
+		if (!input || input.isDisposed() || !this.include(input)) {
 			return;
 		}
 
@@ -592,10 +592,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// stack but we need to keep our currentTextEditorState up to date with
 		// the navigtion that occurs.
 		if (this.navigatingInStack) {
-			if (codeEditor && control?.input) {
+			if (codeEditor && control?.input && !control.input.isDisposed()) {
 				this.currentTextEditorState = new TextEditorState(control.input, codeEditor.getSelection());
 			} else {
-				this.currentTextEditorState = null; // we navigated to a non text editor
+				this.currentTextEditorState = null; // we navigated to a non text or disposed editor
 			}
 		}
 
@@ -603,15 +603,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 		else {
 
 			// navigation inside text editor
-			if (codeEditor && control?.input) {
+			if (codeEditor && control?.input && !control.input.isDisposed()) {
 				this.handleTextEditorEvent(control, codeEditor, event);
 			}
 
-			// navigation to non-text editor
+			// navigation to non-text disposed editor
 			else {
 				this.currentTextEditorState = null; // at this time we have no active text editor view state
 
-				if (control?.input) {
+				if (control?.input && !control.input.isDisposed()) {
 					this.handleNonTextEditorEvent(control);
 				}
 			}
