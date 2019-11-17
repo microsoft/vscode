@@ -523,6 +523,27 @@ declare module 'vscode' {
 
 	//#region André: debug
 
+	/**
+	 * A DebugSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugSource {
+		// opaque contents
+	}
+
+	export namespace debug {
+
+		/**
+		 * Converts a "Source" object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
+		 *
+		 * If the "Source" object has insufficient information to create a uri, an error is thrown.
+		 *
+		 * @param source An object conforming to the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+		 * @param session An optional debug session that will be used to locate the Debug Adapter Protocol.
+		 * @return A uri that can be used to load the contents of the source.
+		 */
+		export function asDebugSourceUri(source: DebugSource, session?: DebugSession): Uri;
+	}
+
 	// deprecated
 
 	export interface DebugConfigurationProvider {

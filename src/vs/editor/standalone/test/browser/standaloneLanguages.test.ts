@@ -54,7 +54,11 @@ suite('TokenizationSupport2Adapter', () => {
 
 				defines: (color: ColorIdentifier): boolean => {
 					throw new Error('Not implemented');
-				}
+				},
+
+				getTokenStyle: () => undefined,
+				resolveScopes: () => undefined
+
 			};
 		}
 		public getIconTheme(): IIconTheme {

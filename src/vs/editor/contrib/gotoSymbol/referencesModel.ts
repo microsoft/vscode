@@ -149,6 +149,7 @@ export class ReferencesModel implements IDisposable {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _links: LocationLink[];
+	private readonly _title: string;
 
 	readonly groups: FileReferences[] = [];
 	readonly references: OneReference[] = [];
@@ -156,8 +157,9 @@ export class ReferencesModel implements IDisposable {
 	readonly _onDidChangeReferenceRange = new Emitter<OneReference>();
 	readonly onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
 
-	constructor(links: LocationLink[]) {
+	constructor(links: LocationLink[], title: string) {
 		this._links = links;
+		this._title = title;
 
 		// grouping and sorting
 		const [providersFirst] = links;
@@ -192,7 +194,11 @@ export class ReferencesModel implements IDisposable {
 	}
 
 	clone(): ReferencesModel {
-		return new ReferencesModel(this._links);
+		return new ReferencesModel(this._links, this._title);
+	}
+
+	get title(): string {
+		return this._title;
 	}
 
 	get isEmpty(): boolean {

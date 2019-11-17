@@ -43,7 +43,7 @@ declare namespace monaco {
 }
 
 declare namespace monaco.editor {
-
+#include(vs/editor/browser/widget/diffNavigator): IDiffNavigator
 #includeAll(vs/editor/standalone/browser/standaloneEditor;modes.=>languages.;editorCommon.=>):
 #include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
 #include(vs/editor/common/modes/supports/tokenization): ITokenThemeRule

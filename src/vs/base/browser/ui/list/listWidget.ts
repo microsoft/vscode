@@ -1062,9 +1062,9 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		return this.dnd.getDragURI(element);
 	}
 
-	getDragLabel?(elements: T[]): string | undefined {
+	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined {
 		if (this.dnd.getDragLabel) {
-			return this.dnd.getDragLabel(elements);
+			return this.dnd.getDragLabel(elements, originalEvent);
 		}
 
 		return undefined;
@@ -1078,6 +1078,12 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 
 	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		return this.dnd.onDragOver(data, targetElement, targetIndex, originalEvent);
+	}
+
+	onDragEnd(originalEvent: DragEvent): void {
+		if (this.dnd.onDragEnd) {
+			this.dnd.onDragEnd(originalEvent);
+		}
 	}
 
 	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
@@ -1198,7 +1204,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
 
-		this.updateAriaRole();
+		if (typeof _options.ariaRole !== 'string') {
+			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
+		} else {
+			this.view.domNode.setAttribute('role', _options.ariaRole);
+		}
 
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
@@ -1610,17 +1620,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}
 
-		this.updateAriaRole();
-
 		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
-	}
-
-	private updateAriaRole(): void {
-		if (typeof this.options.ariaRole !== 'string') {
-			this.view.domNode.setAttribute('role', ListAriaRootRole.TREE);
-		} else {
-			this.view.domNode.setAttribute('role', this.options.ariaRole);
-		}
 	}
 
 	private _onSelectionChange(): void {

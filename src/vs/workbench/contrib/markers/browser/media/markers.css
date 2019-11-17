@@ -154,10 +154,6 @@
 	justify-content: center;
 }
 
-.markers-panel .monaco-tl-contents .actions .action-item {
-	margin-right: 2px;
-}
-
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .related-info-resource,
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .related-info-resource-separator,

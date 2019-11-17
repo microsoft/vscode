@@ -135,6 +135,7 @@
 .scm-viewlet .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
+	max-width: fit-content;
 }
 
 .scm-viewlet .monaco-list .monaco-list-row:hover .resource-group > .actions,

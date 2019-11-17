@@ -740,6 +740,18 @@ export class SnippetString {
 		return this;
 	}
 
+	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
+		const value = SnippetString._escape(values.toString());
+
+		this.value += '${';
+		this.value += number;
+		this.value += '|';
+		this.value += value;
+		this.value += '|}';
+
+		return this;
+	}
+
 	appendVariable(name: string, defaultValue?: string | ((snippet: SnippetString) => any)): SnippetString {
 
 		if (typeof defaultValue === 'function') {
@@ -1143,8 +1155,8 @@ export class SelectionRange {
 
 export class CallHierarchyItem {
 
-	_sessionId: string;
-	_itemId: string;
+	_sessionId?: string;
+	_itemId?: string;
 
 	kind: SymbolKind;
 	name: string;

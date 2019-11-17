@@ -175,6 +175,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// allow to select text in monaco editor instances.
 	if (isSafari) {
 		collector.addRule(`
+			body.web {
+				touch-action: none;
+			}
 			.monaco-workbench .monaco-editor .view-lines {
 				user-select: text;
 				-webkit-user-select: text;

@@ -107,8 +107,6 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 	protected abstract _getNoResultFoundMessage(info: IWordAtPosition | null): string;
 
-	protected abstract _getMetaTitle(model: ReferencesModel): string;
-
 	protected abstract _getAlternativeCommand(): string;
 
 	protected abstract _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues;
@@ -121,8 +119,9 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 		} else {
 			const next = model.firstReference()!;
-			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
-			if (targetEditor && model.references.length > 1 && gotoLocation === 'gotoAndPeek') {
+			const peek = model.references.length > 1 && gotoLocation === 'gotoAndPeek';
+			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide, !peek);
+			if (peek && targetEditor) {
 				this._openInPeek(targetEditor, model);
 			} else {
 				model.dispose();
@@ -136,7 +135,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean): Promise<ICodeEditor | null> {
+	private async _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean, highlight: boolean): Promise<ICodeEditor | undefined> {
 		// range is the target-selection-range when we have one
 		// and the the fallback is the 'full' range
 		let range: IRange | undefined = undefined;
@@ -147,13 +146,29 @@ abstract class SymbolNavigationAction extends EditorAction {
 			range = reference.range;
 		}
 
-		return editorService.openCodeEditor({
+		const targetEditor = await editorService.openCodeEditor({
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(range),
 				revealInCenterIfOutsideViewport: true
 			}
 		}, editor, sideBySide);
+
+		if (!targetEditor) {
+			return undefined;
+		}
+
+		if (highlight) {
+			const modelNow = targetEditor.getModel();
+			const ids = targetEditor.deltaDecorations([], [{ range, options: { className: 'rangeHighlight' } }]);
+			setTimeout(() => {
+				if (targetEditor.getModel() === modelNow) {
+					targetEditor.deltaDecorations(ids, []);
+				}
+			}, 350);
+		}
+
+		return targetEditor;
 	}
 
 	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {
@@ -171,17 +186,13 @@ abstract class SymbolNavigationAction extends EditorAction {
 export class DefinitionAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getDefinitionsAtPosition(model, position, token));
+		return new ReferencesModel(await getDefinitionsAtPosition(model, position, token), nls.localize('def.title', 'Definitions'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('noResultWord', "No definition found for '{0}'", info.word)
 			: nls.localize('generic.noResults', "No definition found");
-	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('meta.title', " – {0} definitions", model.references.length) : '';
 	}
 
 	protected _getAlternativeCommand(): string {
@@ -295,17 +306,13 @@ registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 class DeclarationAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getDeclarationsAtPosition(model, position, token));
+		return new ReferencesModel(await getDeclarationsAtPosition(model, position, token), nls.localize('decl.title', 'Declarations'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
 			: nls.localize('decl.generic.noResults', "No declaration found");
-	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('decl.meta.title', " – {0} declarations", model.references.length) : '';
 	}
 
 	protected _getAlternativeCommand(): string {
@@ -352,10 +359,6 @@ registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
 			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
 			: nls.localize('decl.generic.noResults', "No declaration found");
 	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('decl.meta.title', " – {0} declarations", model.references.length) : '';
-	}
 });
 
 registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
@@ -384,17 +387,13 @@ registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
 class TypeDefinitionAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getTypeDefinitionsAtPosition(model, position, token));
+		return new ReferencesModel(await getTypeDefinitionsAtPosition(model, position, token), nls.localize('typedef.title', 'Type Definitions'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('goToTypeDefinition.noResultWord', "No type definition found for '{0}'", info.word)
 			: nls.localize('goToTypeDefinition.generic.noResults', "No type definition found");
-	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('meta.typeDefinitions.title', " – {0} type definitions", model.references.length) : '';
 	}
 
 	protected _getAlternativeCommand(): string {
@@ -470,17 +469,13 @@ registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction
 class ImplementationAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getImplementationsAtPosition(model, position, token));
+		return new ReferencesModel(await getImplementationsAtPosition(model, position, token), nls.localize('impl.title', 'Implementations'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
 			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
-	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1 ? nls.localize('meta.implementations.title', " – {0} implementations", model.references.length) : '';
 	}
 
 	protected _getAlternativeCommand(): string {
@@ -561,19 +556,13 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 class ReferencesAction extends SymbolNavigationAction {
 
 	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getReferencesAtPosition(model, position, token));
+		return new ReferencesModel(await getReferencesAtPosition(model, position, token), nls.localize('ref.title', 'References'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info
 			? nls.localize('references.no', "No references found for '{0}'", info.word)
 			: nls.localize('references.noGeneric', "No references found");
-	}
-
-	protected _getMetaTitle(model: ReferencesModel): string {
-		return model.references.length > 1
-			? nls.localize('meta.titleReference', " – {0} references", model.references.length)
-			: '';
 	}
 
 	protected _getAlternativeCommand(): string {
@@ -667,7 +656,7 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 	}
 
 	protected async _getLocationModel(_model: ITextModel, _position: corePosition.Position, _token: CancellationToken): Promise<ReferencesModel | undefined> {
-		return new ReferencesModel(this._references);
+		return new ReferencesModel(this._references, nls.localize('generic.title', 'Locations'));
 	}
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
@@ -678,7 +667,6 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 		return this._gotoMultipleBehaviour ?? editor.getOption(EditorOption.gotoLocation).multipleReferences;
 	}
 
-	protected _getMetaTitle() { return ''; }
 	protected _getAlternativeCommand() { return ''; }
 }
 
@@ -736,7 +724,7 @@ CommandsRegistry.registerCommand({
 				return undefined;
 			}
 
-			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), token).then(references => new ReferencesModel(references)));
+			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), token).then(references => new ReferencesModel(references, nls.localize('ref.title', 'References'))));
 			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 			return Promise.resolve(controller.toggleWidget(range, references, false));
 		});

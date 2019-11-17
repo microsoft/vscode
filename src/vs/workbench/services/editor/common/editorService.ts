@@ -5,11 +5,12 @@
 
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -42,6 +43,22 @@ export interface IOpenEditorOverride {
 export interface IVisibleEditor extends IEditor {
 	input: IEditorInput;
 	group: IEditorGroup;
+}
+
+export interface ISaveEditorsOptions extends ISaveOptions {
+
+	/**
+	 * If true, will ask for a location of the editor to save to.
+	 */
+	saveAs?: boolean;
+}
+
+export interface ISaveAllEditorsOptions extends ISaveEditorsOptions {
+
+	/**
+	 * Wether to include untitled editors as well.
+	 */
+	includeUntitled?: boolean;
 }
 
 export interface IEditorService {
@@ -185,4 +202,19 @@ export interface IEditorService {
 	 * Converts a lightweight input to a workbench editor input.
 	 */
 	createInput(input: IResourceEditor): IEditorInput | null;
+
+	/**
+	 * Save the provided list of editors.
+	 */
+	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
+
+	/**
+	 * Save all editors.
+	 */
+	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
+
+	/**
+	 * Reverts all editors.
+	 */
+	revertAll(options?: IRevertOptions): Promise<void>;
 }

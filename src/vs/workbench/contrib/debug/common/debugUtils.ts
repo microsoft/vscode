@@ -28,7 +28,15 @@ export function isSessionAttach(session: IDebugSession): boolean {
 }
 
 export function isExtensionHostDebugging(config: IConfig) {
-	return config.type && equalsIgnoreCase(config.type === 'vslsShare' ? (<any>config).adapterProxy.configuration.type : config.type, 'extensionhost');
+	if (!config.type) {
+		return false;
+	}
+
+	const type = config.type === 'vslsShare'
+		? (<any>config).adapterProxy.configuration.type
+		: config.type;
+
+	return equalsIgnoreCase(type, 'extensionhost') || equalsIgnoreCase(type, 'pwa-extensionhost');
 }
 
 // only a debugger contributions with a label, program, or runtime attribute is considered a "defining" or "main" debugger contribution

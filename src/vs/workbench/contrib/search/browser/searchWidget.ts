@@ -15,7 +15,6 @@ import { Action } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as strings from 'vs/base/common/strings';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -122,8 +121,8 @@ export class SearchWidget extends Widget {
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
 
-	private _onSearchSubmit = this._register(new Emitter<void>());
-	readonly onSearchSubmit: Event<void> = this._onSearchSubmit.event;
+	private _onSearchSubmit = this._register(new Emitter<boolean>());
+	readonly onSearchSubmit: Event<boolean /* triggeredOnType */> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<{ focus: boolean }>());
 	readonly onSearchCancel: Event<{ focus: boolean }> = this._onSearchCancel.event;
@@ -148,6 +147,8 @@ export class SearchWidget extends Widget {
 
 	private _onDidHeightChange = this._register(new Emitter<void>());
 	readonly onDidHeightChange: Event<void> = this._onDidHeightChange.event;
+
+	private temporarilySkipSearchOnChange = false;
 
 	constructor(
 		container: HTMLElement,
@@ -404,6 +405,11 @@ export class SearchWidget extends Widget {
 		this._onReplaceToggled.fire();
 	}
 
+	setValue(value: string, skipSearchOnChange: boolean) {
+		this.searchInput.setValue(value);
+		this.temporarilySkipSearchOnChange = skipSearchOnChange || this.temporarilySkipSearchOnChange;
+	}
+
 	setReplaceAllActionState(enabled: boolean): void {
 		if (this.replaceAllAction.enabled !== enabled) {
 			this.replaceAllAction.enabled = enabled;
@@ -436,12 +442,6 @@ export class SearchWidget extends Widget {
 			return { content: e.message };
 		}
 
-		if (strings.regExpContainsBackreference(value)) {
-			if (!this.searchConfiguration.usePCRE2) {
-				return { content: nls.localize('regexp.backreferenceValidationFailure', "Backreferences are not supported") };
-			}
-		}
-
 		return null;
 	}
 
@@ -450,8 +450,12 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 
 		if (this.searchConfiguration.searchOnType) {
-			this._onSearchCancel.fire({ focus: false });
-			this._searchDelayer.trigger((() => this.submitSearch()), this.searchConfiguration.searchOnTypeDebouncePeriod);
+			if (this.temporarilySkipSearchOnChange) {
+				this.temporarilySkipSearchOnChange = false;
+			} else {
+				this._onSearchCancel.fire({ focus: false });
+				this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
+			}
 		}
 	}
 
@@ -559,7 +563,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private submitSearch(): void {
+	private submitSearch(triggeredOnType = false): void {
 		this.searchInput.validate();
 		if (!this.searchInput.inputBox.isInputValid()) {
 			return;
@@ -570,7 +574,7 @@ export class SearchWidget extends Widget {
 		if (value && useGlobalFindBuffer) {
 			this.clipboardServce.writeFindText(value);
 		}
-		this._onSearchSubmit.fire();
+		this._onSearchSubmit.fire(triggeredOnType);
 	}
 
 	dispose(): void {

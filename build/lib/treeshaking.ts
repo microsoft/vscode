@@ -71,17 +71,17 @@ export interface ITreeShakingResult {
 	[file: string]: string;
 }
 
-function printDiagnostics(diagnostics: ReadonlyArray<ts.Diagnostic>): void {
+function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArray<ts.Diagnostic>): void {
 	for (const diag of diagnostics) {
 		let result = '';
 		if (diag.file) {
-			result += `${diag.file.fileName}: `;
+			result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
 		}
 		if (diag.file && diag.start) {
 			let location = diag.file.getLineAndCharacterOfPosition(diag.start);
-			result += `- ${location.line + 1},${location.character} - `;
+			result += `:${location.line + 1}:${location.character}`;
 		}
-		result += JSON.stringify(diag.messageText);
+		result += ` - ` + JSON.stringify(diag.messageText);
 		console.log(result);
 	}
 }
@@ -92,19 +92,19 @@ export function shake(options: ITreeShakingOptions): ITreeShakingResult {
 
 	const globalDiagnostics = program.getGlobalDiagnostics();
 	if (globalDiagnostics.length > 0) {
-		printDiagnostics(globalDiagnostics);
+		printDiagnostics(options, globalDiagnostics);
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
 	const syntacticDiagnostics = program.getSyntacticDiagnostics();
 	if (syntacticDiagnostics.length > 0) {
-		printDiagnostics(syntacticDiagnostics);
+		printDiagnostics(options, syntacticDiagnostics);
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
 	const semanticDiagnostics = program.getSemanticDiagnostics();
 	if (semanticDiagnostics.length > 0) {
-		printDiagnostics(semanticDiagnostics);
+		printDiagnostics(options, semanticDiagnostics);
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
@@ -471,7 +471,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		let node: ts.Node;
 
 		if (step % 100 === 0) {
-			console.log(`${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
+			console.log(`Treeshaking - ${Math.floor(100 * step / (step + black_queue.length + gray_queue.length))}% - ${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
 		}
 
 		if (black_queue.length === 0) {
