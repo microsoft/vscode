@@ -288,8 +288,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _activeTerminal: ExtHostTerminal | undefined;
 	protected _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
-	protected _initialDimensions: { [id: number]: ITerminalDimensionsDto | undefined } = {};
-	protected _extensionTerminalAwaitingStart: { [id: number]: boolean | undefined } = {};
+	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
@@ -469,8 +468,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
 		} else {
 			// Defer startSendingEvents call to when _setupExtHostProcessListeners is called
-			this._extensionTerminalAwaitingStart[id] = true;
-			this._initialDimensions[id] = initialDimensions;
+			this._extensionTerminalAwaitingStart[id] = { initialDimensions };
 		}
 
 	}
@@ -488,9 +486,10 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 		this._terminalProcesses[id] = p;
 
-		if (this._extensionTerminalAwaitingStart[id] && p instanceof ExtHostPseudoterminal) {
-			p.startSendingEvents(this._initialDimensions[id]);
-			delete this._initialDimensions[id];
+		const awaitingStart = this._extensionTerminalAwaitingStart[id];
+		if (awaitingStart && p instanceof ExtHostPseudoterminal) {
+			p.startSendingEvents(awaitingStart.initialDimensions);
+			delete this._extensionTerminalAwaitingStart[id];
 		}
 	}
 
