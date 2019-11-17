@@ -33,6 +33,7 @@ import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -55,15 +56,16 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IHostService hostService: IHostService,
 		@IClipboardService private _clipboardService: IClipboardService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, filesConfigurationService);
 	}
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		return new EditorMemento(this.getId(), key, Object.create(null), limit, editorGroupService); // do not persist in storage as diff editors are never persisted
 	}
 
-	getTitle(): string | undefined {
+	getTitle(): string {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -217,7 +219,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	protected getAriaLabel(): string {
 		let ariaLabel: string;
-		const inputName = this.input && this.input.getName();
+		const inputName = this.input?.getName();
 		if (this.isReadOnly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
 		} else {

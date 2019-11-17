@@ -27,10 +27,24 @@ import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { SetMap } from 'vs/base/common/collections';
 
+class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
+
+	set context(context: TContext | undefined) {
+		this.data.context = context;
+	}
+
+	get context(): TContext | undefined {
+		return this.data.context;
+	}
+
+	constructor(private data: ElementsDragAndDropData<ITreeNode<T, TFilterData>, TContext>) {
+		super(data.elements.map(node => node.element));
+	}
+}
+
 function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
-		const nodes = (data as ElementsDragAndDropData<ITreeNode<T, TFilterData>>).elements;
-		return new ElementsDragAndDropData(nodes.map(node => node.element));
+		return new TreeElementsDragAndDropData(data);
 	}
 
 	return data;
@@ -47,9 +61,9 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 		return this.dnd.getDragURI(node.element);
 	}
 
-	getDragLabel(nodes: ITreeNode<T, TFilterData>[]): string | undefined {
+	getDragLabel(nodes: ITreeNode<T, TFilterData>[], originalEvent: DragEvent): string | undefined {
 		if (this.dnd.getDragLabel) {
-			return this.dnd.getDragLabel(nodes.map(node => node.element));
+			return this.dnd.getDragLabel(nodes.map(node => node.element), originalEvent);
 		}
 
 		return undefined;
@@ -87,7 +101,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 			}, 500);
 		}
 
-		if (typeof result === 'boolean' || !result.accept || typeof result.bubble === 'undefined') {
+		if (typeof result === 'boolean' || !result.accept || typeof result.bubble === 'undefined' || result.feedback) {
 			if (!raw) {
 				const accept = typeof result === 'boolean' ? result : result.accept;
 				const effect = typeof result === 'boolean' ? undefined : result.effect;
@@ -120,6 +134,12 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 		this.autoExpandNode = undefined;
 
 		this.dnd.drop(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent);
+	}
+
+	onDragEnd(originalEvent: DragEvent): void {
+		if (this.dnd.onDragEnd) {
+			this.dnd.onDragEnd(originalEvent);
+		}
 	}
 }
 
@@ -931,7 +951,6 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
-	readonly autoExpandSingleChildren?: boolean;
 	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 	readonly additionalScrollHeight?: number;

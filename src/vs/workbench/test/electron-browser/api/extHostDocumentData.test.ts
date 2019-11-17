@@ -251,11 +251,7 @@ suite('ExtHostDocumentData', () => {
 		assert.equal(range.end.character, 4);
 
 		// ignore bad regular expresson /.*/
-		range = data.document.getWordRangeAtPosition(new Position(0, 2), /.*/)!;
-		assert.equal(range.start.line, 0);
-		assert.equal(range.start.character, 0);
-		assert.equal(range.end.line, 0);
-		assert.equal(range.end.character, 4);
+		assert.throws(() => data.document.getWordRangeAtPosition(new Position(0, 2), /.*/)!);
 
 		range = data.document.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/)!;
 		assert.equal(range.start.line, 0);

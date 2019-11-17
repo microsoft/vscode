@@ -139,6 +139,7 @@
 	"config.untrackedChanges.mixed": "All changes, tracked and untracked, appear together and behave equally.",
 	"config.untrackedChanges.separate": "Untracked changes appear separately in the Source Control view. They are also excluded from several actions.",
 	"config.untrackedChanges.hidden": "Untracked changes are hidden and excluded from several actions.",
+	"config.restoreCommitTemplateComments": "Controls whether to restore commit template comments in the commit input box.",
 	"colors.added": "Color for added resources.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",

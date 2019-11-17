@@ -95,6 +95,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onCenteredLayoutChange: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onCenteredLayoutChange: Event<boolean> = this._onCenteredLayoutChange.event;
 
+	private readonly _onMaximizeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	readonly onMaximizeChange: Event<boolean> = this._onMaximizeChange.event;
+
 	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
 	readonly onPanelPositionChange: Event<string> = this._onPanelPositionChange.event;
 
@@ -142,6 +145,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	protected readonly state = {
 		fullscreen: false,
+		maximized: false,
 		hasFocus: false,
 		windowBorder: false,
 
@@ -304,6 +308,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
+			this.updateWindowBorder(true);
+
 			this.layout(); // handle title bar when fullscreen changes
 		}
 
@@ -399,7 +405,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
 
 		let windowBorder = false;
-		if (activeBorder || inactiveBorder) {
+		if (!this.state.fullscreen && !this.state.maximized && (activeBorder || inactiveBorder)) {
 			windowBorder = true;
 
 			// If one color is missing, just fallback to the other one
@@ -747,6 +753,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (config.silentNotifications) {
 				this.notificationService.setFilter(NotificationsFilter.ERROR);
 			}
+			this.state.zenMode.transitionDisposables.add(this.configurationService.onDidChangeConfiguration(c => {
+				const silentNotificationsKey = 'zenMode.silentNotifications';
+				if (c.affectsConfiguration(silentNotificationsKey)) {
+					const filter = this.configurationService.getValue(silentNotificationsKey) ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
+					this.notificationService.setFilter(filter);
+				}
+			}));
 
 			if (config.centerLayout) {
 				this.centerEditorLayout(true, true);
@@ -1241,6 +1254,21 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.resizeView(this.sideBarPartView, sideBarSize);
 
 		this._onPanelPositionChange.fire(positionToString(this.state.panel.position));
+	}
+
+	isWindowMaximized() {
+		return this.state.maximized;
+	}
+
+	updateWindowMaximizedState(maximized: boolean) {
+		if (this.state.maximized === maximized) {
+			return;
+		}
+
+		this.state.maximized = maximized;
+
+		this.updateWindowBorder();
+		this._onMaximizeChange.fire(maximized);
 	}
 
 	private createGridDescriptor(): ISerializedGrid {

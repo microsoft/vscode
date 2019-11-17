@@ -428,16 +428,16 @@ export interface IEditorGroup {
 	readonly editors: ReadonlyArray<IEditorInput>;
 
 	/**
-	 * Returns the editor at a specific index of the group.
-	 */
-	getEditor(index: number): IEditorInput | undefined;
-
-	/**
 	 * Get all editors that are currently opened in the group optionally
 	 * sorted by being most recent active. Will sort by sequential appearance
 	 * by default (from left to right).
 	 */
 	getEditors(order?: EditorsOrder): ReadonlyArray<IEditorInput>;
+
+	/**
+	 * Returns the editor at a specific index of the group.
+	 */
+	getEditorByIndex(index: number): IEditorInput | undefined;
 
 	/**
 	 * Returns the index of the editor in the group or -1 if not opened.

@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService, IEditableData, IFilesConfiguration, SortOrder, SortOrderConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, IEditableData, IFilesConfiguration, SortOrder, SortOrderConfiguration, IContextProvider } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
@@ -41,6 +41,7 @@ export class ExplorerService implements IExplorerService {
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
 	private fileSystemProviderSchemes = new Set<string>();
+	private contextProvider: IContextProvider | undefined;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -48,7 +49,7 @@ export class ExplorerService implements IExplorerService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IClipboardService private clipboardService: IClipboardService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private editorService: IEditorService,
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 	}
@@ -79,6 +80,18 @@ export class ExplorerService implements IExplorerService {
 
 	get sortOrder(): SortOrder {
 		return this._sortOrder;
+	}
+
+	registerContextProvider(contextProvider: IContextProvider): void {
+		this.contextProvider = contextProvider;
+	}
+
+	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+		if (!this.contextProvider) {
+			return [];
+		}
+
+		return this.contextProvider.getContext(respectMultiSelection);
 	}
 
 	// Memoized locals

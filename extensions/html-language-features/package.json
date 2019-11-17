@@ -17,8 +17,8 @@
   ],
   "main": "./client/out/htmlMain",
   "scripts": {
-    "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
-    "watch": "gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
+    "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
+    "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
@@ -187,7 +187,7 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^6.0.0-next.1",
+    "vscode-languageclient": "^6.0.0-next.3",
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {

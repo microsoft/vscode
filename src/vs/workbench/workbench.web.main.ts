@@ -39,7 +39,7 @@ import 'vs/workbench/services/configurationResolver/browser/configurationResolve
 import 'vs/workbench/services/credentials/browser/credentialsService';
 import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
-import 'vs/workbench/contrib/stats/browser/workspaceStatsService';
+import 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import 'vs/workbench/services/workspaces/browser/workspacesService';
 import 'vs/workbench/services/workspaces/browser/workspaceEditingService';
 import 'vs/workbench/services/dialogs/browser/dialogService';
@@ -64,7 +64,7 @@ import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
 import { IAuthTokenService } from 'vs/platform/auth/common/auth';
-import { AuthTokenService } from 'vs/platform/auth/common/authTokenService';
+import { AuthTokenService } from 'vs/workbench/services/authToken/browser/authTokenService';
 import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';

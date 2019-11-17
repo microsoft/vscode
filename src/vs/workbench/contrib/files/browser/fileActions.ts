@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
 import { isWindows, isWeb } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { extname, basename } from 'vs/base/common/path';
@@ -17,10 +16,9 @@ import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -33,7 +31,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, getConfirmMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -42,11 +39,12 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Constants } from 'vs/base/common/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { coalesce } from 'vs/base/common/arrays';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError, getErrorMessage } from 'vs/base/common/errors';
 import { asDomUri, triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -496,26 +494,13 @@ export class ToggleAutoSaveAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<any> {
-		const setting = this.configurationService.inspect('files.autoSave');
-		let userAutoSaveConfig = setting.user;
-		if (types.isUndefinedOrNull(userAutoSaveConfig)) {
-			userAutoSaveConfig = setting.default; // use default if setting not defined
-		}
-
-		let newAutoSaveValue: string;
-		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => s === userAutoSaveConfig)) {
-			newAutoSaveValue = AutoSaveConfiguration.OFF;
-		} else {
-			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
-		}
-
-		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue, ConfigurationTarget.USER);
+		return this.filesConfigurationService.toggleAutoSave();
 	}
 }
 
@@ -525,38 +510,30 @@ export abstract class BaseSaveAllAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
 		@ICommandService protected commandService: ICommandService,
 		@INotificationService private notificationService: INotificationService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super(id, label);
 
-		this.lastIsDirty = this.textFileService.isDirty();
+		this.lastIsDirty = this.workingCopyService.hasDirty;
 		this.enabled = this.lastIsDirty;
 
 		this.registerListeners();
 	}
 
-	protected abstract includeUntitled(): boolean;
 	protected abstract doRun(context: any): Promise<any>;
 
 	private registerListeners(): void {
 
-		// listen to files being changed locally
-		this._register(this.textFileService.models.onModelsDirty(e => this.updateEnablement(true)));
-		this._register(this.textFileService.models.onModelsSaved(e => this.updateEnablement(false)));
-		this._register(this.textFileService.models.onModelsReverted(e => this.updateEnablement(false)));
-		this._register(this.textFileService.models.onModelsSaveError(e => this.updateEnablement(true)));
-
-		if (this.includeUntitled()) {
-			this._register(this.untitledEditorService.onDidChangeDirty(resource => this.updateEnablement(this.untitledEditorService.isDirty(resource))));
-		}
+		// update enablement based on working copy changes
+		this._register(this.workingCopyService.onDidChangeDirty(w => this.updateEnablement(w)));
 	}
 
-	private updateEnablement(isDirty: boolean): void {
-		if (this.lastIsDirty !== isDirty) {
-			this.enabled = this.textFileService.isDirty();
+	private updateEnablement(workingCopy: IWorkingCopy): void {
+		const hasDirty = workingCopy.isDirty() || this.workingCopyService.hasDirty;
+		if (this.lastIsDirty !== hasDirty) {
+			this.enabled = hasDirty;
 			this.lastIsDirty = this.enabled;
 		}
 	}
@@ -582,10 +559,6 @@ export class SaveAllAction extends BaseSaveAllAction {
 	protected doRun(context: any): Promise<any> {
 		return this.commandService.executeCommand(SAVE_ALL_COMMAND_ID);
 	}
-
-	protected includeUntitled(): boolean {
-		return true;
-	}
 }
 
 export class SaveAllInGroupAction extends BaseSaveAllAction {
@@ -599,10 +572,6 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 	protected doRun(context: any): Promise<any> {
 		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID, {}, context);
-	}
-
-	protected includeUntitled(): boolean {
-		return true;
 	}
 }
 
@@ -869,22 +838,6 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 	}
 }
 
-interface IExplorerContext {
-	stat?: ExplorerItem;
-	selection: ExplorerItem[];
-}
-
-function getContext(listWidget: ListWidget): IExplorerContext {
-	// These commands can only be triggered when explorer viewlet is visible so get it using the active viewlet
-	const tree = <AsyncDataTree<null, ExplorerItem>>listWidget;
-	const focus = tree.getFocus();
-	const stat = focus.length ? focus[0] : undefined;
-	const selection = tree.getSelection();
-
-	// Only respect the selection if user clicked inside it (focus belongs to it)
-	return { stat, selection: selection && typeof stat !== 'undefined' && selection.indexOf(stat) >= 0 ? selection : [] };
-}
-
 function onErrorWithRetry(notificationService: INotificationService, error: any, retry: () => Promise<any>): void {
 	notificationService.prompt(Severity.Error, toErrorMessage(error, false),
 		[{
@@ -895,7 +848,6 @@ function onErrorWithRetry(notificationService: INotificationService, error: any,
 }
 
 async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boolean): Promise<void> {
-	const listService = accessor.get(IListService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
@@ -905,47 +857,45 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 
 	await viewletService.openViewlet(VIEWLET_ID, true);
 
-	const list = listService.lastFocusedList;
-	if (list) {
-		const { stat } = getContext(list);
-		let folder: ExplorerItem;
-		if (stat) {
-			folder = stat.isDirectory ? stat : (stat.parent || explorerService.roots[0]);
-		} else {
-			folder = explorerService.roots[0];
-		}
-
-		if (folder.isReadonly) {
-			throw new Error('Parent folder is readonly.');
-		}
-
-		const newStat = new NewExplorerItem(folder, isFolder);
-		await folder.fetchChildren(fileService, explorerService);
-
-		folder.addChild(newStat);
-
-		const onSuccess = (value: string): Promise<void> => {
-			const createPromise = isFolder ? fileService.createFolder(resources.joinPath(folder.resource, value)) : textFileService.create(resources.joinPath(folder.resource, value));
-			return createPromise.then(created => {
-				refreshIfSeparator(value, explorerService);
-				return isFolder ? explorerService.select(created.resource, true)
-					: editorService.openEditor({ resource: created.resource, options: { pinned: true } }).then(() => undefined);
-			}, error => {
-				onErrorWithRetry(notificationService, error, () => onSuccess(value));
-			});
-		};
-
-		explorerService.setEditable(newStat, {
-			validationMessage: value => validateFileName(newStat, value),
-			onFinish: (value, success) => {
-				folder.removeChild(newStat);
-				explorerService.setEditable(newStat, null);
-				if (success) {
-					onSuccess(value);
-				}
-			}
-		});
+	const stats = explorerService.getContext(false);
+	const stat = stats.length > 0 ? stats[0] : undefined;
+	let folder: ExplorerItem;
+	if (stat) {
+		folder = stat.isDirectory ? stat : (stat.parent || explorerService.roots[0]);
+	} else {
+		folder = explorerService.roots[0];
 	}
+
+	if (folder.isReadonly) {
+		throw new Error('Parent folder is readonly.');
+	}
+
+	const newStat = new NewExplorerItem(folder, isFolder);
+	await folder.fetchChildren(fileService, explorerService);
+
+	folder.addChild(newStat);
+
+	const onSuccess = (value: string): Promise<void> => {
+		const createPromise = isFolder ? fileService.createFolder(resources.joinPath(folder.resource, value)) : textFileService.create(resources.joinPath(folder.resource, value));
+		return createPromise.then(created => {
+			refreshIfSeparator(value, explorerService);
+			return isFolder ? explorerService.select(created.resource, true)
+				: editorService.openEditor({ resource: created.resource, options: { pinned: true } }).then(() => undefined);
+		}, error => {
+			onErrorWithRetry(notificationService, error, () => onSuccess(value));
+		});
+	};
+
+	explorerService.setEditable(newStat, {
+		validationMessage: value => validateFileName(newStat, value),
+		onFinish: (value, success) => {
+			folder.removeChild(newStat);
+			explorerService.setEditable(newStat, null);
+			if (success) {
+				onSuccess(value);
+			}
+		}
+	});
 }
 
 CommandsRegistry.registerCommand({
@@ -963,14 +913,11 @@ CommandsRegistry.registerCommand({
 });
 
 export const renameHandler = (accessor: ServicesAccessor) => {
-	const listService = accessor.get(IListService);
 	const explorerService = accessor.get(IExplorerService);
 	const textFileService = accessor.get(ITextFileService);
-	if (!listService.lastFocusedList) {
-		return;
-	}
 
-	const { stat } = getContext(listService.lastFocusedList);
+	const stats = explorerService.getContext(false);
+	const stat = stats.length > 0 ? stats[0] : undefined;
 	if (!stat) {
 		return;
 	}
@@ -991,51 +938,32 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 };
 
 export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
-	const listService = accessor.get(IListService);
-	if (!listService.lastFocusedList) {
-		return Promise.resolve();
-	}
-	const explorerContext = getContext(listService.lastFocusedList);
-	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat!];
-
+	const explorerService = accessor.get(IExplorerService);
+	const stats = explorerService.getContext(true);
 	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, true);
 };
 
 export const deleteFileHandler = (accessor: ServicesAccessor) => {
-	const listService = accessor.get(IListService);
-	if (!listService.lastFocusedList) {
-		return Promise.resolve();
-	}
-	const explorerContext = getContext(listService.lastFocusedList);
-	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat!];
+	const explorerService = accessor.get(IExplorerService);
+	const stats = explorerService.getContext(true);
 
 	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, false);
 };
 
 let pasteShouldMove = false;
 export const copyFileHandler = (accessor: ServicesAccessor) => {
-	const listService = accessor.get(IListService);
-	if (!listService.lastFocusedList) {
-		return;
-	}
-	const explorerContext = getContext(listService.lastFocusedList);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerContext.stat) {
-		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+	const stats = explorerService.getContext(true);
+	if (stats.length > 0) {
 		explorerService.setToCopy(stats, false);
 		pasteShouldMove = false;
 	}
 };
 
 export const cutFileHandler = (accessor: ServicesAccessor) => {
-	const listService = accessor.get(IListService);
-	if (!listService.lastFocusedList) {
-		return;
-	}
-	const explorerContext = getContext(listService.lastFocusedList);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerContext.stat) {
-		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
+	const stats = explorerService.getContext(true);
+	if (stats.length > 0) {
 		explorerService.setToCopy(stats, true);
 		pasteShouldMove = true;
 	}
@@ -1043,47 +971,41 @@ export const cutFileHandler = (accessor: ServicesAccessor) => {
 
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
 const downloadFileHandler = (accessor: ServicesAccessor) => {
-	const listService = accessor.get(IListService);
-	if (!listService.lastFocusedList) {
-		return;
-	}
-	const explorerContext = getContext(listService.lastFocusedList);
 	const fileService = accessor.get(IFileService);
 	const fileDialogService = accessor.get(IFileDialogService);
+	const explorerService = accessor.get(IExplorerService);
+	const stats = explorerService.getContext(true);
 
-	if (explorerContext.stat) {
-		const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-		stats.forEach(async s => {
-			if (isWeb) {
-				if (!s.isDirectory) {
-					triggerDownload(asDomUri(s.resource), s.name);
-				}
-			} else {
-				let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath() : fileDialogService.defaultFilePath();
-				if (defaultUri && !s.isDirectory) {
-					defaultUri = resources.joinPath(defaultUri, s.name);
-				}
-
-				const destination = await fileDialogService.showSaveDialog({
-					availableFileSystems: [Schemas.file],
-					saveLabel: mnemonicButtonLabel(nls.localize('download', "Download")),
-					title: s.isDirectory ? nls.localize('downloadFolder', "Download Folder") : nls.localize('downloadFile', "Download File"),
-					defaultUri
-				});
-				if (destination) {
-					await fileService.copy(s.resource, destination);
-				}
+	stats.forEach(async s => {
+		if (isWeb) {
+			if (!s.isDirectory) {
+				triggerDownload(asDomUri(s.resource), s.name);
 			}
-		});
-	}
+		} else {
+			let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath() : fileDialogService.defaultFilePath();
+			if (defaultUri && !s.isDirectory) {
+				defaultUri = resources.joinPath(defaultUri, s.name);
+			}
+
+			const destination = await fileDialogService.showSaveDialog({
+				availableFileSystems: [Schemas.file],
+				saveLabel: mnemonicButtonLabel(nls.localize('download', "Download")),
+				title: s.isDirectory ? nls.localize('downloadFolder', "Download Folder") : nls.localize('downloadFile', "Download File"),
+				defaultUri
+			});
+			if (destination) {
+				await fileService.copy(s.resource, destination);
+			}
+		}
+	});
 };
+
 CommandsRegistry.registerCommand({
 	id: DOWNLOAD_COMMAND_ID,
 	handler: downloadFileHandler
 });
 
 export const pasteFileHandler = async (accessor: ServicesAccessor) => {
-	const listService = accessor.get(IListService);
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
@@ -1092,72 +1014,65 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	if (listService.lastFocusedList) {
-		const explorerContext = getContext(listService.lastFocusedList);
-		const toPaste = resources.distinctParents(clipboardService.readResources(), r => r);
-		const element = explorerContext.stat || explorerService.roots[0];
+	const context = explorerService.getContext(true);
+	const toPaste = resources.distinctParents(clipboardService.readResources(), r => r);
+	const element = context.length ? context[0] : explorerService.roots[0];
 
-		// Check if target is ancestor of pasted folder
-		const stats = await Promise.all(toPaste.map(async fileToPaste => {
+	// Check if target is ancestor of pasted folder
+	const stats = await Promise.all(toPaste.map(async fileToPaste => {
 
-			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
-				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
-			}
-
-			try {
-				const fileToPasteStat = await fileService.resolve(fileToPaste);
-
-				// Find target
-				let target: ExplorerItem;
-				if (element.resource.toString() === fileToPaste.toString()) {
-					target = element.parent!;
-				} else {
-					target = element.isDirectory ? element : element.parent!;
-				}
-
-				const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-				const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
-
-				// Move/Copy File
-				if (pasteShouldMove) {
-					return await textFileService.move(fileToPaste, targetFile);
-				} else {
-					return await fileService.copy(fileToPaste, targetFile);
-				}
-			} catch (e) {
-				onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile. {0}", getErrorMessage(e))));
-				return undefined;
-			}
-		}));
-
-		if (pasteShouldMove) {
-			// Cut is done. Make sure to clear cut state.
-			explorerService.setToCopy([], false);
+		if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
+			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 		}
-		if (stats.length >= 1) {
-			const stat = stats[0];
-			if (stat && !stat.isDirectory && stats.length === 1) {
-				await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+
+		try {
+			const fileToPasteStat = await fileService.resolve(fileToPaste);
+
+			// Find target
+			let target: ExplorerItem;
+			if (element.resource.toString() === fileToPaste.toString()) {
+				target = element.parent!;
+			} else {
+				target = element.isDirectory ? element : element.parent!;
 			}
-			if (stat) {
-				await explorerService.select(stat.resource);
+
+			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
+			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
+
+			// Move/Copy File
+			if (pasteShouldMove) {
+				return await textFileService.move(fileToPaste, targetFile);
+			} else {
+				return await fileService.copy(fileToPaste, targetFile);
 			}
+		} catch (e) {
+			onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile. {0}", getErrorMessage(e))));
+			return undefined;
+		}
+	}));
+
+	if (pasteShouldMove) {
+		// Cut is done. Make sure to clear cut state.
+		explorerService.setToCopy([], false);
+	}
+	if (stats.length >= 1) {
+		const stat = stats[0];
+		if (stat && !stat.isDirectory && stats.length === 1) {
+			await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+		}
+		if (stat) {
+			await explorerService.select(stat.resource);
 		}
 	}
 };
 
 export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) => {
-	const listService = accessor.get(IListService);
 	const editorService = accessor.get(IEditorService);
+	const explorerService = accessor.get(IExplorerService);
+	const stats = explorerService.getContext(true);
 
-	if (listService.lastFocusedList) {
-		const explorerContext = getContext(listService.lastFocusedList);
-		if (explorerContext.stat) {
-			const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
-			await editorService.openEditors(stats.filter(s => !s.isDirectory).map(s => ({
-				resource: s.resource,
-				options: { preserveFocus: true }
-			})));
-		}
-	}
+	await editorService.openEditors(stats.filter(s => !s.isDirectory).map(s => ({
+		resource: s.resource,
+		options: { preserveFocus: true }
+	})));
 };

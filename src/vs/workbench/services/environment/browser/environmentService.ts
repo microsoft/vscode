@@ -19,9 +19,14 @@ import product from 'vs/platform/product/common/product';
 import { serializableToMap } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 
+// TODO@ben remove properties that are node/electron only
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
-	constructor(private readonly options: IBrowserWorkbenchEnvironmentConstructionOptions, private readonly environment: IWorkbenchEnvironmentService) { }
+	constructor(
+		private readonly options: IBrowserWorkbenchEnvironmentConstructionOptions,
+		private readonly payload: Map<string, string> | undefined,
+		private readonly environment: IWorkbenchEnvironmentService
+	) { }
 
 	//#region PROPERLY CONFIGURED IN DESKTOP + WEB
 
@@ -37,8 +42,19 @@ export class BrowserWindowConfiguration implements IWindowConfiguration {
 	@memoize
 	get backupWorkspaceResource(): URI { return joinPath(this.environment.backupHome, this.options.workspaceId); }
 
+	@memoize
+	get filesToOpenOrCreate(): IPath[] | undefined {
+		if (this.payload) {
+			const fileToOpen = this.payload.get('openFile');
+			if (fileToOpen) {
+				return [{ fileUri: URI.parse(fileToOpen) }];
+			}
+		}
+
+		return undefined;
+	}
+
 	// Currently unsupported in web
-	get filesToOpenOrCreate(): IPath[] | undefined { return undefined; }
 	get filesToDiff(): IPath[] | undefined { return undefined; }
 
 	//#endregion
@@ -171,7 +187,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get webviewExternalEndpoint(): string {
 		// TODO: get fallback from product.json
-		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}').replace('{{commit}}', product.commit || 'b53811e67e65c6a564a80e1c412ca2b13de02907');
+		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}').replace('{{commit}}', product.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
 	}
 
 	@memoize
@@ -199,7 +215,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	private _configuration: IWindowConfiguration | undefined = undefined;
 	get configuration(): IWindowConfiguration {
 		if (!this._configuration) {
-			this._configuration = new BrowserWindowConfiguration(this.options, this);
+			this._configuration = new BrowserWindowConfiguration(this.options, this.payload, this);
 		}
 
 		return this._configuration;
@@ -251,7 +267,13 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	//#endregion
 
-	constructor(readonly options: IBrowserWorkbenchEnvironmentConstructionOptions) { }
+	private payload: Map<string, string> | undefined;
+
+	constructor(readonly options: IBrowserWorkbenchEnvironmentConstructionOptions) {
+		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
+			this.payload = serializableToMap(options.workspaceProvider.payload);
+		}
+	}
 
 	private resolveExtensionHostDebugEnvironment(): IExtensionHostDebugEnvironment {
 		const extensionHostDebugEnvironment: IExtensionHostDebugEnvironment = {
@@ -264,9 +286,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		};
 
 		// Fill in selected extra environmental properties
-		if (this.options.workspaceProvider && Array.isArray(this.options.workspaceProvider.payload)) {
-			const environment = serializableToMap(this.options.workspaceProvider.payload);
-			for (const [key, value] of environment) {
+		if (this.payload) {
+			for (const [key, value] of this.payload) {
 				switch (key) {
 					case 'extensionDevelopmentPath':
 						extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(value)];
@@ -280,7 +301,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						break;
 					case 'inspect-brk-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
-						extensionHostDebugEnvironment.params.break = false;
+						extensionHostDebugEnvironment.params.break = true;
 						break;
 				}
 			}

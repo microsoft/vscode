@@ -89,7 +89,7 @@ export module StaticServices {
 
 	let _all: LazyStaticService<any>[] = [];
 
-	function define<T>(serviceId: ServiceIdentifier<T>, factory: (overrides: IEditorOverrideServices) => T): LazyStaticService<T> {
+	function define<T>(serviceId: ServiceIdentifier<T>, factory: (overrides: IEditorOverrideServices | undefined) => T): LazyStaticService<T> {
 		let r = new LazyStaticService(serviceId, factory);
 		_all.push(r);
 		return r;

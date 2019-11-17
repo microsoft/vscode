@@ -13,6 +13,7 @@ import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
 import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
@@ -25,6 +26,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 let Terminal: typeof XTermTerminal;
 let WebLinksAddon: typeof XTermWebLinksAddon;
 let SearchAddon: typeof XTermSearchAddon;
+let WebglAddon: typeof XTermWebglAddon;
 
 export class TerminalInstanceService implements ITerminalInstanceService {
 	public _serviceBrand: undefined;
@@ -59,6 +61,13 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
 		}
 		return SearchAddon;
+	}
+
+	public async getXtermWebglConstructor(): Promise<typeof XTermWebglAddon> {
+		if (!WebglAddon) {
+			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
+		}
+		return WebglAddon;
 	}
 
 	public createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper {

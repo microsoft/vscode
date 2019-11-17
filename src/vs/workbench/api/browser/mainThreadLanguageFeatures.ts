@@ -498,39 +498,35 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
 
 			prepareCallHierarchy: async (document, position, token) => {
-				const result = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
-				if (!result) {
+				const item = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
+				if (!item) {
 					return undefined;
 				}
 				return {
-					dispose: () => this._proxy.$releaseCallHierarchy(handle, result.sessionId),
-					root: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(result.root)
+					dispose: () => this._proxy.$releaseCallHierarchy(handle, item._sessionId),
+					root: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item)
 				};
 			},
 
 			provideOutgoingCalls: async (item, token) => {
-				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item.id, token);
+				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item._sessionId, item._itemId, token);
 				if (!outgoing) {
 					return outgoing;
 				}
-				return outgoing.map(([item, fromRanges]): callh.OutgoingCall => {
-					return {
-						to: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
-						fromRanges
-					};
+				outgoing.forEach(value => {
+					value.to = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.to);
 				});
+				return <any>outgoing;
 			},
 			provideIncomingCalls: async (item, token) => {
-				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item.id, token);
+				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item._sessionId, item._itemId, token);
 				if (!incoming) {
 					return incoming;
 				}
-				return incoming.map(([item, fromRanges]): callh.IncomingCall => {
-					return {
-						from: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
-						fromRanges
-					};
+				incoming.forEach(value => {
+					value.from = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.from);
 				});
+				return <any>incoming;
 			}
 		}));
 	}

@@ -22,6 +22,7 @@ export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
+export const CUSTOM_EDITOR_TOKENSTYLES_SETTING = 'editor.tokenColorCustomizationsExperimental';
 
 export interface IColorTheme extends ITheme {
 	readonly id: string;
@@ -30,7 +31,7 @@ export interface IColorTheme extends ITheme {
 	readonly extensionData?: ExtensionData;
 	readonly description?: string;
 	readonly isLoaded: boolean;
-	readonly tokenColors: ITokenColorizationRule[];
+	readonly tokenColors: ITextMateThemingRule[];
 }
 
 export interface IColorMap {
@@ -69,7 +70,7 @@ export interface IColorCustomizations {
 }
 
 export interface ITokenColorCustomizations {
-	[groupIdOrThemeSettingsId: string]: string | ITokenColorizationSetting | ITokenColorCustomizations | undefined | ITokenColorizationRule[];
+	[groupIdOrThemeSettingsId: string]: string | ITokenColorizationSetting | ITokenColorCustomizations | undefined | ITextMateThemingRule[];
 	comments?: string | ITokenColorizationSetting;
 	strings?: string | ITokenColorizationSetting;
 	numbers?: string | ITokenColorizationSetting;
@@ -77,10 +78,14 @@ export interface ITokenColorCustomizations {
 	types?: string | ITokenColorizationSetting;
 	functions?: string | ITokenColorizationSetting;
 	variables?: string | ITokenColorizationSetting;
-	textMateRules?: ITokenColorizationRule[];
+	textMateRules?: ITextMateThemingRule[];
 }
 
-export interface ITokenColorizationRule {
+export interface IExperimentalTokenStyleCustomizations {
+	[styleRuleOrThemeSettingsId: string]: string | ITokenColorizationSetting | IExperimentalTokenStyleCustomizations | undefined;
+}
+
+export interface ITextMateThemingRule {
 	name?: string;
 	scope?: string | string[];
 	settings: ITokenColorizationSetting;
@@ -89,7 +94,7 @@ export interface ITokenColorizationRule {
 export interface ITokenColorizationSetting {
 	foreground?: string;
 	background?: string;
-	fontStyle?: string;  // italic, underline, bold
+	fontStyle?: string; /* [italic|underline|bold] */
 }
 
 export interface ExtensionData {

@@ -13,7 +13,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderMinimap, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
@@ -32,6 +32,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Color } from 'vs/base/common/color';
 import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
 import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
+import { MinimapPosition } from 'vs/editor/common/model';
 
 function getMinimapLineHeight(renderMinimap: RenderMinimap, scale: number): number {
 	if (renderMinimap === RenderMinimap.Text) {
@@ -53,6 +54,8 @@ function getMinimapCharWidth(renderMinimap: RenderMinimap, scale: number): numbe
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
  */
 const MOUSE_DRAG_RESET_DISTANCE = 140;
+
+const GUTTER_DECORATION_WIDTH = 2;
 
 class MinimapOptions {
 
@@ -500,6 +503,7 @@ export class Minimap extends ViewPart {
 		this._slider.setPosition('absolute');
 		this._slider.setClassName('minimap-slider');
 		this._slider.setLayerHinting(true);
+		this._slider.setContain('strict');
 		this._domNode.appendChild(this._slider);
 
 		this._sliderHorizontal = createFastDomNode(document.createElement('div'));
@@ -815,9 +819,20 @@ export class Minimap extends ViewPart {
 					continue;
 				}
 
+				const decorationColor = (<ModelDecorationMinimapOptions>decoration.options.minimap).getColor(this._context.theme);
 				for (let line = decoration.range.startLineNumber; line <= decoration.range.endLineNumber; line++) {
-					const decorationColor = (<ModelDecorationMinimapOptions>decoration.options.minimap).getColor(this._context.theme);
-					this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
+					switch (decoration.options.minimap.position) {
+
+						case MinimapPosition.Inline:
+							this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
+							continue;
+
+						case MinimapPosition.Gutter:
+							const y = (line - layout.startLineNumber) * lineHeight;
+							const x = 2;
+							this.renderDecoration(canvasContext, decorationColor, x, y, GUTTER_DECORATION_WIDTH, lineHeight);
+							continue;
+					}
 				}
 			}
 		}
@@ -840,7 +855,7 @@ export class Minimap extends ViewPart {
 		const isFirstDecorationForLine = !lineIndexToXOffset;
 		if (!lineIndexToXOffset) {
 			const lineData = this._context.model.getLineContent(lineNumber);
-			lineIndexToXOffset = [0];
+			lineIndexToXOffset = [MINIMAP_GUTTER_WIDTH];
 			for (let i = 1; i < lineData.length + 1; i++) {
 				const charCode = lineData.charCodeAt(i - 1);
 				const dx = charCode === CharCode.Tab
@@ -856,7 +871,7 @@ export class Minimap extends ViewPart {
 		}
 
 		const { startColumn, endColumn, startLineNumber, endLineNumber } = decorationRange;
-		const x = startLineNumber === lineNumber ? lineIndexToXOffset[startColumn - 1] : 0;
+		const x = startLineNumber === lineNumber ? lineIndexToXOffset[startColumn - 1] : MINIMAP_GUTTER_WIDTH;
 
 		const endColumnForLine = endLineNumber > lineNumber ? lineIndexToXOffset.length - 1 : endColumn - 1;
 
@@ -875,7 +890,7 @@ export class Minimap extends ViewPart {
 
 	private renderLineHighlight(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, y: number, height: number): void {
 		canvasContext.fillStyle = decorationColor && decorationColor.transparent(0.5).toString() || '';
-		canvasContext.fillRect(0, y, canvasContext.canvas.width, height);
+		canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y, canvasContext.canvas.width, height);
 	}
 
 	private renderDecoration(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, x: number, y: number, width: number, height: number) {
@@ -1062,7 +1077,7 @@ export class Minimap extends ViewPart {
 		const charWidth = getMinimapCharWidth(renderMinimap, fontScale);
 		const maxDx = target.width - charWidth;
 
-		let dx = 0;
+		let dx = MINIMAP_GUTTER_WIDTH;
 		let charIndex = 0;
 		let tabsCharDelta = 0;
 

@@ -26,6 +26,8 @@ const TRUSTED_DOMAINS_STAT: IStat = {
 const CONFIG_HELP_TEXT_PRE = `// Links matching one or more entries in the list below can be opened without link protection.
 // The following examples show what entries can look like:
 // - "https://microsoft.com": Matches this specific domain using https
+// - "https://microsoft.com/foo": Matches https://microsoft.com/foo and https://microsoft.com/foo/bar,
+//   but not https://microsoft.com/foobar or https://microsoft.com/bar
 // - "https://*.microsoft.com": Match all domains ending in "microsoft.com" using https
 // - "microsoft.com": Match this specific domain using either http or https
 // - "*.microsoft.com": Match all domains ending in "microsoft.com" using either http or https
@@ -105,7 +107,7 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		try {
-			const trustedDomainsContent = content.toString();
+			const trustedDomainsContent = VSBuffer.wrap(content).toString();
 			const trustedDomains = parse(trustedDomainsContent);
 
 			this.storageService.store('http.linkProtectionTrustedDomainsContent', trustedDomainsContent, StorageScope.GLOBAL);

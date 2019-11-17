@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone, assign } from 'vs/base/common/objects';
-import { isObject, assertIsDefined } from 'vs/base/common/types';
+import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput, EditorOptions, IEditorMemento, ITextEditor } from 'vs/workbench/common/editor';
@@ -16,7 +16,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { SaveReason } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -24,6 +25,7 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -53,7 +55,8 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(id, telemetryService, themeService, storageService);
 
@@ -165,7 +168,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	}
 
 	private maybeTriggerSaveAll(reason: SaveReason): void {
-		const mode = this.textFileService.getAutoSaveMode();
+		const mode = this.filesConfigurationService.getAutoSaveMode();
 
 		// Determine if we need to save all. In case of a window focus change we also save if auto save mode
 		// is configured to be ON_FOCUS_CHANGE (editor focus change)
@@ -244,6 +247,15 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		}
 
 		this.editorMemento.saveEditorState(this.group, resource, editorViewState);
+	}
+
+	getViewState(): IEditorViewState | undefined {
+		const resource = this.input?.getResource();
+		if (resource) {
+			return withNullAsUndefined(this.retrieveTextEditorViewState(resource));
+		}
+
+		return undefined;
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState | null {

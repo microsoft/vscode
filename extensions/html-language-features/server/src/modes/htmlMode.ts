@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, SelectionRange } from 'vscode-html-languageservice';
-import { TextDocument, Position, Range, CompletionItem, FoldingRange } from 'vscode-languageserver-types';
+import {
+	LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions,
+	HTMLFormatConfiguration, SelectionRange,
+	TextDocument, Position, Range, CompletionItem, FoldingRange
+} from 'vscode-html-languageservice';
 import { LanguageMode, Workspace } from './languageModes';
 import { getPathCompletionParticipant } from './pathCompletion';
 

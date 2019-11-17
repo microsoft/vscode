@@ -23,7 +23,6 @@ import { Location } from 'vs/editor/common/modes';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenceRenderer, TreeElement, StringRepresentationProvider, IdentityProvider } from 'vs/editor/contrib/gotoSymbol/peek/referencesTree';
 import * as nls from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -182,8 +181,6 @@ export interface SelectionEvent {
 	readonly element?: Location;
 }
 
-export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', true);
-
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -194,7 +191,9 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 	private readonly _disposeOnNewModel = new DisposableStore();
 	private readonly _callOnDispose = new DisposableStore();
+
 	private readonly _onDidSelectReference = new Emitter<SelectionEvent>();
+	readonly onDidSelectReference = this._onDidSelectReference.event;
 
 	private _tree!: WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>;
 	private _treeContainer!: HTMLElement;
@@ -228,6 +227,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		this.setModel(undefined);
 		this._callOnDispose.dispose();
 		this._disposeOnNewModel.dispose();
+		this._preview.setModel(null); // drop all view-zones, workaround for https://github.com/microsoft/vscode/issues/84726
 		dispose(this._preview);
 		dispose(this._previewNotAvailableMessage);
 		dispose(this._tree);
@@ -245,10 +245,6 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			primaryHeadingColor: theme.getColor(peekView.peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekView.peekViewTitleInfoForeground)
 		});
-	}
-
-	get onDidSelectReference(): Event<SelectionEvent> {
-		return this._onDidSelectReference.event;
 	}
 
 	show(where: IRange) {
@@ -321,7 +317,6 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			this._instantiationService.createInstance(DataSource),
 			treeOptions
 		);
-		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
 		// split stuff
 		this._splitView.addView({
@@ -365,17 +360,14 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			onEvent(e.elements[0], 'show');
 		});
 		this._tree.onDidOpen(e => {
-			const aside = (e.browserEvent instanceof MouseEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
-			let goto = !e.browserEvent || ((e.browserEvent instanceof MouseEvent) && e.browserEvent.detail === 2);
-			if (e.browserEvent instanceof KeyboardEvent) {
-				// todo@joh make this a command
-				goto = true;
-			}
-			if (aside) {
+			if (e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey)) {
+				// modifier-click -> open to the side
 				onEvent(e.elements[0], 'side');
-			} else if (goto) {
+			} else if (e.browserEvent instanceof KeyboardEvent || (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2)) {
+				// keybinding (list service command) OR double click -> close widget and goto target
 				onEvent(e.elements[0], 'goto');
 			} else {
+				// preview location
 				onEvent(e.elements[0], 'show');
 			}
 		});

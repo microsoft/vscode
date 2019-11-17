@@ -30,6 +30,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
+
 /**
  * Explorer viewlet container.
  */
@@ -50,6 +51,7 @@ export interface IExplorerService {
 	readonly onDidSelectResource: Event<{ resource?: URI, reveal?: boolean }>;
 	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>;
 
+	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	setEditable(stat: ExplorerItem, data: IEditableData | null): void;
 	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
 	getEditableData(stat: ExplorerItem): IEditableData | undefined;
@@ -65,7 +67,14 @@ export interface IExplorerService {
 	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
 	 */
 	select(resource: URI, reveal?: boolean): Promise<void>;
+
+	registerContextProvider(contextProvider: IContextProvider): void;
 }
+
+export interface IContextProvider {
+	getContext(respectMultiSelection: boolean): ExplorerItem[];
+}
+
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 /**
@@ -82,6 +91,11 @@ export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExpl
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>('openEditorsVisible', false);
 export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true);
 export const ExplorerFocusedContext = new RawContextKey<boolean>('explorerViewletFocus', true);
+
+// compressed nodes
+export const ExplorerCompressedFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFocus', true);
+export const ExplorerCompressedFirstFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFirstFocus', true);
+export const ExplorerCompressedLastFocusContext = new RawContextKey<boolean>('explorerViewletCompressedLastFocus', true);
 
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, FilesExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
 export const ExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, ExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
@@ -100,7 +114,6 @@ export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
  * Binary file editor id.
  */
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
-
 
 export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {
@@ -219,39 +232,39 @@ export class OpenEditor implements IEditorIdentifier {
 		// noop
 	}
 
-	public get editor() {
+	get editor() {
 		return this._editor;
 	}
 
-	public get editorIndex() {
+	get editorIndex() {
 		return this._group.getIndexOfEditor(this.editor);
 	}
 
-	public get group() {
+	get group() {
 		return this._group;
 	}
 
-	public get groupId() {
+	get groupId() {
 		return this._group.id;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return `openeditor:${this.groupId}:${this.editorIndex}:${this.editor.getName()}:${this.editor.getDescription()}`;
 	}
 
-	public isPreview(): boolean {
+	isPreview(): boolean {
 		return this._group.previewEditor === this.editor;
 	}
 
-	public isUntitled(): boolean {
+	isUntitled(): boolean {
 		return !!toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.untitled });
 	}
 
-	public isDirty(): boolean {
+	isDirty(): boolean {
 		return this.editor.isDirty();
 	}
 
-	public getResource(): URI | undefined {
+	getResource(): URI | undefined {
 		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 }

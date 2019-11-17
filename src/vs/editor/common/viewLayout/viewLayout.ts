@@ -8,9 +8,8 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
+import { LinesLayout, IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 
 const SMOOTH_SCROLLING_TIME = 125;
@@ -194,15 +193,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	// ---- IVerticalLayoutProvider
-
-	public addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): string {
-		return this._linesLayout.insertWhitespace(afterLineNumber, ordinal, height, minWidth);
-	}
-	public changeWhitespace(id: string, newAfterLineNumber: number, newHeight: number): boolean {
-		return this._linesLayout.changeWhitespace(id, newAfterLineNumber, newHeight);
-	}
-	public removeWhitespace(id: string): boolean {
-		return this._linesLayout.removeWhitespace(id);
+	public changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T {
+		return this._linesLayout.changeWhitespace(callback);
 	}
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
 		return this._linesLayout.getVerticalOffsetForLineNumber(lineNumber);

@@ -1074,6 +1074,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		return SuggestWidget.ID;
 	}
 
+	isFrozen(): boolean {
+		return this.state === State.Frozen;
+	}
+
 	private updateListHeight(): number {
 		let height = 0;
 

@@ -11,7 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Keybinding, ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS, OperatingSystem, isWeb } from 'vs/base/common/platform';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -19,7 +19,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService, IKeybindingEvent } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardEvent, IUserFriendlyKeybinding, KeybindingSource, IKeybindingService, IKeybindingEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, IKeybindingRule2, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -43,8 +43,10 @@ import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
-import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
+import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
+import { flatten } from 'vs/base/common/arrays';
+import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -146,6 +148,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private _keyboardMapper: IKeyboardMapper;
 	private _cachedResolver: KeybindingResolver | null;
 	private userKeybindings: UserKeybindings;
+	private readonly _contributions: KeybindingsSchemaContribution[] = [];
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -161,7 +164,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService);
 
-		updateSchema();
+		this.updateSchema();
 
 		let dispatchConfig = getDispatchConfig(configurationService);
 		configurationService.onDidChangeConfiguration((e) => {
@@ -214,8 +217,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this.updateResolver({ source: KeybindingSource.Default });
 		});
 
-		updateSchema();
-		this._register(extensionService.onDidRegisterExtensions(() => updateSchema()));
+		this.updateSchema();
+		this._register(extensionService.onDidRegisterExtensions(() => this.updateSchema()));
 
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
@@ -236,22 +239,34 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		});
 
 		this._register(browser.onDidChangeFullscreen(() => {
-			const keyboard = (<INavigatorWithKeyboard>navigator).keyboard;
+			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
 
-			if (!keyboard) {
+			if (BrowserFeatures.keyboard === KeyboardSupport.None) {
 				return;
 			}
 
 			if (browser.isFullscreen()) {
-				keyboard.lock(['Escape']);
+				keyboard?.lock(['Escape']);
 			} else {
-				keyboard.unlock();
+				keyboard?.unlock();
 			}
 
 			// update resolver which will bring back all unbound keyboard shortcuts
 			this._cachedResolver = null;
 			this._onDidUpdateKeybindings.fire({ source: KeybindingSource.User });
 		}));
+	}
+
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
+		this._contributions.push(contribution);
+		if (contribution.onDidChange) {
+			this._register(contribution.onDidChange(() => this.updateSchema()));
+		}
+		this.updateSchema();
+	}
+
+	private updateSchema() {
+		updateSchema(flatten(this._contributions.map(x => x.getSchemaAdditions())));
 	}
 
 	public _dumpDebugInfo(): string {
@@ -337,15 +352,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private _assertBrowserConflicts(kb: Keybinding, commandId: string): boolean {
-		if (!isWeb) {
+		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
 			return false;
 		}
 
-		if (browser.isStandalone) {
-			return false;
-		}
-
-		if (browser.isFullscreen() && (<any>navigator).keyboard) {
+		if (BrowserFeatures.keyboard === KeyboardSupport.FullScreen && browser.isFullscreen()) {
 			return false;
 		}
 
@@ -503,7 +514,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		);
 	}
 
-	private static _getDefaultKeybindings(defaultKeybindings: ResolvedKeybindingItem[]): string {
+	private static _getDefaultKeybindings(defaultKeybindings: readonly ResolvedKeybindingItem[]): string {
 		let out = new OutputBuilder();
 		out.writeLine('[');
 
@@ -653,7 +664,7 @@ let schema: IJSONSchema = {
 let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-function updateSchema() {
+function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 	commandsSchemas.length = 0;
 	commandsEnum.length = 0;
 	commandsEnumDescriptions.length = 0;
@@ -707,6 +718,9 @@ function updateSchema() {
 	for (const commandId of menuCommands.keys()) {
 		addKnownCommand(commandId);
 	}
+
+	commandsSchemas.push(...additionalContributions);
+	schemaRegistry.notifySchemaChanged(schemaId);
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
