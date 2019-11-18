@@ -26,74 +26,6 @@ export namespace ServerResponse {
 	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
 }
 
-export namespace ExperimentalProtocol {
-	/**
-	 * A request to get encoded semantic classifications for a span in the file
-	 */
-	export interface EncodedSemanticClassificationsRequest extends Proto.FileRequest {
-		arguments: EncodedSemanticClassificationsRequestArgs;
-	}
-
-	/**
-	 * Arguments for EncodedSemanticClassificationsRequest request.
-	 */
-	export interface EncodedSemanticClassificationsRequestArgs extends Proto.FileRequestArgs {
-		/**
-		 * Start position of the span.
-		 */
-		start: number;
-		/**
-		 * Length of the span.
-		 */
-		length: number;
-	}
-
-	export const enum EndOfLineState {
-		None,
-		InMultiLineCommentTrivia,
-		InSingleQuoteStringLiteral,
-		InDoubleQuoteStringLiteral,
-		InTemplateHeadOrNoSubstitutionTemplate,
-		InTemplateMiddleOrTail,
-		InTemplateSubstitutionPosition,
-	}
-
-	export const enum ClassificationType {
-		comment = 1,
-		identifier = 2,
-		keyword = 3,
-		numericLiteral = 4,
-		operator = 5,
-		stringLiteral = 6,
-		regularExpressionLiteral = 7,
-		whiteSpace = 8,
-		text = 9,
-		punctuation = 10,
-		className = 11,
-		enumName = 12,
-		interfaceName = 13,
-		moduleName = 14,
-		typeParameterName = 15,
-		typeAliasName = 16,
-		parameterName = 17,
-		docCommentTagName = 18,
-		jsxOpenTagName = 19,
-		jsxCloseTagName = 20,
-		jsxSelfClosingTagName = 21,
-		jsxAttribute = 22,
-		jsxText = 23,
-		jsxAttributeStringLiteralValue = 24,
-		bigintLiteral = 25,
-	}
-
-	export interface EncodedSemanticClassificationsResponse extends Proto.Response {
-		body?: {
-			endOfLineState: EndOfLineState;
-			spans: number[];
-		};
-	}
-}
-
 interface StandardTsServerRequests {
 	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
 	'completionEntryDetails': [Proto.CompletionDetailsRequestArgs, Proto.CompletionDetailsResponse];
@@ -104,7 +36,6 @@ interface StandardTsServerRequests {
 	'definitionAndBoundSpan': [Proto.FileLocationRequestArgs, Proto.DefinitionInfoAndBoundSpanReponse];
 	'docCommentTemplate': [Proto.FileLocationRequestArgs, Proto.DocCommandTemplateResponse];
 	'documentHighlights': [Proto.DocumentHighlightsRequestArgs, Proto.DocumentHighlightsResponse];
-	'encodedSemanticClassifications-full': [ExperimentalProtocol.EncodedSemanticClassificationsRequestArgs, ExperimentalProtocol.EncodedSemanticClassificationsResponse];
 	'format': [Proto.FormatRequestArgs, Proto.FormatResponse];
 	'formatonkey': [Proto.FormatOnKeyRequestArgs, Proto.FormatResponse];
 	'getApplicableRefactors': [Proto.GetApplicableRefactorsRequestArgs, Proto.GetApplicableRefactorsResponse];
