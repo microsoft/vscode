@@ -256,7 +256,7 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 	private readonly _onEdit = this._register(new vscode.EventEmitter<{ now: number }>());
 	public readonly onEdit = this._onEdit.event;
 
-	async save() { }
+	async save() { console.log('save'); }
 
 	async hotExit() { }
 

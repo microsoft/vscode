@@ -354,7 +354,7 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 		}));
 	}
 
-	private updateAllViews(viewDescriptors: IViewDescriptor[]) {
+	private updateAllViews(viewDescriptors: ReadonlyArray<IViewDescriptor>) {
 		viewDescriptors.forEach(descriptor => {
 			let filterOnValue = this.getFilterOn(descriptor);
 			if (!filterOnValue) {

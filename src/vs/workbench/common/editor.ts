@@ -545,7 +545,11 @@ export abstract class TextEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+	async save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+		if (this.isReadonly()) {
+			return false; // return early if editor is readonly
+		}
+
 		return this.textFileService.save(this.resource, options);
 	}
 

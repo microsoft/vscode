@@ -476,6 +476,8 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 	matchOnDescription?: boolean;
 
 	matchOnDetail?: boolean;
+
+	sortByLabel?: boolean;
 }
 
 export interface TransferInputBox extends BaseTransferQuickInput {
@@ -592,6 +594,7 @@ export interface ExtHostWebviewsShape {
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$undoEdits(handle: WebviewPanelHandle, edits: string[]): void;
 	$redoEdits(handle: WebviewPanelHandle, edits: string[]): void;
+	$onSave(handle: WebviewPanelHandle): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, IEditor } from 'vs/workbench/common/editor';
+import { EditorInput, IEditor, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
@@ -51,9 +51,13 @@ export interface ICustomEditorModelManager {
 export interface ICustomEditorModel extends IWorkingCopy {
 	readonly onUndo: Event<CustomEditorEdit>;
 	readonly onRedo: Event<CustomEditorEdit>;
+	readonly onWillSave: Event<{ waitUntil: (until: Promise<any>) => void }>;
 
 	undo(): void;
 	redo(): void;
+	revert(options?: IRevertOptions): Promise<boolean>;
+
+	save(options?: ISaveOptions): Promise<boolean>;
 
 	makeEdit(data: string): void;
 }

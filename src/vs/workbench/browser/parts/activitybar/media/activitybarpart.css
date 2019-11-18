@@ -7,9 +7,8 @@
 	width: 48px;
 }
 
-.monaco-workbench.windows .part.activitybar,
-.monaco-workbench.linux .part.activitybar,
-.monaco-workbench.web .part.activitybar {
+.monaco-workbench.windows.chromium .part.activitybar,
+.monaco-workbench.linux.chromium .part.activitybar {
 	/*
 	 * Explicitly put the part onto its own layer to help Chrome to
 	 * render the content with LCD-anti-aliasing. By partioning the
@@ -20,6 +19,7 @@
 	 * macOS: does not render LCD-anti-aliased.
 	 */
 	transform: translate3d(0px, 0px, 0px);
+	overflow: visible; /* when a new layer is created, we need to set overflow visible to avoid clipping the menubar */
 }
 
 .monaco-workbench .activitybar > .content {

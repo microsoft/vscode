@@ -712,21 +712,21 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> {
-		return this.save(this.getSaveableEditors(!!options?.includeUntitled), options);
+		return this.save(this.getAllDirtyEditors(!!options?.includeUntitled), options);
 	}
 
 	async revertAll(options?: IRevertOptions): Promise<boolean> {
-		const result = await Promise.all(this.getSaveableEditors(true /* include untitled */).map(async ({ editor }) => editor.revert(options)));
+		const result = await Promise.all(this.getAllDirtyEditors(true /* include untitled */).map(async ({ editor }) => editor.revert(options)));
 
 		return result.every(success => !!success);
 	}
 
-	private getSaveableEditors(includeUntitled: boolean): IEditorIdentifier[] {
+	private getAllDirtyEditors(includeUntitled: boolean): IEditorIdentifier[] {
 		const editors: IEditorIdentifier[] = [];
 
 		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (editor.isDirty() && !editor.isReadonly() && (!editor.isUntitled() || includeUntitled)) {
+				if (editor.isDirty() && (!editor.isUntitled() || includeUntitled)) {
 					editors.push({ groupId: group.id, editor });
 				}
 			}

@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?b035097bd976825411d2c57142be0530") format("truetype");
+	src: url("./codicon.ttf?34cea5159eda573d2422092d6f8c2c77") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -69,6 +69,7 @@
 .codicon-eye-watch:before { content: "\ea70" }
 .codicon-circle-filled:before { content: "\ea71" }
 .codicon-primitive-dot:before { content: "\ea71" }
+.codicon-close-dirty:before { content: "\ea71" }
 .codicon-debug-breakpoint:before { content: "\ea71" }
 .codicon-debug-breakpoint-disabled:before { content: "\ea71" }
 .codicon-debug-hint:before { content: "\ea71" }
@@ -142,7 +143,6 @@
 .codicon-symbol-parameter:before { content: "\ea92" }
 .codicon-symbol-type-parameter:before { content: "\ea92" }
 .codicon-symbol-key:before { content: "\ea93" }
-.codicon-symbol-string:before { content: "\ea93" }
 .codicon-symbol-text:before { content: "\ea93" }
 .codicon-symbol-reference:before { content: "\ea94" }
 .codicon-go-to-file:before { content: "\ea94" }
@@ -400,4 +400,5 @@
 .codicon-debug-breakpoint-stackframe:before { content: "\eb8b" }
 .codicon-debug-breakpoint-stackframe-focused:before { content: "\eb8b" }
 .codicon-debug-breakpoint-unsupported:before { content: "\eb8c" }
+.codicon-symbol-string:before { content: "\eb8d" }
 .codicon-debug-step-back:before { content: "\f101" }

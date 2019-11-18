@@ -485,6 +485,7 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _canSelectMany = false;
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
+	private _sortByLabel = true;
 	private _activeItems: T[] = [];
 	private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
 	private _selectedItems: T[] = [];
@@ -548,6 +549,15 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	set matchOnDetail(matchOnDetail: boolean) {
 		this._matchOnDetail = matchOnDetail;
 		this.update({ matchOnDetail });
+	}
+
+	get sortByLabel() {
+		return this._sortByLabel;
+	}
+
+	set sortByLabel(sortByLabel: boolean) {
+		this._sortByLabel = sortByLabel;
+		this.update({ sortByLabel });
 	}
 
 	get activeItems() {
