@@ -35,8 +35,8 @@ const args = minimist(process.argv, {
 if(args.help){
 	console.log(
 		'yarn web [options]\n' +
-			' --no-launch   Launch browser\n' +
-			' --scheme      Potocol\n' +
+			' --no-launch   Do not start browser\n' +
+			' --scheme      Protocol (https or http)\n' +
 			' --host        Remote host\n' +
 			' --port        Remote/Local port\n' +
 			' --local_port  Local port override\n' +
@@ -84,7 +84,8 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(LOCAL_PORT, () => {
-	console.log(`Operating location at http://0.0.0.0:${LOCAL_PORT}`);
+	if(LOCAL_PORT !== PORT)
+		console.log(`Operating location at http://0.0.0.0:${LOCAL_PORT}`);
 	console.log(`Web UI available at   ${SCHEME}://${AUTHORITY}`);
 });
 
