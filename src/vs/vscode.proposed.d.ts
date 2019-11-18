@@ -831,6 +831,7 @@ declare module 'vscode' {
 	export interface FileWillCreateEvent {
 		readonly creating: ReadonlyArray<Uri>;
 		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
 	}
 
 	export interface FileDeleteEvent {
@@ -840,6 +841,7 @@ declare module 'vscode' {
 	export interface FileWillDeleteEvent {
 		readonly deleting: ReadonlyArray<Uri>;
 		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
 	}
 
 	export interface FileRenameEvent {
@@ -848,7 +850,8 @@ declare module 'vscode' {
 
 	export interface FileWillRenameEvent {
 		readonly renaming: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void; // TODO@joh support sync/async
+		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
 	}
 
 	export namespace workspace {
