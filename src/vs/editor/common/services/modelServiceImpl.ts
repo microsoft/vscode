@@ -569,11 +569,16 @@ class ModelSemanticColoring extends Disposable {
 		}
 
 		// Adjust incoming semantic tokens
-		// console.log(`pendingChanges: `, pendingChanges);
-		// if (versionId !== this._model.getVersionId()) {
-		// 	console.log(`TODO@semantic: model changed in the meantime!!!`);
-		// }
-		// TODO@semantic
+		if (pendingChanges.length > 0) {
+			// More changes occurred while the request was running
+			// We need to:
+			// 1. Adjust incoming semantic tokens
+			// 2. Request them again
+
+			console.log(`TODO@semantic: model changed in the meantime!!!`);
+
+			this._fetchSemanticTokens.schedule();
+		}
 
 		this._model.setSemanticTokens(result);
 	}
