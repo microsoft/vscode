@@ -22,7 +22,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { attachListStyler, computeStyles, defaultListStyles, IColorMapping } from 'vs/platform/theme/common/styler';
+import { attachListStyler, computeStyles, defaultListStyles, IColorMapping, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ObjectTree, IObjectTreeOptions, ICompressibleTreeRenderer, CompressibleObjectTree, ICompressibleObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
@@ -55,6 +55,7 @@ export class ListService implements IListService {
 
 	_serviceBrand: undefined;
 
+	private disposables = new DisposableStore();
 	private lists: IRegisteredList[] = [];
 	private _lastFocusedWidget: ListWidget | undefined = undefined;
 
@@ -62,7 +63,11 @@ export class ListService implements IListService {
 		return this._lastFocusedWidget;
 	}
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService) { }
+	constructor(@IThemeService themeService: IThemeService) {
+		// create a shared default tree style sheet for performance reasons
+		const styleController = new DefaultStyleController(createStyleSheet(), '');
+		this.disposables.add(attachListStyler(styleController, themeService));
+	}
 
 	register(widget: ListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
 		if (this.lists.some(l => l.widget === widget)) {
@@ -88,6 +93,10 @@ export class ListService implements IListService {
 				}
 			})
 		);
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 	}
 }
 
@@ -221,15 +230,6 @@ function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationServic
 	return [result, disposables];
 }
 
-let sharedListStyleSheet: HTMLStyleElement;
-function getSharedListStyleSheet(): HTMLStyleElement {
-	if (!sharedListStyleSheet) {
-		sharedListStyleSheet = createStyleSheet();
-	}
-
-	return sharedListStyleSheet;
-}
-
 export interface IWorkbenchListOptions<T> extends IListOptions<T> {
 	readonly overrideStyles?: IColorMapping;
 }
@@ -263,7 +263,6 @@ export class WorkbenchList<T> extends List<T> {
 		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				styleController: id => new DefaultStyleController(getSharedListStyleSheet(), id),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
 				...workbenchListOptions,
 				horizontalScrolling
@@ -286,7 +285,11 @@ export class WorkbenchList<T> extends List<T> {
 
 		this.disposables.add(this.contextKeyService);
 		this.disposables.add((listService as ListService).register(this));
-		this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
+
+		if (options.overrideStyles) {
+			this.disposables.add(attachStyler(themeService, options.overrideStyles, this));
+		}
+
 		this.disposables.add(this.onSelectionChange(() => {
 			const selection = this.getSelection();
 			const focus = this.getFocus();
@@ -344,7 +347,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
-				styleController: id => new DefaultStyleController(getSharedListStyleSheet(), id),
 				...computeStyles(themeService.getTheme(), defaultListStyles),
 				...workbenchListOptions,
 				horizontalScrolling
@@ -364,7 +366,10 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this.disposables.add(this.contextKeyService);
 		this.disposables.add((listService as ListService).register(this));
-		this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
+
+		if (options.overrideStyles) {
+			this.disposables.add(attachStyler(themeService, options.overrideStyles, this));
+		}
 
 		this.registerListeners();
 	}
@@ -979,7 +984,6 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 		options: {
 			// ...options, // TODO@Joao why is this not splatted here?
 			keyboardSupport: false,
-			styleController: id => new DefaultStyleController(getSharedListStyleSheet(), id),
 			...workbenchListOptions,
 			indent: configurationService.getValue<number>(treeIndentKey),
 			renderIndentGuides: configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey),
@@ -1040,7 +1044,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(tree),
-			attachListStyler(tree, themeService, overrideStyles),
+			overrideStyles ? attachStyler(themeService, overrideStyles, tree) : Disposable.None,
 			tree.onDidChangeSelection(() => {
 				const selection = tree.getSelection();
 				const focus = tree.getFocus();
