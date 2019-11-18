@@ -778,7 +778,7 @@ export class TokensStore2 {
 		for (let bIndex = 0; bIndex < bLen; bIndex++) {
 			const bStartCharacter = bTokens.getStartCharacter(bIndex);
 			const bEndCharacter = bTokens.getEndCharacter(bIndex);
-			let bMetadata = bTokens.getMetadata(bIndex);
+			const bMetadata = bTokens.getMetadata(bIndex);
 
 			// push any token from `a` that is before `b`
 			while (aIndex < aLen && aTokens.getEndOffset(aIndex) <= bStartCharacter) {
@@ -798,27 +798,17 @@ export class TokensStore2 {
 				aIndex++;
 			}
 
-			let languageId = TokenMetadata.getLanguageId(bMetadata);
-			if (languageId === LanguageId.Null) {
-				// try to determine language id from `aTokens`
-				if (aIndex - 1 > 0) {
-					languageId = TokenMetadata.getLanguageId(aTokens.getMetadata(aIndex - 1));
-				} else if (aIndex < aLen) {
-					languageId = TokenMetadata.getLanguageId(aTokens.getMetadata(aIndex));
-				}
-
-				if (languageId !== LanguageId.Null) {
-					// Use the language from `aTokens`
-					bMetadata = (
-						(bMetadata & MetadataConsts.LANGUAGEID_CMPL)
-						| (languageId << MetadataConsts.LANGUAGEID_OFFSET)
-					);
-				}
-			}
+			const aMetadata = aTokens.getMetadata(aIndex - 1 > 0 ? aIndex - 1 : aIndex);
+			const languageId = TokenMetadata.getLanguageId(aMetadata);
+			const tokenType = TokenMetadata.getTokenType(aMetadata);
 
 			// push the token from `b`
 			result[resultLen++] = bEndCharacter;
-			result[resultLen++] = bMetadata;
+			result[resultLen++] = (
+				(bMetadata & MetadataConsts.LANG_TTYPE_CMPL)
+				| ((languageId << MetadataConsts.LANGUAGEID_OFFSET) >>> 0)
+				| ((tokenType << MetadataConsts.TOKEN_TYPE_OFFSET) >>> 0)
+			);
 		}
 
 		// push the remaining tokens from `a`
