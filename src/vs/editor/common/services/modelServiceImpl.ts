@@ -13,7 +13,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { LanguageIdentifier, SemanticColoringProviderRegistry, SemanticColoringProvider, SemanticColoring, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
@@ -498,20 +498,27 @@ class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		this._currentRequestCancellationTokenSource = new CancellationTokenSource();
-		const currentRequestVersion = this._model.getVersionId();
+
+		const pendingChanges: IModelContentChangedEvent[] = [];
+		const contentChangeListener = this._model.onDidChangeContent((e) => {
+			pendingChanges.push(e);
+		});
+
 		const request = Promise.resolve(provider.provideSemanticColoring(this._model, this._currentRequestCancellationTokenSource.token));
 
 		request.then((res) => {
 			this._currentRequestCancellationTokenSource = null;
-			this._setSemanticTokens(currentRequestVersion, res || null);
+			contentChangeListener.dispose();
+			this._setSemanticTokens(res || null, pendingChanges);
 		}, (err) => {
 			errors.onUnexpectedError(err);
 			this._currentRequestCancellationTokenSource = null;
-			this._setSemanticTokens(currentRequestVersion, null);
+			contentChangeListener.dispose();
+			this._setSemanticTokens(null, pendingChanges);
 		});
 	}
 
-	private _setSemanticTokens(versionId: number, tokens: SemanticColoring | null): void {
+	private _setSemanticTokens(tokens: SemanticColoring | null, pendingChanges: IModelContentChangedEvent[]): void {
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
 			this._currentResponse = null;
@@ -529,13 +536,6 @@ class ModelSemanticColoring extends Disposable {
 			return;
 		}
 
-		if (versionId !== this._model.getVersionId()) {
-			console.log(`TODO@semantic: model changed in the meantime!!!`);
-		}
-		// TODO@semantic
-
-		// TODO@semantic: diff here and reduce to only really needed tokens...
-		// TODO@semantic: might also be a good idea to split areas... ?
 		const result: MultilineTokens2[] = [];
 		for (const area of this._currentResponse.areas) {
 			const srcTokens = area.data;
@@ -567,6 +567,13 @@ class ModelSemanticColoring extends Disposable {
 			const tokens = new MultilineTokens2(area.line, new SparseEncodedTokens(destTokens));
 			result.push(tokens);
 		}
+
+		// Adjust incoming semantic tokens
+		// console.log(`pendingChanges: `, pendingChanges);
+		// if (versionId !== this._model.getVersionId()) {
+		// 	console.log(`TODO@semantic: model changed in the meantime!!!`);
+		// }
+		// TODO@semantic
 
 		this._model.setSemanticTokens(result);
 	}

@@ -1724,7 +1724,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public setSemanticTokens(tokens: MultilineTokens2[] | null): void {
 		this._tokens2.set(tokens);
 
-		// TODO@semantic: could we reduce the event here?
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
@@ -1750,7 +1749,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public clearSemanticTokens(): void {
 		this._tokens2.flush();
-		// TODO@semantic: could we reduce the event here?
+
 		this._emitModelTokensChangedEvent({
 			tokenizationSupportChanged: false,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
