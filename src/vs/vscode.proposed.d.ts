@@ -883,8 +883,34 @@ declare module 'vscode' {
 
 	export namespace workspace {
 
+		/**
+		 * An event that is emitted when files are being created.
+		 *
+		 * *Note* that this event is triggered by user gestures, like creating a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 */
 		export const onWillCreateFiles: Event<FileWillCreateEvent>;
+
+		/**
+		 * An event that is emitted when files are being deleted.
+		 *
+		 * *Note* that this event is triggered by user gestures, like deleting a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 */
 		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
+
+		/**
+		 * An event that is emitted when files are being renamed.
+		 *
+		 * *Note* that this event is triggered by user gestures, like renaming a file from the
+		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 */
 		export const onWillRenameFiles: Event<FileWillRenameEvent>;
 
 		export const onDidCreateFiles: Event<FileCreateEvent>;
