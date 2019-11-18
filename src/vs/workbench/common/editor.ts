@@ -437,38 +437,20 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	private disposed: boolean = false;
 
-	/**
-	 * Returns the unique type identifier of this input.
-	 */
 	abstract getTypeId(): string;
 
-	/**
-	 * Returns the associated resource of this input if any.
-	 */
 	getResource(): URI | undefined {
 		return undefined;
 	}
 
-	/**
-	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
-	 * above the editor area when the input is shown.
-	 */
 	getName(): string {
 		return `Editor ${this.getTypeId()}`;
 	}
 
-	/**
-	 * Returns the description of this input that can be shown to the user. Examples include showing the description of
-	 * the input above the editor area to the side of the name of the input.
-	 */
 	getDescription(verbosity?: Verbosity): string | undefined {
 		return undefined;
 	}
 
-	/**
-	 * Returns the title of this input that can be shown to the user. Examples include showing the title of
-	 * the input above the editor area as hover over the input label.
-	 */
 	getTitle(verbosity?: Verbosity): string {
 		return this.getName();
 	}
@@ -482,10 +464,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	/**
-	 * Returns a descriptor suitable for telemetry events.
-	 *
-	 * Subclasses should extend if they can contribute.
-	 */
+	* Returns a descriptor suitable for telemetry events.
+	*
+	* Subclasses should extend if they can contribute.
+	*/
 	getTelemetryDescriptor(): { [key: string]: unknown } {
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {
@@ -501,46 +483,26 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 */
 	abstract resolve(): Promise<IEditorModel | null>;
 
-	/**
-	 * Returns if this input is readonly or not.
-	 */
 	isReadonly(): boolean {
-		// Subclasses need to explicitly opt-in to being editable.
-		return !this.isDirty();
-	}
-
-	/**
-	 * Returns if the input is an untitled editor or not.
-	 */
-	isUntitled(): boolean {
-		// Subclasses need to explicitly opt-in to being untitled.
 		return false;
 	}
 
-	/**
-	 * An editor that is dirty will be asked to be saved once it closes.
-	 */
+	isUntitled(): boolean {
+		return false;
+	}
+
 	isDirty(): boolean {
 		return false;
 	}
 
-	/**
-	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
-	 */
 	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
-	/**
-	 * Saves the editor to a different location.
-	 */
 	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
-	/**
-	 * Reverts the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
-	 */
 	revert(options?: IRevertOptions): Promise<boolean> {
 		return Promise.resolve(true);
 	}
@@ -552,24 +514,14 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return true;
 	}
 
-	/**
-	 * Returns true if this input is identical to the otherInput.
-	 */
 	matches(otherInput: unknown): boolean {
 		return this === otherInput;
 	}
 
-	/**
-	 * Returns whether this input was disposed or not.
-	 */
 	isDisposed(): boolean {
 		return this.disposed;
 	}
 
-	/**
-	 * Called when an editor input is no longer needed. Allows to free up any resources taken by
-	 * resolving the editor input.
-	 */
 	dispose(): void {
 		this.disposed = true;
 		this._onDispose.fire();
