@@ -312,7 +312,7 @@ export class Workbench extends Layout {
 			'monaco-workbench',
 			platformClass,
 			isWeb ? 'web' : undefined,
-			isWeb ? isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined : undefined,
+			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
 			...this.getLayoutClasses()
 		]);
 
