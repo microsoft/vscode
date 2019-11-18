@@ -574,8 +574,13 @@ class ModelSemanticColoring extends Disposable {
 			// We need to:
 			// 1. Adjust incoming semantic tokens
 			// 2. Request them again
-
-			console.log(`TODO@semantic: model changed in the meantime!!!`);
+			for (const change of pendingChanges) {
+				for (const area of result) {
+					for (const singleChange of change.changes) {
+						area.applyEdit(singleChange.range, singleChange.text);
+					}
+				}
+			}
 
 			this._fetchSemanticTokens.schedule();
 		}
