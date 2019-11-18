@@ -20,16 +20,32 @@ const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
 const args = minimist(process.argv, {
-	string: [
+	boolean:[
 		'no-launch',
-		'scheme',
-		'host'
+		'help'
 	],
-	number: [
+	string: [
+		'scheme',
+		'host',
 		'port',
 		'local_port'
-	]
+	],
 });
+
+if(args.help){
+	console.log(
+		'yarn web [options]\n' +
+			' --no-launch   Launch browser\n' +
+			' --scheme      Potocol\n' +
+			' --host        Remote host\n' +
+			' --port        Remote/Local port\n' +
+			' --local_port  Local port override\n' +
+			' --help\n' +
+			'[Example]\n' +
+			' yarn web --no-launch --scheme https --host example.com --port 8080 --local_port 30000'
+	);
+	process.exit(0);
+}
 
 const PORT = args.port || process.env.PORT || 8080;
 const LOCAL_PORT = args.local_port || process.env.LOCAL_PORT || PORT;
@@ -68,7 +84,8 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(LOCAL_PORT, () => {
-	console.log(`Web UI available at ${SCHEME}://${AUTHORITY}`);
+	console.log(`Operating location at http://0.0.0.0:${LOCAL_PORT}`);
+	console.log(`Web UI available at   ${SCHEME}://${AUTHORITY}`);
 });
 
 server.on('error', err => {
