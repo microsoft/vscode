@@ -706,11 +706,19 @@ export interface IAccessibilityProvider<T> {
 
 export class DefaultStyleController implements IStyleController {
 
-	constructor(private styleElement: HTMLStyleElement, private selectorSuffix?: string) { }
+	constructor(private styleElement: HTMLStyleElement, private selectorSuffix: string) { }
 
 	style(styles: IListStyles): void {
-		const suffix = this.selectorSuffix ? `.${this.selectorSuffix}` : '';
+		const suffix = this.selectorSuffix && `.${this.selectorSuffix}`;
 		const content: string[] = [];
+
+		if (styles.listBackground) {
+			if (styles.listBackground.isOpaque()) {
+				content.push(`.monaco-list${suffix} .monaco-list-rows { background: ${styles.listBackground}; }`);
+			} else {
+				console.warn(`List with id '${this.selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
+			}
+		}
 
 		if (styles.listFocusBackground) {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
@@ -815,7 +823,7 @@ export class DefaultStyleController implements IStyleController {
 	}
 }
 
-export interface IListOptions<T> extends IListStyles {
+export interface IListOptions<T> {
 	readonly identityProvider?: IIdentityProvider<T>;
 	readonly dnd?: IListDragAndDrop<T>;
 	readonly enableKeyboardNavigation?: boolean;
@@ -828,7 +836,7 @@ export interface IListOptions<T> extends IListStyles {
 	readonly multipleSelectionSupport?: boolean;
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
 	readonly openController?: IOpenController;
-	readonly styleController?: IStyleController;
+	readonly styleController?: (suffix: string) => IStyleController;
 	readonly accessibilityProvider?: IAccessibilityProvider<T>;
 
 	// list view options
@@ -842,6 +850,7 @@ export interface IListOptions<T> extends IListStyles {
 }
 
 export interface IListStyles {
+	listBackground?: Color;
 	listFocusBackground?: Color;
 	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
@@ -1103,7 +1112,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private eventBufferer = new EventBufferer();
 	private view: ListView<T>;
 	private spliceable: ISpliceable<T>;
-	private styleElement: HTMLStyleElement;
 	private styleController: IStyleController;
 	private typeLabelController?: TypeLabelController<T>;
 
@@ -1210,9 +1218,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.view.domNode.setAttribute('role', _options.ariaRole);
 		}
 
-		this.styleElement = DOM.createStyleSheet(this.view.domNode);
-
-		this.styleController = _options.styleController || new DefaultStyleController(this.styleElement, this.view.domId);
+		if (_options.styleController) {
+			this.styleController = _options.styleController(this.view.domId);
+		} else {
+			const styleElement = DOM.createStyleSheet(this.view.domNode);
+			this.styleController = new DefaultStyleController(styleElement, this.view.domId);
+		}
 
 		this.spliceable = new CombinedSpliceable([
 			new TraitSpliceable(this.focus, this.view, _options.identityProvider),
@@ -1249,8 +1260,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (_options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", _options.ariaLabel));
 		}
-
-		this.style(_options);
 	}
 
 	protected createMouseController(options: IListOptions<T>): MouseController<T> {

@@ -555,7 +555,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.createFocusSink(
 			bodyContainer,
 			e => {
-				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
+				if (DOM.findParentWithClass(e.relatedTarget, 'monaco-list')) {
 					if (this.settingsTree.scrollTop > 0) {
 						const firstElement = this.settingsTree.firstVisibleElement;
 						this.settingsTree.reveal(firstElement, 0.1);
@@ -577,7 +577,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.createFocusSink(
 			bodyContainer,
 			e => {
-				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
+				if (DOM.findParentWithClass(e.relatedTarget, 'monaco-list')) {
 					if (this.settingsTree.scrollTop < this.settingsTree.scrollHeight) {
 						const lastElement = this.settingsTree.lastVisibleElement;
 						this.settingsTree.reveal(lastElement, 0.9);
