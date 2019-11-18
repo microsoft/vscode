@@ -68,6 +68,67 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Alex - semantic coloring
+
+	export class SemanticColoringLegend {
+		public readonly tokenTypes: string[];
+		public readonly tokenModifiers: string[];
+
+		constructor(tokenTypes: string[], tokenModifiers: string[]);
+	}
+
+	export class SemanticColoringArea {
+		/**
+		 * The zero-based line value where this token block begins.
+		 */
+		public readonly line: number;
+		/**
+		 * The actual token block encoded data.
+		 * A certain token (at index `i` is encoded using 5 uint32 integers):
+		 *  - at index `5*i`   - `deltaLine`: token line number, relative to `SemanticColoringArea.line`
+		 *  - at index `5*i+1` - `startCharacter`: token start character offset inside the line (inclusive)
+		 *  - at index `5*i+2` - `endCharacter`: token end character offset inside the line (exclusive)
+		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticColoringLegend.tokenTypes`
+		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticColoringLegend.tokenModifiers`
+		 */
+		public readonly data: Uint32Array;
+
+		constructor(line: number, data: Uint32Array);
+	}
+
+	export class SemanticColoring {
+		public readonly areas: SemanticColoringArea[];
+
+		constructor(areas: SemanticColoringArea[]);
+	}
+
+	/**
+	 * The semantic coloring provider interface defines the contract between extensions and
+	 * semantic coloring.
+	 *
+	 *
+	 */
+	export interface SemanticColoringProvider {
+
+		provideSemanticColoring(document: TextDocument, token: CancellationToken): ProviderResult<SemanticColoring>;
+	}
+
+	export namespace languages {
+		/**
+		 * Register a semantic coloring provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A semantic coloring provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerSemanticColoringProvider(selector: DocumentSelector, provider: SemanticColoringProvider, legend: SemanticColoringLegend): Disposable;
+	}
+
+	//#endregion
 
 	// #region Joh - code insets
 
@@ -764,43 +825,71 @@ declare module 'vscode' {
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
 
 	export interface FileCreateEvent {
-		readonly created: ReadonlyArray<Uri>;
+
+		/**
+		 * The files that got created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
 	}
 
 	export interface FileWillCreateEvent {
-		readonly creating: ReadonlyArray<Uri>;
+
+		/**
+		 * The files that are going to be created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
 		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	export interface FileDeleteEvent {
-		readonly deleted: ReadonlyArray<Uri>;
+
+		/**
+		 * The files that got deleted.
+		 */
+		readonly files: ReadonlyArray<Uri>;
 	}
 
 	export interface FileWillDeleteEvent {
-		readonly deleting: ReadonlyArray<Uri>;
+
+		/**
+		 * The files that are going to be deleted.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
 		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	export interface FileRenameEvent {
-		readonly renamed: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+
+		/**
+		 * The files that got renamed.
+		 */
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
 	export interface FileWillRenameEvent {
-		readonly renaming: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void; // TODO@joh support sync/async
+
+		/**
+		 * The files that are going to be renamed.
+		 */
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	export namespace workspace {
 
 		export const onWillCreateFiles: Event<FileWillCreateEvent>;
-		export const onDidCreateFiles: Event<FileCreateEvent>;
-
 		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
-		export const onDidDeleteFiles: Event<FileDeleteEvent>;
-
 		export const onWillRenameFiles: Event<FileWillRenameEvent>;
-		export const onDidRenameFiles: Event<FileRenameEvent>;
 
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+		export const onDidRenameFiles: Event<FileRenameEvent>;
 	}
 	//#endregion
 

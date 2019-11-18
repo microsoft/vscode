@@ -73,13 +73,9 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		name: string,
 		cssClass?: string,
 		order?: number,
-		private _iconUrl?: URI
+		readonly iconUrl?: URI
 	) {
 		super(ctor, id, name, cssClass, order, id);
-	}
-
-	get iconUrl(): URI | undefined {
-		return this._iconUrl;
 	}
 }
 

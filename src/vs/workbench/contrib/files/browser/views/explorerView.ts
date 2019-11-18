@@ -54,6 +54,7 @@ import { Event } from 'vs/base/common/event';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -344,7 +345,7 @@ export class ExplorerView extends ViewletPanel {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compressSingleChildFolders');
+		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
 
 		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleAsyncDataTree, WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
@@ -381,12 +382,15 @@ export class ExplorerView extends ViewletPanel {
 			sorter: this.instantiationService.createInstance(FileSorter),
 			dnd: this.instantiationService.createInstance(FileDragAndDrop),
 			autoExpandSingleChildren: true,
-			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT
+			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		});
 		this._register(this.tree);
 
 		// Bind configuration
-		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compressSingleChildFolders'));
+		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
 		this._register(onDidChangeCompressionConfiguration(_ => this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
 
 		// Bind context keys

@@ -2368,6 +2368,38 @@ export enum CommentMode {
 
 //#endregion
 
+//#region Semantic Coloring
+
+export class SemanticColoringLegend {
+	public readonly tokenTypes: string[];
+	public readonly tokenModifiers: string[];
+
+	constructor(tokenTypes: string[], tokenModifiers: string[]) {
+		this.tokenTypes = tokenTypes;
+		this.tokenModifiers = tokenModifiers;
+	}
+}
+
+export class SemanticColoringArea {
+	public readonly line: number;
+	public readonly data: Uint32Array;
+
+	constructor(line: number, data: Uint32Array) {
+		this.line = line;
+		this.data = data;
+	}
+}
+
+export class SemanticColoring {
+	public readonly areas: SemanticColoringArea[];
+
+	constructor(areas: SemanticColoringArea[]) {
+		this.areas = areas;
+	}
+}
+
+//#endregion
+
 //#region debug
 export enum DebugConsoleMode {
 	/**

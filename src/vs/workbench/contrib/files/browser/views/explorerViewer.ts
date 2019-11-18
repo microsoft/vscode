@@ -253,8 +253,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		templateData.elementDisposable.dispose();
 
 		const stat = node.element.elements[node.element.elements.length - 1];
-		const label = node.element.elements.map(e => e.name);
-		const editableData = this.explorerService.getEditableData(stat);
+		const editable = node.element.elements.filter(e => this.explorerService.isEditable(e));
+		const editableData = editable.length === 0 ? undefined : this.explorerService.getEditableData(editable[0]);
 
 		// File Label
 		if (!editableData) {
@@ -262,6 +262,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			templateData.label.element.style.display = 'flex';
 
 			const disposables = new DisposableStore();
+			const label = node.element.elements.map(e => e.name);
 			disposables.add(this.renderStat(stat, label, node.filterData, templateData));
 
 			const compressedNavigationController = new CompressedNavigationController(node.element.elements, templateData);
@@ -286,7 +287,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		else {
 			DOM.removeClass(templateData.label.element, 'compressed');
 			templateData.label.element.style.display = 'none';
-			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
+			templateData.elementDisposable = this.renderInputBox(templateData.container, editable[0], editableData);
 		}
 	}
 

@@ -419,15 +419,15 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 	}
 
 	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
-		// Check that allViews is ready
-		if (this.allViews.size === 0) {
-			this.updateAllViews(this.viewsModel.viewDescriptors);
-		}
 		const panels: ViewletPanel[] = super.onDidAddViews(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
 				panels[i].setExpanded(false);
 			}
+		}
+		// Check that allViews is ready
+		if (this.allViews.size === 0) {
+			this.updateAllViews(this.viewsModel.viewDescriptors);
 		}
 		return panels;
 	}

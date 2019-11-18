@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { toResource, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { toResource, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,6 +36,7 @@ import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
+import { coalesce } from 'vs/base/common/arrays';
 
 // Commands
 
@@ -313,16 +314,19 @@ function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsO
 	const listService = accessor.get(IListService);
 	const editorGroupsService = accessor.get(IEditorGroupsService);
 
-	const saveableEditors = getMultiSelectedEditors(listService, editorGroupsService).filter(({ editor }) => !editor.isReadonly());
+	let saveableEditors = getMultiSelectedEditors(listService, editorGroupsService);
+	if (!options?.saveAs) {
+		saveableEditors = saveableEditors.filter(({ editor }) => !editor.isReadonly()); // Save: only allow non-readonly editors
+	}
 
 	return doSaveEditors(accessor, saveableEditors, options);
 }
 
-function saveEditorsOfGroups(accessor: ServicesAccessor, groups = accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), options?: ISaveEditorsOptions): Promise<void> {
+function saveEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyArray<IEditorGroup>, options?: ISaveEditorsOptions): Promise<void> {
 	const saveableEditors: IEditorIdentifier[] = [];
 	for (const group of groups) {
 		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (editor.isDirty()) {
+			if (editor.isDirty() && !editor.isReadonly()) {
 				saveableEditors.push({ groupId: group.id, editor });
 			}
 		}
@@ -348,7 +352,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_S,
 	id: SAVE_FILE_COMMAND_ID,
 	handler: accessor => {
-		return saveSelectedEditors(accessor, { force: true });
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true });
 	}
 });
 
@@ -359,7 +363,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S) },
 	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
 	handler: accessor => {
-		return saveSelectedEditors(accessor, { force: true, skipSaveParticipants: true });
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true, skipSaveParticipants: true });
 	}
 });
 
@@ -369,14 +373,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
 	handler: accessor => {
-		return saveSelectedEditors(accessor, { saveAs: true });
+		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_COMMAND_ID,
 	handler: (accessor) => {
-		return saveEditorsOfGroups(accessor);
+		return saveEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
 	}
 });
 
@@ -387,23 +391,14 @@ CommandsRegistry.registerCommand({
 
 		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
 
-		let groups: IEditorGroup[] | undefined = undefined;
+		let groups: ReadonlyArray<IEditorGroup> | undefined = undefined;
 		if (!contexts.length) {
-			groups = [...editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)];
+			groups = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		} else {
-			contexts.forEach(context => {
-				const editorGroup = editorGroupService.getGroup(context.groupId);
-				if (editorGroup) {
-					if (!groups) {
-						groups = [];
-					}
-
-					groups.push(editorGroup);
-				}
-			});
+			groups = coalesce(contexts.map(context => editorGroupService.getGroup(context.groupId)));
 		}
 
-		return saveEditorsOfGroups(accessor, groups);
+		return saveEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT });
 	}
 });
 
@@ -412,7 +407,7 @@ CommandsRegistry.registerCommand({
 	handler: accessor => {
 		const editorService = accessor.get(IEditorService);
 
-		return editorService.saveAll({ includeUntitled: false });
+		return editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
 	}
 });
 

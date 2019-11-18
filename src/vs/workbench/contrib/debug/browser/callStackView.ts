@@ -34,6 +34,7 @@ import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { STOP_ID, STOP_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, RESTART_SESSION_ID, RESTART_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STEP_INTO_LABEL, STEP_INTO_ID, STEP_OUT_LABEL, STEP_OUT_ID, PAUSE_ID, PAUSE_LABEL, CONTINUE_ID, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -161,7 +162,10 @@ export class CallStackView extends ViewletPanel {
 					return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 				}
 			},
-			expandOnlyOnTwistieClick: true
+			expandOnlyOnTwistieClick: true,
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		});
 
 		this.tree.setInput(this.debugService.getModel());

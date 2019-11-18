@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, IModeSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult, FileOperation } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -14,7 +14,7 @@ import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isNative } from 'vs/base/common/platform';
-import { IWorkingCopy, ISaveOptions, SaveReason, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 

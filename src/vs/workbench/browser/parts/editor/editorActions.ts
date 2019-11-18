@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
-import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -646,10 +646,9 @@ export abstract class BaseCloseAllAction extends Action {
 
 		let saveOrRevert: boolean;
 		if (confirm === ConfirmResult.DONT_SAVE) {
-			await this.editorService.revertAll({ soft: true });
-			saveOrRevert = true;
+			saveOrRevert = await this.editorService.revertAll({ soft: true });
 		} else {
-			saveOrRevert = await this.editorService.saveAll({ includeUntitled: true });
+			saveOrRevert = await this.editorService.saveAll({ reason: SaveReason.EXPLICIT, includeUntitled: true });
 		}
 
 		if (saveOrRevert) {

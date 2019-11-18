@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, EditorOptions, GroupIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -24,7 +24,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkingCopy, IWorkingCopyService, IRevertOptions, ISaveOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { env } from 'vs/base/common/process';
 
 const CUSTOM_SCHEME = 'testCustomEditor';
@@ -168,7 +168,7 @@ class TestCustomEditorInput extends EditorInput implements IWorkingCopy {
 		return this.dirty;
 	}
 
-	async save(options?: ISaveOptions): Promise<boolean> {
+	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.setDirty(false);
 
 		return true;

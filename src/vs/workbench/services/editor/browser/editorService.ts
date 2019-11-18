@@ -5,7 +5,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor, IRevertOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -28,7 +28,6 @@ import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/wor
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -363,7 +362,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return neighbourGroup;
 	}
 
-	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
+	private toOptions(options?: IEditorOptions | ITextEditorOptions | EditorOptions): EditorOptions {
 		if (!options || options instanceof EditorOptions) {
 			return options as EditorOptions;
 		}
@@ -485,17 +484,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		editors.forEach(replaceEditorArg => {
 			if (replaceEditorArg.editor instanceof EditorInput) {
-				typedEditors.push(replaceEditorArg as IEditorReplacement);
-			} else {
-				const editor = replaceEditorArg.editor as IResourceEditor;
-				const replacement = replaceEditorArg.replacement as IResourceEditor;
-				const typedEditor = this.createInput(editor);
-				const typedReplacement = this.createInput(replacement);
+				const replacementArg = replaceEditorArg as IEditorReplacement;
 
 				typedEditors.push({
-					editor: typedEditor,
-					replacement: typedReplacement,
-					options: this.toOptions(replacement.options)
+					editor: replacementArg.editor,
+					replacement: replacementArg.replacement,
+					options: this.toOptions(replacementArg.options)
+				});
+			} else {
+				const replacementArg = replaceEditorArg as IResourceEditorReplacement;
+
+				typedEditors.push({
+					editor: this.createInput(replacementArg.editor),
+					replacement: this.createInput(replacementArg.replacement),
+					options: this.toOptions(replacementArg.replacement.options)
 				});
 			}
 		});
@@ -691,7 +693,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
 
 			// Save
-			return editor.save(options);
+			return editor.save(groupId, options);
 		}));
 
 		// Editors to save sequentially
@@ -700,7 +702,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				continue; // might have been disposed from from the save already
 			}
 
-			const result = await editor.saveAs(groupId, options);
+			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
 			if (!result) {
 				return false; // failed or cancelled, abort
 			}
@@ -710,35 +712,27 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> {
+		return this.save(this.getSaveableEditors(!!options?.includeUntitled), options);
+	}
+
+	async revertAll(options?: IRevertOptions): Promise<boolean> {
+		const result = await Promise.all(this.getSaveableEditors(true /* include untitled */).map(async ({ editor }) => editor.revert(options)));
+
+		return result.every(success => !!success);
+	}
+
+	private getSaveableEditors(includeUntitled: boolean): IEditorIdentifier[] {
 		const editors: IEditorIdentifier[] = [];
 
-		// Collect all editors in MRU order that are dirty
-		this.forEachDirtyEditor(({ groupId, editor }) => {
-			if (!editor.isUntitled() || options?.includeUntitled) {
-				editors.push({ groupId, editor });
-			}
-		});
-
-		return this.save(editors, options);
-	}
-
-	async revertAll(options?: IRevertOptions): Promise<void> {
-
-		// Revert each editor in MRU order
-		const reverts: Promise<boolean>[] = [];
-		this.forEachDirtyEditor(({ editor }) => reverts.push(editor.revert(options)));
-
-		await Promise.all(reverts);
-	}
-
-	private forEachDirtyEditor(callback: (editor: IEditorIdentifier) => void): void {
 		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (editor.isDirty()) {
-					callback({ groupId: group.id, editor });
+				if (editor.isDirty() && !editor.isReadonly() && (!editor.isUntitled() || includeUntitled)) {
+					editors.push({ groupId: group.id, editor });
 				}
 			}
 		}
+
+		return editors;
 	}
 
 	//#endregion

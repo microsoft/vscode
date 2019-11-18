@@ -7,8 +7,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICustomEditorModel, CustomEditorEdit } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { IRevertOptions, ISaveOptions, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-
+import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 
 export class CustomEditorModel extends Disposable implements ICustomEditorModel {
 

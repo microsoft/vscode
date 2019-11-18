@@ -34,6 +34,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { SaveReason } from 'vs/workbench/common/editor';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -54,7 +55,7 @@ export namespace SaveLocalFileCommand {
 			const editorService = accessor.get(IEditorService);
 			const activeControl = editorService.activeControl;
 			if (activeControl) {
-				return editorService.save({ groupId: activeControl.group.id, editor: activeControl.input }, { saveAs: true, availableFileSystems: [Schemas.file] });
+				return editorService.save({ groupId: activeControl.group.id, editor: activeControl.input }, { saveAs: true, availableFileSystems: [Schemas.file], reason: SaveReason.EXPLICIT });
 			}
 
 			return Promise.resolve(undefined);

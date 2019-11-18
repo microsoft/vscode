@@ -5,12 +5,11 @@
 
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -201,7 +200,7 @@ export interface IEditorService {
 	/**
 	 * Converts a lightweight input to a workbench editor input.
 	 */
-	createInput(input: IResourceEditor): IEditorInput | null;
+	createInput(input: IResourceEditor): IEditorInput;
 
 	/**
 	 * Save the provided list of editors.
@@ -216,5 +215,5 @@ export interface IEditorService {
 	/**
 	 * Reverts all editors.
 	 */
-	revertAll(options?: IRevertOptions): Promise<void>;
+	revertAll(options?: IRevertOptions): Promise<boolean>;
 }

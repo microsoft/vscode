@@ -26,7 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import { WorkspaceFolderCountContext, IsWebContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ActiveEditorIsSaveableContext, DirtyWorkingCopiesContext } from 'vs/workbench/common/editor';
+import { ActiveEditorIsSaveableContext, DirtyWorkingCopiesContext, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
 import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
@@ -590,7 +590,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: SAVE_FILE_AS_COMMAND_ID,
 		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."),
-		precondition: ContextKeyExpr.or(ActiveEditorIsSaveableContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		// ActiveEditorContext is not 100% correct, but we lack a context for indicating "Save As..." support
+		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
 	},
 	order: 2
 });

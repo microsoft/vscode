@@ -1451,8 +1451,6 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const treeClass = 'settings-editor-tree';
-
 		super('SettingsTree', container,
 			new SettingsTreeDelegate(),
 			renderers,
@@ -1465,7 +1463,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
-				styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass),
+				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState)
 			});
 
@@ -1517,8 +1515,6 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
 		}));
-
-		this.getHTMLElement().classList.add(treeClass);
 
 		this.disposables.add(attachStyler(themeService, {
 			listActiveSelectionBackground: transparent(Color.white, 0),
