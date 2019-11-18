@@ -615,7 +615,7 @@ class RenameAdapter {
 	}
 }
 
-const enum SemanticColoringConstants {
+export const enum SemanticColoringConstants {
 	/**
 	 * Let's aim at having 8KB buffers if possible...
 	 * So that would be 8192 / (5 * 4) = 409.6 tokens per area
@@ -626,7 +626,12 @@ const enum SemanticColoringConstants {
 	 * Try to keep the total number of areas under 1024 if possible,
 	 * simply compensate by having more tokens per area...
 	 */
-	DesiredMaxAreas = 1024
+	DesiredMaxAreas = 1024,
+
+	/**
+	 * Threshold for merging multiple delta areas and sending a full area.
+	 */
+	MinTokensPerArea = 50
 }
 
 interface ISemanticColoringAreaPair {
@@ -644,7 +649,8 @@ export class SemanticColoringAdapter {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.SemanticColoringProvider,
 		private readonly _desiredTokensPerArea = SemanticColoringConstants.DesiredTokensPerArea,
-		private readonly _desiredMaxAreas = SemanticColoringConstants.DesiredMaxAreas
+		private readonly _desiredMaxAreas = SemanticColoringConstants.DesiredMaxAreas,
+		private readonly _minTokensPerArea = SemanticColoringConstants.MinTokensPerArea
 	) {
 		this._previousResults = new Map<number, Uint32Array[]>();
 		this._splitSingleAreaTokenCountThreshold = Math.round(1.5 * this._desiredTokensPerArea);
@@ -743,6 +749,7 @@ export class SemanticColoringAdapter {
 		// Try to find appearences of `oldAreas` inside `area`.
 		let newTokenStartIndex = 0;
 		let newTokenEndIndex = (newAreaData.length / 5) | 0;
+		let oldAreaUsedIndex = -1;
 		for (let i = 0, len = oldAreas.length; i < len; i++) {
 			const oldAreaData = oldAreas[i];
 			const oldAreaTokenCount = (oldAreaData.length / 5) | 0;
@@ -763,6 +770,7 @@ export class SemanticColoringAdapter {
 			}
 			newTokenStartIndex += oldAreaTokenCount;
 
+			oldAreaUsedIndex = i;
 			prependAreas.push({
 				data: oldAreaData,
 				dto: {
@@ -773,7 +781,7 @@ export class SemanticColoringAdapter {
 			});
 		}
 
-		for (let i = oldAreas.length - 1; i >= 0; i--) {
+		for (let i = oldAreas.length - 1; i > oldAreaUsedIndex; i--) {
 			const oldAreaData = oldAreas[i];
 			const oldAreaTokenCount = (oldAreaData.length / 5) | 0;
 			if (oldAreaTokenCount === 0) {
@@ -813,6 +821,27 @@ export class SemanticColoringAdapter {
 			return this._saveResultAndEncode(prependAreas.concat(appendAreas));
 		}
 
+		// It is clear at this point that there will be at least one full area.
+		// Expand the mid area if the areas next to it are too small
+		while (prependAreas.length > 0) {
+			const tokenCount = (prependAreas[prependAreas.length - 1].data.length / 5);
+			if (tokenCount < this._minTokensPerArea) {
+				newTokenStartIndex -= tokenCount;
+				prependAreas.pop();
+			} else {
+				break;
+			}
+		}
+		while (appendAreas.length > 0) {
+			const tokenCount = (appendAreas[0].data.length / 5);
+			if (tokenCount < this._minTokensPerArea) {
+				newTokenEndIndex += tokenCount;
+				appendAreas.shift();
+			} else {
+				break;
+			}
+		}
+
 		// Extract the mid area
 		const newTokenStartDeltaLine = newAreaData[5 * newTokenStartIndex];
 		const newMidAreaData = new Uint32Array(5 * (newTokenEndIndex - newTokenStartIndex));
@@ -847,29 +876,6 @@ export class SemanticColoringAdapter {
 
 		return this._saveResultAndEncode(prependAreas.concat(newMidAreasPairs).concat(appendAreas));
 	}
-
-	// /**
-	//  * Note: Please do not use arrays.equals (for perf reasons)
-	//  */
-	// private static _areasEquals(a: SemanticColoringArea, b: SemanticColoringArea): boolean {
-	// 	if (a.line !== b.line) {
-	// 		return false;
-	// 	}
-	// 	const aData = a.data;
-	// 	const bData = b.data;
-	// 	if (aData === bData) {
-	// 		return true;
-	// 	}
-	// 	if (aData.length !== bData.length) {
-	// 		return false;
-	// 	}
-	// 	for (let i = 0, len = aData.length; i < len; i++) {
-	// 		if (aData[i] !== bData[i]) {
-	// 			return false;
-	// 		}
-	// 	}
-	// 	return true;
-	// }
 
 	private _fullEncodeAreas(areas: SemanticColoringArea[]): VSBuffer {
 		if (areas.length === 1) {

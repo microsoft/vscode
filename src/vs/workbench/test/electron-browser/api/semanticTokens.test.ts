@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
-import { SemanticColoringAdapter } from 'vs/workbench/api/common/extHostLanguageFeatures';
+import { SemanticColoringAdapter, SemanticColoringConstants } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
@@ -87,7 +87,7 @@ suite('SemanticColoringAdapter', () => {
 	let doc: ExtHostDocumentData;
 
 	setup(() => {
-		adapter = new SemanticColoringAdapter(extHostDocuments, semanticTokensProvider, 10);
+		adapter = new SemanticColoringAdapter(extHostDocuments, semanticTokensProvider, 10, SemanticColoringConstants.DesiredMaxAreas, 5);
 		doc = extHostDocumentsAndEditors.getDocument(resource)!;
 		const docLineCount = doc.document.lineCount;
 		const allRange = { startLineNumber: 1, startColumn: 1, endLineNumber: docLineCount, endColumn: doc.document.lineAt(docLineCount - 1).text.length + 1 };
