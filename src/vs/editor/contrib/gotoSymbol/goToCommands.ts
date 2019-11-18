@@ -160,7 +160,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 		if (highlight) {
 			const modelNow = targetEditor.getModel();
-			const ids = targetEditor.deltaDecorations([], [{ range, options: { className: 'rangeHighlight' } }]);
+			const ids = targetEditor.deltaDecorations([], [{ range, options: { className: 'symbolHighlight' } }]);
 			setTimeout(() => {
 				if (targetEditor.getModel() === modelNow) {
 					targetEditor.deltaDecorations(ids, []);
