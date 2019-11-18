@@ -224,7 +224,9 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	}
 
 	isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		const model = this.textFileService.models.get(this.resource);
+
+		return model?.isReadonly() || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	isDirty(): boolean {
