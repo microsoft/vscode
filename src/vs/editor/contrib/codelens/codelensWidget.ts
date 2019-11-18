@@ -243,9 +243,8 @@ export class CodeLensWidget {
 	}
 
 	dispose(helper: CodeLensHelper, viewZoneChangeAccessor?: editorBrowser.IViewZoneChangeAccessor): void {
-		while (this._decorationIds.length) {
-			helper.removeDecoration(this._decorationIds.pop()!);
-		}
+		this._decorationIds.forEach(helper.removeDecoration, helper);
+		this._decorationIds = [];
 		if (viewZoneChangeAccessor) {
 			viewZoneChangeAccessor.removeZone(this._viewZoneId);
 		}
@@ -263,11 +262,9 @@ export class CodeLensWidget {
 	}
 
 	updateCodeLensSymbols(data: CodeLensItem[], helper: CodeLensHelper): void {
-		while (this._decorationIds.length) {
-			helper.removeDecoration(this._decorationIds.pop()!);
-		}
+		this._decorationIds.forEach(helper.removeDecoration, helper);
+		this._decorationIds = [];
 		this._data = data;
-		this._decorationIds = new Array<string>(this._data.length);
 		this._data.forEach((codeLensData, i) => {
 			helper.addDecoration({
 				range: codeLensData.symbol.range,
