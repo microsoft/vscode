@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?b035097bd976825411d2c57142be0530") format("truetype");
+	src: url("./codicon.ttf?8166eb223734a131e3fae865b1ac52a5") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -142,7 +142,6 @@
 .codicon-symbol-parameter:before { content: "\ea92" }
 .codicon-symbol-type-parameter:before { content: "\ea92" }
 .codicon-symbol-key:before { content: "\ea93" }
-.codicon-symbol-string:before { content: "\ea93" }
 .codicon-symbol-text:before { content: "\ea93" }
 .codicon-symbol-reference:before { content: "\ea94" }
 .codicon-go-to-file:before { content: "\ea94" }
@@ -400,4 +399,5 @@
 .codicon-debug-breakpoint-stackframe:before { content: "\eb8b" }
 .codicon-debug-breakpoint-stackframe-focused:before { content: "\eb8b" }
 .codicon-debug-breakpoint-unsupported:before { content: "\eb8c" }
+.codicon-symbol-string:before { content: "\eb8d" }
 .codicon-debug-step-back:before { content: "\f101" }
