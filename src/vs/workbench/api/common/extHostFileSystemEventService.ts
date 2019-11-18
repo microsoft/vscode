@@ -203,15 +203,14 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 						if (Object.isFrozen(bucket)) {
 							throw new TypeError('waitUntil cannot be called async');
 						}
-						const index = bucket.length;
-						const wrappedThenable = Promise.resolve(thenable).then(result => {
+						const promise = Promise.resolve(thenable).then(result => {
 							// ignore all results except for WorkspaceEdits. Those
 							// are stored in a spare array
 							if (result instanceof WorkspaceEdit) {
-								edits[index] = result;
+								edits.push(result);
 							}
 						});
-						bucket.push(wrappedThenable);
+						bucket.push(promise);
 					}
 				}
 			};
@@ -225,10 +224,8 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		// and apply them in one go.
 		const allEdits = new Array<Array<IResourceFileEditDto | IResourceTextEditDto>>();
 		for (let edit of edits) {
-			if (edit) { // sparse array
-				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-				allEdits.push(edits);
-			}
+			let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+			allEdits.push(edits);
 		}
 		return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
 	}
