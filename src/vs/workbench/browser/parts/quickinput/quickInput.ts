@@ -938,6 +938,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
 		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
 		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
+		this.layout(this.layoutService.dimension);
 		this.registerKeyModsListeners();
 	}
 
