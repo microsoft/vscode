@@ -31,6 +31,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -85,6 +86,9 @@ export class BreakpointsView extends ViewletPanel {
 				getPosInSet: (_: IEnablement, index: number) => index,
 				getRole: (breakpoint: IEnablement) => 'checkbox',
 				isChecked: (breakpoint: IEnablement) => breakpoint.enabled
+			},
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
 			}
 		});
 

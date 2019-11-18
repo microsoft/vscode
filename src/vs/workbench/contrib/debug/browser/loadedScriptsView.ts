@@ -34,6 +34,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const SMART = true;
 
@@ -440,6 +441,9 @@ export class LoadedScriptsView extends ViewletPanel {
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
+				overrideStyles: {
+					listBackground: SIDE_BAR_BACKGROUND
+				}
 			}
 		);
 

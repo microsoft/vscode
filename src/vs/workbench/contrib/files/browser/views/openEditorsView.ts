@@ -42,6 +42,7 @@ import { URI } from 'vs/base/common/uri';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -214,7 +215,10 @@ export class OpenEditorsView extends ViewletPanel {
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
-			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService)
+			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService),
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		});
 		this._register(this.list);
 		this._register(this.listLabels);
