@@ -362,7 +362,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return neighbourGroup;
 	}
 
-	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
+	private toOptions(options?: IEditorOptions | ITextEditorOptions | EditorOptions): EditorOptions {
 		if (!options || options instanceof EditorOptions) {
 			return options as EditorOptions;
 		}
@@ -484,17 +484,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		editors.forEach(replaceEditorArg => {
 			if (replaceEditorArg.editor instanceof EditorInput) {
-				typedEditors.push(replaceEditorArg as IEditorReplacement);
-			} else {
-				const editor = replaceEditorArg.editor as IResourceEditor;
-				const replacement = replaceEditorArg.replacement as IResourceEditor;
-				const typedEditor = this.createInput(editor);
-				const typedReplacement = this.createInput(replacement);
+				const replacementArg = replaceEditorArg as IEditorReplacement;
 
 				typedEditors.push({
-					editor: typedEditor,
-					replacement: typedReplacement,
-					options: this.toOptions(replacement.options)
+					editor: replacementArg.editor,
+					replacement: replacementArg.replacement,
+					options: this.toOptions(replacementArg.options)
+				});
+			} else {
+				const replacementArg = replaceEditorArg as IResourceEditorReplacement;
+
+				typedEditors.push({
+					editor: this.createInput(replacementArg.editor),
+					replacement: this.createInput(replacementArg.replacement),
+					options: this.toOptions(replacementArg.replacement.options)
 				});
 			}
 		});
