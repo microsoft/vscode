@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { PreviewManager } from './preview';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
+import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { ZoomStatusBarEntry } from './zoomStatusBarEntry';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -14,10 +15,13 @@ export function activate(context: vscode.ExtensionContext) {
 	const sizeStatusBarEntry = new SizeStatusBarEntry();
 	context.subscriptions.push(sizeStatusBarEntry);
 
+	const binarySizeStatusBarEntry = new BinarySizeStatusBarEntry();
+	context.subscriptions.push(binarySizeStatusBarEntry);
+
 	const zoomStatusBarEntry = new ZoomStatusBarEntry();
 	context.subscriptions.push(zoomStatusBarEntry);
 
-	const previewManager = new PreviewManager(extensionRoot, sizeStatusBarEntry, zoomStatusBarEntry);
+	const previewManager = new PreviewManager(extensionRoot, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
 
 	context.subscriptions.push(vscode.window.registerWebviewEditorProvider(
 		PreviewManager.viewType,

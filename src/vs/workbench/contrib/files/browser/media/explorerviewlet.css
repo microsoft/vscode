@@ -128,6 +128,16 @@
 	line-height: normal;
 }
 
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
+	padding: 1px;
+	border-radius: 3px;
+}
+
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover > .monaco-highlighted-label,
+.explorer-viewlet .monaco-list .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
+	text-decoration: underline;
+}
+
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
 .monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
 	height: 22px;

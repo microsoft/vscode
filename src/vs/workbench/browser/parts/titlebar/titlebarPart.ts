@@ -176,7 +176,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onMenubarFocusChanged(focused: boolean) {
-		if (!isWeb && (isWindows || isLinux) && this.currentMenubarVisibility === 'compact' && this.dragRegion) {
+		if (!isWeb && (isWindows || isLinux) && this.currentMenubarVisibility !== 'compact' && this.dragRegion) {
 			if (focused) {
 				hide(this.dragRegion);
 			} else {

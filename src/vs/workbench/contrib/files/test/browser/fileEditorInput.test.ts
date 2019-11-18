@@ -141,7 +141,7 @@ suite('Files - FileEditorInput', () => {
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
 
-		await input.save();
+		await input.save(0);
 		assert.ok(!input.isDirty());
 		resolved.dispose();
 	});

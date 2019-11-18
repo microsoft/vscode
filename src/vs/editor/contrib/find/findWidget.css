@@ -65,7 +65,6 @@
 
 .monaco-editor .find-widget .monaco-inputbox .input {
 	background-color: transparent;
-	/* Style to compensate for //winjs */
 	min-height: 0;
 }
 

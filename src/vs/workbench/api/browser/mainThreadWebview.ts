@@ -12,7 +12,6 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,7 +20,7 @@ import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } fr
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { CustomEditorModel } from 'vs/workbench/contrib/customEditor/browser/customEditorModel';
+import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
@@ -96,14 +95,13 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private readonly _webviewInputs = new WebviewInputStore();
 	private readonly _revivers = new Map<string, IDisposable>();
 	private readonly _editorProviders = new Map<string, IDisposable>();
-	private readonly _models = new Map<string, CustomEditorModel>();
 
 	constructor(
 		context: extHostProtocol.IExtHostContext,
 		@IExtensionService extensionService: IExtensionService,
+		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -273,16 +271,18 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
-				const model = this._instantiationService.createInstance(CustomEditorModel, webviewInput.getResource());
-				webviewInput.setModel(model);
-				this._models.set(handle, model);
-
-				webviewInput.onDispose(() => {
-					this._models.delete(handle);
-				});
+				const model = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
 
 				model.onUndo(edit => {
 					this._proxy.$undoEdits(handle, [edit]);
+				});
+
+				model.onRedo(edit => {
+					this._proxy.$redoEdits(handle, [edit]);
+				});
+
+				webviewInput.onDispose(() => {
+					this._customEditorService.models.disposeModel(model);
 				});
 
 				try {
@@ -318,7 +318,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			throw new Error('Webview is not a webview editor');
 		}
 
-		const model = this._models.get(handle);
+		const model = this._customEditorService.models.get(webview.getResource(), webview.viewType);
 		if (!model) {
 			throw new Error('Could not find model for webview editor');
 		}

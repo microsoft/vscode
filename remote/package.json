@@ -23,6 +23,7 @@
     "xterm": "4.3.0-beta17",
     "xterm-addon-search": "0.4.0-beta4",
     "xterm-addon-web-links": "0.2.1",
+    "xterm-addon-webgl": "0.4.0-beta6",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },

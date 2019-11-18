@@ -147,7 +147,7 @@ export class OutlineNavigation implements IEditorContribution {
 			if (modelNow === this._editor.getModel()) {
 				this._editor.deltaDecorations(ids, []);
 			}
-		}, 250);
+		}, 350);
 	}
 }
 

@@ -38,6 +38,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugServiceShape {
 
@@ -114,7 +115,7 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 
 		this._onDidStartDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession>();
+		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession | undefined>();
 		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
 
 		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
@@ -511,11 +512,11 @@ export class ExtHostDebugService implements IExtHostDebugService, ExtHostDebugSe
 						}
 						this._debugServiceProxy.$acceptDAError(debugAdapterHandle, err.name, err.message, err.stack);
 					});
-					debugAdapter.onExit((code: number) => {
+					debugAdapter.onExit((code: number | null) => {
 						if (tracker && tracker.onExit) {
-							tracker.onExit(code, undefined);
+							tracker.onExit(withNullAsUndefined(code), undefined);
 						}
-						this._debugServiceProxy.$acceptDAExit(debugAdapterHandle, code, undefined);
+						this._debugServiceProxy.$acceptDAExit(debugAdapterHandle, withNullAsUndefined(code), undefined);
 					});
 
 					if (tracker && tracker.onWillStartSession) {

@@ -9,7 +9,7 @@ import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShap
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { EXT_HOST_CREATION_DELAY, ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalChildProcess, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
@@ -437,22 +437,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 	}
 
-	public performTerminalIdAction(id: number, callback: (terminal: ExtHostTerminal) => void): void {
-		// TODO: Use await this._getTerminalByIdEventually(id);
-		let terminal = this._getTerminalById(id);
-		if (terminal) {
-			callback(terminal);
-		} else {
-			// Retry one more time in case the terminal has not yet been initialized.
-			setTimeout(() => {
-				terminal = this._getTerminalById(id);
-				if (terminal) {
-					callback(terminal);
-				}
-			}, EXT_HOST_CREATION_DELAY * 2);
-		}
-	}
-
 	public async $startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<void> {
 		// Make sure the ExtHostTerminal exists so onDidOpenTerminal has fired before we call
 		// Pseudoterminal.start
@@ -550,10 +534,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal | undefined> {
 		if (!this._getTerminalPromises[id]) {
 			this._getTerminalPromises[id] = this._createGetTerminalPromise(id, retries);
-		} else {
-			this._getTerminalPromises[id].then(c => {
-				return this._createGetTerminalPromise(id, retries);
-			});
 		}
 		return this._getTerminalPromises[id];
 	}
@@ -571,7 +551,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				timeout(200).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
+				timeout(EXT_HOST_CREATION_DELAY * 2).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
 			}
 		});
 	}

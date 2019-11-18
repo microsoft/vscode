@@ -36,26 +36,30 @@ function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined 
 	return undefined;
 }
 
+const enum BufferOperationType { Close, Open, Change }
+
 class CloseOperation {
-	readonly type = 'close';
+	readonly type = BufferOperationType.Close;
 	constructor(
 		public readonly args: string
 	) { }
 }
 
 class OpenOperation {
-	readonly type = 'open';
+	readonly type = BufferOperationType.Open;
 	constructor(
 		public readonly args: Proto.OpenRequestArgs
 	) { }
 }
 
 class ChangeOperation {
-	readonly type = 'change';
+	readonly type = BufferOperationType.Change;
 	constructor(
 		public readonly args: Proto.FileCodeEdits
 	) { }
 }
+
+type BufferOperation = CloseOperation | OpenOperation | ChangeOperation;
 
 /**
  * Manages synchronization of buffers with the TS server.
@@ -64,7 +68,7 @@ class ChangeOperation {
  */
 class BufferSynchronizer {
 
-	private readonly _pending = new ResourceMap<CloseOperation | OpenOperation | ChangeOperation>();
+	private readonly _pending = new ResourceMap<BufferOperation>();
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -72,9 +76,7 @@ class BufferSynchronizer {
 
 	public open(resource: vscode.Uri, args: Proto.OpenRequestArgs) {
 		if (this.supportsBatching) {
-			this.updatePending(resource, pending => {
-				pending.set(resource, new OpenOperation(args));
-			});
+			this.updatePending(resource, new OpenOperation(args));
 		} else {
 			this.client.executeWithoutWaitingForResponse('open', args);
 		}
@@ -82,9 +84,7 @@ class BufferSynchronizer {
 
 	public close(resource: vscode.Uri, filepath: string) {
 		if (this.supportsBatching) {
-			this.updatePending(resource, pending => {
-				pending.set(resource, new CloseOperation(filepath));
-			});
+			this.updatePending(resource, new CloseOperation(filepath));
 		} else {
 			const args: Proto.FileRequestArgs = { file: filepath };
 			this.client.executeWithoutWaitingForResponse('close', args);
@@ -97,16 +97,14 @@ class BufferSynchronizer {
 		}
 
 		if (this.supportsBatching) {
-			this.updatePending(resource, pending => {
-				pending.set(resource, new ChangeOperation({
-					fileName: filepath,
-					textChanges: events.map((change): Proto.CodeEdit => ({
-						newText: change.text,
-						start: typeConverters.Position.toLocation(change.range.start),
-						end: typeConverters.Position.toLocation(change.range.end),
-					})).reverse(), // Send the edits end-of-document to start-of-document order
-				}));
-			});
+			this.updatePending(resource, new ChangeOperation({
+				fileName: filepath,
+				textChanges: events.map((change): Proto.CodeEdit => ({
+					newText: change.text,
+					start: typeConverters.Position.toLocation(change.range.start),
+					end: typeConverters.Position.toLocation(change.range.end),
+				})).reverse(), // Send the edits end-of-document to start-of-document order
+			}));
 		} else {
 			for (const { range, text } of events) {
 				const args: Proto.ChangeRequestArgs = {
@@ -143,9 +141,9 @@ class BufferSynchronizer {
 			const changedFiles: Proto.FileCodeEdits[] = [];
 			for (const change of this._pending.values) {
 				switch (change.type) {
-					case 'change': changedFiles.push(change.args); break;
-					case 'open': openFiles.push(change.args); break;
-					case 'close': closedFiles.push(change.args); break;
+					case BufferOperationType.Change: changedFiles.push(change.args); break;
+					case BufferOperationType.Open: openFiles.push(change.args); break;
+					case BufferOperationType.Close: closedFiles.push(change.args); break;
 				}
 			}
 			this.client.execute('updateOpen', { changedFiles, closedFiles, openFiles }, nulToken, { nonRecoverable: true });
@@ -157,12 +155,23 @@ class BufferSynchronizer {
 		return this.client.apiVersion.gte(API.v340);
 	}
 
-	private updatePending(resource: vscode.Uri, f: (pending: ResourceMap<CloseOperation | OpenOperation | ChangeOperation>) => void): void {
+	private updatePending(resource: vscode.Uri, op: BufferOperation): void {
+		switch (op.type) {
+			case BufferOperationType.Close:
+				const existing = this._pending.get(resource);
+				switch (existing?.type) {
+					case BufferOperationType.Open:
+						this._pending.delete(resource);
+						return; // Open then close. No need to do anything
+				}
+				break;
+		}
+
 		if (this._pending.has(resource)) {
 			// we saw this file before, make sure we flush before working with it again
 			this.flush();
 		}
-		f(this._pending);
+		this._pending.set(resource, op);
 	}
 }
 

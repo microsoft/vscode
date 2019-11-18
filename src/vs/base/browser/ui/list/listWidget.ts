@@ -1062,9 +1062,9 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		return this.dnd.getDragURI(element);
 	}
 
-	getDragLabel?(elements: T[]): string | undefined {
+	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined {
 		if (this.dnd.getDragLabel) {
-			return this.dnd.getDragLabel(elements);
+			return this.dnd.getDragLabel(elements, originalEvent);
 		}
 
 		return undefined;
@@ -1078,6 +1078,12 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 
 	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		return this.dnd.onDragOver(data, targetElement, targetIndex, originalEvent);
+	}
+
+	onDragEnd(originalEvent: DragEvent): void {
+		if (this.dnd.onDragEnd) {
+			this.dnd.onDragEnd(originalEvent);
+		}
 	}
 
 	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {

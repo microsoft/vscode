@@ -6,22 +6,20 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IWorkingCopy, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ICustomEditorModel, CustomEditorEdit } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 
-type Edit = string;
+export class CustomEditorModel extends Disposable implements ICustomEditorModel {
 
-export class CustomEditorModel extends Disposable implements IWorkingCopy {
-
-	private _currentEditIndex: number = 0;
+	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
-	private _edits: Array<Edit> = [];
+	private _edits: Array<CustomEditorEdit> = [];
 
 	constructor(
 		private readonly _resource: URI,
-		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
 		super();
-		this._register(this._workingCopyService.registerWorkingCopy(this));
 	}
 
 	//#region IWorkingCopy
@@ -43,8 +41,11 @@ export class CustomEditorModel extends Disposable implements IWorkingCopy {
 
 	//#endregion
 
-	protected readonly _onUndo: Emitter<Edit> = this._register(new Emitter<Edit>());
-	readonly onUndo: Event<Edit> = this._onUndo.event;
+	protected readonly _onUndo = this._register(new Emitter<CustomEditorEdit>());
+	readonly onUndo: Event<CustomEditorEdit> = this._onUndo.event;
+
+	protected readonly _onRedo = this._register(new Emitter<CustomEditorEdit>());
+	readonly onRedo: Event<CustomEditorEdit> = this._onRedo.event;
 
 	public makeEdit(data: string): void {
 		this._edits.splice(this._currentEditIndex, this._edits.length - this._currentEditIndex, data);
@@ -56,17 +57,46 @@ export class CustomEditorModel extends Disposable implements IWorkingCopy {
 		this._onDidChangeDirty.fire();
 	}
 
-	public save() {
+	public async save(options?: ISaveOptions) {
 		this._savePoint = this._edits.length;
 		this.updateDirty();
+
+		return true;
+	}
+
+	public async revert(options?: IRevertOptions) {
+		while (this._currentEditIndex > 0) {
+			this.undo();
+		}
+
+		return true;
 	}
 
 	public undo() {
-		if (this._currentEditIndex >= 0) {
-			const undoneEdit = this._edits[this._currentEditIndex];
-			--this._currentEditIndex;
-			this._onUndo.fire(undoneEdit);
+		if (this._currentEditIndex < 0) {
+			// nothing to undo
+			return;
 		}
+
+		const undoneEdit = this._edits[this._currentEditIndex];
+		--this._currentEditIndex;
+		this._onUndo.fire(undoneEdit);
+
+		this.updateDirty();
+	}
+
+	public redo() {
+		if (this._currentEditIndex >= this._edits.length - 1) {
+			// nothing to redo
+			return;
+		}
+
+		++this._currentEditIndex;
+		const redoneEdit = this._edits[this._currentEditIndex];
+		this._onRedo.fire(redoneEdit);
+
 		this.updateDirty();
 	}
 }
+
+

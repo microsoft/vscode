@@ -103,10 +103,11 @@ export const ListDragOverReactions = {
 
 export interface IListDragAndDrop<T> {
 	getDragURI(element: T): string | null;
-	getDragLabel?(elements: T[]): string | undefined;
+	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined;
 	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void;
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
 	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
+	onDragEnd?(originalEvent: DragEvent): void;
 }
 
 export class ListError extends Error {

@@ -305,17 +305,7 @@ export class CreateNewWithCwdTerminalCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-
-		let cwd: string | undefined;
-		if (args && args.cwd) {
-			cwd = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.cwd);
-		}
-		const instance = terminalService.createTerminal({ cwd });
+		const instance = terminalService.createTerminal({ cwd: args?.cwd });
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}

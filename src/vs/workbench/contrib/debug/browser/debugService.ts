@@ -258,7 +258,7 @@ export class DebugService implements IDebugService {
 		try {
 			// make sure to save all files and that the configuration is up to date
 			await this.extensionService.activateByEvent('onDebug');
-			await this.textFileService.saveAll();
+			await this.editorService.saveAll();
 			await this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined);
 			await this.extensionService.whenInstalledExtensionsRegistered();
 
@@ -568,7 +568,7 @@ export class DebugService implements IDebugService {
 	}
 
 	async restartSession(session: IDebugSession, restartData?: any): Promise<any> {
-		await this.textFileService.saveAll();
+		await this.editorService.saveAll();
 		const isAutoRestart = !!restartData;
 
 		const runTasks: () => Promise<TaskRunResult> = async () => {

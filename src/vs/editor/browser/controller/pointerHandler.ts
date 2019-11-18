@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
@@ -18,7 +19,7 @@ interface IThrottledGestureEvent {
 	translationY: number;
 }
 
-function gestureChangeEventMerger(lastEvent: IThrottledGestureEvent, currentEvent: MSGestureEvent): IThrottledGestureEvent {
+function gestureChangeEventMerger(lastEvent: IThrottledGestureEvent | null, currentEvent: MSGestureEvent): IThrottledGestureEvent {
 	const r = {
 		translationY: currentEvent.translationY,
 		translationX: currentEvent.translationX
@@ -53,7 +54,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 				const penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
 				penGesture.target = this.viewHelper.linesContentDomNode;
-				this.viewHelper.linesContentDomNode.addEventListener('MSPointerDown', (e: MSPointerEvent) => {
+				this.viewHelper.linesContentDomNode.addEventListener(<any>'MSPointerDown', (e: MSPointerEvent) => {
 					// Circumvent IE11 breaking change in e.pointerType & TypeScript's stale definitions
 					const pointerType = <any>e.pointerType;
 					if (pointerType === ((<any>e).MSPOINTER_TYPE_MOUSE || 'mouse')) {
@@ -67,7 +68,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 						penGesture.addPointer(e.pointerId);
 					}
 				});
-				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
+				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent, MSGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
 				this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
 			}
 		}, 100);
@@ -132,7 +133,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 				const penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
 				penGesture.target = this.viewHelper.linesContentDomNode;
-				this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: MSPointerEvent) => {
+				this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: PointerEvent) => {
 					const pointerType = <any>e.pointerType;
 					if (pointerType === 'mouse') {
 						this._lastPointerType = 'mouse';
@@ -145,7 +146,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 						penGesture.addPointer(e.pointerId);
 					}
 				});
-				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
+				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent, MSGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
 				this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
 			}
 		}, 100);
@@ -283,7 +284,7 @@ export class PointerHandler extends Disposable {
 		super();
 		if (window.navigator.msPointerEnabled) {
 			this.handler = this._register(new MsPointerHandler(context, viewController, viewHelper));
-		} else if (((<any>window).PointerEvent && BrowserFeatures.pointerEvents)) {
+		} else if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if ((<any>window).TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
