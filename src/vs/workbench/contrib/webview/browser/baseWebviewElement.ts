@@ -14,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isLinux } from 'vs/base/common/platform';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -122,12 +123,15 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.handleFocusChange(false);
 		}));
 
-		this._register(this.on('did-keydown', (data: KeyboardEvent) => {
-			// Electron: workaround for https://github.com/electron/electron/issues/14258
-			// We have to detect keyboard events in the <webview> and dispatch them to our
-			// keybinding service because these events do not bubble to the parent window anymore.
-			this.handleKeyDown(data);
-		}));
+		if (!isLinux) {
+			// Fixes #82670 webview responding shortcuts twice on linux.
+			this._register(this.on('did-keydown', (data: KeyboardEvent) => {
+				// Electron: workaround for https://github.com/electron/electron/issues/14258
+				// We have to detect keyboard events in the <webview> and dispatch them to our
+				// keybinding service because these events do not bubble to the parent window anymore.
+				this.handleKeyDown(data);
+			}));
+		}
 
 		this.style();
 		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
