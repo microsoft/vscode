@@ -36,12 +36,12 @@ suite('workspace-event', () => {
 		assert.ok(success);
 
 		assert.ok(onWillCreate);
-		assert.equal(onWillCreate?.creating.length, 1);
-		assert.equal(onWillCreate?.creating[0].toString(), newUri.toString());
+		assert.equal(onWillCreate?.files.length, 1);
+		assert.equal(onWillCreate?.files[0].toString(), newUri.toString());
 
 		assert.ok(onDidCreate);
-		assert.equal(onDidCreate?.created.length, 1);
-		assert.equal(onDidCreate?.created[0].toString(), newUri.toString());
+		assert.equal(onDidCreate?.files.length, 1);
+		assert.equal(onDidCreate?.files[0].toString(), newUri.toString());
 	});
 
 	test('onWillDelete/onDidDelete', async function () {
@@ -61,12 +61,12 @@ suite('workspace-event', () => {
 		assert.ok(success);
 
 		assert.ok(onWilldelete);
-		assert.equal(onWilldelete?.deleting.length, 1);
-		assert.equal(onWilldelete?.deleting[0].toString(), base.toString());
+		assert.equal(onWilldelete?.files.length, 1);
+		assert.equal(onWilldelete?.files[0].toString(), base.toString());
 
 		assert.ok(onDiddelete);
-		assert.equal(onDiddelete?.deleted.length, 1);
-		assert.equal(onDiddelete?.deleted[0].toString(), base.toString());
+		assert.equal(onDiddelete?.files.length, 1);
+		assert.equal(onDiddelete?.files[0].toString(), base.toString());
 	});
 
 	test('onWillRename/onDidRename', async function () {
@@ -87,14 +87,14 @@ suite('workspace-event', () => {
 		assert.ok(success);
 
 		assert.ok(onWillRename);
-		assert.equal(onWillRename?.renaming.length, 1);
-		assert.equal(onWillRename?.renaming[0].oldUri.toString(), oldUri.toString());
-		assert.equal(onWillRename?.renaming[0].newUri.toString(), newUri.toString());
+		assert.equal(onWillRename?.files.length, 1);
+		assert.equal(onWillRename?.files[0].oldUri.toString(), oldUri.toString());
+		assert.equal(onWillRename?.files[0].newUri.toString(), newUri.toString());
 
 		assert.ok(onDidRename);
-		assert.equal(onDidRename?.renamed.length, 1);
-		assert.equal(onDidRename?.renamed[0].oldUri.toString(), oldUri.toString());
-		assert.equal(onDidRename?.renamed[0].newUri.toString(), newUri.toString());
+		assert.equal(onDidRename?.files.length, 1);
+		assert.equal(onDidRename?.files[0].oldUri.toString(), oldUri.toString());
+		assert.equal(onDidRename?.files[0].newUri.toString(), newUri.toString());
 	});
 
 	test('onWillRename - make changes', async function () {
@@ -109,7 +109,7 @@ suite('workspace-event', () => {
 		disposables.push(vscode.workspace.onWillRenameFiles(e => {
 			onWillRename = e;
 			const edit = new vscode.WorkspaceEdit();
-			edit.insert(e.renaming[0].oldUri, new vscode.Position(0, 0), 'FOO');
+			edit.insert(e.files[0].oldUri, new vscode.Position(0, 0), 'FOO');
 			edit.replace(anotherFile, new vscode.Range(0, 0, 0, 3), 'FARBOO');
 			e.waitUntil(Promise.resolve(edit));
 		}));
@@ -121,9 +121,9 @@ suite('workspace-event', () => {
 		assert.ok(success);
 
 		assert.ok(onWillRename);
-		assert.equal(onWillRename?.renaming.length, 1);
-		assert.equal(onWillRename?.renaming[0].oldUri.toString(), oldUri.toString());
-		assert.equal(onWillRename?.renaming[0].newUri.toString(), newUri.toString());
+		assert.equal(onWillRename?.files.length, 1);
+		assert.equal(onWillRename?.files[0].oldUri.toString(), oldUri.toString());
+		assert.equal(onWillRename?.files[0].newUri.toString(), newUri.toString());
 
 		assert.equal((await vscode.workspace.openTextDocument(newUri)).getText(), 'FOOBAR');
 		assert.equal((await vscode.workspace.openTextDocument(anotherFile)).getText(), 'FARBOO');
