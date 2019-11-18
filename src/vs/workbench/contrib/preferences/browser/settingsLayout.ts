@@ -147,7 +147,7 @@ export const tocData: ITOCEntry = {
 				},
 				{
 					id: 'features/extensions',
-					label: localize('extensionViewlet', "Extension Viewlet"),
+					label: localize('extensions', "Extensions"),
 					settings: ['extensions.*']
 				},
 				{
