@@ -215,5 +215,5 @@ export interface IEditorService {
 	/**
 	 * Reverts all editors.
 	 */
-	revertAll(options?: IRevertOptions): Promise<void>;
+	revertAll(options?: IRevertOptions): Promise<boolean>;
 }

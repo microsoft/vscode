@@ -646,8 +646,7 @@ export abstract class BaseCloseAllAction extends Action {
 
 		let saveOrRevert: boolean;
 		if (confirm === ConfirmResult.DONT_SAVE) {
-			await this.editorService.revertAll({ soft: true });
-			saveOrRevert = true;
+			saveOrRevert = await this.editorService.revertAll({ soft: true });
 		} else {
 			saveOrRevert = await this.editorService.saveAll({ reason: SaveReason.EXPLICIT, includeUntitled: true });
 		}

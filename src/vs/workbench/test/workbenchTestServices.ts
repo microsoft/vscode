@@ -930,7 +930,7 @@ export class TestEditorService implements EditorServiceImpl {
 		throw new Error('Method not implemented.');
 	}
 
-	revertAll(options?: IRevertOptions): Promise<void> {
+	revertAll(options?: IRevertOptions): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 }
