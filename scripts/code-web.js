@@ -20,7 +20,7 @@ const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
 const args = minimist(process.argv, {
-	boolean:[
+	boolean: [
 		'no-launch',
 		'help'
 	],
@@ -32,17 +32,17 @@ const args = minimist(process.argv, {
 	],
 });
 
-if(args.help){
+if (args.help) {
 	console.log(
 		'yarn web [options]\n' +
-			' --no-launch   Do not start browser\n' +
-			' --scheme      Protocol (https or http)\n' +
-			' --host        Remote host\n' +
-			' --port        Remote/Local port\n' +
-			' --local_port  Local port override\n' +
-			' --help\n' +
-			'[Example]\n' +
-			' yarn web --no-launch --scheme https --host example.com --port 8080 --local_port 30000'
+		' --no-launch   Do not open VSCode web in the browser\n' +
+		' --scheme      Protocol (https or http)\n' +
+		' --host        Remote host\n' +
+		' --port        Remote/Local port\n' +
+		' --local_port  Local port override\n' +
+		' --help\n' +
+		'[Example]\n' +
+		' yarn web --scheme https --host example.com --port 8080 --local_port 30000'
 	);
 	process.exit(0);
 }
@@ -84,8 +84,9 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(LOCAL_PORT, () => {
-	if(LOCAL_PORT !== PORT)
+	if (LOCAL_PORT !== PORT) {
 		console.log(`Operating location at http://0.0.0.0:${LOCAL_PORT}`);
+	}
 	console.log(`Web UI available at   ${SCHEME}://${AUTHORITY}`);
 });
 
