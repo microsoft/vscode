@@ -142,13 +142,13 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	$onDidRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): void {
 		switch (operation) {
 			case FileOperation.MOVE:
-				this._onDidRenameFile.fire(Object.freeze({ renamed: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }));
+				this._onDidRenameFile.fire(Object.freeze({ files: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }));
 				break;
 			case FileOperation.DELETE:
-				this._onDidDeleteFile.fire(Object.freeze({ deleted: [URI.revive(target)] }));
+				this._onDidDeleteFile.fire(Object.freeze({ files: [URI.revive(target)] }));
 				break;
 			case FileOperation.CREATE:
-				this._onDidCreateFile.fire(Object.freeze({ created: [URI.revive(target)] }));
+				this._onDidCreateFile.fire(Object.freeze({ files: [URI.revive(target)] }));
 				break;
 			default:
 			//ignore, dont send
@@ -179,13 +179,13 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): Promise<any> {
 		switch (operation) {
 			case FileOperation.MOVE:
-				await this._fireWillEvent(this._onWillRenameFile, { renaming: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }], });
+				await this._fireWillEvent(this._onWillRenameFile, { files: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }], });
 				break;
 			case FileOperation.DELETE:
-				await this._fireWillEvent(this._onWillDeleteFile, { deleting: [URI.revive(target)] });
+				await this._fireWillEvent(this._onWillDeleteFile, { files: [URI.revive(target)] });
 				break;
 			case FileOperation.CREATE:
-				await this._fireWillEvent(this._onWillCreateFile, { creating: [URI.revive(target)] });
+				await this._fireWillEvent(this._onWillCreateFile, { files: [URI.revive(target)] });
 				break;
 			default:
 			//ignore, dont send

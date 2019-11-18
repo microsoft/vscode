@@ -825,46 +825,71 @@ declare module 'vscode' {
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
 
 	export interface FileCreateEvent {
-		readonly created: ReadonlyArray<Uri>;
+
+		/**
+		 * The files that got created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
 	}
 
 	export interface FileWillCreateEvent {
-		readonly creating: ReadonlyArray<Uri>;
-		waitUntil(thenable: Thenable<any>): void;
+
+		/**
+		 * The files that are going to be created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
 		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	export interface FileDeleteEvent {
-		readonly deleted: ReadonlyArray<Uri>;
+
+		/**
+		 * The files that got deleted.
+		 */
+		readonly files: ReadonlyArray<Uri>;
 	}
 
 	export interface FileWillDeleteEvent {
-		readonly deleting: ReadonlyArray<Uri>;
-		waitUntil(thenable: Thenable<any>): void;
+
+		/**
+		 * The files that are going to be deleted.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
 		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	export interface FileRenameEvent {
-		readonly renamed: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+
+		/**
+		 * The files that got renamed.
+		 */
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
 	export interface FileWillRenameEvent {
-		readonly renaming: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-		waitUntil(thenable: Thenable<any>): void;
+
+		/**
+		 * The files that are going to be renamed.
+		 */
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+
 		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	export namespace workspace {
 
 		export const onWillCreateFiles: Event<FileWillCreateEvent>;
-		export const onDidCreateFiles: Event<FileCreateEvent>;
-
 		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
-		export const onDidDeleteFiles: Event<FileDeleteEvent>;
-
 		export const onWillRenameFiles: Event<FileWillRenameEvent>;
-		export const onDidRenameFiles: Event<FileRenameEvent>;
 
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+		export const onDidRenameFiles: Event<FileRenameEvent>;
 	}
 	//#endregion
 
