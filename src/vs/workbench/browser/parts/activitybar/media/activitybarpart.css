@@ -7,9 +7,8 @@
 	width: 48px;
 }
 
-.monaco-workbench.windows .part.activitybar,
-.monaco-workbench.linux .part.activitybar,
-.monaco-workbench.web .part.activitybar {
+.monaco-workbench.windows.chromium .part.activitybar,
+.monaco-workbench.linux.chromium .part.activitybar {
 	/*
 	 * Explicitly put the part onto its own layer to help Chrome to
 	 * render the content with LCD-anti-aliasing. By partioning the
