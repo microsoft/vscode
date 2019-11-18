@@ -230,6 +230,10 @@ function getSharedListStyleSheet(): HTMLStyleElement {
 	return sharedListStyleSheet;
 }
 
+export interface IWorkbenchListOptions<T> extends IListOptions<T> {
+	readonly overrideStyles?: IColorMapping;
+}
+
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
@@ -246,7 +250,7 @@ export class WorkbenchList<T> extends List<T> {
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: IListRenderer<T, any>[],
-		options: IListOptions<T>,
+		options: IWorkbenchListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -282,7 +286,7 @@ export class WorkbenchList<T> extends List<T> {
 
 		this.disposables.add(this.contextKeyService);
 		this.disposables.add((listService as ListService).register(this));
-		this.disposables.add(attachListStyler(this, themeService));
+		this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
 		this.disposables.add(this.onSelectionChange(() => {
 			const selection = this.getSelection();
 			const focus = this.getFocus();
@@ -328,7 +332,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
-		options: IListOptions<T>,
+		options: IWorkbenchListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -360,7 +364,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this.disposables.add(this.contextKeyService);
 		this.disposables.add((listService as ListService).register(this));
-		this.disposables.add(attachListStyler(this, themeService));
+		this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
 
 		this.registerListeners();
 	}
