@@ -484,7 +484,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	abstract resolve(): Promise<IEditorModel | null>;
 
 	isReadonly(): boolean {
-		return false;
+		return true;
 	}
 
 	isUntitled(): boolean {

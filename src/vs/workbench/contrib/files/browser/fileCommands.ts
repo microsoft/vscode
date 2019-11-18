@@ -314,7 +314,10 @@ function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsO
 	const listService = accessor.get(IListService);
 	const editorGroupsService = accessor.get(IEditorGroupsService);
 
-	const saveableEditors = getMultiSelectedEditors(listService, editorGroupsService).filter(({ editor }) => !editor.isReadonly());
+	let saveableEditors = getMultiSelectedEditors(listService, editorGroupsService);
+	if (!options?.saveAs) {
+		saveableEditors = saveableEditors.filter(({ editor }) => !editor.isReadonly()); // Save: only allow non-readonly editors
+	}
 
 	return doSaveEditors(accessor, saveableEditors, options);
 }
@@ -323,7 +326,7 @@ function saveEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyArray<I
 	const saveableEditors: IEditorIdentifier[] = [];
 	for (const group of groups) {
 		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (editor.isDirty()) {
+			if (editor.isDirty() && !editor.isReadonly()) {
 				saveableEditors.push({ groupId: group.id, editor });
 			}
 		}

@@ -712,14 +712,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> {
-		const editors: IEditorIdentifier[] = [];
 
-		// Collect all editors in MRU order that are dirty
-		this.forEachDirtyEditor(({ groupId, editor }) => {
-			if (!editor.isUntitled() || options?.includeUntitled) {
-				editors.push({ groupId, editor });
-			}
-		});
+		// Save each editor in MRU order
+		const editors: IEditorIdentifier[] = [];
+		this.forEachDirtySaveableEditor(!!options?.includeUntitled, ({ groupId, editor }) => editors.push({ groupId, editor }));
 
 		return this.save(editors, options);
 	}
@@ -728,15 +724,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Revert each editor in MRU order
 		const reverts: Promise<boolean>[] = [];
-		this.forEachDirtyEditor(({ editor }) => reverts.push(editor.revert(options)));
+		this.forEachDirtySaveableEditor(true /* include untitled */, ({ editor }) => reverts.push(editor.revert(options)));
 
 		await Promise.all(reverts);
 	}
 
-	private forEachDirtyEditor(callback: (editor: IEditorIdentifier) => void): void {
+	private forEachDirtySaveableEditor(includeUntitled: boolean, callback: (editor: IEditorIdentifier) => void): void {
 		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (editor.isDirty()) {
+				if (editor.isDirty() && !editor.isReadonly() && (!editor.isUntitled() || includeUntitled)) {
 					callback({ groupId: group.id, editor });
 				}
 			}
