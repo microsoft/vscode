@@ -83,6 +83,7 @@
 	white-space: normal;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	min-height: 48px; /* matches icon height */
+	margin-bottom: 8px;
 	display: flex;
 	align-items: center;
 }
@@ -92,7 +93,6 @@
 	line-height: 22px;
 	flex: 1; /* let the message always grow */
 	opacity: .9;
-	margin-top: 8px;
 }
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
