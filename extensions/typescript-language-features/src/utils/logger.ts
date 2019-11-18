@@ -41,7 +41,7 @@ export default class Logger {
 	}
 
 	public logLevel(level: LogLevel, message: string, data?: any): void {
-		this.output.appendLine(`[${level}  - ${(new Date().toLocaleTimeString())}] ${message}`);
+		this.output.appendLine(`[${level}  - ${(new Date().toTimeString())}] ${message}`);
 		if (data) {
 			this.output.appendLine(this.data2String(data));
 		}
