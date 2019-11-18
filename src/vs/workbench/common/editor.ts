@@ -20,7 +20,6 @@ import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
@@ -277,6 +276,68 @@ export const enum Verbosity {
 	LONG
 }
 
+export const enum SaveReason {
+
+	/**
+	 * Explicit user gesture.
+	 */
+	EXPLICIT = 1,
+
+	/**
+	 * Auto save after a timeout.
+	 */
+	AUTO = 2,
+
+	/**
+	 * Auto save after editor focus change.
+	 */
+	FOCUS_CHANGE = 3,
+
+	/**
+	 * Auto save after window change.
+	 */
+	WINDOW_CHANGE = 4
+}
+
+export interface ISaveOptions {
+
+	/**
+	 * An indicator how the save operation was triggered.
+	 */
+	reason?: SaveReason;
+
+	/**
+	 * Forces to load the contents of the working copy
+	 * again even if the working copy is not dirty.
+	 */
+	force?: boolean;
+
+	/**
+	 * Instructs the save operation to skip any save participants.
+	 */
+	skipSaveParticipants?: boolean;
+
+	/**
+	 * A hint as to which file systems should be available for saving.
+	 */
+	availableFileSystems?: string[];
+}
+
+export interface IRevertOptions {
+
+	/**
+	 * Forces to load the contents of the working copy
+	 * again even if the working copy is not dirty.
+	 */
+	force?: boolean;
+
+	/**
+	 * A soft revert will clear dirty state of a working copy
+	 * but will not attempt to load it from its persisted state.
+	 */
+	soft?: boolean;
+}
+
 export interface IEditorInput extends IDisposable {
 
 	/**
@@ -330,9 +391,11 @@ export interface IEditorInput extends IDisposable {
 	isDirty(): boolean;
 
 	/**
-	 * Saves the editor.
+	 * Saves the editor. The provided groupId helps
+	 * implementors to e.g. preserve view state of the editor
+	 * and re-open it in the correct group after saving.
 	 */
-	save(options?: ISaveOptions): Promise<boolean>;
+	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
 
 	/**
 	 * Saves the editor to a different location. The provided groupId
@@ -464,7 +527,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	/**
 	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
-	save(options?: ISaveOptions): Promise<boolean> {
+	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 
@@ -530,15 +593,15 @@ export abstract class TextEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	save(options?: ITextFileSaveOptions): Promise<boolean> {
+	save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
 		return this.textFileService.save(this.resource, options);
 	}
 
 	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, options);
+		return this.doSaveAs(group, () => this.textFileService.saveAs(this.resource, undefined, options));
 	}
 
-	protected async doSaveAs(group: GroupIdentifier, options?: ITextFileSaveOptions, replaceAllEditors?: boolean): Promise<boolean> {
+	protected async doSaveAs(group: GroupIdentifier, saveRunnable: () => Promise<URI | undefined>, replaceAllEditors?: boolean): Promise<boolean> {
 
 		// Preserve view state by opening the editor first. In addition
 		// this allows the user to review the contents of the editor.
@@ -549,7 +612,7 @@ export abstract class TextEditorInput extends EditorInput {
 		}
 
 		// Save as
-		const target = await this.textFileService.saveAs(this.resource, undefined, options);
+		const target = await saveRunnable();
 		if (!target) {
 			return false; // save cancelled
 		}
@@ -667,8 +730,8 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isDirty();
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
-		return this.master.save(options);
+	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		return this.master.save(groupId, options);
 	}
 
 	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {

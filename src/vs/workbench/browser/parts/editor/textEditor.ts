@@ -9,7 +9,7 @@ import { distinct, deepClone, assign } from 'vs/base/common/objects';
 import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, IEditorMemento, ITextEditor } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorMemento, ITextEditor, SaveReason } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -17,7 +17,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';

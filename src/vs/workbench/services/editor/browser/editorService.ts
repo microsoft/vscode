@@ -5,7 +5,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor, IRevertOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -28,7 +28,6 @@ import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/wor
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -691,7 +690,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
 
 			// Save
-			return editor.save(options);
+			return editor.save(groupId, options);
 		}));
 
 		// Editors to save sequentially
@@ -700,7 +699,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				continue; // might have been disposed from from the save already
 			}
 
-			const result = await editor.saveAs(groupId, options);
+			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
 			if (!result) {
 				return false; // failed or cancelled, abort
 			}

@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -92,7 +92,7 @@ import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/ele
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { find } from 'vs/base/common/arrays';
-import { WorkingCopyService, IWorkingCopyService, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { WorkingCopyService, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {

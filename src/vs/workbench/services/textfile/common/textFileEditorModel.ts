@@ -12,7 +12,7 @@ import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { EncodingMode } from 'vs/workbench/common/editor';
+import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED } from 'vs/platform/files/common/files';
@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
-import { IWorkingCopyService, WorkingCopyCapabilities, SaveReason, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export interface IBackupMetaData {
