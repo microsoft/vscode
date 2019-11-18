@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?8166eb223734a131e3fae865b1ac52a5") format("truetype");
+	src: url("./codicon.ttf?34cea5159eda573d2422092d6f8c2c77") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -69,6 +69,7 @@
 .codicon-eye-watch:before { content: "\ea70" }
 .codicon-circle-filled:before { content: "\ea71" }
 .codicon-primitive-dot:before { content: "\ea71" }
+.codicon-close-dirty:before { content: "\ea71" }
 .codicon-debug-breakpoint:before { content: "\ea71" }
 .codicon-debug-breakpoint-disabled:before { content: "\ea71" }
 .codicon-debug-hint:before { content: "\ea71" }
