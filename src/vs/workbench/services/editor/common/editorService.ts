@@ -200,7 +200,7 @@ export interface IEditorService {
 	/**
 	 * Converts a lightweight input to a workbench editor input.
 	 */
-	createInput(input: IResourceEditor): IEditorInput | null;
+	createInput(input: IResourceEditor): IEditorInput;
 
 	/**
 	 * Save the provided list of editors.

@@ -620,10 +620,10 @@ export abstract class TextEditorInput extends EditorInput {
 		// Replace editor preserving viewstate (either across all groups or
 		// only selected group) if the target is different from the current resource
 		if (!isEqual(target, this.resource)) {
-			const replacement: IResourceInput = { resource: target, options: { pinned: true, viewState } };
+			const replacement = this.editorService.createInput({ resource: target });
 			const targetGroups = replaceAllEditors ? this.editorGroupService.groups.map(group => group.id) : [group];
 			for (const group of targetGroups) {
-				await this.editorService.replaceEditors([{ editor: { resource: this.resource }, replacement }], group);
+				await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true, viewState } }], group);
 			}
 		}
 
