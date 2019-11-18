@@ -379,7 +379,10 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 			sorter: new FileSorter(),
 			filter: this._instantiationService.createInstance(FileFilter),
 			identityProvider: new FileIdentityProvider(),
-			keyboardNavigationLabelProvider: new FileNavigationLabelProvider()
+			keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
+			overrideStyles: {
+				listBackground: breadcrumbsPickerBackground
+			}
 		});
 	}
 

@@ -199,6 +199,9 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 			identityProvider: new callHTree.IdentityProvider(() => this._direction),
 			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,
+			// overrideStyles: {
+			// 	listBackground: peekView.peekViewResultsBackground
+			// }
 		};
 		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>>(
 			WorkbenchAsyncDataTree,

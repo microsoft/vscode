@@ -302,7 +302,10 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			keyboardSupport: this._defaultTreeKeyboardSupport,
 			accessibilityProvider: new AriaProvider(),
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
-			identityProvider: new IdentityProvider()
+			identityProvider: new IdentityProvider(),
+			// overrideStyles: {
+			// 	listBackground: peekView.peekViewResultsBackground
+			// }
 		};
 		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
@@ -314,7 +317,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				this._instantiationService.createInstance(OneReferenceRenderer),
 			],
 			this._instantiationService.createInstance(DataSource),
-			treeOptions
+			treeOptions,
 		);
 
 		// split stuff
