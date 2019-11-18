@@ -82,7 +82,10 @@ export class NotificationsList extends Themable {
 			{
 				...this.options,
 				setRowLineHeight: false,
-				horizontalScrolling: false
+				horizontalScrolling: false,
+				overrideStyles: {
+					listBackground: NOTIFICATIONS_BACKGROUND
+				}
 			}
 		));
 
