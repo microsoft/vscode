@@ -174,7 +174,7 @@ suite('Event', function () {
 	test('Debounce Event', function (done: () => void) {
 		let doc = new Samples.Document3();
 
-		let onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[], cur) => {
+		let onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[] | undefined, cur) => {
 			if (!prev) {
 				prev = [cur];
 			} else if (prev.indexOf(cur) < 0) {
