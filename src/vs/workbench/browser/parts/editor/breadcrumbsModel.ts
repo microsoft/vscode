@@ -23,6 +23,7 @@ import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs
 import { FileKind } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class FileElement {
 	constructor(
@@ -142,6 +143,16 @@ export class EditorBreadcrumbsModel {
 		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('breadcrumbs')) {
 				this._updateOutline(true);
+				return;
+			}
+			if (this._editor && this._editor.getModel()) {
+				const editorModel = this._editor.getModel() as ITextModel;
+				const languageName = editorModel.getLanguageIdentifier().language;
+
+				// checking for changes in the current language override config
+				if (e.affectsConfiguration(`[${languageName}]`)) {
+					this._updateOutline(true);
+				}
 			}
 		}));
 
@@ -250,7 +261,16 @@ export class EditorBreadcrumbsModel {
 	private _isFiltered(element: TreeElement): boolean {
 		if (element instanceof OutlineElement) {
 			const key = `breadcrumbs.${OutlineFilter.kindToConfigName[element.symbol.kind]}`;
-			return !this._configurationService.getValue<boolean>(key);
+
+			// If possible, look for language specific overrides when reading configuration.
+			if (this._editor && this._editor.getModel()) {
+				const model = this._editor.getModel() as ITextModel;
+				return !this._configurationService.getValue<boolean>(key, {
+					overrideIdentifier: model.getLanguageIdentifier().language
+				});
+			}
+
+			return this._configurationService.getValue<boolean>(key);
 		}
 		return false;
 	}
