@@ -1097,7 +1097,7 @@ declare module 'vscode' {
 		/**
 		 * Persist the resource.
 		 */
-		save(resource: Uri): Thenable<void>;
+		save(): Thenable<void>;
 
 		/**
 		 * Called when the editor exits.

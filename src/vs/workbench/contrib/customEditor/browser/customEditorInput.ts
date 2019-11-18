@@ -12,17 +12,19 @@ import { DataUri, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IEditorInput, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
+import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { CustomEditorModel } from '../common/customEditorModel';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private _model?: CustomEditorModel;
+	private _model?: ICustomEditorModel;
 
 	constructor(
 		resource: URI,
@@ -32,6 +34,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 	) {
 		super(id, viewType, '', webview, webviewWorkbenchService, lifecycleService);
 		this._editorResource = resource;
@@ -135,5 +138,10 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public revert(options?: IRevertOptions): Promise<boolean> {
 		return this._model ? this._model.revert(options) : Promise.resolve(false);
+	}
+
+	public async resolve(): Promise<IEditorModel> {
+		this._model = await this.customEditorService.models.loadOrCreate(this.getResource(), this.viewType);
+		return await super.resolve();
 	}
 }
