@@ -6,19 +6,23 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { LanguageIdentifier, SemanticColoringProviderRegistry, SemanticColoringProvider, SemanticColoring, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { SparseEncodedTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -124,6 +128,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
+
+		this._register(new SemanticColoringFeature(this));
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -429,4 +435,161 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 export interface ILineSequence {
 	getLineContent(lineNumber: number): string;
+}
+
+class SemanticColoringFeature extends Disposable {
+	private _watchers: Record<string, ModelSemanticColoring>;
+
+	constructor(modelService: IModelService) {
+		super();
+		this._watchers = Object.create(null);
+		this._register(modelService.onModelAdded((model) => {
+			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model);
+		}));
+		this._register(modelService.onModelRemoved((model) => {
+			this._watchers[model.uri.toString()].dispose();
+			delete this._watchers[model.uri.toString()];
+		}));
+	}
+}
+
+class ModelSemanticColoring extends Disposable {
+
+	private _isDisposed: boolean;
+	private readonly _model: ITextModel;
+	private readonly _fetchSemanticTokens: RunOnceScheduler;
+	private _currentResponse: SemanticColoring | null;
+	private _currentRequestCancellationTokenSource: CancellationTokenSource | null;
+
+	constructor(model: ITextModel) {
+		super();
+
+		this._isDisposed = false;
+		this._model = model;
+		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 500));
+		this._currentResponse = null;
+		this._currentRequestCancellationTokenSource = null;
+
+		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
+		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
+		this._fetchSemanticTokens.schedule(0);
+	}
+
+	public dispose(): void {
+		this._isDisposed = true;
+		if (this._currentResponse) {
+			this._currentResponse.dispose();
+			this._currentResponse = null;
+		}
+		if (this._currentRequestCancellationTokenSource) {
+			this._currentRequestCancellationTokenSource.cancel();
+			this._currentRequestCancellationTokenSource = null;
+		}
+		super.dispose();
+	}
+
+	private _fetchSemanticTokensNow(): void {
+		if (this._currentRequestCancellationTokenSource) {
+			// there is already a request running, let it finish...
+			return;
+		}
+		const provider = this._getSemanticColoringProvider();
+		if (!provider) {
+			return;
+		}
+		this._currentRequestCancellationTokenSource = new CancellationTokenSource();
+
+		const pendingChanges: IModelContentChangedEvent[] = [];
+		const contentChangeListener = this._model.onDidChangeContent((e) => {
+			pendingChanges.push(e);
+		});
+
+		const request = Promise.resolve(provider.provideSemanticColoring(this._model, this._currentRequestCancellationTokenSource.token));
+
+		request.then((res) => {
+			this._currentRequestCancellationTokenSource = null;
+			contentChangeListener.dispose();
+			this._setSemanticTokens(res || null, pendingChanges);
+		}, (err) => {
+			errors.onUnexpectedError(err);
+			this._currentRequestCancellationTokenSource = null;
+			contentChangeListener.dispose();
+			this._setSemanticTokens(null, pendingChanges);
+		});
+	}
+
+	private _setSemanticTokens(tokens: SemanticColoring | null, pendingChanges: IModelContentChangedEvent[]): void {
+		if (this._currentResponse) {
+			this._currentResponse.dispose();
+			this._currentResponse = null;
+		}
+		if (this._isDisposed) {
+			// disposed!
+			if (tokens) {
+				tokens.dispose();
+			}
+			return;
+		}
+		this._currentResponse = tokens;
+		if (!this._currentResponse) {
+			this._model.setSemanticTokens(null);
+			return;
+		}
+
+		const result: MultilineTokens2[] = [];
+		for (const area of this._currentResponse.areas) {
+			const srcTokens = area.data;
+			const tokenCount = srcTokens.length / 5;
+			const destTokens = new Uint32Array(4 * tokenCount);
+			for (let i = 0; i < tokenCount; i++) {
+				const srcOffset = 5 * i;
+				const deltaLine = srcTokens[srcOffset];
+				const startCharacter = srcTokens[srcOffset + 1];
+				const endCharacter = srcTokens[srcOffset + 2];
+				// const tokenType = srcTokens[srcOffset + 3];
+				// const tokenModifiers = srcTokens[srcOffset + 4];
+				// TODO@semantic: map here tokenType and tokenModifiers to metadata
+
+				const fontStyle = FontStyle.Italic | FontStyle.Bold | FontStyle.Underline;
+				const foregroundColorId = 3;
+				const metadata = (
+					(fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
+					| (foregroundColorId << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0;
+
+				const destOffset = 4 * i;
+				destTokens[destOffset] = deltaLine;
+				destTokens[destOffset + 1] = startCharacter;
+				destTokens[destOffset + 2] = endCharacter;
+				destTokens[destOffset + 3] = metadata;
+			}
+
+			const tokens = new MultilineTokens2(area.line, new SparseEncodedTokens(destTokens));
+			result.push(tokens);
+		}
+
+		// Adjust incoming semantic tokens
+		if (pendingChanges.length > 0) {
+			// More changes occurred while the request was running
+			// We need to:
+			// 1. Adjust incoming semantic tokens
+			// 2. Request them again
+			for (const change of pendingChanges) {
+				for (const area of result) {
+					for (const singleChange of change.changes) {
+						area.applyEdit(singleChange.range, singleChange.text);
+					}
+				}
+			}
+
+			this._fetchSemanticTokens.schedule();
+		}
+
+		this._model.setSemanticTokens(result);
+	}
+
+	private _getSemanticColoringProvider(): SemanticColoringProvider | null {
+		const result = SemanticColoringProviderRegistry.ordered(this._model);
+		return (result.length > 0 ? result[0] : null);
+	}
 }
