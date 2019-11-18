@@ -746,6 +746,10 @@ export class SemanticColoringAdapter {
 		for (let i = 0, len = oldAreas.length; i < len; i++) {
 			const oldAreaData = oldAreas[i];
 			const oldAreaTokenCount = (oldAreaData.length / 5) | 0;
+			if (oldAreaTokenCount === 0) {
+				// skip old empty areas
+				continue;
+			}
 			if (newTokenEndIndex - newTokenStartIndex < oldAreaTokenCount) {
 				// there are too many old tokens, this cannot work
 				break;
@@ -772,6 +776,10 @@ export class SemanticColoringAdapter {
 		for (let i = oldAreas.length - 1; i >= 0; i--) {
 			const oldAreaData = oldAreas[i];
 			const oldAreaTokenCount = (oldAreaData.length / 5) | 0;
+			if (oldAreaTokenCount === 0) {
+				// skip old empty areas
+				continue;
+			}
 			if (newTokenEndIndex - newTokenStartIndex < oldAreaTokenCount) {
 				// there are too many old tokens, this cannot work
 				break;

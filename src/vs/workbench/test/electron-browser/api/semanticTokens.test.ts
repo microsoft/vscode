@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { TestRPCProtocol } from './testRPCProtocol';
+import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import { SemanticColoringAdapter } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -302,6 +302,41 @@ suite('SemanticColoringAdapter', () => {
 			{ type: 'full', line: 1, tokens: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
 			{ type: 'delta', line: 12, oldIndex: 1 },
 			{ type: 'delta', line: 22, oldIndex: 2 },
+		]);
+		adapter.releaseSemanticColoring(result1.id);
+	});
+
+	test('going from empty to 1 semantic token', async () => {
+		doc.onEvents({
+			versionId: 2,
+			eol: '\n',
+			changes: [{
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 23, endColumn: 18 },
+				rangeOffset: 0,
+				rangeLength: 0,
+				text: ''
+			}]
+		});
+
+		const result1 = decodeSemanticTokensDto((await adapter.provideSemanticColoring(resource, 0, CancellationToken.None))!);
+		assertDTO(result1, [
+			{ type: 'full', line: 1, tokens: [] },
+		]);
+
+		doc.onEvents({
+			versionId: 3,
+			eol: '\n',
+			changes: [{
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				rangeOffset: 0,
+				rangeLength: 0,
+				text: 'const enum E01 {}\n'
+			}]
+		});
+
+		const result2 = decodeSemanticTokensDto((await adapter.provideSemanticColoring(resource, result1.id, CancellationToken.None))!);
+		assertDTO(result2, [
+			{ type: 'full', line: 1, tokens: [0] }
 		]);
 		adapter.releaseSemanticColoring(result1.id);
 	});
