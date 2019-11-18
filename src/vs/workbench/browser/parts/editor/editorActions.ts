@@ -15,7 +15,6 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -598,10 +597,10 @@ export abstract class BaseCloseAllAction extends Action {
 		id: string,
 		label: string,
 		clazz: string | undefined,
-		private textFileService: ITextFileService,
 		private workingCopyService: IWorkingCopyService,
 		private fileDialogService: IFileDialogService,
-		protected editorGroupService: IEditorGroupsService
+		protected editorGroupService: IEditorGroupsService,
+		private editorService: IEditorService
 	) {
 		super(id, label, clazz);
 	}
@@ -647,11 +646,10 @@ export abstract class BaseCloseAllAction extends Action {
 
 		let saveOrRevert: boolean;
 		if (confirm === ConfirmResult.DONT_SAVE) {
-			await this.textFileService.revertAll(undefined, { soft: true });
+			await this.editorService.revertAll({ soft: true });
 			saveOrRevert = true;
 		} else {
-			const res = await this.textFileService.saveAll(true);
-			saveOrRevert = res.results.every(r => !!r.success);
+			saveOrRevert = await this.editorService.saveAll({ includeUntitled: true });
 		}
 
 		if (saveOrRevert) {
@@ -670,12 +668,12 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 	constructor(
 		id: string,
 		label: string,
-		@ITextFileService textFileService: ITextFileService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(id, label, 'codicon-close-all', textFileService, workingCopyService, fileDialogService, editorGroupService);
+		super(id, label, 'codicon-close-all', workingCopyService, fileDialogService, editorGroupService, editorService);
 	}
 
 	protected doCloseAll(): Promise<any> {
@@ -691,12 +689,12 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 	constructor(
 		id: string,
 		label: string,
-		@ITextFileService textFileService: ITextFileService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(id, label, undefined, textFileService, workingCopyService, fileDialogService, editorGroupService);
+		super(id, label, undefined, workingCopyService, fileDialogService, editorGroupService, editorService);
 	}
 
 	protected async doCloseAll(): Promise<any> {

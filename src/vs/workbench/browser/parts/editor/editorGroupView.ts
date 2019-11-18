@@ -1310,7 +1310,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Otherwise, handle accordingly
 		switch (res) {
 			case ConfirmResult.SAVE:
-				const result = await editor.save();
+				const result = await editor.save(this._group.id);
 
 				return !result;
 			case ConfirmResult.DONT_SAVE:

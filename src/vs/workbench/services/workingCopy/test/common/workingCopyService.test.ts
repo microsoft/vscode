@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IWorkingCopy, ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -40,9 +40,6 @@ suite('WorkingCopyService', () => {
 		isDirty(): boolean {
 			return this.dirty;
 		}
-
-		async save(options?: ISaveOptions): Promise<boolean> { return true; }
-		async revert(options?: IRevertOptions): Promise<boolean> { return true; }
 
 		dispose(): void {
 			this._onDispose.fire();

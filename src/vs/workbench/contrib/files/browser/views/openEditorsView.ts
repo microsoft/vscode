@@ -30,7 +30,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { DirtyEditorContext, OpenEditorsGroupContext } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { DirtyEditorContext, OpenEditorsGroupContext, SaveableEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
@@ -61,6 +61,7 @@ export class OpenEditorsView extends ViewletPanel {
 	private resourceContext!: ResourceContextKey;
 	private groupFocusedContext!: IContextKey<boolean>;
 	private dirtyEditorFocusedContext!: IContextKey<boolean>;
+	private saveableEditorFocusedContext!: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -231,16 +232,19 @@ export class OpenEditorsView extends ViewletPanel {
 		this._register(this.resourceContext);
 		this.groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
 		this.dirtyEditorFocusedContext = DirtyEditorContext.bindTo(this.contextKeyService);
+		this.saveableEditorFocusedContext = SaveableEditorContext.bindTo(this.contextKeyService);
 
 		this._register(this.list.onContextMenu(e => this.onListContextMenu(e)));
 		this.list.onFocusChange(e => {
 			this.resourceContext.reset();
 			this.groupFocusedContext.reset();
 			this.dirtyEditorFocusedContext.reset();
+			this.saveableEditorFocusedContext.reset();
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
 				const resource = element.getResource();
 				this.dirtyEditorFocusedContext.set(element.editor.isDirty());
+				this.saveableEditorFocusedContext.set(!element.editor.isReadonly());
 				this.resourceContext.set(withUndefinedAsNull(resource));
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
@@ -407,25 +411,13 @@ export class OpenEditorsView extends ViewletPanel {
 	}
 
 	private updateDirtyIndicator(): void {
-		let dirty = this.dirtyCount;
+		let dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
 			dom.addClass(this.dirtyCountElement, 'hidden');
 		} else {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
 			dom.removeClass(this.dirtyCountElement, 'hidden');
 		}
-	}
-
-	private get dirtyCount(): number {
-		let dirtyCount = 0;
-
-		for (const element of this.elements) {
-			if (element instanceof OpenEditor && element.editor.isDirty()) {
-				dirtyCount++;
-			}
-		}
-
-		return dirtyCount;
 	}
 
 	private get elementCount(): number {

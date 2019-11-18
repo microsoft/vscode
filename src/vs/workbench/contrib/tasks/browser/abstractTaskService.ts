@@ -1234,7 +1234,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
 		return ProblemMatcherRegistry.onReady().then(() => {
-			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+			return this.editorService.saveAll().then((value) => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
 				return this.handleExecuteResult(executeResult);
 			});
@@ -2164,7 +2164,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		ProblemMatcherRegistry.onReady().then(() => {
-			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+			return this.editorService.saveAll().then((value) => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().rerun();
 				if (executeResult) {
 					return this.handleExecuteResult(executeResult);

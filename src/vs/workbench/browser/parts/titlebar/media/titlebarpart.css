@@ -33,7 +33,7 @@
 	 */
 	transform: translate3d(0px, 0px, 0px);
 	position: relative;
-	z-index: 1000; // move the entire titlebar above the workbench, except modals/dialogs
+	z-index: 1000; /* move the entire titlebar above the workbench, except modals/dialogs */
 }
 
 .monaco-workbench .part.titlebar > .titlebar-drag-region {
@@ -47,7 +47,7 @@
 }
 
 .monaco-workbench .part.titlebar > .menubar {
-	// Move above drag region since negative z-index on that element causes AA issues
+	/* Move above drag region since negative z-index on that element causes AA issues */
 	z-index: 1;
 }
 
@@ -101,7 +101,7 @@
 	width: 35px;
 	height: 100%;
 	position: relative;
-	z-index: 2; // highest level of titlebar
+	z-index: 2; /* highest level of titlebar */
 	background-image: url('code-icon.svg');
 	background-repeat: no-repeat;
 	background-position: center center;
@@ -119,7 +119,7 @@
 	flex-shrink: 0;
 	text-align: center;
 	position: relative;
-	z-index: 2; // highest level of titlebar
+	z-index: 2; /* highest level of titlebar */
 	-webkit-app-region: no-drag;
 	height: 100%;
 	width: 138px;
