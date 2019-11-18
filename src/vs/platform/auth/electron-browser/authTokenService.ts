@@ -49,7 +49,7 @@ export interface IToken {
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Initializing;
+	private _status: AuthTokenStatus = AuthTokenStatus.Refreshing;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
@@ -190,6 +190,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	private async refresh(refreshToken: string): Promise<void> {
 		return new Promise((resolve, reject) => {
+			this.setStatus(AuthTokenStatus.Refreshing);
 			const postData = toQuery({
 				refresh_token: refreshToken,
 				client_id: clientId,

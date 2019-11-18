@@ -17,7 +17,7 @@ const ACCOUNT = 'MyAccount';
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Initializing;
+	private _status: AuthTokenStatus = AuthTokenStatus.Refreshing;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
