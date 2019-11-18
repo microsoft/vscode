@@ -150,10 +150,6 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	getPosition(): editorBrowser.IContentWidgetPosition | null {
 		return this._widgetPosition || null;
 	}
-
-	isVisible(): boolean {
-		return this._domNode.hasAttribute('monaco-visible-content-widget');
-	}
 }
 
 export interface IDecorationIdCallback {
@@ -275,7 +271,7 @@ export class CodeLensWidget {
 	}
 
 	computeIfNecessary(model: ITextModel): CodeLensItem[] | null {
-		if (!this._contentWidget.isVisible()) {
+		if (!this._viewZone.domNode.hasAttribute('monaco-visible-view-zone')) {
 			return null;
 		}
 
