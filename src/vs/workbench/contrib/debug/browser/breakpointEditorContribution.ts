@@ -32,6 +32,8 @@ import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { isSafari } from 'vs/base/browser/browser';
 
 const $ = dom.$;
 
@@ -227,21 +229,29 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			}
 		}));
 
-		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
-			let showBreakpointHintAtLineNumber = -1;
-			const model = this.editor.getModel();
-			if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
-				this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
-				const data = e.target.detail as IMarginData;
-				if (!data.isAfterLines) {
-					showBreakpointHintAtLineNumber = e.target.position.lineNumber;
+		if (!(BrowserFeatures.pointerEvents && isSafari)) {
+			/**
+			 * We disable the hover feature for Safari on iOS as
+			 * 1. Browser hover events are handled specially by the system (it treats first click as hover if there is `:hover` css registered). Below hover behavior will confuse users with inconsistent expeirence.
+			 * 2. When users click on line numbers, the breakpoint hint displays immediately, however it doesn't create the breakpoint unless users click on the left gutter. On a touch screen, it's hard to click on that small area.
+			 */
+			this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
+				let showBreakpointHintAtLineNumber = -1;
+				const model = this.editor.getModel();
+				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
+					this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
+					const data = e.target.detail as IMarginData;
+					if (!data.isAfterLines) {
+						showBreakpointHintAtLineNumber = e.target.position.lineNumber;
+					}
 				}
-			}
-			this.ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber);
-		}));
-		this.toDispose.push(this.editor.onMouseLeave(() => {
-			this.ensureBreakpointHintDecoration(-1);
-		}));
+				this.ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber);
+			}));
+			this.toDispose.push(this.editor.onMouseLeave(() => {
+				this.ensureBreakpointHintDecoration(-1);
+			}));
+		}
+
 
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
 			this.closeBreakpointWidget();
