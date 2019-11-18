@@ -17,7 +17,7 @@ const ACCOUNT = 'MyAccount';
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Inactive;
+	private _status: AuthTokenStatus = AuthTokenStatus.Initializing;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
@@ -29,10 +29,11 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
-		this._status = AuthTokenStatus.Inactive;
 		this.getToken().then(token => {
 			if (token) {
 				this.setStatus(AuthTokenStatus.Active);
+			} else {
+				this.setStatus(AuthTokenStatus.Inactive);
 			}
 		});
 	}

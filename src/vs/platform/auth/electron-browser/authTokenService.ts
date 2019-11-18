@@ -49,7 +49,7 @@ export interface IToken {
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Inactive;
+	private _status: AuthTokenStatus = AuthTokenStatus.Initializing;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
@@ -66,6 +66,8 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 		this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT).then(storedRefreshToken => {
 			if (storedRefreshToken) {
 				this.refresh(storedRefreshToken);
+			} else {
+				this.setStatus(AuthTokenStatus.Inactive);
 			}
 		});
 	}
@@ -219,7 +221,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 						});
 						resolve();
 					} else {
-						reject(new Error('Bad!'));
+						reject(new Error('Refreshing token failed.'));
 					}
 				});
 			});
@@ -228,6 +230,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 			post.end();
 			post.on('error', err => {
+				this.setStatus(AuthTokenStatus.Inactive);
 				reject(err);
 			});
 		});
