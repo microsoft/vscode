@@ -1271,7 +1271,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
-			input.sortByLabel = (options.sortByLabel === undefined) || options.sortByLabel; // default to true
 			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.contextKey = options.contextKey;

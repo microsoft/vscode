@@ -475,13 +475,13 @@ export class QuickInputList {
 	}
 
 	filter(query: string) {
-		if (!(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+		if (!(this.sortByLabel || this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
 			return;
 		}
 		query = query.trim();
 
 		// Reset filtering
-		if (!query) {
+		if (!query || !(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
 			this.elements.forEach(element => {
 				element.labelHighlights = undefined;
 				element.descriptionHighlights = undefined;

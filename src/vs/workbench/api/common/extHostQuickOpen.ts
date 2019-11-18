@@ -54,7 +54,6 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			placeHolder: options && options.placeHolder,
 			matchOnDescription: options && options.matchOnDescription,
 			matchOnDetail: options && options.matchOnDetail,
-			sortByLabel: options && options.sortByLabel,
 			ignoreFocusLost: options && options.ignoreFocusOut,
 			canPickMany: options && options.canPickMany
 		}, token);

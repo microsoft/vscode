@@ -58,11 +58,6 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	matchOnLabel?: boolean;
 
 	/**
-	 * an optional flag to sort the final results by index of first query match in label. Defaults to true.
-	 */
-	sortByLabel?: boolean;
-
-	/**
 	 * an option flag to control whether focus is always automatically brought to a list item. Defaults to true.
 	 */
 	autoFocusOnList?: boolean;
