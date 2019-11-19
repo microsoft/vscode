@@ -888,10 +888,12 @@ declare module 'vscode' {
 		/**
 		 * An event that is emitted when files are being created.
 		 *
-		 * *Note:* This event is triggered by user gestures, like creating a file from the
+		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
 		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When this event is fired, edits to files thare are being created cannot be applied.
 		 */
 		export const onWillCreateFiles: Event<FileWillCreateEvent>;
 
