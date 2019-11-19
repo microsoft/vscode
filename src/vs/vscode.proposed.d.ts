@@ -44,9 +44,23 @@ declare module 'vscode' {
 	 * Used as part of the ResolverResult if the extension has any candidate, published, or forwarded ports.
 	 */
 	export interface PortInformation {
+		/**
+		 * Ports the extension knows are interesting and might be nice to forward.
+		 */
 		candidates?: Port[];
+		/**
+		 * Ports that are already immutably forwarded.
+		 */
 		published?: Port[];
-		forwarded?: Port[];
+		/**
+		 * An array of ports to be forwarded once connected.
+		 */
+		toForward?: { remote: number, local: number, name: string }[];
+		/**
+		 * Allows ports that have been forwarded in a workspace to be restored next time that workspace is opened.
+		 * Alternative to this: have API for getting all the ports then an event when they change so that the extension can save and restore ports(as it can do today).
+		 */
+		restorePorts: boolean;
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & PortInformation;
