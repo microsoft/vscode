@@ -39,7 +39,7 @@ export interface IEditorConfiguration {
  */
 export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	private editorControl: IEditor | undefined;
-	private _editorContainer: HTMLElement | undefined;
+	private editorContainer: HTMLElement | undefined;
 	private hasPendingConfigurationChange: boolean | undefined;
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
@@ -121,20 +121,17 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
-		const overrides = {};
-		assign(overrides, {
+		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true
-		});
-
-		return overrides;
+		};
 	}
 
 	protected createEditor(parent: HTMLElement): void {
 
 		// Editor for Text
-		this._editorContainer = parent;
+		this.editorContainer = parent;
 		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 
 		// Model & Language changes
@@ -200,7 +197,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		// editor input specific options (e.g. an ARIA label depending on the input showing)
 		this.updateEditorConfiguration();
 
-		const editorContainer = assertIsDefined(this._editorContainer);
+		const editorContainer = assertIsDefined(this.editorContainer);
 		editorContainer.setAttribute('aria-label', this.computeAriaLabel());
 	}
 
