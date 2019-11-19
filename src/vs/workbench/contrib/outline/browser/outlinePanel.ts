@@ -373,7 +373,6 @@ export class OutlinePanel extends ViewletPanel {
 				this._tree.updateChildren();
 			}
 			if (e.affectsConfiguration('outline')) {
-				this._treeFilter.update();
 				this._tree.refilter();
 			}
 		}));
