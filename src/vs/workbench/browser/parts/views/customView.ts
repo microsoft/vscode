@@ -41,6 +41,7 @@ import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } fro
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -403,6 +404,9 @@ export class CustomTreeView extends Disposable implements ITreeView {
 				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
 			},
 			multipleSelectionSupport: this.canSelectMany,
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
 		aligner.tree = this.tree;
 		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
