@@ -19,7 +19,7 @@ import { basename, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, EditorsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditor, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IVisibleEditor, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -658,7 +658,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region save
+	//#region save/revert
 
 	async save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> {
 
@@ -715,10 +715,26 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return this.save(this.getAllDirtyEditors(!!options?.includeUntitled), options);
 	}
 
-	async revertAll(options?: IRevertOptions): Promise<boolean> {
-		const result = await Promise.all(this.getAllDirtyEditors(true /* include untitled */).map(async ({ editor }) => editor.revert(options)));
+	async revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
+
+		// Convert to array
+		if (!Array.isArray(editors)) {
+			editors = [editors];
+		}
+
+		const result = await Promise.all(editors.map(async ({ groupId, editor }) => {
+
+			// Use revert as a hint to pin the editor
+			this.editorGroupService.getGroup(groupId)?.pinEditor(editor);
+
+			return editor.revert(options);
+		}));
 
 		return result.every(success => !!success);
+	}
+
+	async revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
+		return this.revert(this.getAllDirtyEditors(!!options?.includeUntitled), options);
 	}
 
 	private getAllDirtyEditors(includeUntitled: boolean): IEditorIdentifier[] {

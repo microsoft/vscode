@@ -412,23 +412,13 @@ CommandsRegistry.registerCommand({
 		const notificationService = accessor.get(INotificationService);
 		const listService = accessor.get(IListService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
 
-		const editors = getMultiSelectedEditors(listService, editorGroupsService);
-		if (editors.length) {
-			try {
-				await Promise.all(editors.map(async ({ groupId, editor }) => {
-					if (editor.isUntitled()) {
-						return; // we do not allow to revert untitled editors
-					}
-
-					// Use revert as a hint to pin the editor
-					editorGroupsService.getGroup(groupId)?.pinEditor(editor);
-
-					return editor.revert({ force: true });
-				}));
-			} catch (error) {
-				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
-			}
+		const editors = getMultiSelectedEditors(listService, editorGroupsService).filter(({ editor }) => !editor.isUntitled() /* all except untitled */);
+		try {
+			await editorService.revert(editors, { force: true });
+		} catch (error) {
+			notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 		}
 	}
 });

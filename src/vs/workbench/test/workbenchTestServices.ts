@@ -57,7 +57,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverrideHandler, IVisibleEditor, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverrideHandler, IVisibleEditor, ISaveEditorsOptions, IRevertAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
@@ -930,7 +930,11 @@ export class TestEditorService implements EditorServiceImpl {
 		throw new Error('Method not implemented.');
 	}
 
-	revertAll(options?: IRevertOptions): Promise<boolean> {
+	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
+		throw new Error('Method not implemented.');
+	}
+
+	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 }

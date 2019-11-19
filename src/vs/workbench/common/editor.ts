@@ -334,6 +334,9 @@ export interface IRevertOptions {
 	/**
 	 * A soft revert will clear dirty state of a working copy
 	 * but will not attempt to load it from its persisted state.
+	 *
+	 * This option may be used in scenarios where an editor is
+	 * closed and where we do not require to load the contents.
 	 */
 	soft?: boolean;
 }
