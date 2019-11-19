@@ -170,14 +170,14 @@ function command(commandId: string, options: CommandOptions = {}): Function {
 	};
 }
 
-const ImageMimetypes = [
-	'image/png',
-	'image/gif',
-	'image/jpeg',
-	'image/webp',
-	'image/tiff',
-	'image/bmp'
-];
+// const ImageMimetypes = [
+// 	'image/png',
+// 	'image/gif',
+// 	'image/jpeg',
+// 	'image/webp',
+// 	'image/tiff',
+// 	'image/bmp'
+// ];
 
 async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[], deletionConflicts: Resource[] }> {
 	const selection = resources.filter(s => s instanceof Resource) as Resource[];
@@ -331,42 +331,42 @@ export class CommandCenter {
 	}
 
 	private async getURI(uri: Uri, ref: string): Promise<Uri | undefined> {
-		const repository = this.model.getRepository(uri);
+		// const repository = this.model.getRepository(uri);
 
-		if (!repository) {
-			return toGitUri(uri, ref);
-		}
+		// if (!repository) {
+		return toGitUri(uri, ref);
+		// }
 
-		try {
-			let gitRef = ref;
+		// try {
+		// 	let gitRef = ref;
 
-			if (gitRef === '~') {
-				const uriString = uri.toString();
-				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-				gitRef = indexStatus ? '' : 'HEAD';
-			}
+		// 	if (gitRef === '~') {
+		// 		const uriString = uri.toString();
+		// 		const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
+		// 		gitRef = indexStatus ? '' : 'HEAD';
+		// 	}
 
-			const { size, object } = await repository.getObjectDetails(gitRef, uri.fsPath);
-			const { mimetype } = await repository.detectObjectType(object);
+		// 	const { size, object } = await repository.getObjectDetails(gitRef, uri.fsPath);
+		// 	const { mimetype } = await repository.detectObjectType(object);
 
-			if (mimetype === 'text/plain') {
-				return toGitUri(uri, ref);
-			}
+		// 	if (mimetype === 'text/plain') {
+		// 		return toGitUri(uri, ref);
+		// 	}
 
-			if (size > 1000000) { // 1 MB
-				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
-			}
+		// 	if (size > 1000000) { // 1 MB
+		// 		return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
+		// 	}
 
-			if (ImageMimetypes.indexOf(mimetype) > -1) {
-				const contents = await repository.buffer(gitRef, uri.fsPath);
-				return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${gitRef};size:${size};base64,${contents.toString('base64')}`);
-			}
+		// 	if (ImageMimetypes.indexOf(mimetype) > -1) {
+		// 		const contents = await repository.buffer(gitRef, uri.fsPath);
+		// 		return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${gitRef};size:${size};base64,${contents.toString('base64')}`);
+		// 	}
 
-			return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
+		// 	return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
 
-		} catch (err) {
-			return toGitUri(uri, ref);
-		}
+		// } catch (err) {
+		// 	return toGitUri(uri, ref);
+		// }
 	}
 
 	private async getLeftResource(resource: Resource): Promise<Uri | undefined> {
