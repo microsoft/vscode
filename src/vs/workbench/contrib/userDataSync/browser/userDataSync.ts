@@ -318,18 +318,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			when: CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.SigningIn)
 		});
 
-		const stopSycCommand = {
+		const stopSyncCommand = {
 			id: 'workbench.userData.actions.stopSync',
 			title: localize('stop sync', "Sync: Turn Off")
 		};
-		CommandsRegistry.registerCommand(stopSycCommand.id, () => this.turnOff());
+		CommandsRegistry.registerCommand(stopSyncCommand.id, () => this.turnOff());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
-			command: stopSycCommand,
+			command: stopSyncCommand,
 			when: ContextKeyExpr.and(ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.Active), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.HasConflicts))
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: stopSycCommand,
+			command: stopSyncCommand,
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
 		});
 
