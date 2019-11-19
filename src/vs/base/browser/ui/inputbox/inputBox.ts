@@ -305,6 +305,7 @@ export class InputBox extends Widget {
 	}
 
 	public disable(): void {
+		this.blur();
 		this.input.disabled = true;
 		this._hideMessage();
 	}
