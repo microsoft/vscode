@@ -50,7 +50,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
+	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate, location?: ViewContainerLocation): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -70,8 +70,13 @@ interface ViewOrderDelegate {
 	getOrder(group?: string): number | undefined;
 }
 
+export enum ViewContainerLocation {
+	ACTIVITY_BAR,
+	PANEL
+}
+
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier, readonly orderDelegate?: ViewOrderDelegate) { }
+	protected constructor(readonly id: string, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier, readonly orderDelegate?: ViewOrderDelegate, readonly location: ViewContainerLocation = ViewContainerLocation.ACTIVITY_BAR) { }
 }
 
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {

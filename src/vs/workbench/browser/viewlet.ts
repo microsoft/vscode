@@ -39,6 +39,11 @@ export abstract class Viewlet extends Composite implements IViewlet {
 		return undefined;
 	}
 
+	getOptimalHeight(): number | undefined {
+		return undefined;
+	}
+
+	// TODO@sbatten update for generic or move up a layer
 	getContextMenuActions(): IAction[] {
 		const toggleSidebarPositionAction = new ToggleSidebarPositionAction(ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.getLabel(this.layoutService), this.layoutService, this.configurationService);
 		return [toggleSidebarPositionAction,

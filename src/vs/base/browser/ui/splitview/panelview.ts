@@ -15,6 +15,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface IPanelOptions {
 	ariaHeaderLabel?: string;
@@ -371,6 +372,7 @@ export class DefaultPanelDndController implements IPanelDndController {
 
 export interface IPanelViewOptions {
 	dnd?: IPanelDndController;
+	orientation?: Orientation;
 }
 
 interface IPanelItem {
@@ -398,7 +400,7 @@ export class PanelView extends Disposable {
 
 		this.dnd = options.dnd;
 		this.el = append(container, $('.monaco-panel-view'));
-		this.splitview = this._register(new SplitView(this.el));
+		this.splitview = this._register(new SplitView(this.el, { orientation: options.orientation }));
 		this.onDidSashChange = this.splitview.onDidSashChange;
 	}
 

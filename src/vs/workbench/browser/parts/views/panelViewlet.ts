@@ -30,6 +30,7 @@ import { IView, FocusedViewContext } from 'vs/workbench/common/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -234,7 +235,7 @@ interface IViewletPanelItem {
 	disposable: IDisposable;
 }
 
-export class PanelViewlet extends Viewlet {
+export class SplitViewViewlet extends Viewlet implements IViewlet {
 
 	private lastFocusedPanel: ViewletPanel | undefined;
 	private panelItems: IViewletPanelItem[] = [];

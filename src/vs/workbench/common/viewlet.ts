@@ -16,4 +16,10 @@ export interface IViewlet extends IComposite {
 	 * Returns the minimal width needed to avoid any content horizontal truncation
 	 */
 	getOptimalWidth(): number | undefined;
+
+
+	/**
+	 * Returns the minimal height	needed to avoid any content horizontal truncation
+	 */
+	getOptimalHeight(): number | undefined;
 }

@@ -35,7 +35,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions, ViewContainerPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
@@ -48,6 +48,14 @@ import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { Extensions as ViewsExtensions, ViewContainer, IViewContainersRegistry, IViewsRegistry } from 'vs/workbench/common/views';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { _outlineDesc } from 'vs/workbench/contrib/outline/browser/outline.contribution';
 
 class RequestState {
 
@@ -651,3 +659,51 @@ export class OutlinePanel extends ViewletPanel {
 		this._tree.setSelection([item]);
 	}
 }
+
+export class ToggleOutlinePosition extends Action {
+	static readonly ID = 'workbench.outline.action.togglePosition';
+	static readonly LABEL = localize('toggleOutlinePosition', "Toggle Outline View Position");
+	static readonly VIEW_ID = 'outline.panel.view';
+
+	private viewContainer: ViewContainer;
+
+
+	constructor() {
+		super(ToggleOutlinePosition.ID, ToggleOutlinePosition.LABEL);
+
+		this.viewContainer = Registry.as<IViewContainersRegistry>(ViewsExtensions.ViewContainersRegistry).registerViewContainer(ToggleOutlinePosition.VIEW_ID, true);
+	}
+
+	run(): Promise<any> {
+		// TODO@sbatten allow registering panel with hidden if empty
+		class CustomPanel extends ViewContainerPanel {
+			constructor(
+				@IConfigurationService configurationService: IConfigurationService,
+				@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+				@ITelemetryService telemetryService: ITelemetryService,
+				@IWorkspaceContextService contextService: IWorkspaceContextService,
+				@IStorageService storageService: IStorageService,
+				@IEditorService editorService: IEditorService,
+				@IInstantiationService instantiationService: IInstantiationService,
+				@IThemeService themeService: IThemeService,
+				@IContextMenuService contextMenuService: IContextMenuService,
+				@IExtensionService extensionService: IExtensionService
+			) {
+				super(ToggleOutlinePosition.VIEW_ID, true, configurationService, layoutService, telemetryService, contextMenuService, themeService, storageService, instantiationService);
+			}
+		}
+
+		const panelDescriptor = PanelDescriptor.create(
+			CustomPanel,
+			ToggleOutlinePosition.VIEW_ID,
+			'Outline',
+			undefined,
+			11
+		);
+
+		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(panelDescriptor);
+		Registry.as<IViewsRegistry>(ViewsExtensions.ViewsRegistry).moveViews([_outlineDesc], this.viewContainer);
+		return Promise.resolve();
+	}
+}
+

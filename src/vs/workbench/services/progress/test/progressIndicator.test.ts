@@ -13,7 +13,6 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { TestViewletService, TestPanelService } from 'vs/workbench/test/workbenchTestServices';
 
 class TestViewlet implements IViewlet {
-
 	constructor(private id: string) { }
 
 	getId(): string { return this.id; }
@@ -25,6 +24,7 @@ class TestViewlet implements IViewlet {
 	getControl(): IEditorControl { return null!; }
 	focus(): void { }
 	getOptimalWidth(): number { return 10; }
+	getOptimalHeight(): number | undefined { return undefined; }
 }
 
 class TestCompositeScope extends CompositeScope {

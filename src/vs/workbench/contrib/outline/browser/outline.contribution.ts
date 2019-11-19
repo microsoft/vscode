@@ -5,15 +5,17 @@
 
 import { localize } from 'vs/nls';
 import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { OutlinePanel } from './outlinePanel';
+import { OutlinePanel, ToggleOutlinePosition } from './outlinePanel';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
 
 import './outlineNavigation';
+import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 
-const _outlineDesc = <IViewDescriptor>{
+export const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
 	ctorDescriptor: { ctor: OutlinePanel },
@@ -185,3 +187,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		}
 	}
 });
+
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleOutlinePosition, ToggleOutlinePosition.ID, ToggleOutlinePosition.LABEL, undefined, undefined, undefined), 'Toggle Outline Position', 'Outline');
+
