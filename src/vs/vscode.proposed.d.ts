@@ -33,11 +33,10 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export class Port extends Disposable {
-		readonly remotePort: number;
-		readonly localPort?: number;
-		readonly description?: string;
-		constructor(remotePort: number, localPort?: number, description?: string);
+	export interface Port extends Disposable {
+		remotePort: number;
+		localPort?: number;
+		description?: string;
 	}
 
 	/**
@@ -53,7 +52,8 @@ declare module 'vscode' {
 		 */
 		published?: Port[];
 		/**
-		 * An array of ports to be forwarded once connected.
+		 * An array of ports to be forwarded once connected. For example,
+		 * if the extension wants to have a configuration file with some default ports, they could be passed through for forwarding here.
 		 */
 		toForward?: { remote: number, local: number, name: string }[];
 		/**
@@ -76,6 +76,8 @@ declare module 'vscode' {
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
 		/**
 		 * Can be optionally implemented if the extension can forward ports better than the core.
+		 * When not implemented, the core will use its default forwarding logic.
+		 * When implemented, the core will use this to forward ports.
 		 */
 		forwardPort?(remotePort: number, localPort?: number): Thenable<Port | undefined>;
 	}
