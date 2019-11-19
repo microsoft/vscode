@@ -1046,7 +1046,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				return await fileService.copy(fileToPaste, targetFile);
 			}
 		} catch (e) {
-			onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile. {0}", getErrorMessage(e))));
+			onError(notificationService, new Error(nls.localize('fileDeleted', "The file to paste has been deleted or moved since you copied it. {0}", getErrorMessage(e))));
 			return undefined;
 		}
 	}));
