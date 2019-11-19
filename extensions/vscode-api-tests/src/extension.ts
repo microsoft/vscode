@@ -22,10 +22,9 @@ export function activate(context: vscode.ExtensionContext) {
 	enableProblems(context);
 	enableSearch(context, memFs);
 	enableTasks();
+	enableDebug(context, memFs);
 
 	vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
-
-	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('mock', new MockDebugAdapterDescriptorFactory(memFs)));
 }
 
 function enableFs(context: vscode.ExtensionContext): MemFS {
@@ -893,10 +892,17 @@ export class MemFS implements vscode.FileSystemProvider, vscode.FileSearchProvid
 }
 
 //---------------------------------------------------------------------------
+//								DEBUG
+//---------------------------------------------------------------------------
 
-/** Declaration module describing the VS Code debug protocol.
-	Auto-generated from json schema. Do not edit manually.
-*/
+function enableDebug(context: vscode.ExtensionContext, memFs: MemFS): void {
+	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('mock', new MockDebugAdapterDescriptorFactory(memFs)));
+}
+
+/**
+ * Declaration module describing the VS Code debug protocol.
+ * Auto-generated from json schema. Do not edit manually.
+ */
 declare module DebugProtocol {
 
 	/** Base class of requests, responses, and events. */
