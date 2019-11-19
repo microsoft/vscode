@@ -29,6 +29,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Inactive);
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
@@ -58,6 +59,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
@@ -110,7 +112,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const enabled = this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING);
 		if (enabled) {
 			if (this.authTokenService.status === AuthTokenStatus.Inactive) {
-				const handle = this.notificationService.prompt(Severity.Info, localize('ask to sign in', "Please sign in with your '{0}' account to sync configuration", "{ACCOUNT_NAME}"),
+				const handle = this.notificationService.prompt(Severity.Info, localize('ask to sign in', "Please sign in with your {0} account to sync configuration across all your machines", this.productService.settingsSyncStore!.account),
 					[
 						{
 							label: localize('Sign in', "Sign in"),
@@ -152,8 +154,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (this.authTokenService.status === AuthTokenStatus.Inactive) {
 			const result = await this.dialogService.confirm({
 				type: 'info',
-				message: localize('sign in to account', "Sign in to {0}", "{ACCOUNT_NAME}"),
-				detail: localize('ask to sign in', "Please sign in with your '{0}' account to sync configuration", "{ACCOUNT_NAME}"),
+				message: localize('sign in to account', "Sign in to {0}", this.productService.settingsSyncStore!.name),
+				detail: localize('ask to sign in', "Please sign in with your {0} account to sync configuration across all your machines", this.productService.settingsSyncStore!.account),
 				primaryButton: localize('Sign in', "Sign in")
 			});
 			if (!result.confirmed) {

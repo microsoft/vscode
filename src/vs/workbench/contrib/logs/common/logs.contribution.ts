@@ -47,7 +47,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerCommonContributions(): void {
-		if (this.productService.settingsSyncStoreUrl) {
+		if (this.productService.settingsSyncStore) {
 			this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Configuration Sync"), this.environmentService.userDataSyncLogResource);
 		}
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);

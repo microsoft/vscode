@@ -17,7 +17,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 	_serviceBrand: any;
 
-	get enabled(): boolean { return !!this.productService.settingsSyncStoreUrl; }
+	get enabled(): boolean { return !!this.productService.settingsSyncStore; }
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -32,7 +32,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), 'resource', key, 'latest').toString();
+		const url = joinPath(URI.parse(this.productService.settingsSyncStore!.url), 'resource', key, 'latest').toString();
 		const headers: IHeaders = {};
 		if (oldValue) {
 			headers['If-None-Match'] = oldValue.ref;
@@ -62,7 +62,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new Error('No settings sync store url configured.');
 		}
 
-		const url = joinPath(URI.parse(this.productService.settingsSyncStoreUrl!), 'resource', key).toString();
+		const url = joinPath(URI.parse(this.productService.settingsSyncStore!.url), 'resource', key).toString();
 		const headers: IHeaders = { 'Content-Type': 'text/plain' };
 		if (ref) {
 			headers['If-Match'] = ref;
