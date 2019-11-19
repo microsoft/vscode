@@ -124,7 +124,8 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
-			fixedOverflowWidgets: true
+			fixedOverflowWidgets: true,
+			readOnly: this.input?.isReadonly()
 		};
 	}
 
@@ -300,6 +301,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 				configuration = this.configurationService.getValue<IEditorConfiguration>(resource);
 			}
 		}
+
 		if (!this.editorControl || !configuration) {
 			return;
 		}

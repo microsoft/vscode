@@ -10,7 +10,6 @@ import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditor, IEditorMemento } from 'vs/workbench/common/editor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -55,7 +54,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IHostService hostService: IHostService,
-		@IClipboardService private _clipboardService: IClipboardService,
+		@IClipboardService private clipboardService: IClipboardService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, filesConfigurationService);
@@ -74,7 +73,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, this._clipboardService);
+		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, this.clipboardService);
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
@@ -211,7 +210,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	protected getConfigurationOverrides(): ICodeEditorOptions {
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
-		options.readOnly = this.isReadOnly();
+		options.originalEditable = this.input instanceof DiffEditorInput && !this.input.originalInput.isReadonly();
 		options.lineDecorationsWidth = '2ch';
 
 		return options;
@@ -219,25 +218,15 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	protected getAriaLabel(): string {
 		let ariaLabel: string;
+
 		const inputName = this.input?.getName();
-		if (this.isReadOnly()) {
+		if (this.input?.isReadonly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
 		} else {
 			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0}. Text file compare editor.", inputName) : nls.localize('editableEditorAriaLabel', "Text file compare editor.");
 		}
 
 		return ariaLabel;
-	}
-
-	private isReadOnly(): boolean {
-		const input = this.input;
-		if (input instanceof DiffEditorInput) {
-			const modifiedInput = input.modifiedInput;
-
-			return modifiedInput instanceof ResourceEditorInput;
-		}
-
-		return false;
 	}
 
 	private isFileBinaryError(error: Error[]): boolean;

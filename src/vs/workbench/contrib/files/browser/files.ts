@@ -53,17 +53,6 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 	return editorService.activeEditor ? toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : undefined;
 }
 
-export function getEditorForCommand(listService: IListService, editorGroupService: IEditorGroupsService): IEditorIdentifier | undefined {
-	const focus = getFocus(listService);
-	if (focus instanceof OpenEditor) {
-		return focus;
-	}
-
-	const activeGroup = editorGroupService.activeGroup;
-
-	return activeGroup.activeEditor ? { groupId: activeGroup.id, editor: activeGroup.activeEditor } : undefined;
-}
-
 export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService): Array<URI> {
 	const list = listService.lastFocusedList;
 	if (list?.getHTMLElement() === document.activeElement) {
@@ -103,7 +92,7 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 	return !!result ? [result] : [];
 }
 
-export function getMultiSelectedEditors(listService: IListService, editorGroupsService: IEditorGroupsService): Array<IEditorIdentifier> {
+export function getOpenEditorsViewMultiSelection(listService: IListService, editorGroupService: IEditorGroupsService): Array<IEditorIdentifier> | undefined {
 	const list = listService.lastFocusedList;
 	if (list?.getHTMLElement() === document.activeElement) {
 		// Open editors view
@@ -122,6 +111,5 @@ export function getMultiSelectedEditors(listService: IListService, editorGroupsS
 		}
 	}
 
-	const result = getEditorForCommand(listService, editorGroupsService);
-	return !!result ? [result] : [];
+	return undefined;
 }

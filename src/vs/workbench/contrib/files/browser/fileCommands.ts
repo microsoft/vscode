@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { toResource, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
+import { toResource, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +23,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getResourceForCommand, getMultiSelectedResources, getMultiSelectedEditors } from 'vs/workbench/contrib/files/browser/files';
+import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection } from 'vs/workbench/contrib/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
@@ -315,12 +315,35 @@ CommandsRegistry.registerCommand({
 
 async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
 	const listService = accessor.get(IListService);
-	const editorGroupsService = accessor.get(IEditorGroupsService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const textFileService = accessor.get(ITextFileService);
 
+	// Retrieve selected or active editor
+	let editors = getOpenEditorsViewMultiSelection(listService, editorGroupService);
+	if (!editors) {
+		const activeGroup = editorGroupService.activeGroup;
+		if (activeGroup.activeEditor) {
+			editors = [];
+
+			// Special treatment for side by side editors: if the active editor
+			// has 2 sides, we consider both, to support saving both sides.
+			// We only allow this when saving, not for "Save As".
+			// See also https://github.com/microsoft/vscode/issues/4180
+			if (activeGroup.activeEditor instanceof SideBySideEditorInput && !options?.saveAs) {
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.master });
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.details });
+			} else {
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor });
+			}
+		}
+	}
+
+	if (!editors || editors.length === 0) {
+		return; // nothing to save
+	}
+
 	// Save editors
-	const editors = getMultiSelectedEditors(listService, editorGroupsService);
 	await doSaveEditors(accessor, editors, options);
 
 	// Special treatment for embedded editors: if we detect that focus is
@@ -435,12 +458,24 @@ CommandsRegistry.registerCommand({
 	handler: async accessor => {
 		const notificationService = accessor.get(INotificationService);
 		const listService = accessor.get(IListService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
 		const editorService = accessor.get(IEditorService);
 
-		const editors = getMultiSelectedEditors(listService, editorGroupsService).filter(({ editor }) => !editor.isUntitled() /* all except untitled */);
+		// Retrieve selected or active editor
+		let editors = getOpenEditorsViewMultiSelection(listService, editorGroupService);
+		if (!editors) {
+			const activeGroup = editorGroupService.activeGroup;
+			if (activeGroup.activeEditor) {
+				editors = [{ groupId: activeGroup.id, editor: activeGroup.activeEditor }];
+			}
+		}
+
+		if (!editors || editors.length === 0) {
+			return; // nothing to revert
+		}
+
 		try {
-			await editorService.revert(editors, { force: true });
+			await editorService.revert(editors.filter(({ editor }) => !editor.isUntitled() /* all except untitled */), { force: true });
 		} catch (error) {
 			notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 		}

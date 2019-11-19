@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { assertIsDefined, isFunction } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -108,14 +107,6 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			const textEditor = assertIsDefined(this.getControl());
 			textOptions.apply(textEditor, ScrollType.Smooth);
 		}
-	}
-
-	protected getConfigurationOverrides(): IEditorOptions {
-		const options = super.getConfigurationOverrides();
-
-		options.readOnly = !(this.input instanceof UntitledTextEditorInput); // all resource editors are readonly except for the untitled one;
-
-		return options;
 	}
 
 	protected getAriaLabel(): string {
