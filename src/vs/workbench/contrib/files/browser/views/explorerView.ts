@@ -293,10 +293,6 @@ export class ExplorerView extends ViewletPanel {
 			focusedStat = focus.length ? focus[0] : undefined;
 		}
 
-		if (!focusedStat) {
-			return [];
-		}
-
 		const selectedStats: ExplorerItem[] = [];
 
 		for (const stat of this.tree.getSelection()) {
@@ -306,6 +302,13 @@ export class ExplorerView extends ViewletPanel {
 				selectedStats.push(...controller.items);
 			} else {
 				selectedStats.push(stat);
+			}
+		}
+		if (!focusedStat) {
+			if (respectMultiSelection) {
+				return selectedStats;
+			} else {
+				return [];
 			}
 		}
 

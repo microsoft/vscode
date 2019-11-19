@@ -37,6 +37,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 // Commands
 
@@ -310,11 +313,32 @@ CommandsRegistry.registerCommand({
 
 // Save / Save As / Save All / Revert
 
-function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
+async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
 	const listService = accessor.get(IListService);
 	const editorGroupsService = accessor.get(IEditorGroupsService);
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const textFileService = accessor.get(ITextFileService);
 
-	return doSaveEditors(accessor, getMultiSelectedEditors(listService, editorGroupsService), options);
+	// Save editors
+	const editors = getMultiSelectedEditors(listService, editorGroupsService);
+	await doSaveEditors(accessor, editors, options);
+
+	// Special treatment for embedded editors: if we detect that focus is
+	// inside an embedded code editor, we save that model as well if we
+	// find it in our text file models. Currently, only textual editors
+	// support embedded editors.
+	const focusedCodeEditor = codeEditorService.getFocusedCodeEditor();
+	if (focusedCodeEditor instanceof EmbeddedCodeEditorWidget) {
+		const resource = focusedCodeEditor.getModel()?.uri;
+
+		// Check that the resource of the model was not saved already
+		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }), resource))) {
+			const model = textFileService.models.get(resource);
+			if (!model?.isReadonly()) {
+				await textFileService.save(resource, options);
+			}
+		}
+	}
 }
 
 function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyArray<IEditorGroup>, options?: ISaveEditorsOptions): Promise<void> {
