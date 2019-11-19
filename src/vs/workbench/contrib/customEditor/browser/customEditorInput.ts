@@ -16,7 +16,6 @@ import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity 
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { CustomEditorModel } from '../common/customEditorModel';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
@@ -111,14 +110,6 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 	}
 
-	public setModel(model: CustomEditorModel) {
-		if (this._model) {
-			throw new Error('Model is already set');
-		}
-		this._model = model;
-		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-	}
-
 	public isReadonly(): boolean {
 		return false;
 	}
@@ -142,6 +133,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public async resolve(): Promise<IEditorModel> {
 		this._model = await this.customEditorService.models.loadOrCreate(this.getResource(), this.viewType);
+		this._register(this._model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		return await super.resolve();
 	}
 }
