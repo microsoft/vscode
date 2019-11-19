@@ -41,7 +41,7 @@ export class Logger {
 
 	public log(message: string, data?: any): void {
 		if (this.trace === Trace.Verbose) {
-			this.appendLine(`[Log - ${(new Date().toLocaleTimeString())}] ${message}`);
+			this.appendLine(`[Log - ${(new Date().toTimeString())}] ${message}`);
 			if (data) {
 				this.appendLine(Logger.data2String(data));
 			}
