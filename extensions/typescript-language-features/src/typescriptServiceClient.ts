@@ -465,6 +465,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private serviceStarted(resendModels: boolean): void {
+		this.bufferSyncSupport.reset();
+
 		const configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode',
 			preferences: {
@@ -476,6 +478,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.setCompilerOptionsForInferredProjects(this._configuration);
 		if (resendModels) {
 			this._onResendModelsRequested.fire();
+			this.bufferSyncSupport.reinitialize();
+			this.bufferSyncSupport.requestAllDiagnostics();
 		}
 
 		// Reconfigure any plugins
@@ -548,7 +552,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (prompt) {
 					prompt.then(item => {
 						if (item && item.id === MessageAction.reportIssue) {
-							return vscode.commands.executeCommand('workbench.action.reportIssues');
+							return vscode.commands.executeCommand('workbench.action.openIssueReporter');
 						}
 						return undefined;
 					});

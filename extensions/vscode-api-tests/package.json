@@ -46,23 +46,66 @@
 			}
 		},
 		"taskDefinitions": [
-				{
-					"type": "custombuildscript",
-					"required": [
-						"flavor"
-					],
-					"properties": {
-						"flavor": {
-							"type": "string",
-							"description": "The build flavor. Should be either '32' or '64'."
-						},
-						"flags": {
-							"type": "array",
-							"description": "Additional build flags."
-						}
+			{
+				"type": "custombuildscript",
+				"required": [
+					"flavor"
+				],
+				"properties": {
+					"flavor": {
+						"type": "string",
+						"description": "The build flavor. Should be either '32' or '64'."
+					},
+					"flags": {
+						"type": "array",
+						"description": "Additional build flags."
 					}
 				}
-			]
+			}
+		],
+		"breakpoints": [
+			{
+				"language": "markdown"
+			}
+		],
+		"debuggers": [
+			{
+				"type": "mock",
+				"label": "Mock Debug",
+				"configurationAttributes": {
+					"launch": {
+						"required": [
+							"program"
+						],
+						"properties": {
+							"program": {
+								"type": "string",
+								"description": "Absolute path to a text file.",
+								"default": "${workspaceFolder}/file.md"
+							},
+							"stopOnEntry": {
+								"type": "boolean",
+								"description": "Automatically stop after launch.",
+								"default": true
+							},
+							"trace": {
+								"type": "boolean",
+								"description": "Enable logging of the Debug Adapter Protocol.",
+								"default": true
+							}
+						}
+					}
+				},
+				"initialConfigurations": [
+					{
+						"type": "mock",
+						"request": "launch",
+						"name": "Debug file.md",
+						"program": "${workspaceFolder}/file.md"
+					}
+				]
+			}
+		]
 	},
 	"scripts": {
 		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",

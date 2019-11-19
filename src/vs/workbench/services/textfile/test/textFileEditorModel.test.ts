@@ -263,7 +263,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.dirtyCount, 1);
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 
-		await model.revert(true /* soft revert */);
+		await model.revert({ soft: true });
 		assert.ok(!model.isDirty());
 		assert.equal(model.textEditorModel!.getValue(), 'foo');
 		assert.equal(eventCounter, 1);
@@ -300,7 +300,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.textEditorModel!.setValue('foo');
 		assert.ok(model.isDirty());
 
-		await model.revert(true /* soft revert */);
+		await model.revert({ soft: true });
 		assert.ok(!model.isDirty());
 
 		model.onDidStateChange(e => {

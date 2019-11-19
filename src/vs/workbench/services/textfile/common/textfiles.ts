@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, IRevertOptions, IModeSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult, FileOperation } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -131,21 +131,10 @@ export interface ITextFileService extends IDisposable {
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 }
 
-export class FileOperationWillRunEvent implements IWaitUntil {
-
-	constructor(
-		private _thenables: Promise<any>[],
-		readonly operation: FileOperation,
-		readonly target: URI,
-		readonly source?: URI | undefined
-	) { }
-
-	waitUntil(thenable: Promise<any>): void {
-		if (Object.isFrozen(this._thenables)) {
-			throw new Error('waitUntil cannot be used aync');
-		}
-		this._thenables.push(thenable);
-	}
+export interface FileOperationWillRunEvent extends IWaitUntil {
+	operation: FileOperation;
+	target: URI;
+	source?: URI;
 }
 
 export class FileOperationDidRunEvent {
@@ -323,13 +312,6 @@ export interface IResult {
 	success?: boolean;
 }
 
-export const enum SaveReason {
-	EXPLICIT = 1,
-	AUTO = 2,
-	FOCUS_CHANGE = 3,
-	WINDOW_CHANGE = 4
-}
-
 export const enum LoadReason {
 	EDITOR = 1,
 	REFERENCE = 2,
@@ -421,14 +403,10 @@ export interface ITextFileEditorModelManager {
 	disposeModel(model: ITextFileEditorModel): void;
 }
 
-export interface ISaveOptions {
-	force?: boolean;
-	reason?: SaveReason;
+export interface ITextFileSaveOptions extends ISaveOptions {
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
-	skipSaveParticipants?: boolean;
 	writeElevated?: boolean;
-	availableFileSystems?: readonly string[];
 }
 
 export interface ILoadOptions {
@@ -458,11 +436,11 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	updatePreferredEncoding(encoding: string | undefined): void;
 
-	save(options?: ISaveOptions): Promise<void>;
+	save(options?: ITextFileSaveOptions): Promise<boolean>;
 
 	load(options?: ILoadOptions): Promise<ITextFileEditorModel>;
 
-	revert(soft?: boolean): Promise<void>;
+	revert(options?: IRevertOptions): Promise<boolean>;
 
 	backup(target?: URI): Promise<void>;
 

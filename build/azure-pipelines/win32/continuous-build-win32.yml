@@ -13,7 +13,7 @@ steps:
   inputs:
     keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-    vstsFeed: '$(ArtifactFeed)'
+    vstsFeed: 'vscode-build-cache'
 - powershell: |
     yarn --frozen-lockfile
   env:
@@ -24,7 +24,7 @@ steps:
   inputs:
     keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-    vstsFeed: '$(ArtifactFeed)'
+    vstsFeed: 'vscode-build-cache'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - powershell: |
     yarn electron

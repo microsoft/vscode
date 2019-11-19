@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IEditorModel, EditorActivation } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -50,6 +50,10 @@ export class TestEditorControl extends BaseEditor {
 
 export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	public gotDisposed = false;
+	public gotSaved = false;
+	public gotSavedAs = false;
+	public gotReverted = false;
+	public dirty = false;
 	private fails = false;
 	constructor(private resource: URI) { super(); }
 
@@ -65,6 +69,26 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setForceOpenAsBinary(): void { }
 	setFailToOpen(): void {
 		this.fails = true;
+	}
+	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		this.gotSaved = true;
+		return Promise.resolve(true);
+	}
+	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		this.gotSavedAs = true;
+		return Promise.resolve(true);
+	}
+	revert(options?: IRevertOptions): Promise<boolean> {
+		this.gotReverted = true;
+		this.gotSaved = false;
+		this.gotSavedAs = false;
+		return Promise.resolve(true);
+	}
+	isDirty(): boolean {
+		return this.dirty;
+	}
+	isReadonly(): boolean {
+		return false;
 	}
 	dispose(): void {
 		super.dispose();
@@ -83,7 +107,7 @@ class FileServiceProvider extends Disposable {
 suite('EditorService', () => {
 
 	function registerTestEditorInput(): void {
-		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForEditorService', 'My Test Editor For Next Editor Service'), [new SyncDescriptor(TestEditorInput)]);
+		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditorControl, 'MyTestEditorForEditorService', 'My Test Editor For Next Editor Service'), [new SyncDescriptor(TestEditorInput)]);
 	}
 
 	registerTestEditorInput();
@@ -685,5 +709,46 @@ suite('EditorService', () => {
 
 		let failingEditor = await service.openEditor(failingInput);
 		assert.ok(!failingEditor);
+	});
+
+	test('save, saveAll, revertAll', async function () {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart);
+		part.create(document.createElement('div'));
+		part.layout(400, 300);
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+
+		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
+		input1.dirty = true;
+		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openside'));
+		input2.dirty = true;
+
+		const rootGroup = part.activeGroup;
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true });
+		await service.openEditor(input2, { pinned: true });
+
+		await service.save({ groupId: rootGroup.id, editor: input1 });
+		assert.equal(input1.gotSaved, true);
+
+		await service.save({ groupId: rootGroup.id, editor: input1 }, { saveAs: true });
+		assert.equal(input1.gotSavedAs, true);
+
+		await service.revertAll();
+		assert.equal(input1.gotReverted, true);
+
+		await service.saveAll();
+		assert.equal(input1.gotSaved, true);
+		assert.equal(input2.gotSaved, true);
+
+		await service.saveAll({ saveAs: true });
+		assert.equal(input1.gotSavedAs, true);
+		assert.equal(input2.gotSavedAs, true);
 	});
 });

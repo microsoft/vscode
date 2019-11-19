@@ -63,6 +63,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -344,7 +345,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	focus(): void {
-		this.replInput.focus();
+		setTimeout(() => this.replInput.focus(), 0);
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -428,7 +429,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
-				supportDynamicHeights: wordWrap
+				supportDynamicHeights: wordWrap,
+				overrideStyles: {
+					listBackground: PANEL_BACKGROUND
+				}
 			});
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;

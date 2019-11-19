@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, IRevertOptions, EditorOptions } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, EditorOptions, GroupIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -143,6 +143,10 @@ class TestCustomEditorInput extends EditorInput implements IWorkingCopy {
 
 	setValue(value: string) {
 		if (this.model) {
+			if (this.model.value === value) {
+				return;
+			}
+
 			this.model.value = value;
 		}
 
@@ -156,20 +160,30 @@ class TestCustomEditorInput extends EditorInput implements IWorkingCopy {
 		}
 	}
 
+	isReadonly(): boolean {
+		return false;
+	}
+
 	isDirty(): boolean {
 		return this.dirty;
 	}
 
-	save(): Promise<boolean> {
+	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.setDirty(false);
 
-		return Promise.resolve(true);
+		return true;
 	}
 
-	revert(options?: IRevertOptions): Promise<boolean> {
+	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.setDirty(false);
 
-		return Promise.resolve(true);
+		return true;
+	}
+
+	async revert(options?: IRevertOptions): Promise<boolean> {
+		this.setDirty(false);
+
+		return true;
 	}
 
 	async resolve(): Promise<IEditorModel | null> {
@@ -207,7 +221,7 @@ class TestCustomEditorModel extends EditorModel {
 
 if (ENABLE) {
 	Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-		new EditorDescriptor(
+		EditorDescriptor.create(
 			TestCustomEditor,
 			TestCustomEditor.ID,
 			nls.localize('testCustomEditor', "Test Custom Editor")
@@ -219,7 +233,7 @@ if (ENABLE) {
 
 	const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
-	registry.registerWorkbenchAction(new SyncActionDescriptor(TestCustomEditorsAction, TestCustomEditorsAction.ID, TestCustomEditorsAction.LABEL), 'Test Open Custom Editor');
+	registry.registerWorkbenchAction(SyncActionDescriptor.create(TestCustomEditorsAction, TestCustomEditorsAction.ID, TestCustomEditorsAction.LABEL), 'Test Open Custom Editor');
 
 	class TestCustomEditorInputFactory implements IEditorInputFactory {
 

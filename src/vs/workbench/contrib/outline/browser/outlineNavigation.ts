@@ -140,14 +140,14 @@ export class OutlineNavigation implements IEditorContribution {
 		const ids = this._editor.deltaDecorations([], [{
 			range: element.symbol.selectionRange,
 			options: {
-				className: 'rangeHighlight',
+				className: 'symbolHighlight',
 			}
 		}]);
 		setTimeout(() => {
 			if (modelNow === this._editor.getModel()) {
 				this._editor.deltaDecorations(ids, []);
 			}
-		}, 250);
+		}, 350);
 	}
 }
 

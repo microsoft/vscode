@@ -29,6 +29,7 @@ import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewDescriptor } from 'vs/workbench/common/views';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -195,7 +196,10 @@ export class MainPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<ISCMRepository>>(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
 			identityProvider,
-			horizontalScrolling: false
+			horizontalScrolling: false,
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		});
 
 		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));

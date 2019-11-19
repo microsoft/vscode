@@ -49,7 +49,7 @@ export interface IToken {
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Inactive;
+	private _status: AuthTokenStatus = AuthTokenStatus.Refreshing;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
@@ -66,11 +66,14 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 		this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT).then(storedRefreshToken => {
 			if (storedRefreshToken) {
 				this.refresh(storedRefreshToken);
+			} else {
+				this.setStatus(AuthTokenStatus.Inactive);
 			}
 		});
 	}
 
 	public async login(callbackUri: URI): Promise<void> {
+		this.setStatus(AuthTokenStatus.SigningIn);
 		const nonce = generateUuid();
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' || callbackUri.scheme === 'http' ? 443 : 80);
 		const state = `${callbackUri.scheme},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
@@ -88,6 +91,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 		const timeoutPromise = new Promise((resolve: (value: IToken) => void, reject) => {
 			const wait = setTimeout(() => {
+				this.setStatus(AuthTokenStatus.Inactive);
 				clearTimeout(wait);
 				reject('Login timed out.');
 			}, 1000 * 60 * 5);
@@ -186,6 +190,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	private async refresh(refreshToken: string): Promise<void> {
 		return new Promise((resolve, reject) => {
+			this.setStatus(AuthTokenStatus.Refreshing);
 			const postData = toQuery({
 				refresh_token: refreshToken,
 				client_id: clientId,
@@ -217,7 +222,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 						});
 						resolve();
 					} else {
-						reject(new Error('Bad!'));
+						reject(new Error('Refreshing token failed.'));
 					}
 				});
 			});
@@ -226,6 +231,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 			post.end();
 			post.on('error', err => {
+				this.setStatus(AuthTokenStatus.Inactive);
 				reject(err);
 			});
 		});

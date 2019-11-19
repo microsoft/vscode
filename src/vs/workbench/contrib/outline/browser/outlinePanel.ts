@@ -47,6 +47,7 @@ import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 class RequestState {
 
@@ -331,7 +332,10 @@ export class OutlinePanel extends ViewletPanel {
 				filter: this._treeFilter,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				hideTwistiesOfChildlessElements: true
+				hideTwistiesOfChildlessElements: true,
+				overrideStyles: {
+					listBackground: SIDE_BAR_BACKGROUND
+				}
 			}
 		);
 

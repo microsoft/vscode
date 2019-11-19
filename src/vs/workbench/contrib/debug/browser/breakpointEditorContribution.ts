@@ -32,6 +32,8 @@ import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { isSafari } from 'vs/base/browser/browser';
 
 const $ = dom.$;
 
@@ -43,7 +45,7 @@ interface IBreakpointDecoration {
 }
 
 const breakpointHelperDecoration: IModelDecorationOptions = {
-	glyphMarginClassName: 'debug-breakpoint-hint',
+	glyphMarginClassName: 'codicon-debug-hint',
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -91,7 +93,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 	}
 
 	return {
-		glyphMarginClassName: className,
+		glyphMarginClassName: `${className}`,
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		beforeContentClassName: breakpoint.column ? `debug-breakpoint-placeholder` : undefined,
@@ -227,21 +229,29 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			}
 		}));
 
-		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
-			let showBreakpointHintAtLineNumber = -1;
-			const model = this.editor.getModel();
-			if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
-				this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
-				const data = e.target.detail as IMarginData;
-				if (!data.isAfterLines) {
-					showBreakpointHintAtLineNumber = e.target.position.lineNumber;
+		if (!(BrowserFeatures.pointerEvents && isSafari)) {
+			/**
+			 * We disable the hover feature for Safari on iOS as
+			 * 1. Browser hover events are handled specially by the system (it treats first click as hover if there is `:hover` css registered). Below hover behavior will confuse users with inconsistent expeirence.
+			 * 2. When users click on line numbers, the breakpoint hint displays immediately, however it doesn't create the breakpoint unless users click on the left gutter. On a touch screen, it's hard to click on that small area.
+			 */
+			this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
+				let showBreakpointHintAtLineNumber = -1;
+				const model = this.editor.getModel();
+				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
+					this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
+					const data = e.target.detail as IMarginData;
+					if (!data.isAfterLines) {
+						showBreakpointHintAtLineNumber = e.target.position.lineNumber;
+					}
 				}
-			}
-			this.ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber);
-		}));
-		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
-			this.ensureBreakpointHintDecoration(-1);
-		}));
+				this.ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber);
+			}));
+			this.toDispose.push(this.editor.onMouseLeave(() => {
+				this.ensureBreakpointHintDecoration(-1);
+			}));
+		}
+
 
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
 			this.closeBreakpointWidget();
@@ -344,7 +354,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
 			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('debug') === -1) {
+				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('codicon-') === -1) {
 					return false;
 				}
 			}
@@ -422,7 +432,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
 			// In practice this happens for the first breakpoint that was set on a line
 			// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
-			const cssClass = candidate.breakpoint ? getBreakpointMessageAndClassName(this.debugService, candidate.breakpoint).className : 'debug-breakpoint-disabled';
+			const cssClass = candidate.breakpoint ? getBreakpointMessageAndClassName(this.debugService, candidate.breakpoint).className : 'codicon-debug-breakpoint-disabled';
 			const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
 			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, cssClass, candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 
@@ -543,6 +553,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 
 	private create(cssClass: string | null | undefined): void {
 		this.domNode = $('.inline-breakpoint-widget');
+		this.domNode.classList.add('codicon');
 		if (cssClass) {
 			this.domNode.classList.add(cssClass);
 		}

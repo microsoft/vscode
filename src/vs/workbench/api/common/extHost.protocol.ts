@@ -45,7 +45,7 @@ import { ITerminalDimensions, IShellLaunchConfig } from 'vs/workbench/contrib/te
 import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 export interface IEnvironment {
@@ -354,6 +354,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
 	$registerNavigateTypeSupport(handle: number): void;
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportsResolveInitialValues: boolean): void;
+	$registerSemanticColoringProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticColoringLegend): void;
 	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void;
@@ -475,6 +476,8 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 	matchOnDescription?: boolean;
 
 	matchOnDetail?: boolean;
+
+	sortByLabel?: boolean;
 }
 
 export interface TransferInputBox extends BaseTransferQuickInput {
@@ -590,6 +593,8 @@ export interface ExtHostWebviewsShape {
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$undoEdits(handle: WebviewPanelHandle, edits: string[]): void;
+	$redoEdits(handle: WebviewPanelHandle, edits: string[]): void;
+	$onSave(handle: WebviewPanelHandle): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -759,7 +764,7 @@ export interface IOpenUriOptions {
 
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): Promise<boolean>;
-	$openUri(uri: UriComponents, options: IOpenUriOptions): Promise<boolean>;
+	$openUri(uri: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean>;
 	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
 }
 
@@ -918,7 +923,7 @@ export interface FileSystemEvents {
 
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): Promise<any>;
+	$onWillRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined, timeout: number, token: CancellationToken): Promise<any>;
 	$onDidRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): void;
 }
 
@@ -1157,6 +1162,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Promise<IWorkspaceEditDto | undefined>;
 	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined>;
+	$provideSemanticColoring(handle: number, resource: UriComponents, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null>;
+	$releaseSemanticColoring(handle: number, semanticColoringResultId: number): void;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<ISuggestResultDto | undefined>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;

@@ -78,6 +78,10 @@
 	color: #666;
 }
 
+.debug-viewlet .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+	color: inherit !important;
+}
+
 .debug-viewlet .disabled {
 	opacity: 0.35;
 }
@@ -333,10 +337,17 @@
 	flex-shrink: 0;
 }
 
-.debug-viewlet .debug-breakpoints .breakpoint > .icon {
+.debug-viewlet .debug-breakpoints .breakpoint > .codicon {
 	width: 19px;
 	height: 19px;
 	min-width: 19px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint > .codicon-debug-breakpoint-stackframe-dot::before {
+	content: "\ea71";
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

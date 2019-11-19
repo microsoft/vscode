@@ -7,7 +7,6 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown, MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -29,7 +28,7 @@ export class MarkdownRenderer extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IModeService private readonly _modeService: IModeService,
-		@optional(IOpenerService) private readonly _openerService: IOpenerService | null = NullOpenerService,
+		@optional(IOpenerService) private readonly _openerService: IOpenerService = NullOpenerService,
 	) {
 		super();
 	}
@@ -64,15 +63,7 @@ export class MarkdownRenderer extends Disposable {
 			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),
 			actionHandler: {
 				callback: (content) => {
-					let uri: URI | undefined;
-					try {
-						uri = URI.parse(content);
-					} catch {
-						// ignore
-					}
-					if (uri && this._openerService) {
-						this._openerService.open(uri, { fromUserGesture: true }).catch(onUnexpectedError);
-					}
+					this._openerService.open(content, { fromUserGesture: true }).catch(onUnexpectedError);
 				},
 				disposeables
 			}

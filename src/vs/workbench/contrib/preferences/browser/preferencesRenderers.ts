@@ -1019,7 +1019,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
 				...setting.range,
-				message: nls.localize('unsupportedRemoteMachineSetting', "This setting cannot be applied now. It will be applied when you open local window.")
+				message: nls.localize('unsupportedRemoteMachineSetting', "This setting cannot be applied in this window. It will be applied when you open local window.")
 			});
 		}
 	}
@@ -1054,7 +1054,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
 				...setting.range,
-				message: nls.localize('unsupportedWindowSetting', "This setting cannot be applied now. It will be applied when you open this folder directly.")
+				message: nls.localize('unsupportedWindowSetting', "This setting cannot be applied in this workspace. It will be applied when you open the containing workspace folder directly.")
 			});
 		}
 	}

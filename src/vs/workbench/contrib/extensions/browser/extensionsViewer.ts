@@ -21,6 +21,7 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { IColorMapping } from 'vs/platform/theme/common/styler';
 
 export interface IExtensionTemplateData {
 	icon: HTMLImageElement;
@@ -179,6 +180,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 	constructor(
 		input: IExtensionData,
 		container: HTMLElement,
+		overrideStyles: IColorMapping,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -206,7 +208,8 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 			{
 				indent: 40,
 				identityProvider,
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				overrideStyles
 			},
 			contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService
 		);

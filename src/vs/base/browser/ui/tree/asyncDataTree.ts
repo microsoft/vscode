@@ -150,10 +150,24 @@ function asTreeContextMenuEvent<TInput, T>(e: ITreeContextMenuEvent<IAsyncDataTr
 	};
 }
 
+class AsyncDataTreeElementsDragAndDropData<TInput, T, TContext> extends ElementsDragAndDropData<T, TContext> {
+
+	set context(context: TContext | undefined) {
+		this.data.context = context;
+	}
+
+	get context(): TContext | undefined {
+		return this.data.context;
+	}
+
+	constructor(private data: ElementsDragAndDropData<IAsyncDataTreeNode<TInput, T>, TContext>) {
+		super(data.elements.map(node => node.element as T));
+	}
+}
+
 function asAsyncDataTreeDragAndDropData<TInput, T>(data: IDragAndDropData): IDragAndDropData {
 	if (data instanceof ElementsDragAndDropData) {
-		const nodes = (data as ElementsDragAndDropData<IAsyncDataTreeNode<TInput, T>>).elements;
-		return new ElementsDragAndDropData(nodes.map(node => node.element));
+		return new AsyncDataTreeElementsDragAndDropData(data);
 	}
 
 	return data;
@@ -167,9 +181,9 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 		return this.dnd.getDragURI(node.element as T);
 	}
 
-	getDragLabel(nodes: IAsyncDataTreeNode<TInput, T>[]): string | undefined {
+	getDragLabel(nodes: IAsyncDataTreeNode<TInput, T>[], originalEvent: DragEvent): string | undefined {
 		if (this.dnd.getDragLabel) {
-			return this.dnd.getDragLabel(nodes.map(node => node.element as T));
+			return this.dnd.getDragLabel(nodes.map(node => node.element as T), originalEvent);
 		}
 
 		return undefined;
@@ -187,6 +201,12 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 
 	drop(data: IDragAndDropData, targetNode: IAsyncDataTreeNode<TInput, T> | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
 		this.dnd.drop(asAsyncDataTreeDragAndDropData(data), targetNode && targetNode.element as T, targetIndex, originalEvent);
+	}
+
+	onDragEnd(originalEvent: DragEvent): void {
+		if (this.dnd.onDragEnd) {
+			this.dnd.onDragEnd(originalEvent);
+		}
 	}
 }
 
@@ -990,6 +1010,12 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 	disposeElement(node: ITreeNode<IAsyncDataTreeNode<TInput, T>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
 		if (this.renderer.disposeElement) {
 			this.renderer.disposeElement(this.nodeMapper.map(node) as ITreeNode<T, TFilterData>, index, templateData.templateData, height);
+		}
+	}
+
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IAsyncDataTreeNode<TInput, T>>, TFilterData>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>, height: number | undefined): void {
+		if (this.renderer.disposeCompressedElements) {
+			this.renderer.disposeCompressedElements(this.compressibleNodeMapperProvider().map(node) as ITreeNode<ICompressedTreeNode<T>, TFilterData>, index, templateData.templateData, height);
 		}
 	}
 

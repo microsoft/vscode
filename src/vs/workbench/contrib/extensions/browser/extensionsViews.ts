@@ -47,6 +47,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -128,7 +129,10 @@ export class ExtensionsListView extends ViewletPanel {
 			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
-			horizontalScrolling: false
+			horizontalScrolling: false,
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		});
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
 		this._register(this.list.onFocusChange(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));

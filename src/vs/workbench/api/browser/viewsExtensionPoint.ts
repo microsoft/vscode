@@ -37,7 +37,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -254,10 +253,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private registerTestViewContainer(): void {
 		const title = localize('test', "Test");
-		const cssClass = `extensionViewlet-test`;
 		const icon = URI.parse(require.toUrl('./media/test.svg'));
 
-		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, cssClass, undefined);
+		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, undefined);
 	}
 
 	private isValidViewsContainer(viewsContainersDescriptors: IUserFriendlyViewsContainerDescriptor[], collector: ExtensionMessageCollector): boolean {
@@ -290,10 +288,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number, existingViewContainers: ViewContainer[]): number {
 		containers.forEach(descriptor => {
-			const cssClass = `extensionViewlet-${descriptor.id}`;
 			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
-			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, order++, cssClass, extension.identifier);
+			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, order++, extension.identifier);
 
 			// Move those views that belongs to this container
 			if (existingViewContainers.length) {
@@ -311,7 +308,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return order;
 	}
 
-	private registerCustomViewContainer(id: string, title: string, icon: URI, order: number, cssClass: string, extensionId: ExtensionIdentifier | undefined): ViewContainer {
+	private registerCustomViewContainer(id: string, title: string, icon: URI, order: number, extensionId: ExtensionIdentifier | undefined): ViewContainer {
 		let viewContainer = this.viewContainersRegistry.get(id);
 
 		if (!viewContainer) {
@@ -335,11 +332,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					super(id, `${id}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 				}
 			}
-			const viewletDescriptor = new ViewletDescriptor(
+			const viewletDescriptor = ViewletDescriptor.create(
 				CustomViewlet,
 				id,
 				title,
-				cssClass,
+				undefined,
 				order,
 				icon
 			);
@@ -359,18 +356,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			}
 			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 			registry.registerWorkbenchAction(
-				new SyncActionDescriptor(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
+				SyncActionDescriptor.create(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
 				`View: Show ${title}`,
 				localize('view', "View")
-			);
-
-			// Generate CSS to show the icon in the activity bar
-			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
-			createCSSRule(iconClass, `
-				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
-				mask-size: 24px;
-				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
-				-webkit-mask-size: 24px;`
 			);
 		}
 

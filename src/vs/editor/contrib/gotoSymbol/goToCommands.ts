@@ -119,8 +119,9 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 		} else {
 			const next = model.firstReference()!;
-			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide);
-			if (targetEditor && model.references.length > 1 && gotoLocation === 'gotoAndPeek') {
+			const peek = model.references.length > 1 && gotoLocation === 'gotoAndPeek';
+			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide, !peek);
+			if (peek && targetEditor) {
 				this._openInPeek(targetEditor, model);
 			} else {
 				model.dispose();
@@ -134,7 +135,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean): Promise<ICodeEditor | null> {
+	private async _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean, highlight: boolean): Promise<ICodeEditor | undefined> {
 		// range is the target-selection-range when we have one
 		// and the the fallback is the 'full' range
 		let range: IRange | undefined = undefined;
@@ -145,13 +146,29 @@ abstract class SymbolNavigationAction extends EditorAction {
 			range = reference.range;
 		}
 
-		return editorService.openCodeEditor({
+		const targetEditor = await editorService.openCodeEditor({
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(range),
 				revealInCenterIfOutsideViewport: true
 			}
 		}, editor, sideBySide);
+
+		if (!targetEditor) {
+			return undefined;
+		}
+
+		if (highlight) {
+			const modelNow = targetEditor.getModel();
+			const ids = targetEditor.deltaDecorations([], [{ range, options: { className: 'symbolHighlight' } }]);
+			setTimeout(() => {
+				if (targetEditor.getModel() === modelNow) {
+					targetEditor.deltaDecorations(ids, []);
+				}
+			}, 350);
+		}
+
+		return targetEditor;
 	}
 
 	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {

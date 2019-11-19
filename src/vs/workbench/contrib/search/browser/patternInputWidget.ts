@@ -152,7 +152,7 @@ export class PatternInputWidget extends Widget {
 		this._register(this.inputBox.onDidChange(() => {
 			if (this.searchConfig.searchOnType) {
 				this._onCancel.fire();
-				this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(false), this.searchConfig.searchOnTypeDebouncePeriod);
+				this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(true), this.searchConfig.searchOnTypeDebouncePeriod);
 			}
 		}));
 
@@ -170,7 +170,7 @@ export class PatternInputWidget extends Widget {
 	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
-				this._onSubmit.fire(true);
+				this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(false), 0);
 				return;
 			case KeyCode.Escape:
 				this._onCancel.fire();

@@ -71,6 +71,7 @@ export class Gesture extends Disposable {
 
 	private dispatched = false;
 	private targets: HTMLElement[];
+	private ignoreTargets: HTMLElement[];
 	private handle: IDisposable | null;
 
 	private activeTouches: { [id: number]: TouchData; };
@@ -81,6 +82,7 @@ export class Gesture extends Disposable {
 		this.activeTouches = {};
 		this.handle = null;
 		this.targets = [];
+		this.ignoreTargets = [];
 		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e)));
 		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
 		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e)));
@@ -99,6 +101,23 @@ export class Gesture extends Disposable {
 		return {
 			dispose: () => {
 				Gesture.INSTANCE.targets = Gesture.INSTANCE.targets.filter(t => t !== element);
+			}
+		};
+	}
+
+	public static ignoreTarget(element: HTMLElement): IDisposable {
+		if (!Gesture.isTouchDevice()) {
+			return Disposable.None;
+		}
+		if (!Gesture.INSTANCE) {
+			Gesture.INSTANCE = new Gesture();
+		}
+
+		Gesture.INSTANCE.ignoreTargets.push(element);
+
+		return {
+			dispose: () => {
+				Gesture.INSTANCE.ignoreTargets = Gesture.INSTANCE.ignoreTargets.filter(t => t !== element);
 			}
 		};
 	}
@@ -228,6 +247,12 @@ export class Gesture extends Disposable {
 	}
 
 	private dispatchEvent(event: GestureEvent): void {
+		for (let i = 0; i < this.ignoreTargets.length; i++) {
+			if (event.initialTarget instanceof Node && this.ignoreTargets[i].contains(event.initialTarget)) {
+				return;
+			}
+		}
+
 		this.targets.forEach(target => {
 			if (event.initialTarget instanceof Node && target.contains(event.initialTarget)) {
 				target.dispatchEvent(event);

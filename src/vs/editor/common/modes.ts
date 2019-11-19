@@ -125,6 +125,8 @@ export const enum MetadataConsts {
 	FOREGROUND_MASK = 0b00000000011111111100000000000000,
 	BACKGROUND_MASK = 0b11111111100000000000000000000000,
 
+	LANG_TTYPE_CMPL = 0b11111111111111111111100000000000,
+
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
 	FONT_STYLE_OFFSET = 11,
@@ -1462,6 +1464,33 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
+export interface SemanticColoringLegend {
+	readonly tokenTypes: string[];
+	readonly tokenModifiers: string[];
+}
+
+export interface SemanticColoringArea {
+	/**
+	 * The zero-based line value where this token block begins.
+	 */
+	readonly line: number;
+	/**
+	 * The actual token block encoded data.
+	 */
+	readonly data: Uint32Array;
+
+}
+
+export interface SemanticColoring {
+	readonly areas: SemanticColoringArea[];
+	dispose(): void;
+}
+
+export interface SemanticColoringProvider {
+	getLegend(): SemanticColoringLegend;
+	provideSemanticColoring(model: model.ITextModel, token: CancellationToken): ProviderResult<SemanticColoring>;
+}
+
 // --- feature registries ------
 
 /**
@@ -1563,6 +1592,11 @@ export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRange
  * @internal
  */
 export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
+
+/**
+ * @internal
+ */
+export const SemanticColoringProviderRegistry = new LanguageFeatureRegistry<SemanticColoringProvider>();
 
 /**
  * @internal

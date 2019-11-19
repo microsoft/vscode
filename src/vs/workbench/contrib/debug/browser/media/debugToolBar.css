@@ -43,4 +43,7 @@
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }

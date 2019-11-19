@@ -48,7 +48,7 @@ const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Q
 const inTerminalsPicker = 'inTerminalPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		TerminalPickerHandler,
 		TerminalPickerHandler.ID,
 		TERMINAL_PICKER_PREFIX,
@@ -209,11 +209,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'terminal.integrated.rendererType': {
 			type: 'string',
-			enum: ['auto', 'canvas', 'dom'],
+			enum: ['auto', 'canvas', 'dom', 'experimentalWebgl'],
 			enumDescriptions: [
 				nls.localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
-				nls.localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer"),
-				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer.")
+				nls.localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
+				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
+				nls.localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl) and this will only be enabled for new terminals (not hot swappable like the other renderers).")
 			],
 			default: 'auto',
 			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")
@@ -327,11 +328,11 @@ configurationRegistry.registerConfiguration({
 });
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenTermAction, QuickOpenTermAction.ID, QuickOpenTermAction.LABEL), 'Terminal: Switch Active Terminal', nls.localize('terminal', "Terminal"));
+registry.registerWorkbenchAction(SyncActionDescriptor.create(QuickOpenTermAction, QuickOpenTermAction.ID, QuickOpenTermAction.LABEL), 'Terminal: Switch Active Terminal', nls.localize('terminal', "Terminal"));
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionTermContributor);
 
-(<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
+(<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(panel.PanelDescriptor.create(
 	TerminalPanel,
 	TERMINAL_PANEL_ID,
 	nls.localize('terminal', "Terminal"),
@@ -344,20 +345,20 @@ Registry.as<panel.PanelRegistry>(panel.Extensions.Panels).setDefaultPanelId(TERM
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
 const category = TERMINAL_ACTION_CATEGORY;
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), 'Terminal: Kill the Active Terminal Instance', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), 'Terminal: Kill the Active Terminal Instance', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
 }), 'Terminal: Create New Integrated Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearSelectionTerminalAction, ClearSelectionTerminalAction.ID, ClearSelectionTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ClearSelectionTerminalAction, ClearSelectionTerminalAction.ID, ClearSelectionTerminalAction.LABEL, {
 	primary: KeyCode.Escape,
 	linux: { primary: KeyCode.Escape }
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE)), 'Terminal: Clear Selection', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewInActiveWorkspaceTerminalAction, CreateNewInActiveWorkspaceTerminalAction.ID, CreateNewInActiveWorkspaceTerminalAction.LABEL), 'Terminal: Create New Integrated Terminal (In Active Workspace)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusActiveTerminalAction, FocusActiveTerminalAction.ID, FocusActiveTerminalAction.LABEL), 'Terminal: Focus Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), 'Terminal: Focus Next Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), 'Terminal: Focus Previous Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(CreateNewInActiveWorkspaceTerminalAction, CreateNewInActiveWorkspaceTerminalAction.ID, CreateNewInActiveWorkspaceTerminalAction.LABEL), 'Terminal: Create New Integrated Terminal (In Active Workspace)', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusActiveTerminalAction, FocusActiveTerminalAction.ID, FocusActiveTerminalAction.LABEL), 'Terminal: Focus Terminal', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), 'Terminal: Focus Next Terminal', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPreviousTerminalAction, FocusPreviousTerminalAction.ID, FocusPreviousTerminalAction.LABEL), 'Terminal: Focus Previous Terminal', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL, {
 	// Don't use ctrl+a by default as that would override the common go to start
 	// of prompt shell binding
 	primary: 0,
@@ -366,82 +367,82 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectAllTermina
 	// makes it easier for users to see how it works though.
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select All', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), 'Terminal: Run Selected Text In Active Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunActiveFileInTerminalAction, RunActiveFileInTerminalAction.ID, RunActiveFileInTerminalAction.LABEL), 'Terminal: Run Active File In Active Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(RunSelectedTextInTerminalAction, RunSelectedTextInTerminalAction.ID, RunSelectedTextInTerminalAction.LABEL), 'Terminal: Run Selected Text In Active Terminal', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(RunActiveFileInTerminalAction, RunActiveFileInTerminalAction.ID, RunActiveFileInTerminalAction.LABEL), 'Terminal: Run Active File In Active Terminal', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
 }), 'View: Toggle Integrated Terminal', nls.localize('viewCategory', "View"));
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollDownTerminalAction, ScrollDownTerminalAction.ID, ScrollDownTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ScrollDownTerminalAction, ScrollDownTerminalAction.ID, ScrollDownTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Down (Line)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollDownPageTerminalAction, ScrollDownPageTerminalAction.ID, ScrollDownPageTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ScrollDownPageTerminalAction, ScrollDownPageTerminalAction.ID, ScrollDownPageTerminalAction.LABEL, {
 	primary: KeyMod.Shift | KeyCode.PageDown,
 	mac: { primary: KeyCode.PageDown }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Down (Page)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToBottomTerminalAction, ScrollToBottomTerminalAction.ID, ScrollToBottomTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ScrollToBottomTerminalAction, ScrollToBottomTerminalAction.ID, ScrollToBottomTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.End,
 	linux: { primary: KeyMod.Shift | KeyCode.End }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Bottom', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpTerminalAction, ScrollUpTerminalAction.ID, ScrollUpTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ScrollUpTerminalAction, ScrollUpTerminalAction.ID, ScrollUpTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Up (Line)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollUpPageTerminalAction, ScrollUpPageTerminalAction.ID, ScrollUpPageTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ScrollUpPageTerminalAction, ScrollUpPageTerminalAction.ID, ScrollUpPageTerminalAction.LABEL, {
 	primary: KeyMod.Shift | KeyCode.PageUp,
 	mac: { primary: KeyCode.PageUp }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll Up (Page)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToTopTerminalAction, ScrollToTopTerminalAction.ID, ScrollToTopTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ScrollToTopTerminalAction, ScrollToTopTerminalAction.ID, ScrollToTopTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.Home,
 	linux: { primary: KeyMod.Shift | KeyCode.Home }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Top', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingWeight.WorkbenchContrib + 1), 'Terminal: Clear', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectDefaultShellWindowsTerminalAction, SelectDefaultShellWindowsTerminalAction.ID, SelectDefaultShellWindowsTerminalAction.LABEL), 'Terminal: Select Default Shell', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ManageWorkspaceShellPermissionsTerminalCommand, ManageWorkspaceShellPermissionsTerminalCommand.ID, ManageWorkspaceShellPermissionsTerminalCommand.LABEL), 'Terminal: Manage Workspace Shell Permissions', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RenameTerminalAction, RenameTerminalAction.ID, RenameTerminalAction.LABEL), 'Terminal: Rename', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectDefaultShellWindowsTerminalAction, SelectDefaultShellWindowsTerminalAction.ID, SelectDefaultShellWindowsTerminalAction.LABEL), 'Terminal: Select Default Shell', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ManageWorkspaceShellPermissionsTerminalCommand, ManageWorkspaceShellPermissionsTerminalCommand.ID, ManageWorkspaceShellPermissionsTerminalCommand.LABEL), 'Terminal: Manage Workspace Shell Permissions', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(RenameTerminalAction, RenameTerminalAction.ID, RenameTerminalAction.LABEL), 'Terminal: Rename', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Focus Find Widget', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Hide Find Widget', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordLeftTerminalAction, DeleteWordLeftTerminalAction.ID, DeleteWordLeftTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(DeleteWordLeftTerminalAction, DeleteWordLeftTerminalAction.ID, DeleteWordLeftTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Left', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordRightTerminalAction, DeleteWordRightTerminalAction.ID, DeleteWordRightTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(DeleteWordRightTerminalAction, DeleteWordRightTerminalAction.ID, DeleteWordRightTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.Delete,
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Right', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteToLineStartTerminalAction, DeleteToLineStartTerminalAction.ID, DeleteToLineStartTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(DeleteToLineStartTerminalAction, DeleteToLineStartTerminalAction.ID, DeleteToLineStartTerminalAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete To Line Start', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineStartTerminalAction, MoveToLineStartTerminalAction.ID, MoveToLineStartTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(MoveToLineStartTerminalAction, MoveToLineStartTerminalAction.ID, MoveToLineStartTerminalAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line Start', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineEndTerminalAction, MoveToLineEndTerminalAction.ID, MoveToLineEndTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(MoveToLineEndTerminalAction, MoveToLineEndTerminalAction.ID, MoveToLineEndTerminalAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
 		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
 	}
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitInActiveWorkspaceTerminalAction, SplitInActiveWorkspaceTerminalAction.ID, SplitInActiveWorkspaceTerminalAction.LABEL), 'Terminal: Split Terminal (In Active Workspace)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousPaneTerminalAction, FocusPreviousPaneTerminalAction.ID, FocusPreviousPaneTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SplitInActiveWorkspaceTerminalAction, SplitInActiveWorkspaceTerminalAction.ID, SplitInActiveWorkspaceTerminalAction.LABEL), 'Terminal: Split Terminal (In Active Workspace)', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPreviousPaneTerminalAction, FocusPreviousPaneTerminalAction.ID, FocusPreviousPaneTerminalAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.LeftArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
 	mac: {
@@ -449,7 +450,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousPan
 		secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow]
 	}
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Previous Pane', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextPaneTerminalAction, FocusNextPaneTerminalAction.ID, FocusNextPaneTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FocusNextPaneTerminalAction, FocusNextPaneTerminalAction.ID, FocusNextPaneTerminalAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.RightArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],
 	mac: {
@@ -457,115 +458,116 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextPaneTer
 		secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow]
 	}
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Next Pane', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneLeftTerminalAction, ResizePaneLeftTerminalAction.ID, ResizePaneLeftTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ResizePaneLeftTerminalAction, ResizePaneLeftTerminalAction.ID, ResizePaneLeftTerminalAction.LABEL, {
 	primary: 0,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow },
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Left', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneRightTerminalAction, ResizePaneRightTerminalAction.ID, ResizePaneRightTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ResizePaneRightTerminalAction, ResizePaneRightTerminalAction.ID, ResizePaneRightTerminalAction.LABEL, {
 	primary: 0,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow },
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Right', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneUpTerminalAction, ResizePaneUpTerminalAction.ID, ResizePaneUpTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ResizePaneUpTerminalAction, ResizePaneUpTerminalAction.ID, ResizePaneUpTerminalAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.UpArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Up', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneDownTerminalAction, ResizePaneDownTerminalAction.ID, ResizePaneDownTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ResizePaneDownTerminalAction, ResizePaneDownTerminalAction.ID, ResizePaneDownTerminalAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.DownArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Down', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToPreviousCommandAction, ScrollToPreviousCommandAction.ID, ScrollToPreviousCommandAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ScrollToPreviousCommandAction, ScrollToPreviousCommandAction.ID, ScrollToPreviousCommandAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow }
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate())), 'Terminal: Scroll To Previous Command', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToNextCommandAction, ScrollToNextCommandAction.ID, ScrollToNextCommandAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ScrollToNextCommandAction, ScrollToNextCommandAction.ID, ScrollToNextCommandAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow }
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate())), 'Terminal: Scroll To Next Command', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPreviousCommandAction, SelectToPreviousCommandAction.ID, SelectToPreviousCommandAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectToPreviousCommandAction, SelectToPreviousCommandAction.ID, SelectToPreviousCommandAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select To Previous Command', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextCommandAction, SelectToNextCommandAction.ID, SelectToNextCommandAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectToNextCommandAction, SelectToNextCommandAction.ID, SelectToNextCommandAction.LABEL, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select To Next Command', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigationModeExitTerminalAction, NavigationModeExitTerminalAction.ID, NavigationModeExitTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationModeExitTerminalAction, NavigationModeExitTerminalAction.ID, NavigationModeExitTerminalAction.LABEL, {
 	primary: KeyCode.Escape
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Exit Navigation Mode', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigationModeFocusPreviousTerminalAction, NavigationModeFocusPreviousTerminalAction.ID, NavigationModeFocusPreviousTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationModeFocusPreviousTerminalAction, NavigationModeFocusPreviousTerminalAction.ID, NavigationModeFocusPreviousTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Focus Previous Line (Navigation Mode)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigationModeFocusPreviousTerminalAction, NavigationModeFocusPreviousTerminalAction.ID, NavigationModeFocusPreviousTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationModeFocusPreviousTerminalAction, NavigationModeFocusPreviousTerminalAction.ID, NavigationModeFocusPreviousTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Focus Previous Line (Navigation Mode)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigationModeFocusNextTerminalAction, NavigationModeFocusNextTerminalAction.ID, NavigationModeFocusNextTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationModeFocusNextTerminalAction, NavigationModeFocusNextTerminalAction.ID, NavigationModeFocusNextTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Focus Next Line (Navigation Mode)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigationModeFocusNextTerminalAction, NavigationModeFocusNextTerminalAction.ID, NavigationModeFocusNextTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(NavigationModeFocusNextTerminalAction, NavigationModeFocusNextTerminalAction.ID, NavigationModeFocusNextTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, CONTEXT_ACCESSIBILITY_MODE_ENABLED)), 'Terminal: Focus Next Line (Navigation Mode)', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPreviousLineAction, SelectToPreviousLineAction.ID, SelectToPreviousLineAction.LABEL), 'Terminal: Select To Previous Line', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextLineAction, SelectToNextLineAction.ID, SelectToNextLineAction.LABEL), 'Terminal: Select To Next Line', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEscapeSequenceLoggingAction, ToggleEscapeSequenceLoggingAction.ID, ToggleEscapeSequenceLoggingAction.LABEL), 'Terminal: Toggle Escape Sequence Logging', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRegexCommand, ToggleRegexCommand.ID, ToggleRegexCommand.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectToPreviousLineAction, SelectToPreviousLineAction.ID, SelectToPreviousLineAction.LABEL), 'Terminal: Select To Previous Line', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectToNextLineAction, SelectToNextLineAction.ID, SelectToNextLineAction.LABEL), 'Terminal: Select To Next Line', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleEscapeSequenceLoggingAction, ToggleEscapeSequenceLoggingAction.ID, ToggleEscapeSequenceLoggingAction.LABEL), 'Terminal: Toggle Escape Sequence Logging', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleRegexCommand, ToggleRegexCommand.ID, ToggleRegexCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_R,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find using regex', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRegexCommand, ToggleRegexCommand.ID, ToggleRegexCommand.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleRegexCommand, ToggleRegexCommand.ID, ToggleRegexCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_R,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find using regex', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleWholeWordCommand, ToggleWholeWordCommand.ID, ToggleWholeWordCommand.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleWholeWordCommand, ToggleWholeWordCommand.ID, ToggleWholeWordCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_W,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find using whole word', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleWholeWordCommand, ToggleWholeWordCommand.ID, ToggleWholeWordCommand.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleWholeWordCommand, ToggleWholeWordCommand.ID, ToggleWholeWordCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_W,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find using whole word', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID, ToggleCaseSensitiveCommand.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID, ToggleCaseSensitiveCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find using case sensitive', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID, ToggleCaseSensitiveCommand.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID, ToggleCaseSensitiveCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find using case sensitive', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindNext, FindNext.ID, FindNext.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FindNext, FindNext.ID, FindNext.LABEL, {
 	primary: KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find next', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindNext, FindNext.ID, FindNext.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FindNext, FindNext.ID, FindNext.LABEL, {
 	primary: KeyCode.F3,
 	secondary: [KeyMod.Shift | KeyCode.Enter],
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3, KeyMod.Shift | KeyCode.Enter] }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find next', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, FindPrevious.ID, FindPrevious.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FindPrevious, FindPrevious.ID, FindPrevious.LABEL, {
 	primary: KeyMod.Shift | KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find previous', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindPrevious, FindPrevious.ID, FindPrevious.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(FindPrevious, FindPrevious.ID, FindPrevious.LABEL, {
 	primary: KeyMod.Shift | KeyCode.F3,
 	secondary: [KeyCode.Enter],
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3, KeyCode.Enter] },
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Find previous', category);
 
-// Commands miht be affected by Web restrictons
+// Commands might be affected by Web restrictons
 if (BrowserFeatures.clipboard.writeText) {
-	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
+	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+		win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C] },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
 	}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)), 'Terminal: Copy Selection', category);
 }
 if (BrowserFeatures.clipboard.readText) {
-	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
+	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+		win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }
 	}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category);
 }
-
 (new SendSequenceTerminalCommand({
 	id: SendSequenceTerminalCommand.ID,
 	precondition: undefined,

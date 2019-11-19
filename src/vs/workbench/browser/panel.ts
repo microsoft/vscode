@@ -9,7 +9,7 @@ import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature0, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { isAncestor } from 'vs/base/browser/dom';
 import { assertIsDefined } from 'vs/base/common/types';
 
@@ -20,7 +20,11 @@ export abstract class Panel extends Composite implements IPanel { }
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
 
-	constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, _commandId?: string) {
+	public static create<Services extends BrandedService[]>(ctor: { new(...services: Services): Panel }, id: string, name: string, cssClass?: string, order?: number, _commandId?: string): PanelDescriptor {
+		return new PanelDescriptor(ctor as IConstructorSignature0<Panel>, id, name, cssClass, order, _commandId);
+	}
+
+	private constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, _commandId?: string) {
 		super(ctor, id, name, cssClass, order, _commandId);
 	}
 }

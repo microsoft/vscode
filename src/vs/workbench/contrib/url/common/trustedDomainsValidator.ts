@@ -5,11 +5,10 @@
 
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -20,6 +19,7 @@ import {
 } from 'vs/workbench/contrib/url/common/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 	constructor(
@@ -34,12 +34,15 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
 	}
 
-	async validateLink(resource: URI): Promise<boolean> {
-		const { scheme, authority, path, query, fragment } = resource;
-
-		if (!equalsIgnoreCase(scheme, Schemas.http) && !equalsIgnoreCase(scheme, Schemas.https)) {
+	async validateLink(resource: URI | string): Promise<boolean> {
+		if (!matchesScheme(resource, Schemas.http) && !matchesScheme(resource, Schemas.https)) {
 			return true;
 		}
+
+		if (typeof resource === 'string') {
+			resource = URI.parse(resource);
+		}
+		const { scheme, authority, path, query, fragment } = resource;
 
 		const domainToOpen = `${scheme}://${authority}`;
 		const { defaultTrustedDomains, trustedDomains } = readTrustedDomains(this._storageService, this._productService);

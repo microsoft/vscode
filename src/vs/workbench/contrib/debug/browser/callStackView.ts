@@ -25,7 +25,6 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator2, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
@@ -35,6 +34,7 @@ import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { STOP_ID, STOP_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, RESTART_SESSION_ID, RESTART_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STEP_INTO_LABEL, STEP_INTO_ID, STEP_OUT_LABEL, STEP_OUT_ID, PAUSE_ID, PAUSE_LABEL, CONTINUE_ID, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -162,10 +162,13 @@ export class CallStackView extends ViewletPanel {
 					return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 				}
 			},
-			expandOnlyOnTwistieClick: true
+			expandOnlyOnTwistieClick: true,
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		});
 
-		this.tree.setInput(this.debugService.getModel()).then(undefined, onUnexpectedError);
+		this.tree.setInput(this.debugService.getModel());
 
 		const callstackNavigator = new TreeResourceNavigator2(this.tree);
 		this._register(callstackNavigator);
@@ -644,7 +647,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			if (sessions.length === 0) {
 				return Promise.resolve([]);
 			}
-			if (sessions.length > 1) {
+			if (sessions.length > 1 || this.debugService.getViewModel().isMultiSessionView()) {
 				return Promise.resolve(sessions.filter(s => !s.parentSession));
 			}
 

@@ -683,7 +683,7 @@ export class FileService extends Disposable implements IFileService {
 			}
 
 			if (!isSameResourceWithDifferentPathCase && isEqualOrParent(target, source, !isPathCaseSensitive)) {
-				throw new Error(localize('unableToMoveCopyError2', "Unable to move/copy when source is parent of target"));
+				throw new Error(localize('unableToMoveCopyError2', "Unable to move/copy when source is parent of target."));
 			}
 		}
 
@@ -693,7 +693,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Bail out if target exists and we are not about to overwrite
 			if (!overwrite) {
-				throw new FileOperationError(localize('unableToMoveCopyError3', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
+				throw new FileOperationError(localize('unableToMoveCopyError3', "Unable to move/copy since a file already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
 			}
 
 			// Special case: if the target is a parent of the source, we cannot delete
@@ -701,7 +701,7 @@ export class FileService extends Disposable implements IFileService {
 			if (sourceProvider === targetProvider) {
 				const isPathCaseSensitive = !!(sourceProvider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
 				if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
-					throw new Error(localize('unableToMoveCopyError4', "Unable to move/copy. File would replace folder it is contained in."));
+					throw new Error(localize('unableToMoveCopyError4', "Unable to move/copy since a file would replace the folder it is contained in."));
 				}
 			}
 		}

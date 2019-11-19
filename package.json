@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.41.0",
-  "distro": "403ab44be562c63a0cde1969fd8f5b45ff51709c",
+  "distro": "2640e642579d97a7fca354ccb76784787f8ff50d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -25,7 +25,7 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "strict-initialization-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictPropertyInitialization",
+    "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node scripts/code-web.js"
   },
@@ -45,9 +45,9 @@
     "onigasm-umd": "^2.2.4",
     "semver-umd": "^5.5.3",
     "spdlog": "^0.11.1",
-    "sudo-prompt": "9.1.0",
+    "sudo-prompt": "9.1.1",
     "v8-inspect-profiler": "^0.0.20",
-    "vscode-minimist": "^1.2.1",
+    "vscode-minimist": "^1.2.2",
     "vscode-nsfw": "1.2.8",
     "vscode-proxy-agent": "^0.5.2",
     "vscode-ripgrep": "^1.5.7",
@@ -56,6 +56,7 @@
     "xterm": "4.3.0-beta17",
     "xterm-addon-search": "0.4.0-beta4",
     "xterm-addon-web-links": "0.2.1",
+    "xterm-addon-webgl": "0.4.0-beta6",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },

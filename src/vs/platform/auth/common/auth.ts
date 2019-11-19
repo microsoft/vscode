@@ -9,7 +9,9 @@ import { URI } from 'vs/base/common/uri';
 
 export const enum AuthTokenStatus {
 	Inactive = 'Inactive',
-	Active = 'Active'
+	Active = 'Active',
+	SigningIn = 'SigningIn',
+	Refreshing = 'Refreshing'
 }
 
 export const IAuthTokenService = createDecorator<IAuthTokenService>('IAuthTokenService');

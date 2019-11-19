@@ -406,7 +406,10 @@ export class MeasureExtHostLatencyAction extends Action {
 		this._editorService.openEditor({ contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } } as IUntitledTextResourceInput);
 	}
 
-	private static _print(m: ExtHostLatencyResult): string {
+	private static _print(m: ExtHostLatencyResult | null): string {
+		if (!m) {
+			return '';
+		}
 		return `${m.remoteAuthority ? `Authority: ${m.remoteAuthority}\n` : ``}Roundtrip latency: ${m.latency.toFixed(3)}ms\nUp: ${MeasureExtHostLatencyAction._printSpeed(m.up)}\nDown: ${MeasureExtHostLatencyAction._printSpeed(m.down)}\n`;
 	}
 
@@ -422,4 +425,4 @@ export class MeasureExtHostLatencyAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MeasureExtHostLatencyAction, MeasureExtHostLatencyAction.ID, MeasureExtHostLatencyAction.LABEL), 'Developer: Measure Extension Host Latency', nls.localize('developer', "Developer"));
+registry.registerWorkbenchAction(SyncActionDescriptor.create(MeasureExtHostLatencyAction, MeasureExtHostLatencyAction.ID, MeasureExtHostLatencyAction.LABEL), 'Developer: Measure Extension Host Latency', nls.localize('developer', "Developer"));
