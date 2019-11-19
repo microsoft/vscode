@@ -16,7 +16,7 @@
 
 declare module 'vscode' {
 
-	//#region Alex - resolvers
+	//#region Alex - resolvers, AlexR - ports
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -33,7 +33,23 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export type ResolverResult = ResolvedAuthority & ResolvedOptions;
+	export class Port extends Disposable {
+		readonly remotePort: number;
+		readonly localPort?: number;
+		readonly description?: string;
+		constructor(remotePort: number, localPort?: number, description?: string);
+	}
+
+	/**
+	 * Used as part of the ResolverResult if the extension has any candidate, published, or forwarded ports.
+	 */
+	export interface PortInformation {
+		candidates?: Port[];
+		published?: Port[];
+		forwarded?: Port[];
+	}
+
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions & PortInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
@@ -44,6 +60,10 @@ declare module 'vscode' {
 
 	export interface RemoteAuthorityResolver {
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+		/**
+		 * Can be optionally implemented if the extension can forward ports better than the core.
+		 */
+		forwardPort?(remotePort: number, localPort?: number): Thenable<Port | undefined>;
 	}
 
 	export interface ResourceLabelFormatter {
