@@ -42,7 +42,7 @@ export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Ur
 	}
 
 	return uri.with({
-		scheme: 'git',
+		scheme: 'gitfs',
 		path,
 		query: JSON.stringify(params)
 	});
