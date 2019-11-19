@@ -13,6 +13,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import sinon = require('sinon');
 
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer('test');
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -293,5 +294,34 @@ suite('ContributableViewsModel', () => {
 		await new Promise(c => setTimeout(c, 30));
 		assert.equal(model.visibleViewDescriptors.length, 0, 'view should still not appear since it was set not visible in view state');
 		assert.equal(seq.elements.length, 0);
+	});
+
+	test('remove event is not triggered if view was hidden and removed', async function () {
+		const model = new ContributableViewsModel(container, viewsService);
+		const seq = new ViewDescriptorSequence(model);
+
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			when: ContextKeyExpr.equals('showview1', true),
+			canToggleVisibility: true
+		};
+
+		ViewsRegistry.registerViews([viewDescriptor], container);
+
+		const key = contextKeyService.createKey('showview1', true);
+		await new Promise(c => setTimeout(c, 30));
+		assert.equal(model.visibleViewDescriptors.length, 1, 'view should appear after context is set');
+		assert.equal(seq.elements.length, 1);
+
+		model.setVisible('view1', false);
+		assert.equal(model.visibleViewDescriptors.length, 0, 'view should disappear after setting visibility to false');
+		assert.equal(seq.elements.length, 0);
+
+		const target = sinon.spy(model.onDidRemove);
+		key.set(false);
+		await new Promise(c => setTimeout(c, 30));
+		assert.ok(!target.called, 'remove event should not be called since it is already hidden');
 	});
 });
