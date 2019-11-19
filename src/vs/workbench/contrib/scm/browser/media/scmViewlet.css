@@ -47,6 +47,7 @@
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
+	min-width: 14px; /* minimum size of icons */
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label .codicon {
