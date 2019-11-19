@@ -231,7 +231,21 @@ export class PointerEventHandler extends MouseHandler {
 		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
-			this.viewController.moveTo(target.position);
+			// this.viewController.moveTo(target.position);
+			this.viewController.dispatchMouse({
+				position: target.position,
+				mouseColumn: target.position.column,
+				startedOnLineNumbers: false,
+				mouseDownCount: event.tapCount,
+				inSelectionMode: false,
+				altKey: false,
+				ctrlKey: false,
+				metaKey: false,
+				shiftKey: false,
+
+				leftButton: false,
+				middleButton: false,
+			});
 		}
 	}
 
