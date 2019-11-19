@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -29,7 +29,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { isWeb } from 'vs/base/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.SignedOut);
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
@@ -39,6 +41,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private static readonly ENABLEMENT_SETTING = 'configurationSync.enable';
 
+	private readonly userDataSyncStore: IUserDataSyncStore | undefined;
 	private readonly syncStatusContext: IContextKey<string>;
 	private readonly authTokenContext: IContextKey<string>;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -59,18 +62,26 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IProductService private readonly productService: IProductService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.userDataSyncStore = getUserDataSyncStore(configurationService);
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.authTokenContext = CONTEXT_AUTH_TOKEN_STATE.bindTo(contextKeyService);
 
-		this.onDidChangeAuthTokenStatus(this.authTokenService.status);
-		this.onDidChangeSyncStatus(this.userDataSyncService.status);
-		this._register(Event.debounce(authTokenService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeAuthTokenStatus(this.authTokenService.status)));
-		this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeSyncStatus(this.userDataSyncService.status)));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING))(() => this.onDidChangeEnablement()));
-		this.registerActions();
+		if (this.userDataSyncStore) {
+			registerConfiguration();
+			this.onDidChangeAuthTokenStatus(this.authTokenService.status);
+			this.onDidChangeSyncStatus(this.userDataSyncService.status);
+			this._register(Event.debounce(authTokenService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeAuthTokenStatus(this.authTokenService.status)));
+			this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeSyncStatus(this.userDataSyncService.status)));
+			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING))(() => this.onDidChangeEnablement()));
+			this.registerActions();
+
+			if (isWeb) {
+				this._register(instantiationService.createInstance(UserDataAutoSync));
+			}
+		}
 	}
 
 	private onDidChangeAuthTokenStatus(status: AuthTokenStatus) {
@@ -112,7 +123,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const enabled = this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING);
 		if (enabled) {
 			if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
-				const handle = this.notificationService.prompt(Severity.Info, localize('ask to sign in', "Please sign in with your {0} account to sync configuration across all your machines", this.productService.settingsSyncStore!.account),
+				const handle = this.notificationService.prompt(Severity.Info, localize('ask to sign in', "Please sign in with your {0} account to sync configuration across all your machines", this.userDataSyncStore!.account),
 					[
 						{
 							label: localize('Sign in', "Sign in"),
@@ -154,8 +165,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
 			const result = await this.dialogService.confirm({
 				type: 'info',
-				message: localize('sign in to account', "Sign in to {0}", this.productService.settingsSyncStore!.name),
-				detail: localize('ask to sign in', "Please sign in with your {0} account to sync configuration across all your machines", this.productService.settingsSyncStore!.account),
+				message: localize('sign in to account', "Sign in to {0}", this.userDataSyncStore!.name),
+				detail: localize('ask to sign in', "Please sign in with your {0} account to sync configuration across all your machines", this.userDataSyncStore!.account),
 				primaryButton: localize('Sign in', "Sign in")
 			});
 			if (!result.confirmed) {

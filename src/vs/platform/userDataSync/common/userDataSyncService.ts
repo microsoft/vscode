@@ -44,7 +44,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.synchronisers = [this.settingsSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
 
-		if (this.userDataSyncStoreService.enabled) {
+		if (this.userDataSyncStoreService.userDataSyncStore) {
 			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
 			this._register(authTokenService.onDidChangeStatus(() => this.onDidChangeAuthTokenStatus()));
 		}
@@ -53,7 +53,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	async sync(_continue?: boolean): Promise<boolean> {
-		if (!this.userDataSyncStoreService.enabled) {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
 		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
@@ -68,7 +68,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	stop(): void {
-		if (!this.userDataSyncStoreService.enabled) {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
 		for (const synchroniser of this.synchronisers) {
@@ -93,7 +93,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private computeStatus(): SyncStatus {
-		if (!this.userDataSyncStoreService.enabled) {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			return SyncStatus.Uninitialized;
 		}
 		if (this.synchronisers.some(s => s.status === SyncStatus.HasConflicts)) {
