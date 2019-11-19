@@ -43,9 +43,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));
 		this.synchronisers = [this.settingsSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
-		this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
+
+		if (this.userDataSyncStoreService.enabled) {
+			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
+			this._register(authTokenService.onDidChangeStatus(() => this.onDidChangeAuthTokenStatus()));
+		}
+
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
-		this._register(authTokenService.onDidChangeStatus(() => this.onDidChangeAuthTokenStatus()));
 	}
 
 	async sync(_continue?: boolean): Promise<boolean> {
