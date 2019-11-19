@@ -68,7 +68,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		line: number,
 	) {
 		this._editor = editor;
-		this._id = (CodeLensContentWidget._idPool++).toString();
+		this._id = `codelens.widget-${(CodeLensContentWidget._idPool++)}`;
 
 		this.updatePosition(line);
 
@@ -188,6 +188,7 @@ export class CodeLensWidget {
 	private _contentWidget?: CodeLensContentWidget;
 	private _decorationIds: string[];
 	private _data: CodeLensItem[];
+	private _isDisposed: boolean = false;
 
 	constructor(
 		data: CodeLensItem[],
@@ -250,7 +251,13 @@ export class CodeLensWidget {
 		}
 		if (this._contentWidget) {
 			this._editor.removeContentWidget(this._contentWidget);
+			this._contentWidget = undefined;
 		}
+		this._isDisposed = true;
+	}
+
+	isDisposed(): boolean {
+		return this._isDisposed;
 	}
 
 	isValid(): boolean {
@@ -315,7 +322,7 @@ export class CodeLensWidget {
 	}
 
 	update(viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
-		if (this.isValid() && this._editor.hasModel()) {
+		if (this.isValid()) {
 			const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
 			if (range) {
 				this._viewZone.afterLineNumber = range.startLineNumber - 1;
