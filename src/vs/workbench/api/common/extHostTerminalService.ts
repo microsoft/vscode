@@ -268,8 +268,8 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
-			this._pty.onDidClose((e: number | undefined = undefined) => {
-				this._onProcessExit.fire(e);
+			this._pty.onDidClose((e: number | void = undefined) => {
+				this._onProcessExit.fire(e === void 0 ? undefined : e);
 			});
 		}
 		if (this._pty.onDidOverrideDimensions) {
