@@ -61,6 +61,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -651,7 +652,10 @@ export class SearchView extends ViewletPanel {
 				identityProvider,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel),
 				dnd: this.instantiationService.createInstance(SearchDND),
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				overrideStyles: {
+					listBackground: SIDE_BAR_BACKGROUND
+				}
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
