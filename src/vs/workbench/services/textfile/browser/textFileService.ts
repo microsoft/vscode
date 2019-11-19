@@ -345,7 +345,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// before event
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.CREATE, resource), CancellationToken.None);
+		await this._onWillRunOperation.fireAsync({ operation: FileOperation.CREATE, target: resource }, CancellationToken.None);
 
 		const stat = await this.doCreate(resource, value, options);
 
@@ -375,7 +375,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 
 		// before event
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.DELETE, resource), CancellationToken.None);
+		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
 
 		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
 		await this.revertAll(dirtyFiles, { soft: true });
@@ -389,7 +389,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 
 		// before event
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.MOVE, target, source), CancellationToken.None);
+		await this._onWillRunOperation.fireAsync({ operation: FileOperation.MOVE, target, source }, CancellationToken.None);
 
 		// find all models that related to either source or target (can be many if resource is a folder)
 		const sourceModels: ITextFileEditorModel[] = [];

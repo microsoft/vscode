@@ -196,26 +196,14 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, token: CancellationToken): Promise<any> {
 
 		const edits: WorkspaceEdit[] = [];
-		await Promise.resolve(emitter.fireAsync(bucket => {
-			return <E>{
-				...data,
-				...{
-					waitUntil: (thenable: Promise<vscode.WorkspaceEdit>): void => {
-						if (Object.isFrozen(bucket)) {
-							throw new TypeError('waitUntil cannot be called async');
-						}
-						const promise = Promise.resolve(thenable).then(result => {
-							// ignore all results except for WorkspaceEdits. Those
-							// are stored in a spare array
-							if (result instanceof WorkspaceEdit) {
-								edits.push(result);
-							}
-						});
-						bucket.push(promise);
-					}
-				}
-			};
-		}, token));
+
+		await emitter.fireAsync(data, token, async p => {
+			// ignore all results except for WorkspaceEdits. Those are stored in an array.
+			const result = await Promise.resolve(p);
+			if (result instanceof WorkspaceEdit) {
+				edits.push(result);
+			}
+		});
 
 		if (token.isCancellationRequested) {
 			return;
