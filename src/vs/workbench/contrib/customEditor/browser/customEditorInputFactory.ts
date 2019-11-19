@@ -12,7 +12,7 @@ import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { Lazy } from 'vs/base/common/lazy';
 
-export class CustomEditoInputFactory extends WebviewEditorInputFactory {
+export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 
 	public static readonly ID = CustomFileEditorInput.typeId;
 
