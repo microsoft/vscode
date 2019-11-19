@@ -55,7 +55,7 @@ suite('window namespace tests', () => {
 				}
 				terminal.processId.then(id => {
 					try {
-						ok(id > 0);
+						ok(id && id > 0);
 					} catch (e) {
 						done(e);
 					}
