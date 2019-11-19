@@ -32,14 +32,14 @@ export function getExtensionKind(manifest: IExtensionManifest, productService: I
 		return toArray(result);
 	}
 
-	// check the manifest itself
-	result = manifest.extensionKind;
+	// check product.json
+	result = getProductExtensionKind(manifest, productService);
 	if (typeof result !== 'undefined') {
 		return toArray(result);
 	}
 
-	// check product.json
-	result = getProductExtensionKind(manifest, productService);
+	// check the manifest itself
+	result = manifest.extensionKind;
 	if (typeof result !== 'undefined') {
 		return toArray(result);
 	}
