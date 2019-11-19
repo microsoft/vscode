@@ -38,7 +38,7 @@ import * as platform from 'vs/base/common/platform';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ISequence, ISplice } from 'vs/base/common/sequence';
-import { ObjectTree, ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
+import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { URI } from 'vs/base/common/uri';
@@ -52,6 +52,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -428,7 +429,7 @@ class ViewModel {
 
 	constructor(
 		private groups: ISequence<ISCMResourceGroup>,
-		private tree: ObjectTree<TreeElement, FuzzyScore>,
+		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private _mode: ViewModelMode,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
@@ -591,7 +592,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private inputBoxContainer!: HTMLElement;
 	private inputBox!: InputBox;
 	private listContainer!: HTMLElement;
-	private tree!: ObjectTree<TreeElement, FuzzyScore>;
+	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private viewModel!: ViewModel;
 	private listLabels!: ResourceLabels;
 	private menus: SCMMenus;
@@ -744,7 +745,10 @@ export class RepositoryPanel extends ViewletPanel {
 				horizontalScrolling: false,
 				filter,
 				sorter,
-				keyboardNavigationLabelProvider
+				keyboardNavigationLabelProvider,
+				overrideStyles: {
+					listBackground: SIDE_BAR_BACKGROUND
+				}
 			});
 
 		this._register(Event.chain(this.tree.onDidOpen)
