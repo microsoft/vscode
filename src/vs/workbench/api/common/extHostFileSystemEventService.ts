@@ -15,6 +15,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { FileOperation } from 'vs/platform/files/common/files';
 import { flatten } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -121,6 +122,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	constructor(
 		mainContext: IMainContext,
+		private readonly _logService: ILogService,
 		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _mainThreadTextEditors: MainThreadTextEditorsShape = mainContext.getProxy(MainContext.MainThreadTextEditors)
 	) {
@@ -177,31 +179,36 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined, token: CancellationToken): Promise<any> {
+	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined, timeout: number, token: CancellationToken): Promise<any> {
 		switch (operation) {
 			case FileOperation.MOVE:
-				await this._fireWillEvent(this._onWillRenameFile, { files: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }, token);
+				await this._fireWillEvent(this._onWillRenameFile, { files: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }, timeout, token);
 				break;
 			case FileOperation.DELETE:
-				await this._fireWillEvent(this._onWillDeleteFile, { files: [URI.revive(target)] }, token);
+				await this._fireWillEvent(this._onWillDeleteFile, { files: [URI.revive(target)] }, timeout, token);
 				break;
 			case FileOperation.CREATE:
-				await this._fireWillEvent(this._onWillCreateFile, { files: [URI.revive(target)] }, token);
+				await this._fireWillEvent(this._onWillCreateFile, { files: [URI.revive(target)] }, timeout, token);
 				break;
 			default:
 			//ignore, dont send
 		}
 	}
 
-	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, token: CancellationToken): Promise<any> {
+	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, timeout: number, token: CancellationToken): Promise<any> {
 
 		const edits: WorkspaceEdit[] = [];
 
-		await emitter.fireAsync(data, token, async p => {
+		await emitter.fireAsync(data, token, async (thenable, listener: IExtensionListener<E>) => {
 			// ignore all results except for WorkspaceEdits. Those are stored in an array.
-			const result = await Promise.resolve(p);
+			const now = Date.now();
+			const result = await Promise.resolve(thenable);
 			if (result instanceof WorkspaceEdit) {
 				edits.push(result);
+			}
+
+			if (Date.now() - now > timeout) {
+				this._logService.warn('SLOW file-participant', listener.extension?.identifier);
 			}
 		});
 

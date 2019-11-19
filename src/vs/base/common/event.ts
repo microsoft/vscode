@@ -656,7 +656,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
 
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<any>) => Promise<any>): Promise<void> {
+	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<any>, listener: Function) => Promise<any>): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
@@ -681,7 +681,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 						throw new Error('waitUntil can NOT be called asynchronous');
 					}
 					if (promiseJoin) {
-						p = promiseJoin(p);
+						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
 					}
 					thenables.push(p);
 				}

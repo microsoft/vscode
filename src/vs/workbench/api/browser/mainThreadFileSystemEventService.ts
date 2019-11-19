@@ -88,7 +88,7 @@ export class MainThreadFileSystemEventService {
 						reject(new Error('timeout'));
 					}, timeout);
 
-					proxy.$onWillRunFileOperation(e.operation, e.target, e.source, cts.token)
+					proxy.$onWillRunFileOperation(e.operation, e.target, e.source, timeout, cts.token)
 						.then(resolve, reject)
 						.finally(() => clearTimeout(timeoutHandle));
 				});
