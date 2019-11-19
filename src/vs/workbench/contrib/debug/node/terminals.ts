@@ -47,7 +47,7 @@ function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	});
 }
 
-export function hasChildProcesses(processId: number): Promise<boolean> {
+export function hasChildProcesses(processId: number | undefined): Promise<boolean> {
 	if (processId) {
 		// if shell has at least one child process, assume that shell is busy
 		if (env.isWindows) {

@@ -4843,7 +4843,7 @@ declare module 'vscode' {
 		/**
 		 * The process ID of the shell process.
 		 */
-		readonly processId: Thenable<number>;
+		readonly processId: Thenable<number | undefined>;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
