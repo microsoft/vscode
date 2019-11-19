@@ -7,6 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * To an event a function with one or zero parameters
@@ -655,7 +656,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 	private _asyncDeliveryQueue?: [Listener<T>, T, Promise<any>[]][];
 
-	async fireAsync(eventFn: (thenables: Promise<any>[], listener: Function) => T): Promise<void> {
+	async fireAsync(eventFn: (thenables: Promise<any>[], listener: Function) => T, token: CancellationToken): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
@@ -672,7 +673,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			this._asyncDeliveryQueue.push([e.value, eventFn(thenables, typeof e.value === 'function' ? e.value : e.value[0]), thenables]);
 		}
 
-		while (this._asyncDeliveryQueue.length > 0) {
+		while (this._asyncDeliveryQueue.length > 0 && !token.isCancellationRequested) {
 			const [listener, event, thenables] = this._asyncDeliveryQueue.shift()!;
 			try {
 				if (typeof listener === 'function') {

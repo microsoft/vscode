@@ -7,6 +7,7 @@ import { Event, Emitter, EventBufferer, EventMultiplexer, AsyncEmitter, IWaitUnt
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as Errors from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 namespace Samples {
 
@@ -276,7 +277,7 @@ suite('AsyncEmitter', function () {
 			foo: true,
 			bar: 1,
 			waitUntil(t: Promise<void>) { thenables.push(t); }
-		}));
+		}), CancellationToken.None);
 		emitter.dispose();
 	});
 
@@ -308,7 +309,7 @@ suite('AsyncEmitter', function () {
 			waitUntil(t) {
 				thenables.push(t);
 			}
-		}));
+		}), CancellationToken.None);
 		assert.equal(globalState, 2);
 	});
 
@@ -329,7 +330,7 @@ suite('AsyncEmitter', function () {
 						waitUntil(t) {
 							thenables.push(t);
 						}
-					}));
+					}), CancellationToken.None);
 					assert.deepEqual(events, [1, 2]);
 					done = true;
 				}
@@ -347,7 +348,7 @@ suite('AsyncEmitter', function () {
 			waitUntil(t) {
 				thenables.push(t);
 			}
-		}));
+		}), CancellationToken.None);
 		assert.ok(done);
 	});
 
@@ -377,7 +378,7 @@ suite('AsyncEmitter', function () {
 			waitUntil(t) {
 				thenables.push(t);
 			}
-		})).then(() => {
+		}), CancellationToken.None).then(() => {
 			assert.equal(globalState, 2);
 		}).catch(e => {
 			console.log(e);

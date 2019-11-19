@@ -36,6 +36,7 @@ import { ITextSnapshot } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -344,7 +345,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// before event
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.CREATE, resource));
+		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.CREATE, resource), CancellationToken.None);
 
 		const stat = await this.doCreate(resource, value, options);
 
@@ -374,7 +375,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 
 		// before event
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.DELETE, resource));
+		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.DELETE, resource), CancellationToken.None);
 
 		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
 		await this.revertAll(dirtyFiles, { soft: true });
@@ -388,7 +389,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 
 		// before event
-		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.MOVE, target, source));
+		await this._onWillRunOperation.fireAsync(promises => new FileOperationWillRunEvent(promises, FileOperation.MOVE, target, source), CancellationToken.None);
 
 		// find all models that related to either source or target (can be many if resource is a folder)
 		const sourceModels: ITextFileEditorModel[] = [];
