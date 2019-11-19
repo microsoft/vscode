@@ -111,6 +111,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
 		tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
 
+		this._register(Gesture.addTarget(this.tabsContainer));
 		// Tabs Container listeners
 		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
 
@@ -175,6 +176,18 @@ export class TabsTitleControl extends TitleControl {
 		// New file when double clicking on tabs container (but not tabs)
 		this._register(addDisposableListener(tabsContainer, EventType.DBLCLICK, e => {
 			if (e.target === tabsContainer) {
+				EventHelper.stop(e);
+
+				this.group.openEditor(this.untitledTextEditorService.createOrGet(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
+			}
+		}));
+
+		this._register(addDisposableListener(tabsContainer, TouchEventType.Tap, (e: GestureEvent) => {
+			if (e.tapCount !== 2) {
+				return;
+			}
+
+			if (e.initialTarget === tabsContainer) {
 				EventHelper.stop(e);
 
 				this.group.openEditor(this.untitledTextEditorService.createOrGet(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
@@ -600,16 +613,23 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Double click: either pin or toggle maximized
-		disposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
-			EventHelper.stop(e);
+		[TouchEventType.Tap, EventType.DBLCLICK].forEach(eventType => {
+			disposables.add(addDisposableListener(tab, eventType, (e: MouseEvent | GestureEvent) => {
+				if (e instanceof MouseEvent) {
+					EventHelper.stop(e);
+				} else if ((<GestureEvent>e).tapCount !== 2) {
+					// ignore single taps
+					return;
+				}
 
-			const editor = this.group.getEditorByIndex(index);
-			if (editor && this.group.isPinned(editor)) {
-				this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
-			} else {
-				this.group.pinEditor(editor);
-			}
-		}));
+				const editor = this.group.getEditorByIndex(index);
+				if (editor && this.group.isPinned(editor)) {
+					this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+				} else {
+					this.group.pinEditor(editor);
+				}
+			}));
+		});
 
 		// Context menu
 		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: Event) => {
