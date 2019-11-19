@@ -180,7 +180,7 @@ export class UserDataAutoSync extends Disposable {
 	private isSyncEnabled(): boolean {
 		return this.configurationService.getValue<boolean>('configurationSync.enable')
 			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
-			&& this.authTokenService.status !== AuthTokenStatus.SignedOut;
+			&& this.authTokenService.status === AuthTokenStatus.SignedIn;
 	}
 
 }
