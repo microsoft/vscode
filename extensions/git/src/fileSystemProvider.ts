@@ -31,7 +31,14 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.disposables.push(
 			model.onDidChangeRepository(this.onDidChangeRepository, this),
 			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
-			workspace.registerFileSystemProvider('gitfs', this, { isReadonly: true, isCaseSensitive: true })
+			workspace.registerFileSystemProvider('gitfs', this, { isReadonly: true, isCaseSensitive: true }),
+			workspace.registerResourceLabelFormatter({
+				scheme: 'gitfs',
+				formatting: {
+					label: '${path} (git)',
+					separator: '/'
+				}
+			})
 		);
 
 		setInterval(() => this.cleanup(), FIVE_MINUTES);
