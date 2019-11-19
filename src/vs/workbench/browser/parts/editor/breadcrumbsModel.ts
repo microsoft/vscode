@@ -150,7 +150,8 @@ export class EditorBreadcrumbsModel {
 				const editorModel = this._editor.getModel() as ITextModel;
 				const languageName = editorModel.getLanguageIdentifier().language;
 
-				// checking for changes in the current language override config
+				// Checking for changes in the current language override config.
+				// We can't be more specific than this because the ConfigurationChangeEvent(e) only includes the first part of the root path
 				if (e.affectsConfiguration(`[${languageName}]`)) {
 					this._updateOutline(true);
 				}
