@@ -243,8 +243,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	protected getAriaLabel(): string {
-		const input = this.input;
-		const inputName = input?.getName();
+		const inputName = this.input?.getName();
 
 		let ariaLabel: string;
 		if (inputName) {

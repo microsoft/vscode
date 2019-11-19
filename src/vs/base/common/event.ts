@@ -7,6 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * To an event a function with one or zero parameters
@@ -653,27 +654,39 @@ export interface IWaitUntil {
 
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
-	private _asyncDeliveryQueue?: [Listener<T>, T, Promise<any>[]][];
+	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
 
-	async fireAsync(eventFn: (thenables: Promise<any>[], listener: Function) => T): Promise<void> {
+	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<any>, listener: Function) => Promise<any>): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
 
-		// put all [listener,event]-pairs into delivery queue
-		// then emit all event. an inner/nested event might be
-		// the driver of this
 		if (!this._asyncDeliveryQueue) {
-			this._asyncDeliveryQueue = [];
+			this._asyncDeliveryQueue = new LinkedList();
 		}
 
 		for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
-			const thenables: Promise<void>[] = [];
-			this._asyncDeliveryQueue.push([e.value, eventFn(thenables, typeof e.value === 'function' ? e.value : e.value[0]), thenables]);
+			this._asyncDeliveryQueue.push([e.value, data]);
 		}
 
-		while (this._asyncDeliveryQueue.length > 0) {
-			const [listener, event, thenables] = this._asyncDeliveryQueue.shift()!;
+		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
+
+			const [listener, data] = this._asyncDeliveryQueue.shift()!;
+			const thenables: Promise<any>[] = [];
+
+			const event = <T>{
+				...data,
+				waitUntil: (p: Promise<any>): void => {
+					if (Object.isFrozen(thenables)) {
+						throw new Error('waitUntil can NOT be called asynchronous');
+					}
+					if (promiseJoin) {
+						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
+					}
+					thenables.push(p);
+				}
+			};
+
 			try {
 				if (typeof listener === 'function') {
 					listener.call(undefined, event);

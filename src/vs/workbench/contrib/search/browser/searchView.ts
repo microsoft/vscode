@@ -61,7 +61,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -69,6 +69,11 @@ enum SearchUIState {
 	Idle,
 	Searching,
 	SlowSearch
+}
+
+export enum SearchViewPosition {
+	SideBar,
+	Panel
 }
 
 const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
@@ -133,6 +138,7 @@ export class SearchView extends ViewletPanel {
 	private addToSearchHistoryDelayer: Delayer<void>;
 
 	constructor(
+		private position: SearchViewPosition,
 		options: IViewletPanelOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -157,7 +163,7 @@ export class SearchView extends ViewletPanel {
 		@IStorageService storageService: IStorageService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
-		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...options, id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
@@ -654,7 +660,7 @@ export class SearchView extends ViewletPanel {
 				dnd: this.instantiationService.createInstance(SearchDND),
 				multipleSelectionSupport: false,
 				overrideStyles: {
-					listBackground: SIDE_BAR_BACKGROUND
+					listBackground: this.position === SearchViewPosition.SideBar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 				}
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));

@@ -19,7 +19,7 @@ class UserDataSyncConfigurationContribution implements IWorkbenchContribution {
 	constructor(
 		@IProductService productService: IProductService
 	) {
-		if (productService.settingsSyncStoreUrl) {
+		if (productService.settingsSyncStore) {
 			registerConfiguration();
 		}
 	}

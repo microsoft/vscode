@@ -119,12 +119,10 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	}
 
 	protected getAriaLabel(): string {
-		const input = this.input;
-		const isReadonly = !(this.input instanceof UntitledTextEditorInput);
-
 		let ariaLabel: string;
-		const inputName = input?.getName();
-		if (isReadonly) {
+
+		const inputName = this.input?.getName();
+		if (this.input?.isReadonly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
 		} else {
 			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");

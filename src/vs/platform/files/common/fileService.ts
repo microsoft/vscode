@@ -220,7 +220,6 @@ export class FileService extends Disposable implements IFileService {
 			isFile: (stat.type & FileType.File) !== 0,
 			isDirectory: (stat.type & FileType.Directory) !== 0,
 			isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
-			isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			mtime: stat.mtime,
 			ctime: stat.ctime,
 			size: stat.size,

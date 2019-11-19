@@ -99,7 +99,12 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: undefined;
 
+	private readonly modelService: IModelService | undefined;
 	private editor?: editorCommon.IEditor;
+
+	constructor(modelService: IModelService | undefined) {
+		this.modelService = modelService;
+	}
 
 	public setEditor(editor: editorCommon.IEditor): void {
 		this.editor = editor;
@@ -132,7 +137,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
-		let model = editor.getModel();
+		let model = this.modelService ? this.modelService.getModel(resource) : editor.getModel();
 		if (model && model.uri.toString() !== resource.toString()) {
 			return null;
 		}

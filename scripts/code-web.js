@@ -227,6 +227,14 @@ function getMediaMime(forPath) {
  */
 async function serveFile(req, res, filePath, responseHeaders = Object.create(null)) {
 	try {
+
+		// Sanity checks
+		filePath = path.normalize(filePath); // ensure no "." and ".."
+		if (filePath.indexOf(`${APP_ROOT}${path.sep}`) !== 0) {
+			// invalid location outside of APP_ROOT
+			return serveError(req, res, 400, `Bad request.`);
+		}
+
 		const stat = await util.promisify(fs.stat)(filePath);
 
 		// Check if file modified since

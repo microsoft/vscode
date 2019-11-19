@@ -14,6 +14,8 @@ import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { flatten } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -120,6 +122,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	constructor(
 		mainContext: IMainContext,
+		private readonly _logService: ILogService,
 		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _mainThreadTextEditors: MainThreadTextEditorsShape = mainContext.getProxy(MainContext.MainThreadTextEditors)
 	) {
@@ -176,57 +179,52 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): Promise<any> {
+	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined, timeout: number, token: CancellationToken): Promise<any> {
 		switch (operation) {
 			case FileOperation.MOVE:
-				await this._fireWillEvent(this._onWillRenameFile, { files: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }], });
+				await this._fireWillEvent(this._onWillRenameFile, { files: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }, timeout, token);
 				break;
 			case FileOperation.DELETE:
-				await this._fireWillEvent(this._onWillDeleteFile, { files: [URI.revive(target)] });
+				await this._fireWillEvent(this._onWillDeleteFile, { files: [URI.revive(target)] }, timeout, token);
 				break;
 			case FileOperation.CREATE:
-				await this._fireWillEvent(this._onWillCreateFile, { files: [URI.revive(target)] });
+				await this._fireWillEvent(this._onWillCreateFile, { files: [URI.revive(target)] }, timeout, token);
 				break;
 			default:
 			//ignore, dont send
 		}
 	}
 
-	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>): Promise<any> {
+	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, timeout: number, token: CancellationToken): Promise<any> {
 
 		const edits: WorkspaceEdit[] = [];
-		await Promise.resolve(emitter.fireAsync(bucket => {
-			return <E>{
-				...data,
-				...{
-					waitUntil: (thenable: Promise<vscode.WorkspaceEdit>): void => {
-						if (Object.isFrozen(bucket)) {
-							throw new TypeError('waitUntil cannot be called async');
-						}
-						const promise = Promise.resolve(thenable).then(result => {
-							// ignore all results except for WorkspaceEdits. Those
-							// are stored in a spare array
-							if (result instanceof WorkspaceEdit) {
-								edits.push(result);
-							}
-						});
-						bucket.push(promise);
-					}
-				}
-			};
-		}));
 
-		if (edits.length === 0) {
-			return undefined;
+		await emitter.fireAsync(data, token, async (thenable, listener: IExtensionListener<E>) => {
+			// ignore all results except for WorkspaceEdits. Those are stored in an array.
+			const now = Date.now();
+			const result = await Promise.resolve(thenable);
+			if (result instanceof WorkspaceEdit) {
+				edits.push(result);
+			}
+
+			if (Date.now() - now > timeout) {
+				this._logService.warn('SLOW file-participant', listener.extension?.identifier);
+			}
+		});
+
+		if (token.isCancellationRequested) {
+			return;
 		}
 
-		// flatten all WorkspaceEdits collected via waitUntil-call
-		// and apply them in one go.
-		const allEdits = new Array<Array<IResourceFileEditDto | IResourceTextEditDto>>();
-		for (let edit of edits) {
-			let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-			allEdits.push(edits);
+		if (edits.length > 0) {
+			// flatten all WorkspaceEdits collected via waitUntil-call
+			// and apply them in one go.
+			const allEdits = new Array<Array<IResourceFileEditDto | IResourceTextEditDto>>();
+			for (let edit of edits) {
+				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+				allEdits.push(edits);
+			}
+			return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
 		}
-		return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
 	}
 }
