@@ -6,6 +6,7 @@
 import 'vs/css!./referencesWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { GestureEvent } from 'vs/base/browser/touch';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -364,8 +365,11 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			if (e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey)) {
 				// modifier-click -> open to the side
 				onEvent(e.elements[0], 'side');
-			} else if (e.browserEvent instanceof KeyboardEvent || (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2)) {
-				// keybinding (list service command) OR double click -> close widget and goto target
+			} else if (e.browserEvent instanceof KeyboardEvent || (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2) || (<GestureEvent>e.browserEvent).tapCount === 2) {
+				// keybinding (list service command)
+				// OR double click
+				// OR double tap
+				// -> close widget and goto target
 				onEvent(e.elements[0], 'goto');
 			} else {
 				// preview location
