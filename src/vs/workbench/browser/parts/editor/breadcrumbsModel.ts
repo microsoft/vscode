@@ -24,6 +24,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { ITextModel } from 'vs/editor/common/model';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 export class FileElement {
 	constructor(
@@ -54,9 +55,9 @@ export class EditorBreadcrumbsModel {
 		private readonly _uri: URI,
 		private readonly _editor: ICodeEditor | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 	) {
-
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(_configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(_configurationService);
 
@@ -261,16 +262,12 @@ export class EditorBreadcrumbsModel {
 	private _isFiltered(element: TreeElement): boolean {
 		if (element instanceof OutlineElement) {
 			const key = `breadcrumbs.${OutlineFilter.kindToConfigName[element.symbol.kind]}`;
-
-			// If possible, look for language specific overrides when reading configuration.
+			let uri: URI | undefined;
 			if (this._editor && this._editor.getModel()) {
 				const model = this._editor.getModel() as ITextModel;
-				return !this._configurationService.getValue<boolean>(key, {
-					overrideIdentifier: model.getLanguageIdentifier().language
-				});
+				uri = model.uri;
 			}
-
-			return this._configurationService.getValue<boolean>(key);
+			return !this._textResourceConfigurationService.getValue<boolean>(uri, key);
 		}
 		return false;
 	}
