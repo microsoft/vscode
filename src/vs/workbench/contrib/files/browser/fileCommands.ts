@@ -67,7 +67,7 @@ export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 export const DirtyEditorContext = new RawContextKey<boolean>('dirtyEditor', false);
-export const SaveableEditorContext = new RawContextKey<boolean>('saveableEditor', false);
+export const ReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditor', false);
 export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
 
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
@@ -318,16 +318,16 @@ function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsO
 }
 
 function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyArray<IEditorGroup>, options?: ISaveEditorsOptions): Promise<void> {
-	const saveableEditors: IEditorIdentifier[] = [];
+	const dirtyEditors: IEditorIdentifier[] = [];
 	for (const group of groups) {
 		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (editor.isDirty()) {
-				saveableEditors.push({ groupId: group.id, editor });
+				dirtyEditors.push({ groupId: group.id, editor });
 			}
 		}
 	}
 
-	return doSaveEditors(accessor, saveableEditors, options);
+	return doSaveEditors(accessor, dirtyEditors, options);
 }
 
 async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
