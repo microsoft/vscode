@@ -2355,6 +2355,10 @@ export interface ISuggestOptions {
 	 */
 	overwriteOnAccept?: boolean;
 	/**
+	 * Should the editor highlight what text suggest will replace.
+	 */
+	highlightReplaceRange?: boolean;
+	/**
 	 * Enable graceful matching. Defaults to true.
 	 */
 	filterGraceful?: boolean;
@@ -2487,6 +2491,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 	constructor() {
 		const defaults: InternalSuggestOptions = {
 			overwriteOnAccept: false,
+			highlightReplaceRange: true,
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
@@ -2526,6 +2531,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.overwriteOnAccept,
 					description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
+				},
+				'editor.suggest.highlightReplaceRange': {
+					type: 'boolean',
+					default: defaults.highlightReplaceRange,
+					description: nls.localize('suggest.highlightReplaceRange', "Controls whether the editor highlights what text suggestions will replace.")
 				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
@@ -2704,6 +2714,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		const input = _input as ISuggestOptions;
 		return {
 			overwriteOnAccept: EditorBooleanOption.boolean(input.overwriteOnAccept, this.defaultValue.overwriteOnAccept),
+			highlightReplaceRange: EditorBooleanOption.boolean(input.highlightReplaceRange, this.defaultValue.highlightReplaceRange),
 			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
 			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),

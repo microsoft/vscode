@@ -35,6 +35,7 @@ suite('CompletionModel', function () {
 
 	let defaultOptions = {
 		overwriteOnAccept: false,
+		highlightReplaceRange: true,
 		snippetsPreventQuickSuggestions: true,
 		filterGraceful: true,
 		localityBonus: false,

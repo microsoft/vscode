@@ -3398,6 +3398,10 @@ declare namespace monaco.editor {
 		 */
 		overwriteOnAccept?: boolean;
 		/**
+		 * Should the editor highlight what text suggest will replace.
+		 */
+		highlightReplaceRange?: boolean;
+		/**
 		 * Enable graceful matching. Defaults to true.
 		 */
 		filterGraceful?: boolean;
