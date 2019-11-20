@@ -444,7 +444,7 @@ export class TestFileDialogService implements IFileDialogService {
 	public setConfirmResult(result: ConfirmResult): void {
 		this.confirmResult = result;
 	}
-	public showSaveConfirm(resources: string | URI[]): Promise<ConfirmResult> {
+	public showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		return Promise.resolve(this.confirmResult);
 	}
 }

@@ -23,6 +23,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ResourceMap, values } from 'vs/base/common/map';
 
 export class ExecuteCommandAction extends Action {
 
@@ -639,7 +640,23 @@ export abstract class BaseCloseAllAction extends Action {
 			return undefined;
 		}));
 
-		const confirm = await this.fileDialogService.showSaveConfirm(this.workingCopyService.getDirty().map(copy => copy.resource));
+		const dirtyEditorsToConfirmByName = new Set<string>();
+		const dirtyEditorsToConfirmByResource = new ResourceMap();
+
+		for (const editor of this.editorService.editors) {
+			if (!editor.isDirty()) {
+				continue; // only interested in dirty editors
+			}
+
+			const resource = editor.getResource();
+			if (resource) {
+				dirtyEditorsToConfirmByResource.set(resource, true);
+			} else {
+				dirtyEditorsToConfirmByName.add(editor.getName());
+			}
+		}
+
+		const confirm = await this.fileDialogService.showSaveConfirm([...dirtyEditorsToConfirmByResource.keys(), ...values(dirtyEditorsToConfirmByName)]);
 		if (confirm === ConfirmResult.CANCEL) {
 			return;
 		}
