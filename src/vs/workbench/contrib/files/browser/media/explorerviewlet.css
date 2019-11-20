@@ -61,14 +61,14 @@
 	align-items: center;
 }
 
-.explorer-viewlet .panel-header .count {
+.explorer-viewlet .pane-header .count {
 	min-width: fit-content;
 	min-width: -moz-fit-content;
 	display: flex;
 	align-items: center;
 }
 
-.explorer-viewlet .panel-header .monaco-count-badge.hidden {
+.explorer-viewlet .pane-header .monaco-count-badge.hidden {
 	display: none;
 }
 

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-panel-view .split-view-view:first-of-type > .panel > .panel-header {
-	border-top: none !important; /* less clutter: do not show any border for first views in a panel */
+.monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header {
+	border-top: none !important; /* less clutter: do not show any border for first views in a pane */
 }
 
-.monaco-panel-view .panel > .panel-header > .actions.show {
+.monaco-pane-view .pane > .pane-header > .actions.show {
 	display: initial;
 }
 
-.monaco-panel-view .panel > .panel-header h3.title {
+.monaco-pane-view .pane > .pane-header h3.title {
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
