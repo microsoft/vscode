@@ -14,7 +14,7 @@ import { CommitOptions, ForcePushMode, Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
-import { fromGitUri, toGitUri } from './uri';
+import { fromGitUri, toGitUri, isGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
 
 const localize = nls.loadMessageBundle();
@@ -692,7 +692,7 @@ export class CommandCenter {
 		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
-			if (arg.scheme === 'git') {
+			if (isGitUri(arg)) {
 				uris = [Uri.file(fromGitUri(arg).path)];
 			} else if (arg.scheme === 'file') {
 				uris = [arg];
@@ -1117,7 +1117,7 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
-		if (modifiedUri.scheme !== 'git') {
+		if (!isGitUri(modifiedUri)) {
 			return;
 		}
 
@@ -2454,7 +2454,7 @@ export class CommandCenter {
 			return undefined;
 		}
 
-		if (uri.scheme === 'git') {
+		if (isGitUri(uri)) {
 			const { path } = fromGitUri(uri);
 			uri = Uri.file(path);
 		}

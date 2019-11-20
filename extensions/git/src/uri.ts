@@ -11,6 +11,10 @@ export interface GitUriParams {
 	submoduleOf?: string;
 }
 
+export function isGitUri(uri: Uri): boolean {
+	return /^git(fs)?$/.test(uri.scheme);
+}
+
 export function fromGitUri(uri: Uri): GitUriParams {
 	return JSON.parse(uri.query);
 }

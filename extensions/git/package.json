@@ -1194,7 +1194,7 @@
         {
           "command": "git.openFile",
           "group": "navigation",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
         },
         {
           "command": "git.openChange",
@@ -1204,44 +1204,44 @@
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
         }
       ],
       "editor/context": [
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^gitfs$|^file$/"
         }
       ],
       "scm/change/title": [
         {
           "command": "git.stageChange",
-          "when": "originalResourceScheme == git"
+          "when": "originalResourceScheme == gitfs"
         },
         {
           "command": "git.revertChange",
-          "when": "originalResourceScheme == git"
+          "when": "originalResourceScheme == gitfs"
         }
       ]
     },
