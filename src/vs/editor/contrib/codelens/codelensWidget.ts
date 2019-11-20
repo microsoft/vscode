@@ -96,7 +96,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 					innerHtml += `<span>${title}</span>`;
 				}
 				if (i + 1 < lenses.length) {
-					innerHtml += '<span>&nbsp;|&nbsp;</span>';
+					innerHtml += '<span>&#160;|&#160;</span>';
 				}
 			}
 		}
@@ -108,7 +108,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		} else {
 			// symbols and commands
 			if (!innerHtml) {
-				innerHtml = '&nbsp;';
+				innerHtml = '&#160;';
 			}
 			this._domNode.innerHTML = innerHtml;
 			if (this._isEmpty && animate) {
