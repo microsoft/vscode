@@ -99,6 +99,9 @@ function getElectron(arch) {
     };
 }
 async function main(arch = process.arch) {
+    if (process.env["npm_config_arch"]) {
+        arch = process.env["npm_config_arch"];
+    }
     const version = getElectronVersion();
     const electronPath = path.join(root, '.build', 'electron');
     const versionFile = path.join(electronPath, 'version');
