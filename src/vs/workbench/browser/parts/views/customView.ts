@@ -43,7 +43,7 @@ import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
-export class CustomTreeViewPanel extends ViewletPane {
+export class CustomTreeViewPane extends ViewletPane {
 
 	private treeView: ITreeView;
 
