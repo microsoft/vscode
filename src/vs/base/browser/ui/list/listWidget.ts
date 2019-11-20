@@ -796,6 +796,7 @@ export class DefaultStyleController implements IStyleController {
 		if (styles.listDropBackground) {
 			content.push(`
 				.monaco-list${suffix}.drop-target,
+				.monaco-list${suffix} .monaco-list-rows.drop-target,
 				.monaco-list${suffix} .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
 			`);
 		}
