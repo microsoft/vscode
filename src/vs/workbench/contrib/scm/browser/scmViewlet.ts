@@ -29,8 +29,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IViewsRegistry, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { nextTick } from 'vs/base/common/process';
-import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPanel';
-import { MainPaneDescriptor, MainPane } from 'vs/workbench/contrib/scm/browser/mainPanel';
+import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPane';
+import { MainPaneDescriptor, MainPane } from 'vs/workbench/contrib/scm/browser/mainPane';
 
 export interface ISpliceEvent<T> {
 	index: number;

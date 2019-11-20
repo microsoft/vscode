@@ -18,8 +18,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { PaneViewlet, ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { DefaultPaneDndController } from 'vs/base/browser/ui/splitview/panelview';
+import { PaneViewlet, ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { DefaultPaneDndController } from 'vs/base/browser/ui/splitview/paneview';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
