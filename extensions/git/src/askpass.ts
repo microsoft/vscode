@@ -26,7 +26,7 @@ export class Askpass implements IIPCHandler {
 		};
 	}
 
-	constructor(private ipc: IIPCServer) {
+	constructor(ipc: IIPCServer) {
 		this.disposable = ipc.registerHandler('askpass', this);
 	}
 
@@ -46,8 +46,7 @@ export class Askpass implements IIPCHandler {
 			ELECTRON_RUN_AS_NODE: '1',
 			GIT_ASKPASS: path.join(__dirname, 'askpass.sh'),
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
-			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
-			VSCODE_GIT_ASKPASS_HANDLE: this.ipc.ipcHandlePath
+			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js')
 		};
 	}
 

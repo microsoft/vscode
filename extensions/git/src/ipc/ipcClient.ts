@@ -7,7 +7,17 @@ import * as http from 'http';
 
 export class IPCClient {
 
-	constructor(private handlerName: string, private ipcHandlePath: string) { }
+	private ipcHandlePath: string;
+
+	constructor(private handlerName: string) {
+		const ipcHandlePath = process.env['VSCODE_GIT_IPC_HANDLE'];
+
+		if (!ipcHandlePath) {
+			throw new Error('Missing VSCODE_GIT_IPC_HANDLE');
+		}
+
+		this.ipcHandlePath = ipcHandlePath;
+	}
 
 	call(request: any): Promise<any> {
 		const opts: http.RequestOptions = {

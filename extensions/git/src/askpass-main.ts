@@ -20,10 +20,6 @@ function main(argv: string[]): void {
 		return fatal('Wrong number of arguments');
 	}
 
-	if (!process.env['VSCODE_GIT_ASKPASS_HANDLE']) {
-		return fatal('Missing handle');
-	}
-
 	if (!process.env['VSCODE_GIT_ASKPASS_PIPE']) {
 		return fatal('Missing pipe');
 	}
@@ -33,10 +29,9 @@ function main(argv: string[]): void {
 	}
 
 	const output = process.env['VSCODE_GIT_ASKPASS_PIPE'] as string;
-	const socketPath = process.env['VSCODE_GIT_ASKPASS_HANDLE'] as string;
 	const request = argv[2];
 	const host = argv[4].substring(1, argv[4].length - 2);
-	const ipcClient = new IPCClient('askpass', socketPath);
+	const ipcClient = new IPCClient('askpass');
 
 	ipcClient.call({ request, host }).then(res => {
 		fs.writeFileSync(output, res + '\n');
