@@ -1528,7 +1528,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			style.marginLeft = '-' + (width / 2) + 'px';
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout(this.dimension && this.dimension.height * 0.6);
+			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
 		}
 	}
 
