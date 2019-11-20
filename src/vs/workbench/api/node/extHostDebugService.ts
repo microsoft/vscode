@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as vscode from 'vscode';
-import * as path from 'vs/base/common/path';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
@@ -18,14 +17,12 @@ import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostDebugServiceBase, ExtHostDebugSession } from 'vs/workbench/api/common/extHostDebugService';
+import { ExtHostDebugServiceBase, ExtHostDebugSession, ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 
 
@@ -122,52 +119,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		}
 		return super.$runInTerminal(args);
 	}
-}
 
-export class ExtHostVariableResolverService extends AbstractVariableResolverService {
-
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider) {
-		super({
-			getFolderUri: (folderName: string): URI | undefined => {
-				const found = folders.filter(f => f.name === folderName);
-				if (found && found.length > 0) {
-					return found[0].uri;
-				}
-				return undefined;
-			},
-			getWorkspaceFolderCount: (): number => {
-				return folders.length;
-			},
-			getConfigurationValue: (folderUri: URI, section: string): string | undefined => {
-				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
-			},
-			getExecPath: (): string | undefined => {
-				return process.env['VSCODE_EXEC_PATH'];
-			},
-			getFilePath: (): string | undefined => {
-				const activeEditor = editorService.activeEditor();
-				if (activeEditor) {
-					const resource = activeEditor.document.uri;
-					if (resource.scheme === Schemas.file) {
-						return path.normalize(resource.fsPath);
-					}
-				}
-				return undefined;
-			},
-			getSelectedText: (): string | undefined => {
-				const activeEditor = editorService.activeEditor();
-				if (activeEditor && !activeEditor.selection.isEmpty) {
-					return activeEditor.document.getText(activeEditor.selection);
-				}
-				return undefined;
-			},
-			getLineNumber: (): string | undefined => {
-				const activeEditor = editorService.activeEditor();
-				if (activeEditor) {
-					return String(activeEditor.selection.end.line + 1);
-				}
-				return undefined;
-			}
-		}, process.env as IProcessEnvironment);
+	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as IProcessEnvironment);
 	}
+
 }
