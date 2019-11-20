@@ -309,7 +309,7 @@ export interface ITextFileOperationResult {
 export interface IResult {
 	source: URI;
 	target?: URI;
-	success?: boolean;
+	error?: boolean;
 }
 
 export const enum LoadReason {
