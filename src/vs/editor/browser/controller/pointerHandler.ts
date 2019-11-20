@@ -202,7 +202,7 @@ export class PointerEventHandler extends MouseHandler {
 
 		this._lastPointerType = 'mouse';
 
-		this.viewHelper.linesContentDomNode.addEventListener('pointerdown', (e: any) => {
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'pointerdown', (e: any) => {
 			const pointerType = <any>e.pointerType;
 			if (pointerType === 'mouse') {
 				this._lastPointerType = 'mouse';
@@ -212,7 +212,7 @@ export class PointerEventHandler extends MouseHandler {
 			} else {
 				this._lastPointerType = 'pen';
 			}
-		});
+		}));
 
 		// PonterEvents
 		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
@@ -256,9 +256,11 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	public _onMouseDown(e: EditorMouseEvent): void {
-		if (this._lastPointerType !== 'touch') {
-			super._onMouseDown(e);
+		if (e.target && this.viewHelper.linesContentDomNode.contains(e.target) && this._lastPointerType === 'touch') {
+			return;
 		}
+
+		super._onMouseDown(e);
 	}
 }
 
