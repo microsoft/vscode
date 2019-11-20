@@ -17,7 +17,21 @@ export function isGitUri(uri: Uri): boolean {
 }
 
 export function fromGitUri(uri: Uri): GitUriParams {
-	return qs.parse(uri.query) as any;
+	const result = qs.parse(uri.query) as any;
+
+	if (!result) {
+		throw new Error('Invalid git URI: empty query');
+	}
+
+	if (typeof result.path !== 'string') {
+		throw new Error('Invalid git URI: missing path');
+	}
+
+	if (typeof result.ref !== 'string') {
+		throw new Error('Invalid git URI: missing ref');
+	}
+
+	return result;
 }
 
 export interface GitUriOptions {
