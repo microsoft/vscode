@@ -64,7 +64,7 @@ suite('CodeActionModel', () => {
 
 			e.actions.then(fixes => {
 				model.dispose();
-				assert.equal(fixes.actions.length, 1);
+				assert.equal(fixes.validActions.length, 1);
 				done();
 			}, done);
 		}));
@@ -104,7 +104,7 @@ suite('CodeActionModel', () => {
 				assert.ok(e.actions);
 				e.actions.then(fixes => {
 					model.dispose();
-					assert.equal(fixes.actions.length, 1);
+					assert.equal(fixes.validActions.length, 1);
 					resolve(undefined);
 				}, reject);
 			}));

@@ -35,7 +35,7 @@ class CodeActionAction extends Action {
 		public readonly action: CodeAction,
 		callback: () => Promise<void>,
 	) {
-		super(action.command ? action.command.id : action.title, action.title, undefined, true, callback);
+		super(action.command ? action.command.id : action.title, action.title, undefined, !action.disabled, callback);
 	}
 }
 
@@ -64,7 +64,7 @@ export class CodeActionWidget extends Disposable {
 	}
 
 	public async show(codeActions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
-		if (!codeActions.actions.length) {
+		if (!codeActions.validActions.length) {
 			this._visible = false;
 			return;
 		}
@@ -78,7 +78,7 @@ export class CodeActionWidget extends Disposable {
 		this._visible = true;
 		this._showingActions.value = codeActions;
 
-		const actions = codeActions.actions.map(action =>
+		const actions = codeActions.validActions.map(action =>
 			new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };

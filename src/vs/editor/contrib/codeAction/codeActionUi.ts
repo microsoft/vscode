@@ -68,20 +68,19 @@ export class CodeActionUi extends Disposable {
 
 		this._lightBulbWidget.getValue().update(actions, newState.position);
 
-		if (!actions.actions.length && newState.trigger.context) {
+		if (!actions.validActions.length && newState.trigger.context) {
 			MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
 			this._activeCodeActions.value = actions;
 			return;
 		}
 
 		if (newState.trigger.type === 'manual') {
-			if (newState.trigger.filter && newState.trigger.filter.include) {
-				// Triggered for specific scope
-				if (actions.actions.length > 0) {
+			if (newState.trigger.filter?.include) { // Triggered for specific scope
+				if (actions.validActions.length > 0) {
 					// Apply if we only have one action or requested autoApply
-					if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && actions.actions.length === 1)) {
+					if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && actions.validActions.length === 1)) {
 						try {
-							await this.delegate.applyCodeAction(actions.actions[0], false);
+							await this.delegate.applyCodeAction(actions.validActions[0], false);
 						} finally {
 							actions.dispose();
 						}

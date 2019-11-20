@@ -4977,6 +4977,7 @@ declare namespace monaco.languages {
 		diagnostics?: editor.IMarkerData[];
 		kind?: string;
 		isPreferred?: boolean;
+		disabled?: string;
 	}
 
 	export interface CodeActionList extends IDisposable {
