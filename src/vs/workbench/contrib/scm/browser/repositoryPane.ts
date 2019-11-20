@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
@@ -585,7 +585,7 @@ function convertValidationType(type: InputValidationType): MessageType {
 	}
 }
 
-export class RepositoryPanel extends ViewletPanel {
+export class RepositoryPane extends ViewletPane {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
@@ -602,7 +602,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	constructor(
 		readonly repository: ISCMRepository,
-		options: IViewletPanelOptions,
+		options: IViewletPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -966,6 +966,6 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 		this.id = `scm:repository:${repository.provider.label}:${repoId}`;
 		this.name = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
 
-		this.ctorDescriptor = { ctor: RepositoryPanel, arguments: [repository] };
+		this.ctorDescriptor = { ctor: RepositoryPane, arguments: [repository] };
 	}
 }

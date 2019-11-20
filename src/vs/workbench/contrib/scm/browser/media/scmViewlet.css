@@ -15,7 +15,7 @@
 }
 
 .scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-panel-view {
+.scm-viewlet.empty .monaco-pane-view {
 	display: none;
 }
 

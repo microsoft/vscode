@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panelviewlet';
+import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
+import { PaneView, IPaneViewOptions, IPaneOptions, Pane } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -31,21 +31,21 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 
-export interface IPanelColors extends IColorMapping {
+export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
 	headerForeground?: ColorIdentifier;
 	headerBackground?: ColorIdentifier;
 	headerBorder?: ColorIdentifier;
 }
 
-export interface IViewletPanelOptions extends IPanelOptions {
+export interface IViewletPaneOptions extends IPaneOptions {
 	actionRunner?: IActionRunner;
 	id: string;
 	title: string;
 	showActionsAlways?: boolean;
 }
 
-export abstract class ViewletPanel extends Panel implements IView {
+export abstract class ViewletPane extends Pane implements IView {
 
 	private static readonly AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 
@@ -75,7 +75,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 	protected twistiesContainer?: HTMLElement;
 
 	constructor(
-		options: IViewletPanelOptions,
+		options: IViewletPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -152,7 +152,7 @@ export abstract class ViewletPanel extends Panel implements IView {
 		this._register(this.toolbar);
 		this.setActions();
 
-		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
+		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
 	}
@@ -225,31 +225,31 @@ export abstract class ViewletPanel extends Panel implements IView {
 	}
 }
 
-export interface IViewsViewletOptions extends IPanelViewOptions {
+export interface IViewsViewletOptions extends IPaneViewOptions {
 	showHeaderInTitleWhenSingleView: boolean;
 }
 
-interface IViewletPanelItem {
-	panel: ViewletPanel;
+interface IViewletPaneItem {
+	pane: ViewletPane;
 	disposable: IDisposable;
 }
 
-export class PanelViewlet extends Viewlet {
+export class PaneViewlet extends Viewlet {
 
-	private lastFocusedPanel: ViewletPanel | undefined;
-	private panelItems: IViewletPanelItem[] = [];
-	private panelview?: PanelView;
+	private lastFocusedPane: ViewletPane | undefined;
+	private paneItems: IViewletPaneItem[] = [];
+	private paneview?: PaneView;
 
 	get onDidSashChange(): Event<number> {
-		return assertIsDefined(this.panelview).onDidSashChange;
+		return assertIsDefined(this.paneview).onDidSashChange;
 	}
 
-	protected get panels(): ViewletPanel[] {
-		return this.panelItems.map(i => i.panel);
+	protected get panes(): ViewletPane[] {
+		return this.paneItems.map(i => i.pane);
 	}
 
 	protected get length(): number {
-		return this.panelItems.length;
+		return this.paneItems.length;
 	}
 
 	constructor(
@@ -267,15 +267,15 @@ export class PanelViewlet extends Viewlet {
 
 	create(parent: HTMLElement): void {
 		super.create(parent);
-		this.panelview = this._register(new PanelView(parent, this.options));
-		this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
+		this.paneview = this._register(new PaneView(parent, this.options));
+		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewletPane, to as ViewletPane)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
-		for (const panelItem of this.panelItems) {
-			// Do not show context menu if target is coming from inside panel views
-			if (isAncestor(event.target, panelItem.panel.element)) {
+		for (const paneItem of this.paneItems) {
+			// Do not show context menu if target is coming from inside pane views
+			if (isAncestor(event.target, paneItem.pane.element)) {
 				return;
 			}
 		}
@@ -294,8 +294,8 @@ export class PanelViewlet extends Viewlet {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 
 		if (this.isSingleView()) {
-			const panelItemTitle = this.panelItems[0].panel.title;
-			title = panelItemTitle ? `${title}: ${panelItemTitle}` : title;
+			const paneItemTitle = this.paneItems[0].pane.title;
+			title = paneItemTitle ? `${title}: ${paneItemTitle}` : title;
 		}
 
 		return title;
@@ -303,7 +303,7 @@ export class PanelViewlet extends Viewlet {
 
 	getActions(): IAction[] {
 		if (this.isSingleView()) {
-			return this.panelItems[0].panel.getActions();
+			return this.paneItems[0].pane.getActions();
 		}
 
 		return [];
@@ -311,7 +311,7 @@ export class PanelViewlet extends Viewlet {
 
 	getSecondaryActions(): IAction[] {
 		if (this.isSingleView()) {
-			return this.panelItems[0].panel.getSecondaryActions();
+			return this.paneItems[0].pane.getSecondaryActions();
 		}
 
 		return [];
@@ -319,7 +319,7 @@ export class PanelViewlet extends Viewlet {
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (this.isSingleView()) {
-			return this.panelItems[0].panel.getActionViewItem(action);
+			return this.paneItems[0].pane.getActionViewItem(action);
 		}
 
 		return super.getActionViewItem(action);
@@ -328,12 +328,12 @@ export class PanelViewlet extends Viewlet {
 	focus(): void {
 		super.focus();
 
-		if (this.lastFocusedPanel) {
-			this.lastFocusedPanel.focus();
-		} else if (this.panelItems.length > 0) {
-			for (const { panel } of this.panelItems) {
-				if (panel.isExpanded()) {
-					panel.focus();
+		if (this.lastFocusedPane) {
+			this.lastFocusedPane.focus();
+		} else if (this.paneItems.length > 0) {
+			for (const { pane: pane } of this.paneItems) {
+				if (pane.isExpanded()) {
+					pane.focus();
 					return;
 				}
 			}
@@ -341,23 +341,23 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	layout(dimension: Dimension): void {
-		if (this.panelview) {
-			this.panelview.layout(dimension.height, dimension.width);
+		if (this.paneview) {
+			this.paneview.layout(dimension.height, dimension.width);
 		}
 	}
 
 	getOptimalWidth(): number {
-		const sizes = this.panelItems
-			.map(panelItem => panelItem.panel.getOptimalWidth() || 0);
+		const sizes = this.paneItems
+			.map(paneItem => paneItem.pane.getOptimalWidth() || 0);
 
 		return Math.max(...sizes);
 	}
 
-	addPanels(panels: { panel: ViewletPanel, size: number, index?: number; }[]): void {
+	addPanes(panes: { pane: ViewletPane, size: number, index?: number; }[]): void {
 		const wasSingleView = this.isSingleView();
 
-		for (const { panel, size, index } of panels) {
-			this.addPanel(panel, size, index);
+		for (const { pane: pane, size, index } of panes) {
+			this.addPane(pane, size, index);
 		}
 
 		this.updateViewHeaders();
@@ -366,36 +366,36 @@ export class PanelViewlet extends Viewlet {
 		}
 	}
 
-	private addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
-		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel);
-		const onDidChangeTitleArea = panel.onDidChangeTitleArea(() => {
+	private addPane(pane: ViewletPane, size: number, index = this.paneItems.length - 1): void {
+		const onDidFocus = pane.onDidFocus(() => this.lastFocusedPane = pane);
+		const onDidChangeTitleArea = pane.onDidChangeTitleArea(() => {
 			if (this.isSingleView()) {
 				this.updateTitleArea();
 			}
 		});
-		const onDidChange = panel.onDidChange(() => {
-			if (panel === this.lastFocusedPanel && !panel.isExpanded()) {
-				this.lastFocusedPanel = undefined;
+		const onDidChange = pane.onDidChange(() => {
+			if (pane === this.lastFocusedPane && !pane.isExpanded()) {
+				this.lastFocusedPane = undefined;
 			}
 		});
 
-		const panelStyler = attachStyler<IPanelColors>(this.themeService, {
+		const paneStyler = attachStyler<IPaneColors>(this.themeService, {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
 			headerBorder: SIDE_BAR_SECTION_HEADER_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
-		}, panel);
-		const disposable = combinedDisposable(onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange);
-		const panelItem: IViewletPanelItem = { panel, disposable };
+		}, pane);
+		const disposable = combinedDisposable(onDidFocus, onDidChangeTitleArea, paneStyler, onDidChange);
+		const paneItem: IViewletPaneItem = { pane: pane, disposable };
 
-		this.panelItems.splice(index, 0, panelItem);
-		assertIsDefined(this.panelview).addPanel(panel, size, index);
+		this.paneItems.splice(index, 0, paneItem);
+		assertIsDefined(this.paneview).addPane(pane, size, index);
 	}
 
-	removePanels(panels: ViewletPanel[]): void {
+	removePanes(panes: ViewletPane[]): void {
 		const wasSingleView = this.isSingleView();
 
-		panels.forEach(panel => this.removePanel(panel));
+		panes.forEach(pane => this.removePane(pane));
 
 		this.updateViewHeaders();
 		if (wasSingleView !== this.isSingleView()) {
@@ -403,67 +403,67 @@ export class PanelViewlet extends Viewlet {
 		}
 	}
 
-	private removePanel(panel: ViewletPanel): void {
-		const index = firstIndex(this.panelItems, i => i.panel === panel);
+	private removePane(pane: ViewletPane): void {
+		const index = firstIndex(this.paneItems, i => i.pane === pane);
 
 		if (index === -1) {
 			return;
 		}
 
-		if (this.lastFocusedPanel === panel) {
-			this.lastFocusedPanel = undefined;
+		if (this.lastFocusedPane === pane) {
+			this.lastFocusedPane = undefined;
 		}
 
-		assertIsDefined(this.panelview).removePanel(panel);
-		const [panelItem] = this.panelItems.splice(index, 1);
-		panelItem.disposable.dispose();
+		assertIsDefined(this.paneview).removePane(pane);
+		const [paneItem] = this.paneItems.splice(index, 1);
+		paneItem.disposable.dispose();
 
 	}
 
-	movePanel(from: ViewletPanel, to: ViewletPanel): void {
-		const fromIndex = firstIndex(this.panelItems, item => item.panel === from);
-		const toIndex = firstIndex(this.panelItems, item => item.panel === to);
+	movePane(from: ViewletPane, to: ViewletPane): void {
+		const fromIndex = firstIndex(this.paneItems, item => item.pane === from);
+		const toIndex = firstIndex(this.paneItems, item => item.pane === to);
 
-		if (fromIndex < 0 || fromIndex >= this.panelItems.length) {
+		if (fromIndex < 0 || fromIndex >= this.paneItems.length) {
 			return;
 		}
 
-		if (toIndex < 0 || toIndex >= this.panelItems.length) {
+		if (toIndex < 0 || toIndex >= this.paneItems.length) {
 			return;
 		}
 
-		const [panelItem] = this.panelItems.splice(fromIndex, 1);
-		this.panelItems.splice(toIndex, 0, panelItem);
+		const [paneItem] = this.paneItems.splice(fromIndex, 1);
+		this.paneItems.splice(toIndex, 0, paneItem);
 
-		assertIsDefined(this.panelview).movePanel(from, to);
+		assertIsDefined(this.paneview).movePane(from, to);
 	}
 
-	resizePanel(panel: ViewletPanel, size: number): void {
-		assertIsDefined(this.panelview).resizePanel(panel, size);
+	resizePane(pane: ViewletPane, size: number): void {
+		assertIsDefined(this.paneview).resizePane(pane, size);
 	}
 
-	getPanelSize(panel: ViewletPanel): number {
-		return assertIsDefined(this.panelview).getPanelSize(panel);
+	getPaneSize(pane: ViewletPane): number {
+		return assertIsDefined(this.paneview).getPaneSize(pane);
 	}
 
 	protected updateViewHeaders(): void {
 		if (this.isSingleView()) {
-			this.panelItems[0].panel.setExpanded(true);
-			this.panelItems[0].panel.headerVisible = false;
+			this.paneItems[0].pane.setExpanded(true);
+			this.paneItems[0].pane.headerVisible = false;
 		} else {
-			this.panelItems.forEach(i => i.panel.headerVisible = true);
+			this.paneItems.forEach(i => i.pane.headerVisible = true);
 		}
 	}
 
 	protected isSingleView(): boolean {
-		return this.options.showHeaderInTitleWhenSingleView && this.panelItems.length === 1;
+		return this.options.showHeaderInTitleWhenSingleView && this.paneItems.length === 1;
 	}
 
 	dispose(): void {
 		super.dispose();
-		this.panelItems.forEach(i => i.disposable.dispose());
-		if (this.panelview) {
-			this.panelview.dispose();
+		this.paneItems.forEach(i => i.disposable.dispose());
+		if (this.paneview) {
+			this.paneview.dispose();
 		}
 	}
 }
