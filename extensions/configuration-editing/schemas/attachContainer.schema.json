@@ -18,6 +18,13 @@
 						"type": "integer"
 					}
 				},
+				"remoteEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Remote environment variables."
+				},
 				"extensions": {
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
