@@ -241,7 +241,12 @@ export class Model {
 			}
 
 			const config = workspace.getConfiguration('git');
-			const ignoredRepos = new Set(config.get<Array<string>>('ignoredRepositories'));
+			let ignoredReposArray = config.get<Array<string>>('ignoredRepositories');
+			// Convert ignoredRepos using fsPath to normalize drive letters
+			if (ignoredReposArray) {
+				ignoredReposArray = ignoredReposArray.map(repo => Uri.file(repo).fsPath);
+			}
+			const ignoredRepos = new Set(ignoredReposArray);
 
 			if (ignoredRepos.has(rawRoot)) {
 				return;
