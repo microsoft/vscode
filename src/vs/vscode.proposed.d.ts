@@ -37,6 +37,7 @@ declare module 'vscode' {
 		remotePort: number;
 		localPort?: number;
 		description?: string;
+		forwardMechanism?: string;
 	}
 
 	/**
@@ -48,14 +49,14 @@ declare module 'vscode' {
 		 */
 		candidates?: Port[];
 		/**
-		 * Ports that are already immutably forwarded.
+		 * Ports that are already immutably published. This is not the same as forwarding.
 		 */
 		published?: Port[];
 		/**
 		 * An array of ports to be forwarded once connected. For example,
 		 * if the extension wants to have a configuration file with some default ports, they could be passed through for forwarding here.
 		 */
-		toForward?: { remote: number, local: number, name: string }[];
+		toForward?: { remote: number, local: number, name: string, closeable?: boolean }[];
 		/**
 		 * Allows ports that have been forwarded in a workspace to be restored next time that workspace is opened.
 		 * Alternative to this: have API for getting all the ports then an event when they change so that the extension can save and restore ports(as it can do today).
