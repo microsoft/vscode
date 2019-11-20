@@ -11,11 +11,12 @@ import { SaveReason, IEditorIdentifier, IEditorInput, GroupIdentifier } from 'vs
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class EditorAutoSave extends Disposable implements IWorkbenchContribution {
 
-	private lastActiveEditor: IEditorInput | null = null;
-	private lastActiveGroupId: GroupIdentifier | null = null;
+	private lastActiveEditor: IEditorInput | undefined = undefined;
+	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
 	private lastActiveEditorControlDisposable = this._register(new DisposableStore());
 
 	constructor(
@@ -49,7 +50,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
-		const activeEditor = this.lastActiveEditor = activeGroup.activeEditor;
+		const activeEditor = this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
 		this.lastActiveGroupId = activeGroup.id;
 
 		// Dispose previous active control listeners

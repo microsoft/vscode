@@ -57,8 +57,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private fileInputFactory: IFileInputFactory;
 	private openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
-	private lastActiveEditor: IEditorInput | null = null;
-	private lastActiveGroupId: GroupIdentifier | null = null;
+	private lastActiveEditor: IEditorInput | undefined = undefined;
+	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -116,7 +116,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
 		this.lastActiveGroupId = activeGroup.id;
-		this.lastActiveEditor = activeGroup.activeEditor;
+		this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
 
 		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
