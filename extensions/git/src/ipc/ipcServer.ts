@@ -37,9 +37,9 @@ export async function createIPCServer(): Promise<IIPCServer> {
 
 	return new Promise((c, e) => {
 		try {
+			server.on('error', err => e(err));
 			server.listen(ipcHandlePath);
 			c(new IPCServer(server, ipcHandlePath));
-			server.on('error', err => e(err));
 		} catch (err) {
 			e(err);
 		}

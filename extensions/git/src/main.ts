@@ -47,9 +47,6 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		env = Askpass.getDisabledEnv();
 	}
 
-	// TODO@joao remove
-	console.log(env);
-
 	const git = new Git({ gitPath: info.path, version: info.version, env });
 	const model = new Model(git, context.globalState, outputChannel);
 	disposables.push(model);
