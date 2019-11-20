@@ -7288,6 +7288,12 @@ declare module 'vscode' {
 		message?: string;
 
 		/**
+		 * The tree view title is initially taken from the extension package.json
+		 * Changes to the title property will be properly reflected in the UI in the title of the view.
+		 */
+		title?: string;
+
+		/**
 		 * Reveals the given element in the tree view.
 		 * If the tree view is not visible then the tree view is shown and element is revealed.
 		 *

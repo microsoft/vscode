@@ -1076,14 +1076,6 @@ declare module 'vscode' {
 
 	//#region Tree View
 
-	export interface TreeView<T> {
-		/**
-		 * The tree view title is initially taken from the extension package.json
-		 * Changes to the title property will be properly reflected in the UI in the title of the view.
-		 */
-		title?: string;
-	}
-
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
