@@ -372,7 +372,9 @@ export class OutlinePanel extends ViewletPanel {
 			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
 				this._tree.updateChildren();
 			}
-			if (e.affectsConfiguration('outline')) {
+			// This is a temporary solution to try and minimize refilters while
+			// ConfigurationChangeEvents only provide the first section of the config path.
+			if (e.affectedKeys.some(key => key.search(/(outline|\[\w+\])/))) {
 				this._tree.refilter();
 			}
 		}));
