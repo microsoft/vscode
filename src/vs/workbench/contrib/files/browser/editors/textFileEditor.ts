@@ -31,7 +31,6 @@ import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An implementation of editor for file system resources.
@@ -55,10 +54,9 @@ export class TextFileEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IExplorerService private readonly explorerService: IExplorerService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IExplorerService private readonly explorerService: IExplorerService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, filesConfigurationService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 
 		this.updateRestoreViewStateConfiguration();
 

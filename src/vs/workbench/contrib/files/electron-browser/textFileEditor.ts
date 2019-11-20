@@ -24,7 +24,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An implementation of editor for file system resources.
@@ -45,10 +44,9 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IElectronService private readonly electronService: IElectronService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IExplorerService explorerService: IExplorerService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IExplorerService explorerService: IExplorerService
 	) {
-		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, configurationService, editorService, themeService, editorGroupService, textFileService, explorerService, filesConfigurationService);
+		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, configurationService, editorService, themeService, editorGroupService, textFileService, explorerService);
 	}
 
 	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {
