@@ -90,6 +90,13 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		if (!optionsGotApplied) {
 			this.restoreTextResourceEditorViewState(input, textEditor);
 		}
+
+		// Since the resolved model provides information about being readonly
+		// or not, we apply it here to the editor even though the editor input
+		// was already asked for being readonly or not. The rationale is that
+		// a resolved model might have more specific information about being
+		// readonly or not that the input did not have.
+		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
 	}
 
 	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
@@ -98,14 +105,6 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			if (viewState) {
 				control.restoreViewState(viewState);
 			}
-		}
-	}
-
-	setOptions(options: EditorOptions | undefined): void {
-		const textOptions = <TextEditorOptions>options;
-		if (textOptions && isFunction(textOptions.apply)) {
-			const textEditor = assertIsDefined(this.getControl());
-			textOptions.apply(textEditor, ScrollType.Smooth);
 		}
 	}
 

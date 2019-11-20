@@ -117,14 +117,6 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	setOptions(options: EditorOptions | undefined): void {
-		const textOptions = options as TextEditorOptions;
-		if (textOptions && isFunction(textOptions.apply)) {
-			const textEditor = assertIsDefined(this.getControl());
-			textOptions.apply(textEditor, ScrollType.Smooth);
-		}
-	}
-
 	async setInput(input: FileEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
@@ -164,7 +156,11 @@ export class TextFileEditor extends BaseTextEditor {
 				(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
 			}
 
-			// Readonly flag
+			// Since the resolved model provides information about being readonly
+			// or not, we apply it here to the editor even though the editor input
+			// was already asked for being readonly or not. The rationale is that
+			// a resolved model might have more specific information about being
+			// readonly or not that the input did not have.
 			textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
 		} catch (error) {
 			this.handleSetInputError(error, input, options);

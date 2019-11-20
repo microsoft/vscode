@@ -4233,6 +4233,10 @@ declare namespace monaco.editor {
 		 * If the diff computation is not finished or the model is missing, will return null.
 		 */
 		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
+		/**
+		 * Update the editor's options after the editor has been created.
+		 */
+		updateOptions(newOptions: IDiffEditorOptions): void;
 	}
 
 	export class FontInfo extends BareFontInfo {
