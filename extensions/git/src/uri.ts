@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri } from 'vscode';
+import * as qs from 'querystring';
 
 export interface GitUriParams {
 	path: string;
@@ -16,7 +17,7 @@ export function isGitUri(uri: Uri): boolean {
 }
 
 export function fromGitUri(uri: Uri): GitUriParams {
-	return JSON.parse(uri.query);
+	return qs.parse(uri.query) as any;
 }
 
 export interface GitUriOptions {
@@ -48,6 +49,6 @@ export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Ur
 	return uri.with({
 		scheme: 'gitfs',
 		path,
-		query: JSON.stringify(params)
+		query: qs.stringify(params as any)
 	});
 }
