@@ -16,13 +16,11 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
 import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
@@ -39,12 +37,10 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IHostService hostService: IHostService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, filesConfigurationService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, filesConfigurationService);
 	}
 
 	getTitle(): string | undefined {
@@ -192,12 +188,10 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IHostService hostService: IHostService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService, hostService, filesConfigurationService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, editorService, filesConfigurationService);
 	}
 }

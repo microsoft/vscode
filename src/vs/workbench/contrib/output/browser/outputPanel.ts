@@ -48,7 +48,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@IHostService hostService: IHostService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, hostService, filesConfigurationService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, filesConfigurationService);
 
 		this.scopedInstantiationService = instantiationService;
 	}

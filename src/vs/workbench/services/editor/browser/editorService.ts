@@ -5,7 +5,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor, IRevertOptions } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -28,6 +28,8 @@ import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/wor
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -66,7 +68,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -76,9 +80,38 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private registerListeners(): void {
+
+		// Editor & group changes
 		this.editorGroupService.whenRestored.then(() => this.onEditorsRestored());
 		this.editorGroupService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
+
+		// Auto save support
+		this._register(this.onDidActiveEditorChange(() => this.onEditorFocusLost()));
+		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
+	}
+
+	private onEditorFocusLost(): void {
+		this.maybeTriggerSaveAll(SaveReason.FOCUS_CHANGE);
+	}
+
+	private onWindowFocusChange(focused: boolean): void {
+		if (!focused) {
+			this.maybeTriggerSaveAll(SaveReason.WINDOW_CHANGE);
+		}
+	}
+
+	private maybeTriggerSaveAll(reason: SaveReason): void {
+		const mode = this.filesConfigurationService.getAutoSaveMode();
+
+		// Determine if we need to save all. In case of a window focus change we also save if auto save mode
+		// is configured to be ON_FOCUS_CHANGE (editor focus change)
+		if (
+			(reason === SaveReason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||
+			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
+		) {
+			this.saveAll({ reason });
+		}
 	}
 
 	private onEditorsRestored(): void {
@@ -776,7 +809,9 @@ export class DelegatingEditorService extends EditorService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IHostService hostService: IHostService
 	) {
 		super(
 			editorGroupService,
@@ -784,7 +819,9 @@ export class DelegatingEditorService extends EditorService {
 			instantiationService,
 			labelService,
 			fileService,
-			configurationService
+			configurationService,
+			filesConfigurationService,
+			hostService
 		);
 	}
 

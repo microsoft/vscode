@@ -52,8 +52,6 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IFilterResult, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
@@ -979,13 +977,11 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
-		@IHostService hostService: IHostService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, filesConfigurationService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, filesConfigurationService);
 	}
 
 	private static _getContributions(): IEditorContributionDescription[] {

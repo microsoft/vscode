@@ -19,7 +19,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -29,7 +29,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -52,12 +51,10 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IHostService hostService: IHostService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, filesConfigurationService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, filesConfigurationService);
 	}
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
