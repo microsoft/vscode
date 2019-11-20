@@ -32,6 +32,7 @@ import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/vie
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { Gesture } from 'vs/base/browser/touch';
 
 const $ = dom.$;
 
@@ -39,6 +40,7 @@ function createCheckbox(): HTMLInputElement {
 	const checkbox = <HTMLInputElement>$('input');
 	checkbox.type = 'checkbox';
 	checkbox.tabIndex = -1;
+	Gesture.ignoreTarget(checkbox);
 
 	return checkbox;
 }
