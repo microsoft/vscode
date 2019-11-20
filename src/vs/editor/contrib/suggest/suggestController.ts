@@ -271,11 +271,7 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
-		const overwriteConfig = flags & InsertFlags.AlternativeOverwriteConfig
-			? !this.editor.getOption(EditorOption.suggest).overwriteOnAccept
-			: this.editor.getOption(EditorOption.suggest).overwriteOnAccept;
-
-		const info = this.getOverwriteInfo(item, overwriteConfig);
+		const info = this.getOverwriteInfo(item, Boolean(flags & InsertFlags.AlternativeOverwriteConfig));
 
 		SnippetController2.get(this.editor).insert(insertText, {
 			overwriteBefore: info.overwriteBefore,
@@ -327,11 +323,15 @@ export class SuggestController implements IEditorContribution {
 		this._alertCompletionItem(event.item);
 	}
 
-	getOverwriteInfo(item: CompletionItem, overwriteOnAccept: boolean): { overwriteBefore: number, overwriteAfter: number } {
+	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number, overwriteAfter: number } {
 		assertType(this.editor.hasModel());
 
+		let replace = this.editor.getOption(EditorOption.suggest).insertMode === 'replace';
+		if (toggleMode) {
+			replace = !replace;
+		}
 		const overwriteBefore = item.position.column - item.editStart.column;
-		const overwriteAfter = (overwriteOnAccept ? item.editReplaceEnd.column : item.editInsertEnd.column) - item.position.column;
+		const overwriteAfter = (replace ? item.editReplaceEnd.column : item.editInsertEnd.column) - item.position.column;
 		const columnDelta = this.editor.getPosition().column - item.position.column;
 		const suffixDelta = this._lineSuffix.value ? this._lineSuffix.value.delta(this.editor.getPosition()) : 0;
 

@@ -3,46 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorSelectionBackground, registerColor, editorSelectionHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { localize } from 'vs/nls';
-
-
-const suggestReplaceBackgroundColor = registerColor(
-	'editor.suggestReplaceBackground',
-	{ light: editorSelectionBackground, dark: editorSelectionBackground, hc: editorSelectionBackground },
-	localize('suggestReplaceBackground', "Background color of text that suggest will replace.")
-);
-
-const suggestReplaceBorderColor = registerColor(
-	'editor.suggestReplaceBorder',
-	{ light: null, dark: null, hc: editorSelectionHighlightBorder },
-	localize('suggestReplaceBorder', "Border color of text that suggest will replace.")
-);
-
-registerThemingParticipant((theme, collector) => {
-	const suggestReplaceBackground = theme.getColor(suggestReplaceBackgroundColor);
-	if (suggestReplaceBackground) {
-		collector.addRule(`.monaco-editor .suggestReplace { background-color: ${suggestReplaceBackground}; }`);
-	}
-	const suggestReplaceBorder = theme.getColor(suggestReplaceBorderColor);
-	if (suggestReplaceBorder) {
-		collector.addRule(`.monaco-editor .suggestReplace { border: 1px  ${theme.type === 'hc' ? 'dotted' : 'solid'} ${suggestReplaceBorder}; }`);
-	}
-});
+import { Emitter } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 
 export class SuggestRangeHighlighter {
 
 	private readonly _disposables = new DisposableStore();
 
 	private _decorations: string[] = [];
-	private _hasWidgetListener: boolean = false;
+	private _widgetListener?: IDisposable;
+	private _shiftKeyListener?: IDisposable;
+	private _currentItem?: CompletionItem;
 
 	constructor(private readonly _controller: SuggestController) {
 
@@ -53,13 +30,12 @@ export class SuggestRangeHighlighter {
 				if (focused) {
 					this._highlight(focused.item);
 				}
-
-				if (!this._hasWidgetListener) {
-					this._hasWidgetListener = true;
-					widget.onDidFocus(e => this._highlight(e.item), undefined, this._disposables);
+				if (!this._widgetListener) {
+					this._widgetListener = widget.onDidFocus(e => this._highlight(e.item));
 				}
 			}
 		}));
+
 		this._disposables.add(_controller.model.onDidCancel(() => {
 			this._reset();
 		}));
@@ -68,31 +44,80 @@ export class SuggestRangeHighlighter {
 	dispose(): void {
 		this._reset();
 		this._disposables.dispose();
+		dispose(this._widgetListener);
+		dispose(this._shiftKeyListener);
 	}
 
 	private _reset(): void {
 		this._decorations = this._controller.editor.deltaDecorations(this._decorations, []);
+		if (this._shiftKeyListener) {
+			this._shiftKeyListener.dispose();
+			this._shiftKeyListener = undefined;
+		}
 	}
 
 	private _highlight(item: CompletionItem) {
 
-		const { overwriteOnAccept, highlightReplaceRange } = this._controller.editor.getOption(EditorOption.suggest);
+		this._currentItem = item;
+		const opts = this._controller.editor.getOption(EditorOption.suggest);
+		let newDeco: IModelDeltaDecoration[] = [];
 
-		if (highlightReplaceRange) {
-			const info = this._controller.getOverwriteInfo(item, overwriteOnAccept);
-			const position = this._controller.editor.getPosition()!;
-			const range = new Range(
-				position.lineNumber, position.column - info.overwriteBefore,
-				position.lineNumber, position.column + info.overwriteAfter
-			);
-
-			this._decorations = this._controller.editor.deltaDecorations(this._decorations, [{
-				range,
-				options: {
-					className: 'suggestReplace',
-					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-				}
-			}]);
+		if (!this._shiftKeyListener) {
+			this._shiftKeyListener = shiftKey.event(() => this._highlight(this._currentItem!));
 		}
+
+		const info = this._controller.getOverwriteInfo(item, shiftKey.isPressed);
+		const position = this._controller.editor.getPosition()!;
+
+		if (opts.insertMode === 'insert' && info.overwriteAfter > 0) {
+			// wants inserts but got replace-mode -> highlight AFTER range
+			newDeco = [{
+				range: new Range(position.lineNumber, position.column, position.lineNumber, position.column + info.overwriteAfter),
+				options: { inlineClassName: 'suggest-insertMode-goes' }
+			}];
+
+		} else if (opts.insertMode === 'replace' && info.overwriteAfter === 0) {
+			// want replace but likely got insert -> highlight AFTER range
+			const wordInfo = this._controller.editor.getModel()?.getWordAtPosition(position);
+			if (wordInfo && wordInfo.endColumn > position.column) {
+				newDeco = [{
+					range: new Range(position.lineNumber, position.column, position.lineNumber, wordInfo.endColumn),
+					options: { inlineClassName: 'suggest-insertMode-stays' }
+				}];
+			}
+		}
+
+		// update editor decorations
+		this._decorations = this._controller.editor.deltaDecorations(this._decorations, newDeco);
 	}
 }
+
+const shiftKey = new class ShiftKey extends Emitter<boolean> {
+
+	private readonly _subscriptions = new DisposableStore();
+	private _isPressed: boolean = false;
+
+	constructor() {
+		super();
+		this._subscriptions.add(domEvent(document.body, 'keydown')(e => this.isPressed = e.shiftKey));
+		this._subscriptions.add(domEvent(document.body, 'keyup')(() => this.isPressed = false));
+		this._subscriptions.add(domEvent(document.body, 'mouseleave')(() => this.isPressed = false));
+		this._subscriptions.add(domEvent(document.body, 'blur')(() => this.isPressed = false));
+	}
+
+	get isPressed(): boolean {
+		return this._isPressed;
+	}
+
+	set isPressed(value: boolean) {
+		if (this._isPressed !== value) {
+			this._isPressed = value;
+			this.fire(value);
+		}
+	}
+
+	dispose() {
+		this._subscriptions.dispose();
+		super.dispose();
+	}
+};
