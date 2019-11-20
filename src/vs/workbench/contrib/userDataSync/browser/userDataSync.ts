@@ -174,21 +174,23 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			await this.signIn();
 		}
-		await this.configureSyncOptions();
+		if (this.storageService.getBoolean('userDataSync.isFirstTime', StorageScope.GLOBAL, true)) {
+			await this.configureSyncOptions();
+			this.storageService.store('userDataSync.isFirstTime', false, StorageScope.GLOBAL);
+		}
 		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
 		this.notificationService.info(localize('Sync Started', "Sync Started."));
 	}
 
 	private async configureSyncOptions(): Promise<void> {
-		if (this.storageService.getBoolean('userDataSync.configureOptions.donotAsk', StorageScope.GLOBAL, false)) {
-			return;
-		}
 		return new Promise((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick();
 			disposables.add(quickPick);
+			quickPick.title = localize('configure sync title', "Sync: Configure");
 			quickPick.placeholder = localize('select configurations to sync', "Choose what to sync");
 			quickPick.canSelectMany = true;
+			quickPick.ignoreFocusOut = true;
 			const items = [{
 				id: 'configurationSync.enableSettings',
 				label: localize('user settings', "User Settings")
@@ -198,14 +200,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}];
 			quickPick.items = items;
 			quickPick.selectedItems = items.filter(item => this.configurationService.getValue(item.id));
-			quickPick.customButton = true;
-			quickPick.customLabel = localize('do not ask', "Don't Ask Again");
-			disposables.add(quickPick.onDidCustom(() => {
-				this.storageService.store('userDataSync.configureOptions.donotAsk', true, StorageScope.GLOBAL);
-				quickPick.hide();
-			}));
-			disposables.add(quickPick.onDidAccept(() => quickPick.hide()));
-			disposables.add(quickPick.onDidHide(() => {
+			disposables.add(quickPick.onDidAccept(() => {
 				for (const item of items) {
 					const wasEnabled = this.configurationService.getValue(item.id);
 					const isEnabled = !!quickPick.selectedItems.filter(selected => selected.id === item.id)[0];
@@ -213,6 +208,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						this.configurationService.updateValue(item.id!, isEnabled);
 					}
 				}
+				quickPick.hide();
+			}));
+			disposables.add(quickPick.onDidHide(() => {
 				disposables.dispose();
 				c();
 			}));
