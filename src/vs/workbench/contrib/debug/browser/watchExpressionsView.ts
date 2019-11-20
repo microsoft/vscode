@@ -86,11 +86,14 @@ export class WatchExpressionsView extends ViewletPanel {
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this._register(this.debugService.getModel().onDidChangeWatchExpressions(we => {
+		this._register(this.debugService.getModel().onDidChangeWatchExpressions(async we => {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 			} else {
-				this.tree.updateChildren();
+				await this.tree.updateChildren();
+				if (we instanceof Expression) {
+					this.tree.reveal(we);
+				}
 			}
 		}));
 		this._register(this.debugService.getViewModel().onDidFocusStackFrame(() => {
