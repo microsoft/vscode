@@ -9,7 +9,7 @@ import { distinct, deepClone, assign } from 'vs/base/common/objects';
 import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, IEditorMemento, ITextEditor, SaveReason, TextEditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorMemento, ITextEditor, TextEditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -18,11 +18,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { isDiffEditor, isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -50,8 +49,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@IEditorService protected editorService: IEditorService,
-		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
 	) {
 		super(id, telemetryService, themeService, storageService);
 
@@ -132,33 +130,6 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		if (codeEditor) {
 			this._register(codeEditor.onDidChangeModelLanguage(() => this.updateEditorConfiguration()));
 			this._register(codeEditor.onDidChangeModel(() => this.updateEditorConfiguration()));
-		}
-
-		// Application & Editor focus change to respect auto save settings
-		if (isCodeEditor(this.editorControl)) {
-			this._register(this.editorControl.onDidBlurEditorWidget(() => this.onEditorFocusLost()));
-		} else if (isDiffEditor(this.editorControl)) {
-			this._register(this.editorControl.getOriginalEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
-			this._register(this.editorControl.getModifiedEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
-		}
-	}
-
-	private onEditorFocusLost(): void {
-		this.maybeTriggerSaveAll(SaveReason.FOCUS_CHANGE);
-	}
-
-	private maybeTriggerSaveAll(reason: SaveReason): void {
-		const mode = this.filesConfigurationService.getAutoSaveMode();
-
-		// Determine if we need to save all. In case of a window focus change we also save if auto save mode
-		// is configured to be ON_FOCUS_CHANGE (editor focus change)
-		if (reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE) {
-			const input = this.input;
-			const group = this.group;
-
-			if (input?.isDirty() && group) {
-				this.editorService.save([{ groupId: group.id, editor: input }], { reason });
-			}
 		}
 	}
 

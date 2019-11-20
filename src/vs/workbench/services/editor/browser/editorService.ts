@@ -38,21 +38,21 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	_serviceBrand: undefined;
 
-	private static CACHE: ResourceMap<CachedEditorInput> = new ResourceMap<CachedEditorInput>();
+	private static CACHE = new ResourceMap<CachedEditorInput>();
 
 	//#region events
 
-	private readonly _onDidActiveEditorChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidActiveEditorChange: Event<void> = this._onDidActiveEditorChange.event;
+	private readonly _onDidActiveEditorChange = this._register(new Emitter<void>());
+	readonly onDidActiveEditorChange = this._onDidActiveEditorChange.event;
 
-	private readonly _onDidVisibleEditorsChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidVisibleEditorsChange: Event<void> = this._onDidVisibleEditorsChange.event;
+	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
+	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
 
-	private readonly _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	readonly onDidCloseEditor: Event<IEditorCloseEvent> = this._onDidCloseEditor.event;
+	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
+	readonly onDidCloseEditor = this._onDidCloseEditor.event;
 
-	private readonly _onDidOpenEditorFail: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
-	readonly onDidOpenEditorFail: Event<IEditorIdentifier> = this._onDidOpenEditorFail.event;
+	private readonly _onDidOpenEditorFail = this._register(new Emitter<IEditorIdentifier>());
+	readonly onDidOpenEditorFail = this._onDidOpenEditorFail.event;
 
 	//#endregion
 
@@ -61,6 +61,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private lastActiveEditor: IEditorInput | null = null;
 	private lastActiveGroupId: GroupIdentifier | null = null;
+	private lastActiveEditorControlDisposable = this._register(new DisposableStore());
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -121,7 +122,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Fire initial set of editor events if there is an active editor
 		if (this.activeEditor) {
-			this.doEmitActiveEditorChangeEvent();
+			this.doHandleActiveEditorChangeEvent();
 			this._onDidVisibleEditorsChange.fire();
 		}
 	}
@@ -139,15 +140,29 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return; // ignore if the editor actually did not change
 		}
 
-		this.doEmitActiveEditorChangeEvent();
+		this.doHandleActiveEditorChangeEvent();
 	}
 
-	private doEmitActiveEditorChangeEvent(): void {
-		const activeGroup = this.editorGroupService.activeGroup;
+	private doHandleActiveEditorChangeEvent(): void {
 
+		// Remember as last active
+		const activeGroup = this.editorGroupService.activeGroup;
 		this.lastActiveGroupId = activeGroup.id;
 		this.lastActiveEditor = activeGroup.activeEditor;
 
+		// Dispose previous active control listeners
+		this.lastActiveEditorControlDisposable.clear();
+
+		// Listen to focus changes on control for auto save
+		const controlsToObserve: ICodeEditor[] = [];
+		if (isCodeEditor(this.activeTextEditorWidget)) {
+			controlsToObserve.push(this.activeTextEditorWidget);
+		} else if (isDiffEditor(this.activeTextEditorWidget)) {
+			controlsToObserve.push(this.activeTextEditorWidget.getOriginalEditor(), this.activeTextEditorWidget.getModifiedEditor());
+		}
+		controlsToObserve.forEach(control => this.lastActiveEditorControlDisposable.add(control.onDidBlurEditorWidget(() => this.onEditorFocusLost())));
+
+		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
 	}
 
