@@ -2162,9 +2162,14 @@ export class CommandCenter {
 			return;
 		}
 
+		const branchName = repository.HEAD && repository.HEAD.name || '';
+
+		if (remotes.length === 1) {
+			return await repository.pushTo(remotes[0].name, branchName, true);
+		}
+
 		const addRemote = new AddRemoteItem(this);
 		const picks = [...repository.remotes.map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
-		const branchName = repository.HEAD && repository.HEAD.name || '';
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
