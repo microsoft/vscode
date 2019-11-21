@@ -3812,7 +3812,7 @@ class MockConfigurationProvider implements vscode.DebugConfigurationProvider {
 				config.type = 'mock';
 				config.name = 'Launch';
 				config.request = 'launch';
-				config.program = '${file}'; // editor.document.fileName; // '${file}';
+				config.program = '${file}';
 				config.stopOnEntry = true;
 			}
 		}
