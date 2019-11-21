@@ -21,7 +21,7 @@ import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
 import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -36,6 +36,14 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { assertType } from 'vs/base/common/types';
+
+
+MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
+	submenu: MenuId.EditorContextPeek,
+	title: nls.localize('peek.submenu', "Peek"),
+	group: 'navigation',
+	order: 1000
+});
 
 export interface SymbolNavigationActionConfig {
 	openToSide: boolean;
@@ -229,11 +237,11 @@ registerEditorAction(class GoToDefinitionAction extends DefinitionAction {
 				primary: goToDefinitionKb,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'navigation',
 				order: 1.1
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarGoMenu,
 				group: '4_symbol_nav',
 				order: 2,
@@ -293,6 +301,9 @@ registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 				primary: KeyMod.Alt | KeyCode.F12,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
 				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				menuId: MenuId.EditorContextPeek
 			}
 		});
 		CommandsRegistry.registerCommandAlias('editor.action.previewDeclaration', PeekDefinitionAction.id);
@@ -341,11 +352,11 @@ registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
 				EditorContextKeys.hasDeclarationProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'navigation',
 				order: 1.3
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarGoMenu,
 				group: '4_symbol_nav',
 				order: 3,
@@ -376,6 +387,9 @@ registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
+			menuOpts: {
+				menuId: MenuId.EditorContextPeek
+			}
 		});
 	}
 });
@@ -426,11 +440,11 @@ registerEditorAction(class GoToTypeDefinitionAction extends TypeDefinitionAction
 				primary: 0,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'navigation',
 				order: 1.4
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarGoMenu,
 				group: '4_symbol_nav',
 				order: 3,
@@ -457,7 +471,10 @@ registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction
 				EditorContextKeys.hasTypeDefinitionProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
-			)
+			),
+			menuOpts: {
+				menuId: MenuId.EditorContextPeek
+			}
 		});
 	}
 });
@@ -508,13 +525,13 @@ registerEditorAction(class GoToImplementationAction extends ImplementationAction
 				primary: KeyMod.CtrlCmd | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarGoMenu,
 				group: '4_symbol_nav',
 				order: 4,
 				title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementations")
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'navigation',
 				order: 1.45
 			}
@@ -544,6 +561,9 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				menuId: MenuId.EditorContextPeek
 			}
 		});
 	}
@@ -595,11 +615,11 @@ registerEditorAction(class GoToReferencesAction extends ReferencesAction {
 				primary: KeyMod.Shift | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'navigation',
 				order: 1.45
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarGoMenu,
 				group: '4_symbol_nav',
 				order: 5,
@@ -624,7 +644,10 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
-			)
+			),
+			menuOpts: {
+				menuId: MenuId.EditorContextPeek
+			}
 		});
 	}
 });
