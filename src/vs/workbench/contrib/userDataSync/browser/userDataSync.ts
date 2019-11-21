@@ -38,7 +38,7 @@ const SYNC_PUSH_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbenc
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
-	private static readonly ENABLEMENT_SETTING = 'configurationSync.enable';
+	private static readonly ENABLEMENT_SETTING = 'sync.enable';
 
 	private readonly userDataSyncStore: IUserDataSyncStore | undefined;
 	private readonly syncStatusContext: IContextKey<string>;
@@ -187,10 +187,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.canSelectMany = true;
 			quickPick.ignoreFocusOut = true;
 			const items = [{
-				id: 'configurationSync.enableSettings',
+				id: 'sync.settings',
 				label: localize('user settings', "User Settings")
 			}, {
-				id: 'configurationSync.enableExtensions',
+				id: 'sync.enableExtensions',
 				label: localize('extensions', "Extensions")
 			}];
 			quickPick.items = items;
