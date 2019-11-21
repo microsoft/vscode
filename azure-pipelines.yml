@@ -1,7 +1,7 @@
 variables:
   # Bump YARN_CACHE_SALT to reset the cache
   YARN_CACHE_SALT: 2
-  YARN_CACHE_KEY: '"$(Agent.OS) Salt=$(YARN_CACHE_SALT)" | .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+  YARN_CACHE_KEY: '"$(Agent.OS) Salt=$(YARN_CACHE_SALT)" | .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules_snapshot/**/yarn.lock, !**/.*/**/yarn.lock'
 
 jobs:
 - job: Windows
@@ -16,8 +16,8 @@ jobs:
   steps:
   - template: build/azure-pipelines/linux/continuous-build-linux.yml
 
-- job: macOS
-  pool:
-    vmImage: macOS 10.13
-  steps:
-  - template: build/azure-pipelines/darwin/continuous-build-darwin.yml
+# - job: macOS
+#   pool:
+#     vmImage: macOS 10.13
+#   steps:
+#   - template: build/azure-pipelines/darwin/continuous-build-darwin.yml
