@@ -295,10 +295,10 @@ export class CommandCenter {
 			}
 		} else {
 			if (resource.type !== Status.DELETED_BY_THEM) {
-				left = await this.getLeftResource(resource);
+				left = this.getLeftResource(resource);
 			}
 
-			right = await this.getRightResource(resource);
+			right = this.getRightResource(resource);
 		}
 
 		const title = this.getTitle(resource);
@@ -330,79 +330,40 @@ export class CommandCenter {
 		}
 	}
 
-	private async getURI(uri: Uri, ref: string): Promise<Uri | undefined> {
-		// const repository = this.model.getRepository(uri);
-
-		// if (!repository) {
-		return toGitUri(uri, ref);
-		// }
-
-		// try {
-		// 	let gitRef = ref;
-
-		// 	if (gitRef === '~') {
-		// 		const uriString = uri.toString();
-		// 		const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-		// 		gitRef = indexStatus ? '' : 'HEAD';
-		// 	}
-
-		// 	const { size, object } = await repository.getObjectDetails(gitRef, uri.fsPath);
-		// 	const { mimetype } = await repository.detectObjectType(object);
-
-		// 	if (mimetype === 'text/plain') {
-		// 		return toGitUri(uri, ref);
-		// 	}
-
-		// 	if (size > 1000000) { // 1 MB
-		// 		return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
-		// 	}
-
-		// 	if (ImageMimetypes.indexOf(mimetype) > -1) {
-		// 		const contents = await repository.buffer(gitRef, uri.fsPath);
-		// 		return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${gitRef};size:${size};base64,${contents.toString('base64')}`);
-		// 	}
-
-		// 	return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
-
-		// } catch (err) {
-		// 	return toGitUri(uri, ref);
-		// }
-	}
-
-	private async getLeftResource(resource: Resource): Promise<Uri | undefined> {
+	private getLeftResource(resource: Resource): Uri | undefined {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
-				return this.getURI(resource.original, 'HEAD');
+				return toGitUri(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
-				return this.getURI(resource.resourceUri, '~');
+				return toGitUri(resource.resourceUri, '~');
 
 			case Status.DELETED_BY_THEM:
-				return this.getURI(resource.resourceUri, '');
+				return toGitUri(resource.resourceUri, '');
 		}
 		return undefined;
 	}
 
-	private async getRightResource(resource: Resource): Promise<Uri | undefined> {
+	private getRightResource(resource: Resource): Uri | undefined {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
-				return this.getURI(resource.resourceUri, '');
+				return toGitUri(resource.resourceUri, '');
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return this.getURI(resource.resourceUri, 'HEAD');
+				return toGitUri(resource.resourceUri, 'HEAD');
 
 			case Status.DELETED_BY_US:
-				return this.getURI(resource.resourceUri, '~3');
+				return toGitUri(resource.resourceUri, '~3');
 
 			case Status.DELETED_BY_THEM:
-				return this.getURI(resource.resourceUri, '~2');
+				return toGitUri(resource.resourceUri, '~2');
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
@@ -771,7 +732,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const HEAD = await this.getLeftResource(resource);
+		const HEAD = this.getLeftResource(resource);
 		const basename = path.basename(resource.resourceUri.fsPath);
 		const title = `${basename} (HEAD)`;
 
