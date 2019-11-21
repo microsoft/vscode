@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as path from 'vs/base/common/path';
-import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asPromise } from 'vs/base/common/async';
@@ -982,10 +980,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 			getFilePath: (): string | undefined => {
 				const activeEditor = editorService.activeEditor();
 				if (activeEditor) {
-					const resource = activeEditor.document.uri;
-					if (resource.scheme === Schemas.file) {
-						return path.normalize(resource.fsPath);
-					}
+					return path.normalize(activeEditor.document.uri.fsPath);
 				}
 				return undefined;
 			},
