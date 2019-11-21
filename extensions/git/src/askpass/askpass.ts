@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { window, InputBoxOptions } from 'vscode';
-import { IDisposable } from './util';
+import { IDisposable } from '../util';
 import * as path from 'path';
-import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
+import { IIPCHandler, IIPCServer } from '../ipc/ipcServer';
 
 export interface AskpassEnvironment {
 	GIT_ASKPASS: string;
