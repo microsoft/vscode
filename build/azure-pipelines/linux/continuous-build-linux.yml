@@ -16,12 +16,23 @@ steps:
 - task: Cache@2
   inputs:
     key: $(YARN_CACHE_KEY)
-    path: $(System.DefaultWorkingDirectory)/node_modules
+    path: $(System.DefaultWorkingDirectory)/node_modules_snapshot
     cacheHitVar: CacheRestored
 - script: |
-    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
-  displayName: Install Dependencies
+    yarn --frozen-lockfile
+  env:
+    CHILD_CONCURRENCY: "1"
+  displayName: Install Dependencies (on cache miss)
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- bash: |
+    mkdir node_modules_snapshot
+    cp --recursive --no-dereference --preserve=links node_modules/* node_modules_snapshot
+  displayName: Snapshot cache folder
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- bash: |
+    mv node_modules_snapshot node_modules
+  displayName: Install Dependencies (on cache hit)
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 - script: |
     yarn electron x64
   displayName: Download Electron
