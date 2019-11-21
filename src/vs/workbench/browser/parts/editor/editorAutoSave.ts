@@ -9,7 +9,6 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { SaveReason, IEditorIdentifier, IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
@@ -57,19 +56,11 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		this.lastActiveEditorControlDisposable.clear();
 
 		// Listen to focus changes on control for auto save
-		if (activeGroup && activeEditor) {
-			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-			const controlsToObserve: ICodeEditor[] = [];
-
-			if (isCodeEditor(activeTextEditorWidget)) {
-				controlsToObserve.push(activeTextEditorWidget);
-			} else if (isDiffEditor(activeTextEditorWidget)) {
-				controlsToObserve.push(activeTextEditorWidget.getOriginalEditor(), activeTextEditorWidget.getModifiedEditor());
-			}
-
-			controlsToObserve.forEach(control => this.lastActiveEditorControlDisposable.add(control.onDidBlurEditorWidget(() => {
+		const activeEditorControl = this.editorService.activeControl;
+		if (activeEditor && activeEditorControl) {
+			this.lastActiveEditorControlDisposable.add(activeEditorControl.onDidBlur(() => {
 				this.maybeTriggerAutoSave(SaveReason.FOCUS_CHANGE, { groupId: activeGroup.id, editor: activeEditor });
-			})));
+			}));
 		}
 	}
 
@@ -78,10 +69,9 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			return; // no auto save for readonly or untitled editors
 		}
 
+		// Determine if we need to save all. In case of a window focus change we also save if 
+		// auto save mode is configured to be ON_FOCUS_CHANGE (editor focus change)
 		const mode = this.filesConfigurationService.getAutoSaveMode();
-
-		// Determine if we need to save all. In case of a window focus change we also save if auto save mode
-		// is configured to be ON_FOCUS_CHANGE (editor focus change)
 		if (
 			(reason === SaveReason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||
 			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)

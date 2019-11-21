@@ -11,10 +11,14 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { TestViewletService, TestPanelService } from 'vs/workbench/test/workbenchTestServices';
+import { Event } from 'vs/base/common/event';
 
 class TestViewlet implements IViewlet {
 
 	constructor(private id: string) { }
+
+	readonly onDidBlur = Event.None;
+	readonly onDidFocus = Event.None;
 
 	getId(): string { return this.id; }
 	getTitle(): string { return this.id; }
