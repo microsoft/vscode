@@ -30,7 +30,6 @@
         "selector": [
           {
             "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp}",
-            "mime": "image/*"
           }
         ]
       }
