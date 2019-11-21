@@ -16,6 +16,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';
+import { TokenMetadata, FontStyle } from 'vs/editor/common/modes';
 
 let tokenClassificationRegistry = getTokenClassificationRegistry();
 
@@ -48,13 +49,40 @@ function assertTokenStyle(actual: TokenStyle | undefined | null, expected: Token
 	assert.equal(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
 }
 
+function assertTokenStyleMetaData(colorIndex: string[], actual: number, expected: TokenStyle | undefined | null, message?: string) {
+	if (!expected) {
+		assert.equal(actual, 0);
+		return;
+	}
+	const actualFontStyle = TokenMetadata.getFontStyle(actual);
+	assert.equal((actualFontStyle & FontStyle.Bold) === FontStyle.Bold, expected.bold === true, 'bold');
+	assert.equal((actualFontStyle & FontStyle.Italic) === FontStyle.Italic, expected.italic === true, 'italic');
+	assert.equal((actualFontStyle & FontStyle.Underline) === FontStyle.Underline, expected.underline === true, 'underline');
+
+	const actualForegroundIndex = TokenMetadata.getForeground(actual);
+	if (expected.foreground) {
+		assert.equal(actualForegroundIndex, colorIndex.indexOf(Color.Format.CSS.formatHexA(expected.foreground, true).toUpperCase()), 'foreground');
+	} else {
+		assert.equal(actualForegroundIndex, 0, 'foreground');
+	}
+	const actualBackgroundIndex = TokenMetadata.getBackground(actual);
+	assert.equal(actualBackgroundIndex, 0, 'background');
+}
+
+
 function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle }) {
+	const colorIndex = themeData.tokenColorMap;
+
 	for (let qualifiedClassifier in expected) {
 		const classification = tokenClassificationRegistry.getTokenClassificationFromString(qualifiedClassifier);
 		assert.ok(classification, 'Classification not found');
 
 		const tokenStyle = themeData.getTokenStyle(classification!);
-		assertTokenStyle(tokenStyle, expected[qualifiedClassifier], qualifiedClassifier);
+		const expectedTokenStyle = expected[qualifiedClassifier];
+		assertTokenStyle(tokenStyle, expectedTokenStyle, qualifiedClassifier);
+
+		const tokenStyleMetaData = themeData.getTokenStyleMetadata(classification!);
+		assertTokenStyleMetaData(colorIndex, tokenStyleMetaData, expectedTokenStyle);
 	}
 }
 
