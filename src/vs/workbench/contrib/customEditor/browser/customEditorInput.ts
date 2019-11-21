@@ -6,17 +6,16 @@
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
-import { DataUri, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
@@ -49,25 +48,11 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	@memoize
 	getName(): string {
-		if (this.getResource().scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(this.getResource());
-			const label = metadata.get(DataUri.META_DATA_LABEL);
-			if (typeof label === 'string') {
-				return label;
-			}
-		}
 		return basename(this.labelService.getUriLabel(this.getResource()));
 	}
 
 	@memoize
 	getDescription(): string | undefined {
-		if (this.getResource().scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(this.getResource());
-			const description = metadata.get(DataUri.META_DATA_DESCRIPTION);
-			if (typeof description === 'string') {
-				return description;
-			}
-		}
 		return super.getDescription();
 	}
 
@@ -84,17 +69,11 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	@memoize
 	private get mediumTitle(): string {
-		if (this.getResource().scheme === Schemas.data) {
-			return this.getName();
-		}
 		return this.labelService.getUriLabel(this.getResource(), { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
-		if (this.getResource().scheme === Schemas.data) {
-			return this.getName();
-		}
 		return this.labelService.getUriLabel(this.getResource());
 	}
 
