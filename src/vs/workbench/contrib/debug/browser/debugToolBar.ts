@@ -377,7 +377,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
 	if (debugIconRestartColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-restart { color: ${debugIconRestartColor} !important; }`);
+		collector.addRule(`.monaco-workbench .codicon-debug-restart, .monaco-workbench .codicon-debug-restart-frame { color: ${debugIconRestartColor} !important; }`);
 	}
 
 	const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);

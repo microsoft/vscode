@@ -513,7 +513,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 
 		data.actionBar.clear();
 		if (hasActions) {
-			const action = new Action('debug.callStack.restartFrame', nls.localize('restartFrame', "Restart Frame"), 'codicon-debug-restart', true, () => {
+			const action = new Action('debug.callStack.restartFrame', nls.localize('restartFrame', "Restart Frame"), 'codicon-debug-restart-frame', true, () => {
 				return stackFrame.restart();
 			});
 			data.actionBar.push(action, { icon: true, label: false });
