@@ -27,7 +27,6 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -60,7 +59,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -174,10 +172,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			await this.signIn();
 		}
-		if (this.storageService.getBoolean('userDataSync.isFirstTime', StorageScope.GLOBAL, true)) {
-			await this.configureSyncOptions();
-			this.storageService.store('userDataSync.isFirstTime', false, StorageScope.GLOBAL);
-		}
+		await this.configureSyncOptions();
 		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, true);
 		this.notificationService.info(localize('Sync Started', "Sync Started."));
 	}
