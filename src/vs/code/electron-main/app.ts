@@ -639,7 +639,7 @@ export class CodeApplication extends Disposable {
 		// Watch Electron URLs and forward them to the UrlService
 		const args = this.environmentService.args;
 		const urls = args['open-url'] ? args._urls : [];
-		const urlListener = new ElectronURLListener(urls || [], urlService, windowsMainService);
+		const urlListener = new ElectronURLListener(urls || [], urlService, windowsMainService, this.environmentService);
 		this._register(urlListener);
 
 		// Open our first window
