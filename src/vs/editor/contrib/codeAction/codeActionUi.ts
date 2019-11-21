@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { find } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IPosition } from 'vs/editor/common/core/position';
 import { CodeAction } from 'vs/editor/common/modes';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionAutoApply } from './types';
 import { CodeActionWidget } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Lazy } from 'vs/base/common/lazy';
+import { CodeActionAutoApply, CodeActionTrigger } from './types';
 
 export class CodeActionUi extends Disposable {
 
@@ -68,7 +69,7 @@ export class CodeActionUi extends Disposable {
 
 		this._lightBulbWidget.getValue().update(actions, newState.position);
 
-		if (!actions.validActions.length && newState.trigger.context) {
+		if (!actions.allActions.length && newState.trigger.context) {
 			MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
 			this._activeCodeActions.value = actions;
 			return;
@@ -76,18 +77,29 @@ export class CodeActionUi extends Disposable {
 
 		if (newState.trigger.type === 'manual') {
 			if (newState.trigger.filter?.include) { // Triggered for specific scope
-				if (actions.validActions.length > 0) {
-					// Apply if we only have one action or requested autoApply
-					if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && actions.validActions.length === 1)) {
-						try {
-							await this.delegate.applyCodeAction(actions.validActions[0], false);
-						} finally {
-							actions.dispose();
-						}
+				// Check to see if we want to auto apply.
+
+				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
+				if (validActionToApply) {
+					try {
+						await this.delegate.applyCodeAction(validActionToApply, false);
+					} finally {
+						actions.dispose();
+					}
+					return;
+				}
+
+				// Check to see if there is an action that we would have applied were it not invalid
+				if (newState.trigger.context) {
+					const invalidAction = this.getInvalidActionThatWouldHaveBeenApplied(newState.trigger, actions);
+					if (invalidAction && invalidAction.disabled) {
+						MessageController.get(this._editor).showMessage(invalidAction.disabled, newState.trigger.context.position);
+						actions.dispose();
 						return;
 					}
 				}
 			}
+
 			this._activeCodeActions.value = actions;
 			this._codeActionWidget.getValue().show(actions, newState.position);
 		} else {
@@ -99,6 +111,34 @@ export class CodeActionUi extends Disposable {
 				this._activeCodeActions.value = actions;
 			}
 		}
+	}
+
+	private getInvalidActionThatWouldHaveBeenApplied(trigger: CodeActionTrigger, actions: CodeActionSet): CodeAction | undefined {
+		if (!actions.allActions.length) {
+			return undefined;
+		}
+
+		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length === 0)
+			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.allActions.length === 1)
+		) {
+			return find(actions.allActions, action => action.disabled);
+		}
+
+		return undefined;
+	}
+
+	private tryGetValidActionToApply(trigger: CodeActionTrigger, actions: CodeActionSet): CodeAction | undefined {
+		if (!actions.validActions.length) {
+			return undefined;
+		}
+
+		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length > 0)
+			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.validActions.length === 1)
+		) {
+			return actions.validActions[0];
+		}
+
+		return undefined;
 	}
 
 	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {

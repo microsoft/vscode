@@ -64,7 +64,7 @@ export class CodeActionWidget extends Disposable {
 	}
 
 	public async show(codeActions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
-		if (!codeActions.validActions.length) {
+		if (!codeActions.allActions.length) {
 			this._visible = false;
 			return;
 		}
@@ -78,7 +78,7 @@ export class CodeActionWidget extends Disposable {
 		this._visible = true;
 		this._showingActions.value = codeActions;
 
-		const actions = codeActions.validActions.map(action =>
+		const actions = codeActions.allActions.map(action =>
 			new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
