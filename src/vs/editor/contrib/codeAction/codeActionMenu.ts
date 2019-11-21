@@ -43,7 +43,7 @@ export interface CodeActionShowOptions {
 	readonly includeDisabledActions: boolean;
 }
 
-export class CodeActionWidget extends Disposable {
+export class CodeActionMenu extends Disposable {
 
 	private _visible: boolean = false;
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());

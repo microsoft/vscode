@@ -16,13 +16,13 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionWidget, CodeActionShowOptions } from './codeActionWidget';
+import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
 import { LightBulbWidget } from './lightBulbWidget';
 import { CodeActionAutoApply, CodeActionTrigger } from './types';
 
 export class CodeActionUi extends Disposable {
 
-	private readonly _codeActionWidget: Lazy<CodeActionWidget>;
+	private readonly _codeActionWidget: Lazy<CodeActionMenu>;
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
@@ -39,7 +39,7 @@ export class CodeActionUi extends Disposable {
 		super();
 
 		this._codeActionWidget = new Lazy(() => {
-			return this._register(new CodeActionWidget(this._editor, contextMenuService, keybindingService, {
+			return this._register(new CodeActionMenu(this._editor, contextMenuService, keybindingService, {
 				onSelectCodeAction: async (action) => {
 					this.delegate.applyCodeAction(action, /* retrigger */ true);
 				}
