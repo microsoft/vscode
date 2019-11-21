@@ -115,7 +115,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	public showCodeActions(actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this._ui.getValue().showCodeActionList(actions, at);
+		return this._ui.getValue().showCodeActionList(actions, at, { includeDisabledActions: false });
 	}
 
 	public manualTriggerAtCurrentPosition(
