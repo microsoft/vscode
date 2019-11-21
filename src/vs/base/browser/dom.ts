@@ -506,7 +506,13 @@ export function getClientArea(element: HTMLElement): Dimension {
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
 	if (platform.isIOS && (<any>window).visualViewport) {
-		return new Dimension((<any>window).visualViewport.width, (<any>window).visualViewport.height);
+		const width = (<any>window).visualViewport.height;
+		const height = (<any>window).visualViewport.height - (
+			browser.isStandalone
+				? 20 // in PWA mode, the system statusbar is counted into the visual viewport. 20 is the default size of iOS statusbar.
+				: 0 // in non PWA mode, the visual viewport is awalys smaller than the brower tab (which doesn't include system statusbar, browser header, etc)
+		);
+		return new Dimension(width, height);
 	}
 
 	// Try innerWidth / innerHeight
