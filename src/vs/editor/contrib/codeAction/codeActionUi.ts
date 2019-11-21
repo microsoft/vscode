@@ -13,12 +13,11 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { CodeAction } from 'vs/editor/common/modes';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CodeActionsState } from './codeActionModel';
 import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
 import { LightBulbWidget } from './lightBulbWidget';
 import { CodeActionAutoApply, CodeActionTrigger } from './types';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class CodeActionUi extends Disposable {
 
@@ -33,13 +32,12 @@ export class CodeActionUi extends Disposable {
 		private readonly delegate: {
 			applyCodeAction: (action: CodeAction, regtriggerAfterApply: boolean) => Promise<void>
 		},
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._codeActionWidget = new Lazy(() => {
-			return this._register(new CodeActionMenu(this._editor, contextMenuService, keybindingService, {
+			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
 				onSelectCodeAction: async (action) => {
 					this.delegate.applyCodeAction(action, /* retrigger */ true);
 				}
@@ -47,7 +45,7 @@ export class CodeActionUi extends Disposable {
 		});
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(new LightBulbWidget(this._editor, quickFixActionId, preferredFixActionId, keybindingService));
+			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
 			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false })));
 			return widget;
 		});

@@ -52,9 +52,9 @@ export class CodeActionMenu extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _contextMenuService: IContextMenuService,
-		keybindingService: IKeybindingService,
 		private readonly _delegate: CodeActionWidgetDelegate,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super();
 
