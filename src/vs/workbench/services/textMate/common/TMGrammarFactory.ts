@@ -102,8 +102,8 @@ export class TMGrammarFactory extends Disposable {
 		return this._languageToScope2[languageId] ? true : false;
 	}
 
-	public setTheme(theme: IRawTheme): void {
-		this._grammarRegistry.setTheme(theme);
+	public setTheme(theme: IRawTheme, colorMap: string[]): void {
+		this._grammarRegistry.setTheme(theme, colorMap);
 	}
 
 	public getColorMap(): string[] {
