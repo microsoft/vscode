@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
@@ -27,9 +27,10 @@ export class MenuService implements IMenuService {
 
 type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
-class Menu extends Disposable implements IMenu {
+class Menu implements IMenu {
 
-	private readonly _onDidChange = this._register(new Emitter<IMenu | undefined>());
+	private readonly _onDidChange = new Emitter<IMenu | undefined>();
+	private readonly _dispoables = new DisposableStore();
 
 	private _menuGroups!: MenuItemGroup[];
 	private _contextKeys!: Set<string>;
@@ -39,12 +40,11 @@ class Menu extends Disposable implements IMenu {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		super();
 		this._build();
 
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
-		this._register(Event.debounce(
+		this._dispoables.add(Event.debounce(
 			Event.filter(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
 			() => { },
 			50
@@ -52,11 +52,16 @@ class Menu extends Disposable implements IMenu {
 
 		// when context keys change we need to check if the menu also
 		// has changed
-		this._register(Event.debounce<IContextKeyChangeEvent, boolean>(
+		this._dispoables.add(Event.debounce<IContextKeyChangeEvent, boolean>(
 			this._contextKeyService.onDidChangeContext,
 			(last, event) => last || event.affectsSome(this._contextKeys),
 			50
 		)(e => e && this._onDidChange.fire(undefined), this));
+	}
+
+	dispose(): void {
+		this._dispoables.dispose();
+		this._onDidChange.dispose();
 	}
 
 	private _build(): void {
