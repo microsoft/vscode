@@ -16,7 +16,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionWidget } from './codeActionWidget';
+import { CodeActionWidget, CodeActionShowOptions } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { CodeActionAutoApply, CodeActionTrigger } from './types';
 
@@ -48,7 +48,7 @@ export class CodeActionUi extends Disposable {
 
 		this._lightBulbWidget = new Lazy(() => {
 			const widget = this._register(new LightBulbWidget(this._editor, quickFixActionId, preferredFixActionId, keybindingService));
-			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e)));
+			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false })));
 			return widget;
 		});
 	}
@@ -68,12 +68,6 @@ export class CodeActionUi extends Disposable {
 		}
 
 		this._lightBulbWidget.getValue().update(actions, newState.position);
-
-		if (!actions.allActions.length && newState.trigger.context) {
-			MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
-			this._activeCodeActions.value = actions;
-			return;
-		}
 
 		if (newState.trigger.type === 'manual') {
 			if (newState.trigger.filter?.include) { // Triggered for specific scope
@@ -100,8 +94,18 @@ export class CodeActionUi extends Disposable {
 				}
 			}
 
+			const includeDisabledActions = !!newState.trigger.filter?.include;
+			if (newState.trigger.context) {
+				if (!actions.allActions.length || !includeDisabledActions && !actions.validActions.length) {
+					MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
+					this._activeCodeActions.value = actions;
+					actions.dispose();
+					return;
+				}
+			}
+
 			this._activeCodeActions.value = actions;
-			this._codeActionWidget.getValue().show(actions, newState.position);
+			this._codeActionWidget.getValue().show(actions, newState.position, { includeDisabledActions });
 		} else {
 			// auto magically triggered
 			if (this._codeActionWidget.getValue().isVisible) {
@@ -141,7 +145,7 @@ export class CodeActionUi extends Disposable {
 		return undefined;
 	}
 
-	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
-		this._codeActionWidget.getValue().show(actions, at);
+	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
+		this._codeActionWidget.getValue().show(actions, at, options);
 	}
 }

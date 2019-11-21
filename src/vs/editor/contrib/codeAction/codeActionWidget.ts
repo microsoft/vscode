@@ -39,6 +39,10 @@ class CodeActionAction extends Action {
 	}
 }
 
+export interface CodeActionShowOptions {
+	readonly includeDisabledActions: boolean;
+}
+
 export class CodeActionWidget extends Disposable {
 
 	private _visible: boolean = false;
@@ -63,8 +67,9 @@ export class CodeActionWidget extends Disposable {
 		return this._visible;
 	}
 
-	public async show(codeActions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
-		if (!codeActions.allActions.length) {
+	public async show(codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
+		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
+		if (!actionsToShow.length) {
 			this._visible = false;
 			return;
 		}
@@ -78,7 +83,7 @@ export class CodeActionWidget extends Disposable {
 		this._visible = true;
 		this._showingActions.value = codeActions;
 
-		const actions = codeActions.allActions.map(action =>
+		const menuActions = actionsToShow.map(action =>
 			new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
@@ -86,7 +91,7 @@ export class CodeActionWidget extends Disposable {
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => actions,
+			getActions: () => menuActions,
 			onHide: () => {
 				this._visible = false;
 				this._editor.focus();
