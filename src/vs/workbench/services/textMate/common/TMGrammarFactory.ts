@@ -18,7 +18,7 @@ interface ITMGrammarFactoryHost {
 
 export interface ICreateGrammarResult {
 	languageId: LanguageId;
-	grammar: IGrammar;
+	grammar: IGrammar | null;
 	initialState: StackElement;
 	containsEmbeddedLanguages: boolean;
 }
