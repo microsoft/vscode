@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./panelview';
+import 'vs/css!./paneview';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
@@ -16,14 +16,14 @@ import { SplitView, IView } from './splitview';
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
 
-export interface IPanelOptions {
+export interface IPaneOptions {
 	ariaHeaderLabel?: string;
 	minimumBodySize?: number;
 	maximumBodySize?: number;
 	expanded?: boolean;
 }
 
-export interface IPanelStyles {
+export interface IPaneStyles {
 	dropBackground?: Color;
 	headerForeground?: Color;
 	headerBackground?: Color;
@@ -31,7 +31,7 @@ export interface IPanelStyles {
 }
 
 /**
- * A Panel is a structured SplitView view.
+ * A Pane is a structured SplitView view.
  *
  * WARNING: You must call `render()` after you contruct it.
  * It can't be done automatically at the end of the ctor
@@ -39,7 +39,7 @@ export interface IPanelStyles {
  * Subclasses wouldn't be able to set own properties
  * before the `render()` call, thus forbiding their use.
  */
-export abstract class Panel extends Disposable implements IView {
+export abstract class Pane extends Disposable implements IView {
 
 	private static readonly HEADER_SIZE = 22;
 
@@ -54,7 +54,7 @@ export abstract class Panel extends Disposable implements IView {
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
-	private styles: IPanelStyles = {};
+	private styles: IPaneStyles = {};
 	private animationTimer: number | undefined = undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
@@ -95,7 +95,7 @@ export abstract class Panel extends Disposable implements IView {
 	}
 
 	private get headerSize(): number {
-		return this.headerVisible ? Panel.HEADER_SIZE : 0;
+		return this.headerVisible ? Pane.HEADER_SIZE : 0;
 	}
 
 	get minimumSize(): number {
@@ -116,14 +116,14 @@ export abstract class Panel extends Disposable implements IView {
 
 	width: number = 0;
 
-	constructor(options: IPanelOptions = {}) {
+	constructor(options: IPaneOptions = {}) {
 		super();
 		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
 
-		this.element = $('.panel');
+		this.element = $('.pane');
 	}
 
 	isExpanded(): boolean {
@@ -169,7 +169,7 @@ export abstract class Panel extends Disposable implements IView {
 	}
 
 	render(): void {
-		this.header = $('.panel-header');
+		this.header = $('.pane-header');
 		append(this.element, this.header);
 		this.header.setAttribute('tabindex', '0');
 		this.header.setAttribute('role', 'toolbar');
@@ -198,12 +198,12 @@ export abstract class Panel extends Disposable implements IView {
 		this._register(domEvent(this.header, 'click')
 			(() => this.setExpanded(!this.isExpanded()), null));
 
-		this.body = append(this.element, $('.panel-body'));
+		this.body = append(this.element, $('.pane-body'));
 		this.renderBody(this.body);
 	}
 
 	layout(height: number): void {
-		const headerSize = this.headerVisible ? Panel.HEADER_SIZE : 0;
+		const headerSize = this.headerVisible ? Pane.HEADER_SIZE : 0;
 
 		if (this.isExpanded()) {
 			this.layoutBody(height - headerSize, this.width);
@@ -211,7 +211,7 @@ export abstract class Panel extends Disposable implements IView {
 		}
 	}
 
-	style(styles: IPanelStyles): void {
+	style(styles: IPaneStyles): void {
 		this.styles = styles;
 
 		if (!this.header) {
@@ -242,31 +242,31 @@ export abstract class Panel extends Disposable implements IView {
 }
 
 interface IDndContext {
-	draggable: PanelDraggable | null;
+	draggable: PaneDraggable | null;
 }
 
-class PanelDraggable extends Disposable {
+class PaneDraggable extends Disposable {
 
 	private static readonly DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
 
 	private dragOverCounter = 0; // see https://github.com/Microsoft/vscode/issues/14470
 
-	private _onDidDrop = this._register(new Emitter<{ from: Panel, to: Panel }>());
+	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
 	readonly onDidDrop = this._onDidDrop.event;
 
-	constructor(private panel: Panel, private dnd: IPanelDndController, private context: IDndContext) {
+	constructor(private pane: Pane, private dnd: IPaneDndController, private context: IDndContext) {
 		super();
 
-		panel.draggableElement.draggable = true;
-		this._register(domEvent(panel.draggableElement, 'dragstart')(this.onDragStart, this));
-		this._register(domEvent(panel.dropTargetElement, 'dragenter')(this.onDragEnter, this));
-		this._register(domEvent(panel.dropTargetElement, 'dragleave')(this.onDragLeave, this));
-		this._register(domEvent(panel.dropTargetElement, 'dragend')(this.onDragEnd, this));
-		this._register(domEvent(panel.dropTargetElement, 'drop')(this.onDrop, this));
+		pane.draggableElement.draggable = true;
+		this._register(domEvent(pane.draggableElement, 'dragstart')(this.onDragStart, this));
+		this._register(domEvent(pane.dropTargetElement, 'dragenter')(this.onDragEnter, this));
+		this._register(domEvent(pane.dropTargetElement, 'dragleave')(this.onDragLeave, this));
+		this._register(domEvent(pane.dropTargetElement, 'dragend')(this.onDragEnd, this));
+		this._register(domEvent(pane.dropTargetElement, 'drop')(this.onDrop, this));
 	}
 
 	private onDragStart(e: DragEvent): void {
-		if (!this.dnd.canDrag(this.panel) || !e.dataTransfer) {
+		if (!this.dnd.canDrag(this.pane) || !e.dataTransfer) {
 			e.preventDefault();
 			e.stopPropagation();
 			return;
@@ -276,10 +276,10 @@ class PanelDraggable extends Disposable {
 
 		if (isFirefox) {
 			// Firefox: requires to set a text data transfer to get going
-			e.dataTransfer?.setData(DataTransfers.TEXT, this.panel.draggableElement.textContent || '');
+			e.dataTransfer?.setData(DataTransfers.TEXT, this.pane.draggableElement.textContent || '');
 		}
 
-		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.panel.draggableElement.textContent || ''));
+		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.pane.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
 		setTimeout(() => document.body.removeChild(dragImage), 0);
 
@@ -291,7 +291,7 @@ class PanelDraggable extends Disposable {
 			return;
 		}
 
-		if (!this.dnd.canDrop(this.context.draggable.panel, this.panel)) {
+		if (!this.dnd.canDrop(this.context.draggable.pane, this.pane)) {
 			return;
 		}
 
@@ -304,7 +304,7 @@ class PanelDraggable extends Disposable {
 			return;
 		}
 
-		if (!this.dnd.canDrop(this.context.draggable.panel, this.panel)) {
+		if (!this.dnd.canDrop(this.context.draggable.pane, this.pane)) {
 			return;
 		}
 
@@ -335,8 +335,8 @@ class PanelDraggable extends Disposable {
 		this.dragOverCounter = 0;
 		this.render();
 
-		if (this.dnd.canDrop(this.context.draggable.panel, this.panel) && this.context.draggable !== this) {
-			this._onDidDrop.fire({ from: this.context.draggable.panel, to: this.panel });
+		if (this.dnd.canDrop(this.context.draggable.pane, this.pane) && this.context.draggable !== this) {
+			this._onDidDrop.fire({ from: this.context.draggable.pane, to: this.pane });
 		}
 
 		this.context.draggable = null;
@@ -346,106 +346,106 @@ class PanelDraggable extends Disposable {
 		let backgroundColor: string | null = null;
 
 		if (this.dragOverCounter > 0) {
-			backgroundColor = (this.panel.dropBackground || PanelDraggable.DefaultDragOverBackgroundColor).toString();
+			backgroundColor = (this.pane.dropBackground || PaneDraggable.DefaultDragOverBackgroundColor).toString();
 		}
 
-		this.panel.dropTargetElement.style.backgroundColor = backgroundColor || '';
+		this.pane.dropTargetElement.style.backgroundColor = backgroundColor || '';
 	}
 }
 
-export interface IPanelDndController {
-	canDrag(panel: Panel): boolean;
-	canDrop(panel: Panel, overPanel: Panel): boolean;
+export interface IPaneDndController {
+	canDrag(pane: Pane): boolean;
+	canDrop(pane: Pane, overPane: Pane): boolean;
 }
 
-export class DefaultPanelDndController implements IPanelDndController {
+export class DefaultPaneDndController implements IPaneDndController {
 
-	canDrag(panel: Panel): boolean {
+	canDrag(pane: Pane): boolean {
 		return true;
 	}
 
-	canDrop(panel: Panel, overPanel: Panel): boolean {
+	canDrop(pane: Pane, overPane: Pane): boolean {
 		return true;
 	}
 }
 
-export interface IPanelViewOptions {
-	dnd?: IPanelDndController;
+export interface IPaneViewOptions {
+	dnd?: IPaneDndController;
 }
 
-interface IPanelItem {
-	panel: Panel;
+interface IPaneItem {
+	pane: Pane;
 	disposable: IDisposable;
 }
 
-export class PanelView extends Disposable {
+export class PaneView extends Disposable {
 
-	private dnd: IPanelDndController | undefined;
+	private dnd: IPaneDndController | undefined;
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
-	private panelItems: IPanelItem[] = [];
+	private paneItems: IPaneItem[] = [];
 	private width: number = 0;
 	private splitview: SplitView;
 	private animationTimer: number | undefined = undefined;
 
-	private _onDidDrop = this._register(new Emitter<{ from: Panel, to: Panel }>());
-	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
+	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
+	readonly onDidDrop: Event<{ from: Pane, to: Pane }> = this._onDidDrop.event;
 
 	readonly onDidSashChange: Event<number>;
 
-	constructor(container: HTMLElement, options: IPanelViewOptions = {}) {
+	constructor(container: HTMLElement, options: IPaneViewOptions = {}) {
 		super();
 
 		this.dnd = options.dnd;
-		this.el = append(container, $('.monaco-panel-view'));
+		this.el = append(container, $('.monaco-pane-view'));
 		this.splitview = this._register(new SplitView(this.el));
 		this.onDidSashChange = this.splitview.onDidSashChange;
 	}
 
-	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
+	addPane(pane: Pane, size: number, index = this.splitview.length): void {
 		const disposables = new DisposableStore();
-		panel.onDidChangeExpansionState(this.setupAnimation, this, disposables);
+		pane.onDidChangeExpansionState(this.setupAnimation, this, disposables);
 
-		const panelItem = { panel, disposable: disposables };
-		this.panelItems.splice(index, 0, panelItem);
-		panel.width = this.width;
-		this.splitview.addView(panel, size, index);
+		const paneItem = { pane: pane, disposable: disposables };
+		this.paneItems.splice(index, 0, paneItem);
+		pane.width = this.width;
+		this.splitview.addView(pane, size, index);
 
 		if (this.dnd) {
-			const draggable = new PanelDraggable(panel, this.dnd, this.dndContext);
+			const draggable = new PaneDraggable(pane, this.dnd, this.dndContext);
 			disposables.add(draggable);
 			disposables.add(draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop));
 		}
 	}
 
-	removePanel(panel: Panel): void {
-		const index = firstIndex(this.panelItems, item => item.panel === panel);
+	removePane(pane: Pane): void {
+		const index = firstIndex(this.paneItems, item => item.pane === pane);
 
 		if (index === -1) {
 			return;
 		}
 
 		this.splitview.removeView(index);
-		const panelItem = this.panelItems.splice(index, 1)[0];
-		panelItem.disposable.dispose();
+		const paneItem = this.paneItems.splice(index, 1)[0];
+		paneItem.disposable.dispose();
 	}
 
-	movePanel(from: Panel, to: Panel): void {
-		const fromIndex = firstIndex(this.panelItems, item => item.panel === from);
-		const toIndex = firstIndex(this.panelItems, item => item.panel === to);
+	movePane(from: Pane, to: Pane): void {
+		const fromIndex = firstIndex(this.paneItems, item => item.pane === from);
+		const toIndex = firstIndex(this.paneItems, item => item.pane === to);
 
 		if (fromIndex === -1 || toIndex === -1) {
 			return;
 		}
 
-		const [panelItem] = this.panelItems.splice(fromIndex, 1);
-		this.panelItems.splice(toIndex, 0, panelItem);
+		const [paneItem] = this.paneItems.splice(fromIndex, 1);
+		this.paneItems.splice(toIndex, 0, paneItem);
 
 		this.splitview.moveView(fromIndex, toIndex);
 	}
 
-	resizePanel(panel: Panel, size: number): void {
-		const index = firstIndex(this.panelItems, item => item.panel === panel);
+	resizePane(pane: Pane, size: number): void {
+		const index = firstIndex(this.paneItems, item => item.pane === pane);
 
 		if (index === -1) {
 			return;
@@ -454,8 +454,8 @@ export class PanelView extends Disposable {
 		this.splitview.resizeView(index, size);
 	}
 
-	getPanelSize(panel: Panel): number {
-		const index = firstIndex(this.panelItems, item => item.panel === panel);
+	getPaneSize(pane: Pane): number {
+		const index = firstIndex(this.paneItems, item => item.pane === pane);
 
 		if (index === -1) {
 			return -1;
@@ -467,8 +467,8 @@ export class PanelView extends Disposable {
 	layout(height: number, width: number): void {
 		this.width = width;
 
-		for (const panelItem of this.panelItems) {
-			panelItem.panel.width = width;
+		for (const paneItem of this.paneItems) {
+			paneItem.pane.width = width;
 		}
 
 		this.splitview.layout(height);
@@ -490,6 +490,6 @@ export class PanelView extends Disposable {
 	dispose(): void {
 		super.dispose();
 
-		this.panelItems.forEach(i => i.disposable.dispose());
+		this.paneItems.forEach(i => i.disposable.dispose());
 	}
 }

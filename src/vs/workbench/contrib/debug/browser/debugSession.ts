@@ -720,8 +720,8 @@ export class DebugSession implements IDebugSession {
 				await this.debugService.sendAllBreakpoints(this);
 			} finally {
 				await sendConfigurationDone();
+				await this.fetchThreads();
 			}
-			await this.fetchThreads();
 		}));
 
 		this.rawListeners.push(this.raw.onDidStop(async event => {

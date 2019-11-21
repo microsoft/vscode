@@ -14,7 +14,7 @@ import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { dispose, IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
-import 'vs/css!./outlinePanel';
+import 'vs/css!./outlinePane';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -34,7 +34,7 @@ import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -47,6 +47,7 @@ import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 class RequestState {
 
@@ -232,7 +233,7 @@ class OutlineViewState {
 	}
 }
 
-export class OutlinePanel extends ViewletPanel {
+export class OutlinePane extends ViewletPane {
 
 	private _disposables = new Array<IDisposable>();
 
@@ -296,7 +297,7 @@ export class OutlinePanel extends ViewletPanel {
 	protected renderBody(container: HTMLElement): void {
 		this._domNode = container;
 		this._domNode.tabIndex = 0;
-		dom.addClass(container, 'outline-panel');
+		dom.addClass(container, 'outline-pane');
 
 		let progressContainer = dom.$('.outline-progress');
 		this._message = dom.$('.outline-message');
@@ -317,7 +318,7 @@ export class OutlinePanel extends ViewletPanel {
 		this._treeFilter = this._instantiationService.createInstance(OutlineFilter, 'outline');
 		this._tree = this._instantiationService.createInstance(
 			WorkbenchDataTree,
-			'OutlinePanel',
+			'OutlinePane',
 			treeContainer,
 			new OutlineVirtualDelegate(),
 			[new OutlineGroupRenderer(), this._treeRenderer],
@@ -331,7 +332,10 @@ export class OutlinePanel extends ViewletPanel {
 				filter: this._treeFilter,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				hideTwistiesOfChildlessElements: true
+				hideTwistiesOfChildlessElements: true,
+				overrideStyles: {
+					listBackground: SIDE_BAR_BACKGROUND
+				}
 			}
 		);
 
@@ -478,7 +482,7 @@ export class OutlinePanel extends ViewletPanel {
 		const requestDelay = OutlineModel.getRequestDelay(textModel);
 		this._progressBar.infinite().show(requestDelay);
 
-		const createdModel = await OutlinePanel._createOutlineModel(textModel, this._editorDisposables);
+		const createdModel = await OutlinePane._createOutlineModel(textModel, this._editorDisposables);
 		dispose(loadingMessage);
 		if (!createdModel) {
 			return;

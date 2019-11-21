@@ -188,6 +188,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	matchOnLabel: boolean;
 
+	sortByLabel: boolean;
+
 	autoFocusOnList: boolean;
 
 	quickNavigate: IQuickNavigateConfiguration | undefined;

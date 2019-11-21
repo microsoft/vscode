@@ -16,7 +16,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
+export class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
 
 	protected textEditorModelHandle: URI | null = null;
 
@@ -61,7 +61,9 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
-	abstract isReadonly(): boolean;
+	isReadonly(): boolean {
+		return true;
+	}
 
 	setMode(mode: string): void {
 		if (!this.isResolved()) {

@@ -268,8 +268,8 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		// Attach the listeners
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
-			this._pty.onDidClose((e: number | undefined = undefined) => {
-				this._onProcessExit.fire(e);
+			this._pty.onDidClose((e: number | void = undefined) => {
+				this._onProcessExit.fire(e === void 0 ? undefined : e);
 			});
 		}
 		if (this._pty.onDidOverrideDimensions) {
@@ -288,6 +288,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _activeTerminal: ExtHostTerminal | undefined;
 	protected _terminals: ExtHostTerminal[] = [];
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
+	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
 	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal | undefined { return this._activeTerminal; }
@@ -462,17 +463,13 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		}
 		await openPromise;
 
-		// Processes should be initialized here for normal virtual process terminals, however for
-		// tasks they are responsible for attaching the virtual process to a terminal so this
-		// function may be called before tasks is able to attach to the terminal.
-		let retries = 5;
-		while (retries-- > 0) {
-			if (this._terminalProcesses[id]) {
-				(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
-				return;
-			}
-			await timeout(50);
+		if (this._terminalProcesses[id]) {
+			(this._terminalProcesses[id] as ExtHostPseudoterminal).startSendingEvents(initialDimensions);
+		} else {
+			// Defer startSendingEvents call to when _setupExtHostProcessListeners is called
+			this._extensionTerminalAwaitingStart[id] = { initialDimensions };
 		}
+
 	}
 
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): void {
@@ -487,6 +484,12 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e));
 		}
 		this._terminalProcesses[id] = p;
+
+		const awaitingStart = this._extensionTerminalAwaitingStart[id];
+		if (awaitingStart && p instanceof ExtHostPseudoterminal) {
+			p.startSendingEvents(awaitingStart.initialDimensions);
+			delete this._extensionTerminalAwaitingStart[id];
+		}
 	}
 
 	public $acceptProcessInput(id: number, data: string): void {
@@ -525,6 +528,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 		// Remove process reference
 		delete this._terminalProcesses[id];
+		delete this._extensionTerminalAwaitingStart[id];
 
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);

@@ -131,21 +131,10 @@ export interface ITextFileService extends IDisposable {
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 }
 
-export class FileOperationWillRunEvent implements IWaitUntil {
-
-	constructor(
-		private _thenables: Promise<any>[],
-		readonly operation: FileOperation,
-		readonly target: URI,
-		readonly source?: URI | undefined
-	) { }
-
-	waitUntil(thenable: Promise<any>): void {
-		if (Object.isFrozen(this._thenables)) {
-			throw new Error('waitUntil cannot be used aync');
-		}
-		this._thenables.push(thenable);
-	}
+export interface FileOperationWillRunEvent extends IWaitUntil {
+	operation: FileOperation;
+	target: URI;
+	source?: URI;
 }
 
 export class FileOperationDidRunEvent {
@@ -320,7 +309,7 @@ export interface ITextFileOperationResult {
 export interface IResult {
 	source: URI;
 	target?: URI;
-	success?: boolean;
+	error?: boolean;
 }
 
 export const enum LoadReason {

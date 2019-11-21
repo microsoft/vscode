@@ -15,6 +15,8 @@ export const editorLineHighlight = registerColor('editor.lineHighlightBackground
 export const editorLineHighlightBorder = registerColor('editor.lineHighlightBorder', { dark: '#282828', light: '#eeeeee', hc: '#f38518' }, nls.localize('lineHighlightBorderBox', 'Background color for the border around the line at the cursor position.'));
 export const editorRangeHighlight = registerColor('editor.rangeHighlightBackground', { dark: '#ffffff0b', light: '#fdff0033', hc: null }, nls.localize('rangeHighlight', 'Background color of highlighted ranges, like by quick open and find features. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const editorRangeHighlightBorder = registerColor('editor.rangeHighlightBorder', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('rangeHighlightBorder', 'Background color of the border around highlighted ranges.'), true);
+export const editorSymbolHighlight = registerColor('editor.symbolHighlightBackground', { dark: editorRangeHighlight, light: editorRangeHighlight, hc: null }, nls.localize('symbolHighlight', 'Background color of highlighted symbol, like for go to definition or go next/previous symbol. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const editorSymbolHighlightBorder = registerColor('editor.symbolHighlightBorder', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('symbolHighlightBorder', 'Background color of the border around highlighted symbols.'), true);
 
 export const editorCursorForeground = registerColor('editorCursor.foreground', { dark: '#AEAFAD', light: Color.black, hc: Color.white }, nls.localize('caret', 'Color of the editor cursor.'));
 export const editorCursorBackground = registerColor('editorCursor.background', null, nls.localize('editorCursorBackground', 'The background color of the editor cursor. Allows customizing the color of a character overlapped by a block cursor.'));
@@ -71,6 +73,16 @@ registerThemingParticipant((theme, collector) => {
 	const rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
 	if (rangeHighlightBorder) {
 		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${rangeHighlightBorder}; }`);
+	}
+
+	const symbolHighlight = theme.getColor(editorSymbolHighlight);
+	if (symbolHighlight) {
+		collector.addRule(`.monaco-editor .symbolHighlight { background-color: ${symbolHighlight}; }`);
+	}
+
+	const symbolHighlightBorder = theme.getColor(editorSymbolHighlightBorder);
+	if (symbolHighlightBorder) {
+		collector.addRule(`.monaco-editor .symbolHighlight { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${symbolHighlightBorder}; }`);
 	}
 
 	const invisibles = theme.getColor(editorWhitespaces);

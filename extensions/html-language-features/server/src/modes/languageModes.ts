@@ -8,7 +8,7 @@ import {
 	ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange,
 	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
 	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit,
-	Color, ColorInformation, ColorPresentation
+	Color, ColorInformation, ColorPresentation, WorkspaceEdit
 } from 'vscode-html-languageservice';
 import { WorkspaceFolder } from 'vscode-languageserver';
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
@@ -38,6 +38,7 @@ export interface LanguageMode {
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
+	doRename?: (document: TextDocument, position: Position, newName: string) => WorkspaceEdit | null;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];
 	findDocumentSymbols?: (document: TextDocument) => SymbolInformation[];
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];

@@ -36,7 +36,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -1451,8 +1451,6 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const treeClass = 'settings-editor-tree';
-
 		super('SettingsTree', container,
 			new SettingsTreeDelegate(),
 			renderers,
@@ -1465,7 +1463,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
-				styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass),
+				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState)
 			});
 
@@ -1518,23 +1516,22 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			}
 		}));
 
-		this.getHTMLElement().classList.add(treeClass);
-
 		this.disposables.add(attachStyler(themeService, {
-			listActiveSelectionBackground: transparent(Color.white, 0),
+			listBackground: editorBackground,
+			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: foreground,
-			listFocusAndSelectionBackground: transparent(Color.white, 0),
+			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: foreground,
-			listFocusBackground: transparent(Color.white, 0),
+			listFocusBackground: editorBackground,
 			listFocusForeground: foreground,
 			listHoverForeground: foreground,
-			listHoverBackground: transparent(Color.white, 0),
-			listHoverOutline: transparent(Color.white, 0),
-			listFocusOutline: transparent(Color.white, 0),
-			listInactiveSelectionBackground: transparent(Color.white, 0),
+			listHoverBackground: editorBackground,
+			listHoverOutline: editorBackground,
+			listFocusOutline: editorBackground,
+			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: foreground,
-			listInactiveFocusBackground: transparent(Color.white, 0),
-			listInactiveFocusOutline: transparent(Color.white, 0)
+			listInactiveFocusBackground: editorBackground,
+			listInactiveFocusOutline: editorBackground
 		}, colors => {
 			this.style(colors);
 		}));

@@ -87,6 +87,9 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	isDirty(): boolean {
 		return this.dirty;
 	}
+	isReadonly(): boolean {
+		return false;
+	}
 	dispose(): void {
 		super.dispose();
 		this.gotDisposed = true;

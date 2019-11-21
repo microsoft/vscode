@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { TokenClassification } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
@@ -32,6 +33,16 @@ export interface IColorTheme extends ITheme {
 	readonly description?: string;
 	readonly isLoaded: boolean;
 	readonly tokenColors: ITextMateThemingRule[];
+
+	/**
+	 * Returns the token style for a given classification. The result uses the <code>MetadataConsts</code> format
+	 */
+	getTokenStyleMetadata(classification: TokenClassification): number;
+
+	/**
+	 * List of all colors used with tokens. <code>getTokenStyleMetadata</code> references the colors by index into this list.
+	 */
+	readonly tokenColorMap: string[];
 }
 
 export interface IColorMap {

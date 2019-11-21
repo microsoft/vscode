@@ -58,7 +58,7 @@ class HelpModel {
 		if (getStarted.length) {
 			helpItems.push(new HelpItem(
 				['getStarted'],
-				nls.localize('remote.help.getStarted', "Get Started"),
+				nls.localize('remote.help.getStarted', "$(star) Get Started"),
 				getStarted.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
 					url: info.getStarted!
@@ -73,7 +73,7 @@ class HelpModel {
 		if (documentation.length) {
 			helpItems.push(new HelpItem(
 				['documentation'],
-				nls.localize('remote.help.documentation', "Read Documentation"),
+				nls.localize('remote.help.documentation', "$(book) Read Documentation"),
 				documentation.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
 					url: info.documentation!
@@ -88,7 +88,7 @@ class HelpModel {
 		if (feedback.length) {
 			helpItems.push(new HelpItem(
 				['feedback'],
-				nls.localize('remote.help.feedback', "Provide Feedback"),
+				nls.localize('remote.help.feedback', "$(twitter) Provide Feedback"),
 				feedback.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
 					url: info.feedback!
@@ -103,7 +103,7 @@ class HelpModel {
 		if (issues.length) {
 			helpItems.push(new HelpItem(
 				['issues'],
-				nls.localize('remote.help.issues', "Review Issues"),
+				nls.localize('remote.help.issues', "$(issues) Review Issues"),
 				issues.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
 					url: info.issues!
@@ -116,7 +116,7 @@ class HelpModel {
 		if (helpItems.length) {
 			helpItems.push(new IssueReporterItem(
 				['issueReporter'],
-				nls.localize('remote.help.report', "Report Issue"),
+				nls.localize('remote.help.report', "$(comment) Report Issue"),
 				remoteExplorerService.helpInformation.map(info => info.extensionDescription),
 				quickInputService,
 				commandService

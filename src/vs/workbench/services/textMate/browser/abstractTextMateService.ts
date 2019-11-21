@@ -218,6 +218,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 					return null;
 				}
 				const r = await grammarFactory.createGrammar(languageId);
+				if (!r.grammar) {
+					return null;
+				}
 				const tokenization = new TMTokenization(r.grammar, r.initialState, r.containsEmbeddedLanguages);
 				tokenization.onDidEncounterLanguage((languageId) => {
 					if (!this._encounteredLanguages[languageId]) {
@@ -314,7 +317,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		return true;
 	}
 
-	public async createGrammar(modeId: string): Promise<IGrammar> {
+	public async createGrammar(modeId: string): Promise<IGrammar | null> {
 		const grammarFactory = await this._getOrCreateGrammarFactory();
 		const { grammar } = await grammarFactory.createGrammar(this._modeService.getLanguageIdentifier(modeId)!.id);
 		return grammar;

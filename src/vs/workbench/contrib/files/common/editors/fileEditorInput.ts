@@ -216,7 +216,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}
 
-		if (model?.isReadonly()) {
+		if (this.isReadonly()) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
 
@@ -224,7 +224,9 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	}
 
 	isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		const model = this.textFileService.models.get(this.resource);
+
+		return model?.isReadonly() || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	isDirty(): boolean {

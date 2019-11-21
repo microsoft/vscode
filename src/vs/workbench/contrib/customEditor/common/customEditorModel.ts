@@ -33,7 +33,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	}
 
 	public isDirty(): boolean {
-		return this._edits.length > 0 && this._savePoint !== this._edits.length;
+		return this._edits.length > 0 && this._savePoint !== this._currentEditIndex;
 	}
 
 	protected readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
@@ -47,8 +47,11 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	protected readonly _onRedo = this._register(new Emitter<CustomEditorEdit>());
 	readonly onRedo: Event<CustomEditorEdit> = this._onRedo.event;
 
+	protected readonly _onWillSave = this._register(new Emitter<{ waitUntil: (until: Promise<any>) => void }>());
+	readonly onWillSave = this._onWillSave.event;
+
 	public makeEdit(data: string): void {
-		this._edits.splice(this._currentEditIndex, this._edits.length - this._currentEditIndex, data);
+		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex, data);
 		this._currentEditIndex = this._edits.length - 1;
 		this.updateDirty();
 	}
@@ -57,9 +60,14 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this._onDidChangeDirty.fire();
 	}
 
-	public async save(options?: ISaveOptions) {
-		this._savePoint = this._edits.length;
+	public async save(options?: ISaveOptions): Promise<boolean> {
+		this._savePoint = this._currentEditIndex;
 		this.updateDirty();
+
+		const untils: Promise<any>[] = [];
+		const handler = { waitUntil: (until: Promise<any>) => untils.push(until) };
+		this._onWillSave.fire(handler);
+		await Promise.all(untils);
 
 		return true;
 	}

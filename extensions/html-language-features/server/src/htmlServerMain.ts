@@ -136,6 +136,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		colorProvider: {},
 		foldingRangeProvider: true,
 		selectionRangeProvider: true,
+		renameProvider: true
 	};
 	return { capabilities };
 });
@@ -469,6 +470,20 @@ connection.onSelectionRanges((params, token) => {
 	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 });
 
+connection.onRenameRequest((params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		const position: Position = params.position;
+
+		if (document) {
+			const htmlMode = languageModes.getMode('html');
+			if (htmlMode && htmlMode.doRename) {
+				return htmlMode.doRename(document, position, params.newName);
+			}
+		}
+		return null;
+	}, null, `Error while computing rename for ${params.textDocument.uri}`, token);
+});
 
 // Listen on the connection
 connection.listen();

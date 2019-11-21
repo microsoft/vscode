@@ -22,6 +22,16 @@
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container."
 				},
+				"remoteEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": [
+							"string",
+							"null"
+						]
+					},
+					"description": "Remote environment variables."
+				},
 				"postCreateCommand": {
 					"type": [
 						"string",
@@ -54,6 +64,13 @@
 							"string"
 						]
 					}
+				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
 				},
 				"runArgs": {
 					"type": "array",

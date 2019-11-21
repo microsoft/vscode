@@ -343,6 +343,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnDescription = false;
 	private _matchOnDetail = false;
 	private _matchOnLabel = true;
+	private _sortByLabel = true;
 	private _autoFocusOnList = true;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
@@ -433,6 +434,16 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this._matchOnLabel = matchOnLabel;
 		this.update();
 	}
+
+	get sortByLabel() {
+		return this._sortByLabel;
+	}
+
+	set sortByLabel(sortByLabel: boolean) {
+		this._sortByLabel = sortByLabel;
+		this.update();
+	}
+
 
 	get autoFocusOnList() {
 		return this._autoFocusOnList;
@@ -762,6 +773,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
+		this.ui.list.sortByLabel = this.sortByLabel;
 		this.ui.setComboboxAccessibility(true);
 		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
 	}
@@ -926,6 +938,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
 		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
 		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
+		this.layout(this.layoutService.dimension);
 		this.registerKeyModsListeners();
 	}
 
@@ -1378,6 +1391,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		ui.list.matchOnDescription = false;
 		ui.list.matchOnDetail = false;
 		ui.list.matchOnLabel = true;
+		ui.list.sortByLabel = true;
 		ui.ignoreFocusOut = false;
 		this.setComboboxAccessibility(false);
 		ui.inputBox.removeAttribute('aria-label');
@@ -1514,7 +1528,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			style.marginLeft = '-' + (width / 2) + 'px';
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout(this.dimension && this.dimension.height * 0.6);
+			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
 		}
 	}
 

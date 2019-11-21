@@ -548,7 +548,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			quickfixPlaceholderElement.style.transition = '';
 			quickfixPlaceholderElement.style.opacity = '1';
 
-			if (!actions.actions.length) {
+			if (!actions.validActions.length) {
 				actions.dispose();
 				quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
 				return;

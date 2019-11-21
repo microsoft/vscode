@@ -23,10 +23,11 @@ import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
+import { IPanel } from 'vs/workbench/common/panel';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
-export const ActiveEditorIsSaveableContext = new RawContextKey<boolean>('activeEditorIsSaveable', false);
+export const ActiveEditorIsReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
@@ -54,7 +55,7 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
  */
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
-export interface IEditor {
+export interface IEditor extends IPanel {
 
 	/**
 	 * The assigned input of this editor.
@@ -97,19 +98,9 @@ export interface IEditor {
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
 
 	/**
-	 * Returns the unique identifier of this editor.
-	 */
-	getId(): string;
-
-	/**
 	 * Returns the underlying control of this editor.
 	 */
 	getControl(): IEditorControl | undefined;
-
-	/**
-	 * Asks the underlying control to focus.
-	 */
-	focus(): void;
 
 	/**
 	 * Finds out if this editor is visible or not.
@@ -334,6 +325,9 @@ export interface IRevertOptions {
 	/**
 	 * A soft revert will clear dirty state of a working copy
 	 * but will not attempt to load it from its persisted state.
+	 *
+	 * This option may be used in scenarios where an editor is
+	 * closed and where we do not require to load the contents.
 	 */
 	soft?: boolean;
 }
@@ -484,7 +478,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	abstract resolve(): Promise<IEditorModel | null>;
 
 	isReadonly(): boolean {
-		return false;
+		return true;
 	}
 
 	isUntitled(): boolean {
@@ -545,7 +539,11 @@ export abstract class TextEditorInput extends EditorInput {
 		return this.resource;
 	}
 
-	save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+	async save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+		if (this.isReadonly()) {
+			return false; // return early if editor is readonly
+		}
+
 		return this.textFileService.save(this.resource, options);
 	}
 

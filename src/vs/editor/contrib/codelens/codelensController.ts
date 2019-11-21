@@ -367,7 +367,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				});
 
 				return Promise.all(promises).then(() => {
-					if (!token.isCancellationRequested) {
+					if (!token.isCancellationRequested && !lenses[i].isDisposed()) {
 						lenses[i].updateCommands(resolvedSymbols);
 					}
 				});

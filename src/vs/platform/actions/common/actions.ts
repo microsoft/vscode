@@ -65,6 +65,7 @@ export const enum MenuId {
 	DebugWatchContext,
 	DebugToolBar,
 	EditorContext,
+	EditorContextPeek,
 	EditorTitle,
 	EditorTitleContext,
 	EmptyEditorGroupContext,

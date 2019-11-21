@@ -26,7 +26,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { IMenu, MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -38,8 +38,8 @@ export class DebugViewlet extends ViewContainerViewlet {
 
 	private startDebugActionViewItem: StartDebugActionViewItem | undefined;
 	private progressResolve: (() => void) | undefined;
-	private breakpointView: ViewletPanel | undefined;
-	private panelListeners = new Map<string, IDisposable>();
+	private breakpointView: ViewletPane | undefined;
+	private paneListeners = new Map<string, IDisposable>();
 	private debugToolBarMenu: IMenu | undefined;
 	private disposeOnTitleUpdate: IDisposable | undefined;
 
@@ -181,32 +181,32 @@ export class DebugViewlet extends ViewContainerViewlet {
 		}
 	}
 
-	addPanels(panels: { panel: ViewletPanel, size: number, index?: number }[]): void {
-		super.addPanels(panels);
+	addPanes(panes: { pane: ViewletPane, size: number, index?: number }[]): void {
+		super.addPanes(panes);
 
-		for (const { panel } of panels) {
+		for (const { pane: pane } of panes) {
 			// attach event listener to
-			if (panel.id === BREAKPOINTS_VIEW_ID) {
-				this.breakpointView = panel;
+			if (pane.id === BREAKPOINTS_VIEW_ID) {
+				this.breakpointView = pane;
 				this.updateBreakpointsMaxSize();
 			} else {
-				this.panelListeners.set(panel.id, panel.onDidChange(() => this.updateBreakpointsMaxSize()));
+				this.paneListeners.set(pane.id, pane.onDidChange(() => this.updateBreakpointsMaxSize()));
 			}
 		}
 	}
 
-	removePanels(panels: ViewletPanel[]): void {
-		super.removePanels(panels);
-		for (const panel of panels) {
-			dispose(this.panelListeners.get(panel.id));
-			this.panelListeners.delete(panel.id);
+	removePanes(panes: ViewletPane[]): void {
+		super.removePanes(panes);
+		for (const pane of panes) {
+			dispose(this.paneListeners.get(pane.id));
+			this.paneListeners.delete(pane.id);
 		}
 	}
 
 	private updateBreakpointsMaxSize(): void {
 		if (this.breakpointView) {
 			// We need to update the breakpoints view since all other views are collapsed #25384
-			const allOtherCollapsed = this.panels.every(view => !view.isExpanded() || view === this.breakpointView);
+			const allOtherCollapsed = this.panes.every(view => !view.isExpanded() || view === this.breakpointView);
 			this.breakpointView.maximumBodySize = allOtherCollapsed ? Number.POSITIVE_INFINITY : this.breakpointView.minimumBodySize;
 		}
 	}

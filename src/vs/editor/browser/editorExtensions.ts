@@ -42,10 +42,10 @@ export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpr | null;
 	weight: number;
 }
-export interface ICommandMenubarOptions {
+export interface ICommandMenuOptions {
 	menuId: MenuId;
-	group: string;
-	order: number;
+	group?: string;
+	order?: number;
 	when?: ContextKeyExpr;
 	title: string;
 }
@@ -54,36 +54,29 @@ export interface ICommandOptions {
 	precondition: ContextKeyExpr | undefined;
 	kbOpts?: ICommandKeybindingsOptions;
 	description?: ICommandHandlerDescription;
-	menubarOpts?: ICommandMenubarOptions;
+	menuOpts?: ICommandMenuOptions | ICommandMenuOptions[];
 }
 export abstract class Command {
 	public readonly id: string;
 	public readonly precondition: ContextKeyExpr | undefined;
 	private readonly _kbOpts: ICommandKeybindingsOptions | undefined;
-	private readonly _menubarOpts: ICommandMenubarOptions | undefined;
+	private readonly _menuOpts: ICommandMenuOptions | ICommandMenuOptions[] | undefined;
 	private readonly _description: ICommandHandlerDescription | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
 		this._kbOpts = opts.kbOpts;
-		this._menubarOpts = opts.menubarOpts;
+		this._menuOpts = opts.menuOpts;
 		this._description = opts.description;
 	}
 
 	public register(): void {
 
-		if (this._menubarOpts) {
-			MenuRegistry.appendMenuItem(this._menubarOpts.menuId, {
-				group: this._menubarOpts.group,
-				command: {
-					id: this.id,
-					title: this._menubarOpts.title,
-					// precondition: this.precondition
-				},
-				when: this._menubarOpts.when,
-				order: this._menubarOpts.order
-			});
+		if (Array.isArray(this._menuOpts)) {
+			this._menuOpts.forEach(this._registerMenuItem, this);
+		} else if (this._menuOpts) {
+			this._registerMenuItem(this._menuOpts);
 		}
 
 		if (this._kbOpts) {
@@ -117,6 +110,19 @@ export abstract class Command {
 				description: this._description
 			});
 		}
+	}
+
+	private _registerMenuItem(item: ICommandMenuOptions): void {
+		MenuRegistry.appendMenuItem(item.menuId, {
+			group: item.group,
+			command: {
+				id: this.id,
+				title: item.title,
+				// precondition: this.precondition
+			},
+			when: item.when,
+			order: item.order
+		});
 	}
 
 	public abstract runCommand(accessor: ServicesAccessor, args: any): void | Promise<void>;
@@ -184,44 +190,70 @@ export abstract class EditorCommand extends Command {
 
 //#region EditorAction
 
-export interface IEditorCommandMenuOptions {
+export interface IEditorActionContextMenuOptions {
 	group: string;
 	order: number;
 	when?: ContextKeyExpr;
 }
-export interface IActionOptions extends ICommandOptions {
+export interface IActionOptions {
+	id: string;
 	label: string;
 	alias: string;
-	menuOpts?: IEditorCommandMenuOptions;
+	description?: ICommandHandlerDescription;
+	precondition: ContextKeyExpr | undefined;
+	kbOpts?: ICommandKeybindingsOptions;
+	contextMenuOpts?: IEditorActionContextMenuOptions;
+	menuOpts?: Partial<ICommandMenuOptions> | Partial<ICommandMenuOptions[]>;
 }
+
 export abstract class EditorAction extends EditorCommand {
+
+	private static convertOptions(opts: IActionOptions): ICommandOptions {
+
+		function patch(menu: Partial<ICommandMenuOptions>): ICommandMenuOptions {
+			if (!menu.title) {
+				menu.title = opts.label;
+			}
+			if (!menu.menuId) {
+				menu.menuId = MenuId.EditorContext;
+			}
+			if (!menu.when) {
+				menu.when = opts.precondition;
+			}
+			return <ICommandMenuOptions>menu;
+		}
+
+		let menuOpts: ICommandMenuOptions[];
+		if (Array.isArray(opts.menuOpts)) {
+			menuOpts = opts.menuOpts.map(m => patch(m!));
+		} else if (opts.menuOpts) {
+			menuOpts = [patch(opts.menuOpts)];
+		} else {
+			menuOpts = [];
+		}
+
+		if (opts.contextMenuOpts) {
+			const contextMenuItem = {
+				title: opts.label,
+				when: ContextKeyExpr.and(opts.precondition, opts.contextMenuOpts.when),
+				menuId: MenuId.EditorContext,
+				group: opts.contextMenuOpts.group,
+				order: opts.contextMenuOpts.order
+			};
+			menuOpts.push(contextMenuItem);
+		}
+
+		opts.menuOpts = menuOpts;
+		return <ICommandOptions>opts;
+	}
 
 	public readonly label: string;
 	public readonly alias: string;
-	private readonly menuOpts: IEditorCommandMenuOptions | undefined;
 
 	constructor(opts: IActionOptions) {
-		super(opts);
+		super(EditorAction.convertOptions(opts));
 		this.label = opts.label;
 		this.alias = opts.alias;
-		this.menuOpts = opts.menuOpts;
-	}
-
-	public register(): void {
-
-		if (this.menuOpts) {
-			MenuRegistry.appendMenuItem(MenuId.EditorContext, {
-				command: {
-					id: this.id,
-					title: this.label
-				},
-				when: ContextKeyExpr.and(this.precondition, this.menuOpts.when),
-				group: this.menuOpts.group,
-				order: this.menuOpts.order
-			});
-		}
-
-		super.register();
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {

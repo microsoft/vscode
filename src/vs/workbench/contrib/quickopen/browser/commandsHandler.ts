@@ -214,7 +214,7 @@ class CommandPaletteEditorAction extends EditorAction {
 			label: localize('showCommands.label', "Command Palette..."),
 			alias: 'Command Palette',
 			precondition: undefined,
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'z_commands',
 				order: 1
 			}

@@ -106,6 +106,7 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsContainer.setAttribute('role', 'tablist');
 		this.tabsContainer.draggable = true;
 		addClass(this.tabsContainer, 'tabs-container');
+		this._register(Gesture.addTarget(this.tabsContainer));
 
 		// Tabs Scrollbar
 		this.tabsScrollbar = this._register(this.createTabsScrollbar(this.tabsContainer));
@@ -173,13 +174,27 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// New file when double clicking on tabs container (but not tabs)
-		this._register(addDisposableListener(tabsContainer, EventType.DBLCLICK, e => {
-			if (e.target === tabsContainer) {
+		[TouchEventType.Tap, EventType.DBLCLICK].forEach(eventType => {
+			this._register(addDisposableListener(tabsContainer, eventType, (e: MouseEvent | GestureEvent) => {
+				if (eventType === EventType.DBLCLICK) {
+					if (e.target !== tabsContainer) {
+						return; // ignore if target is not tabs container
+					}
+				} else {
+					if ((<GestureEvent>e).tapCount !== 2) {
+						return; // ignore single taps
+					}
+
+					if ((<GestureEvent>e).initialTarget !== tabsContainer) {
+						return; // ignore if target is not tabs container
+					}
+				}
+
 				EventHelper.stop(e);
 
 				this.group.openEditor(this.untitledTextEditorService.createOrGet(), { pinned: true /* untitled is always pinned */, index: this.group.count /* always at the end */ });
-			}
-		}));
+			}));
+		});
 
 		// Prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
@@ -600,16 +615,22 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Double click: either pin or toggle maximized
-		disposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
-			EventHelper.stop(e);
+		[TouchEventType.Tap, EventType.DBLCLICK].forEach(eventType => {
+			disposables.add(addDisposableListener(tab, eventType, (e: MouseEvent | GestureEvent) => {
+				if (eventType === EventType.DBLCLICK) {
+					EventHelper.stop(e);
+				} else if ((<GestureEvent>e).tapCount !== 2) {
+					return; // ignore single taps
+				}
 
-			const editor = this.group.getEditorByIndex(index);
-			if (editor && this.group.isPinned(editor)) {
-				this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
-			} else {
-				this.group.pinEditor(editor);
-			}
-		}));
+				const editor = this.group.getEditorByIndex(index);
+				if (editor && this.group.isPinned(editor)) {
+					this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.group);
+				} else {
+					this.group.pinEditor(editor);
+				}
+			}));
+		});
 
 		// Context menu
 		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: Event) => {

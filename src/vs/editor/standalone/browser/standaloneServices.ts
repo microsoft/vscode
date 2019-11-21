@@ -194,7 +194,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		ensure(IAccessibilityService, () => new BrowserAccessibilityService(contextKeyService, configurationService));
 
-		ensure(IListService, () => new ListService(contextKeyService));
+		ensure(IListService, () => new ListService(themeService));
 
 		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
 
