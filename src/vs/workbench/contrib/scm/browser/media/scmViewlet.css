@@ -171,16 +171,8 @@
 	display: none;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox {
-	width: 100%;
-}
-
-.scm-viewlet .scm-editor > .monaco-inputbox > .wrapper > .mirror {
-	max-height: 134px;
-}
-
-.scm-viewlet .scm-editor > .monaco-inputbox > .wrapper > textarea.input {
-	min-height: 26px;
+.scm-viewlet .scm-editor-container {
+	padding: 3px 4px;
 }
 
 .scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {

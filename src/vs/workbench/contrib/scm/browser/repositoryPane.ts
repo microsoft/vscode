@@ -5,13 +5,12 @@
 
 import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMResourceGroup, ISCMResource } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -27,14 +26,11 @@ import { SCMMenus } from './menus';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar } from './util';
-import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { format } from 'vs/base/common/strings';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ThrottledDelayer, disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import * as platform from 'vs/base/common/platform';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ISequence, ISplice } from 'vs/base/common/sequence';
@@ -54,6 +50,11 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Hasher } from 'vs/base/common/hash';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ITextModel } from 'vs/editor/common/model';
+import { IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -578,20 +579,21 @@ export class ToggleViewModeAction extends Action {
 	}
 }
 
-function convertValidationType(type: InputValidationType): MessageType {
-	switch (type) {
-		case InputValidationType.Information: return MessageType.INFO;
-		case InputValidationType.Warning: return MessageType.WARNING;
-		case InputValidationType.Error: return MessageType.ERROR;
-	}
-}
+// function convertValidationType(type: InputValidationType): MessageType {
+// 	switch (type) {
+// 		case InputValidationType.Information: return MessageType.INFO;
+// 		case InputValidationType.Warning: return MessageType.WARNING;
+// 		case InputValidationType.Error: return MessageType.ERROR;
+// 	}
+// }
 
 export class RepositoryPane extends ViewletPane {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
-	private inputBoxContainer!: HTMLElement;
-	private inputBox!: InputBox;
+	private inputContainer!: HTMLElement;
+	private inputEditor!: CodeEditorWidget;
+	private inputModel!: ITextModel;
 	private listContainer!: HTMLElement;
 	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private viewModel!: ViewModel;
@@ -599,7 +601,7 @@ export class RepositoryPane extends ViewletPane {
 	private menus: SCMMenus;
 	private toggleViewModelModeAction: ToggleViewModeAction | undefined;
 	protected contextKeyService: IContextKeyService;
-	private commitTemplate = '';
+	// private commitTemplate = '';
 
 	constructor(
 		readonly repository: ISCMRepository,
@@ -615,7 +617,8 @@ export class RepositoryPane extends ViewletPane {
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IModelService private modelService: IModelService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 
@@ -655,51 +658,76 @@ export class RepositoryPane extends ViewletPane {
 		this._register(focusTracker);
 
 		// Input
-		this.inputBoxContainer = append(container, $('.scm-editor'));
+		this.inputContainer = append(container, $('.scm-editor'));
+		const editorContainer = append(this.inputContainer, $('.scm-editor-container'));
 
+		// TODO@joao
 		const updatePlaceholder = () => {
-			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
-			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
-			const placeholder = format(this.repository.input.placeholder, label);
+			// const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
+			// const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			// const placeholder = format(this.repository.input.placeholder, label);
 
-			this.inputBox.setPlaceHolder(placeholder);
+			// this.inputBox.setPlaceHolder(placeholder);
 		};
 
-		const validationDelayer = new ThrottledDelayer<any>(200);
-		const validate = () => {
-			return this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart || 0).then(result => {
-				if (!result) {
-					this.inputBox.inputElement.removeAttribute('aria-invalid');
-					this.inputBox.hideMessage();
-				} else {
-					this.inputBox.inputElement.setAttribute('aria-invalid', 'true');
-					this.inputBox.showMessage({ content: result.message, type: convertValidationType(result.type) });
-				}
-			});
+		// const validationDelayer = new ThrottledDelayer<any>(200);
+		// const validate = () => {
+
+		// 	const position = this.inputEditor.getSelection()?.getStartPosition();
+		// 	const offset = position && this.inputModel.getOffsetAt(position);
+		// 	const value = this.inputModel.getValue();
+
+		// 	return this.repository.input.validateInput(value, offset || 0).then(result => {
+
+		// 		// TODO@joao
+		// 		if (!result) {
+		// 			// this.inputBox.inputElement.removeAttribute('aria-invalid');
+		// 			// this.inputBox.hideMessage();
+		// 		} else {
+		// 			// this.inputBox.inputElement.setAttribute('aria-invalid', 'true');
+		// 			// this.inputBox.showMessage({ content: result.message, type: convertValidationType(result.type) });
+		// 		}
+		// 	});
+		// };
+
+		// const triggerValidation = () => validationDelayer.trigger(validate);
+
+		const editorOptions: IEditorConstructionOptions = {
+			...getSimpleEditorOptions()
+		};
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true
 		};
 
-		const triggerValidation = () => validationDelayer.trigger(validate);
+		this.inputEditor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134 });
-		this.inputBox.setEnabled(this.isBodyVisible());
-		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
-		this._register(this.inputBox);
+		// this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134 });
+		// this.inputBox.setEnabled(this.isBodyVisible());
+		// this._register(attachInputBoxStyler(this.inputBox, this.themeService));
+		this._register(this.inputEditor);
 
-		this._register(this.inputBox.onDidChange(triggerValidation, null));
+		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
+		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
 
-		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
-		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		this._register(Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null));
+		let resource = URI.parse('scm://input');
+		this.inputModel = this.modelService.createModel('', null, resource, true);
+		this.inputEditor.setModel(this.inputModel);
 
-		this.inputBox.value = this.repository.input.value;
-		this._register(this.inputBox.onDidChange(value => this.repository.input.value = value, null));
-		this._register(this.repository.input.onDidChange(value => this.inputBox.value = value, null));
+		// this._register(this.inputBox.onDidChange(triggerValidation, null));
+
+		// const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
+		// const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
+		// this._register(Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null));
+
+		// this.inputBox.value = this.repository.input.value;
+		// this._register(this.inputBox.onDidChange(value => this.repository.input.value = value, null));
+		// this._register(this.repository.input.onDidChange(value => this.inputBox.value = value, null));
 
 		updatePlaceholder();
 		this._register(this.repository.input.onDidChangePlaceholder(updatePlaceholder, null));
 		this._register(this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
 
-		this._register(this.inputBox.onDidHeightChange(() => this.layoutBody()));
+		// this._register(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
 			this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
@@ -822,15 +850,16 @@ export class RepositoryPane extends ViewletPane {
 		this.cachedHeight = height;
 
 		if (this.repository.input.visible) {
-			removeClass(this.inputBoxContainer, 'hidden');
-			this.inputBox.layout();
+			removeClass(this.inputContainer, 'hidden');
+			this.inputEditor.layout({ height: 38, width: width! - 12 - 16 - 2 }); // TODO@joao
 
-			const editorHeight = this.inputBox.height;
+			const editorHeight = 40; // TODO@joao
 			const listHeight = height - (editorHeight + 12 /* margin */);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.tree.layout(listHeight, width);
 		} else {
-			addClass(this.inputBoxContainer, 'hidden');
+			addClass(this.inputContainer, 'hidden');
+			// TODO@joao: disable editor
 
 			this.listContainer.style.height = `${height}px`;
 			this.tree.layout(height, width);
@@ -842,7 +871,7 @@ export class RepositoryPane extends ViewletPane {
 
 		if (this.isExpanded()) {
 			if (this.repository.input.visible) {
-				this.inputBox.focus();
+				this.inputEditor.focus();
 			} else {
 				this.tree.domFocus();
 			}
@@ -852,7 +881,7 @@ export class RepositoryPane extends ViewletPane {
 	}
 
 	private _onDidChangeVisibility(visible: boolean): void {
-		this.inputBox.setEnabled(visible);
+		// this.inputEditor.setEnabled(visible);
 		this.viewModel.setVisible(visible);
 	}
 
@@ -929,19 +958,20 @@ export class RepositoryPane extends ViewletPane {
 			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
 	}
 
+	// TODO@joao
 	private onDidChangeCommitTemplate(): void {
-		if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible) {
-			return;
-		}
+		// if (typeof this.repository.provider.commitTemplate === 'undefined' || !this.repository.input.visible) {
+		// 	return;
+		// }
 
-		const oldCommitTemplate = this.commitTemplate;
-		this.commitTemplate = this.repository.provider.commitTemplate;
+		// const oldCommitTemplate = this.commitTemplate;
+		// this.commitTemplate = this.repository.provider.commitTemplate;
 
-		if (this.inputBox.value && this.inputBox.value !== oldCommitTemplate) {
-			return;
-		}
+		// if (this.inputBox.value && this.inputBox.value !== oldCommitTemplate) {
+		// 	return;
+		// }
 
-		this.inputBox.value = this.commitTemplate;
+		// this.inputBox.value = this.commitTemplate;
 	}
 
 	private updateInputBoxVisibility(): void {
