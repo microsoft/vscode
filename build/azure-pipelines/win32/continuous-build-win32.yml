@@ -15,10 +15,15 @@ steps:
     path: $(System.DefaultWorkingDirectory)/node_modules_snapshot
     cacheHitVar: CacheRestored
 - script: |
-    yarn --frozen-lockfile && mkdir node_modules_snapshot && robocopy /SL /E $(System.DefaultWorkingDirectory)/node_modules $(System.DefaultWorkingDirectory)/node_modules_snapshot *
+    yarn --frozen-lockfile
   env:
     CHILD_CONCURRENCY: "1"
   displayName: Install Dependencies (on cache miss)
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- script: |
+    mkdir $(System.DefaultWorkingDirectory)/node_modules_snapshot
+    robocopy /SL /E $(System.DefaultWorkingDirectory)/node_modules $(System.DefaultWorkingDirectory)/node_modules_snapshot *
+  displayName: Snapshot cache folder
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - script: |
     move $(System.DefaultWorkingDirectory)/ode_modules_snapshot $(System.DefaultWorkingDirectory)/node_modules
