@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vscode';
-import { denodeify, toDisposable } from '../util';
+import { toDisposable } from '../util';
 import * as path from 'path';
 import * as http from 'http';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-
-const randomBytes = denodeify<Buffer>(crypto.randomBytes);
 
 function getIPCHandlePath(nonce: string): string {
 	if (process.platform === 'win32') {
@@ -31,7 +29,7 @@ export interface IIPCHandler {
 
 export async function createIPCServer(): Promise<IIPCServer> {
 	const server = http.createServer();
-	const buffer = await randomBytes(20);
+	const buffer = await new Promise<Buffer>((c, e) => crypto.randomBytes(20, (err, buf) => err ? e(err) : c(buf)));
 	const nonce = buffer.toString('hex');
 	const ipcHandlePath = getIPCHandlePath(nonce);
 
