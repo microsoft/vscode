@@ -498,13 +498,11 @@ suite('Debug - Model', () => {
 		repl.appendToRepl(session, '3\n4', severity.Info);
 		repl.appendToRepl(session, '5\n', severity.Info);
 		repl.appendToRepl(session, '6', severity.Info);
-		repl.appendToRepl(session, '\n7', severity.Info);
 		elements = <SimpleReplElement[]>repl.getReplElements();
-		assert.equal(elements.length, 4);
+		assert.equal(elements.length, 3);
 		assert.equal(elements[0], '1\n');
 		assert.equal(elements[1], '23\n45\n');
 		assert.equal(elements[2], '6');
-		assert.equal(elements[3], '\n7');
 	});
 
 	test('repl merging', () => {

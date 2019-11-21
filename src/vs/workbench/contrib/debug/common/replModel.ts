@@ -10,7 +10,7 @@ import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugMode
 import { isString, isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { endsWith, startsWith } from 'vs/base/common/strings';
+import { endsWith } from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Emitter } from 'vs/base/common/event';
 
@@ -134,7 +134,7 @@ export class ReplModel {
 
 		if (typeof data === 'string') {
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-			if (!startsWith(data, '\n') && previousElement instanceof SimpleReplElement && previousElement.severity === sev && !endsWith(previousElement.value, '\n') && !endsWith(previousElement.value, '\r\n')) {
+			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !endsWith(previousElement.value, '\n') && !endsWith(previousElement.value, '\r\n')) {
 				previousElement.value += data;
 				this._onDidChangeElements.fire();
 			} else {
