@@ -19,7 +19,7 @@ steps:
     versionSpec: "12.13.0"
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
-- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@3
   inputs:
     versionSpec: "1.x"
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))

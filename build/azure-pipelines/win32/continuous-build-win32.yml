@@ -2,7 +2,7 @@ steps:
 - task: NodeTool@0
   inputs:
     versionSpec: "12.13.0"
-- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@3
   inputs:
     versionSpec: "1.x"
 - task: UsePythonVersion@0
