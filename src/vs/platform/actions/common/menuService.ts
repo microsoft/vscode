@@ -32,8 +32,8 @@ class Menu implements IMenu {
 	private readonly _onDidChange = new Emitter<IMenu | undefined>();
 	private readonly _dispoables = new DisposableStore();
 
-	private _menuGroups!: MenuItemGroup[];
-	private _contextKeys!: Set<string>;
+	private _menuGroups: MenuItemGroup[] = [];
+	private _contextKeys: Set<string> = new Set();
 
 	constructor(
 		private readonly _id: MenuId,
@@ -67,8 +67,8 @@ class Menu implements IMenu {
 	private _build(): void {
 
 		// reset
-		this._menuGroups = [];
-		this._contextKeys = new Set();
+		this._menuGroups.length = 0;
+		this._contextKeys.clear();
 
 		const menuItems = MenuRegistry.getMenuItems(this._id);
 
