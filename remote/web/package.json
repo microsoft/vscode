@@ -4,7 +4,7 @@
 	"dependencies": {
 		"onigasm-umd": "^2.2.4",
 		"semver-umd": "^5.5.3",
-		"vscode-textmate": "^4.4.0",
+		"vscode-textmate": "4.4.0",
 		"xterm": "4.3.0-beta17",
 		"xterm-addon-search": "0.4.0-beta4",
 		"xterm-addon-web-links": "0.2.1",
