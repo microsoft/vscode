@@ -518,7 +518,7 @@ export function getClientArea(element: HTMLElement): Dimension {
 				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
 				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
 				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
-				? (20 + 8) // body margin is 8px
+				? (20 + 4) // + 4px for body margin
 				: 0
 		);
 		return new Dimension(width, height);
