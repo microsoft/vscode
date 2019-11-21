@@ -39,7 +39,6 @@ import { ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/contrib
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -368,8 +367,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-const PREFERENCES_EDITOR_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/preferences/browser/media/preferences-editor-light.svg`));
-const PREFERENCES_EDITOR_DARK_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/preferences/browser/media/preferences-editor-dark.svg`));
 class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -384,10 +381,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			command: {
 				id: OpenGlobalKeybindingsAction.ID,
 				title: OpenGlobalKeybindingsAction.LABEL,
-				iconLocation: {
-					light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
-					dark: PREFERENCES_EDITOR_DARK_ICON_URI
-				}
+				iconClassName: 'codicon-go-to-file'
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.keybindingsResource.toString()),
 			group: 'navigation',
@@ -400,10 +394,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			command: {
 				id: commandId,
 				title: OpenSettings2Action.LABEL,
-				iconLocation: {
-					light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
-					dark: PREFERENCES_EDITOR_DARK_ICON_URI
-				}
+				iconClassName: 'codicon-go-to-file'
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.settingsResource.toString()),
 			group: 'navigation',
@@ -441,10 +432,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				command: {
 					id: commandId,
 					title: OpenSettings2Action.LABEL,
-					iconLocation: {
-						light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
-						dark: PREFERENCES_EDITOR_DARK_ICON_URI
-					}
+					iconClassName: 'codicon-go-to-file'
 				},
 				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
 				group: 'navigation',
@@ -469,10 +457,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					command: {
 						id: commandId,
 						title: OpenSettings2Action.LABEL,
-						iconLocation: {
-							light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
-							dark: PREFERENCES_EDITOR_DARK_ICON_URI
-						}
+						iconClassName: 'codicon-go-to-file'
 					},
 					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
 					group: 'navigation',
@@ -536,10 +521,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: OpenGlobalKeybindingsFileAction.ID,
 		title: OpenGlobalKeybindingsFileAction.LABEL,
-		iconLocation: {
-			light: PREFERENCES_EDITOR_LIGHT_ICON_URI,
-			dark: PREFERENCES_EDITOR_DARK_ICON_URI
-		}
+		iconClassName: 'codicon-go-to-file'
 	},
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 	group: 'navigation',
@@ -820,10 +802,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 		title: nls.localize('openSettingsJson', "Open Settings (JSON)"),
-		iconLocation: {
-			dark: PREFERENCES_EDITOR_DARK_ICON_URI,
-			light: PREFERENCES_EDITOR_LIGHT_ICON_URI
-		}
+		iconClassName: 'codicon-go-to-file'
 	},
 	group: 'navigation',
 	order: 1,
