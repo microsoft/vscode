@@ -7,7 +7,6 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor, IRevertOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -29,7 +28,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
-type CachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
+type CachedEditorInput = ResourceEditorInput | IFileEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
 
 export class EditorService extends Disposable implements EditorServiceImpl {
@@ -584,8 +583,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const resourceInput = input as IResourceInput;
 		if (resourceInput.resource instanceof URI) {
 			let label = resourceInput.label;
-			if (!label && resourceInput.resource.scheme !== Schemas.data) {
-				label = basename(resourceInput.resource); // derive the label from the path (but not for data URIs)
+			if (!label) {
+				label = basename(resourceInput.resource); // derive the label from the path
 			}
 
 			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, resourceInput.mode, resourceInput.forceFile) as EditorInput;
@@ -609,7 +608,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				if (mode) {
 					input.setPreferredMode(mode);
 				}
-			} else if (!(input instanceof DataUriEditorInput)) {
+			} else {
 				if (encoding) {
 					input.setPreferredEncoding(encoding);
 				}
@@ -626,11 +625,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		let input: CachedEditorInput;
 		if (forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resource)) {
 			input = this.fileInputFactory.createFileInput(resource, encoding, mode, instantiationService);
-		}
-
-		// Data URI
-		else if (resource.scheme === Schemas.data) {
-			input = instantiationService.createInstance(DataUriEditorInput, label || basename(resource), description, resource);
 		}
 
 		// Resource
