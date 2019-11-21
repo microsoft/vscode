@@ -21,7 +21,7 @@ import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';
 import * as path from 'path';
 import * as fs from 'fs';
-import { createIPCServer } from './ipc/ipcServer';
+import { createIPCServer, IIPCServer } from './ipc/ipcServer';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
 
@@ -34,18 +34,24 @@ export async function deactivate(): Promise<any> {
 async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
+
 	let env: any = {};
+	let ipc: IIPCServer | undefined;
 
 	try {
-		const ipc = await createIPCServer();
+		ipc = await createIPCServer();
 		disposables.push(ipc);
 		env = { ...env, ...ipc.getEnv() };
+	} catch {
+		// noop
+	}
 
+	if (ipc) {
 		const askpass = new Askpass(ipc);
 		disposables.push(askpass);
 		env = { ...env, ...askpass.getEnv() };
-	} catch {
-		env = Askpass.getDisabledEnv();
+	} else {
+		env = { ...env, ...Askpass.getDisabledEnv() };
 	}
 
 	const git = new Git({ gitPath: info.path, version: info.version, env });
