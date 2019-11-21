@@ -55,7 +55,7 @@ export class ColorThemeData implements IColorTheme {
 	private colorMap: IColorMap = {};
 	private customColorMap: IColorMap = {};
 
-	private tokenStylingRules: TokenStylingRule[] | undefined = undefined;
+	private tokenStylingRules: TokenStylingRule[] | undefined = undefined; // undefined if the theme has no tokenStylingRules section
 	private customTokenStylingRules: TokenStylingRule[] = [];
 
 	private themeTokenScopeMatchers: Matcher<ProbeScope>[] | undefined;
@@ -305,6 +305,7 @@ export class ColorThemeData implements IColorTheme {
 
 		this.tokenColorIndex = undefined;
 		this.textMateThemingRules = undefined;
+		this.customTokenScopeMatchers = undefined;
 	}
 
 	private overwriteCustomColors(colors: IColorCustomizations) {
@@ -318,7 +319,7 @@ export class ColorThemeData implements IColorTheme {
 
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		this.customTokenColors = [];
-		this.customTokenScopeMatchers = undefined;
+
 		// first add the non-theme specific settings
 		this.addCustomTokenColors(customTokenColors);
 
@@ -330,6 +331,7 @@ export class ColorThemeData implements IColorTheme {
 
 		this.tokenColorIndex = undefined;
 		this.textMateThemingRules = undefined;
+		this.customTokenScopeMatchers = undefined;
 	}
 
 	public setCustomTokenStyleRules(tokenStylingRules: IExperimentalTokenStyleCustomizations) {
@@ -342,7 +344,6 @@ export class ColorThemeData implements IColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
-		this.textMateThemingRules = undefined;
 	}
 
 	private addCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
@@ -383,9 +384,7 @@ export class ColorThemeData implements IColorTheme {
 			return Promise.resolve(undefined);
 		}
 		this.themeTokenColors = [];
-		this.themeTokenScopeMatchers = undefined;
-		this.tokenColorIndex = undefined;
-		this.textMateThemingRules = undefined;
+		this.clearCaches();
 
 		const result = {
 			colors: {},
