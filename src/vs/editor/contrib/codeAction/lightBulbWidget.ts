@@ -17,6 +17,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Gesture } from 'vs/base/browser/touch';
 
 namespace LightBulbState {
 
@@ -71,7 +72,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				this.hide();
 			}
 		}));
-		this._register(dom.addStandardDisposableListener(this._domNode, 'mousedown', e => {
+
+		Gesture.ignoreTarget(this._domNode);
+		this._register(dom.addStandardDisposableGenericMouseDownListner(this._domNode, e => {
 			if (this.state.type !== LightBulbState.Type.Showing) {
 				return;
 			}

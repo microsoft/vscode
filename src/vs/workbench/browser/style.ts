@@ -8,9 +8,9 @@ import 'vs/css!./media/style';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { isWeb } from 'vs/base/common/platform';
+import { isWeb, isIOS } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
-import { isSafari } from 'vs/base/browser/browser';
+import { isSafari, isStandalone } from 'vs/base/browser/browser';
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
@@ -183,5 +183,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				-webkit-user-select: text;
 			}
 		`);
+	}
+
+	// Update body background color to ensure the home indicator area looks similar to the workbench
+	if (isIOS && isStandalone) {
+		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
 	}
 });
