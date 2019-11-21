@@ -1810,18 +1810,9 @@ export class Repository {
 		}
 	}
 
-	cleanupCommitEditMessage(message: string): string {
-		// If the message is a single line starting with whitespace followed by `#`, just allow it.
-		if (/^\s*#[^\n]*$/.test(message)) {
-			return message;
-		}
-
-		// Else, remove all lines starting with whitespace followed by `#`.
-		// TODO: Support core.commentChar
-		return message.replace(/^(\s*#)(.*)$(\n?)/gm, (_, prefix, content, suffix) => {
-			// https://github.com/microsoft/vscode/issues/84201#issuecomment-552834814
-			return /^\d/.test(content) ? `${prefix}${content}${suffix}` : '';
-		}).trim();
+	// TODO: Support core.commentChar
+	stripCommitMessageComments(message: string): string {
+		return message.replace(/^\s*#.*$\n?/gm, '').trim();
 	}
 
 	async getMergeMessage(): Promise<string | undefined> {
@@ -1829,7 +1820,7 @@ export class Repository {
 
 		try {
 			const raw = await fs.readFile(mergeMsgPath, 'utf8');
-			return raw.trim();
+			return this.stripCommitMessageComments(raw);
 		} catch {
 			return undefined;
 		}
@@ -1853,8 +1844,7 @@ export class Repository {
 			}
 
 			const raw = await fs.readFile(templatePath, 'utf8');
-			return raw.trim();
-
+			return this.stripCommitMessageComments(raw);
 		} catch (err) {
 			return '';
 		}
