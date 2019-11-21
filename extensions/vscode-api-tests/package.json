@@ -7,7 +7,8 @@
 	"enableProposedApi": true,
 	"private": true,
 	"activationEvents": [
-		"onFileSystem:memfs"
+		"onFileSystem:memfs",
+		"onDebug"
 	],
 	"main": "./out/extension",
 	"engines": {

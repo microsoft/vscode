@@ -18,13 +18,15 @@ const textEncoder = new TextEncoder();
 const SCHEME = 'memfs';
 
 export function activate(context: vscode.ExtensionContext) {
-	const memFs = enableFs(context);
-	enableProblems(context);
-	enableSearch(context, memFs);
-	enableTasks();
-	enableDebug(context, memFs);
+	if (typeof window !== 'undefined') {	// do not run under node.js
+		const memFs = enableFs(context);
+		enableProblems(context);
+		enableSearch(context, memFs);
+		enableTasks();
+		enableDebug(context, memFs);
 
-	vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
+		vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
+	}
 }
 
 function enableFs(context: vscode.ExtensionContext): MemFS {
