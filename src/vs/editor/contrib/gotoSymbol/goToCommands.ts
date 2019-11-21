@@ -303,7 +303,8 @@ registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
-				menuId: MenuId.EditorContextPeek
+				menuId: MenuId.EditorContextPeek,
+				order: 2
 			}
 		});
 		CommandsRegistry.registerCommandAlias('editor.action.previewDeclaration', PeekDefinitionAction.id);
@@ -388,7 +389,8 @@ registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
 			menuOpts: {
-				menuId: MenuId.EditorContextPeek
+				menuId: MenuId.EditorContextPeek,
+				order: 3
 			}
 		});
 	}
@@ -473,7 +475,8 @@ registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
 			menuOpts: {
-				menuId: MenuId.EditorContextPeek
+				menuId: MenuId.EditorContextPeek,
+				order: 4
 			}
 		});
 	}
@@ -563,7 +566,8 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
-				menuId: MenuId.EditorContextPeek
+				menuId: MenuId.EditorContextPeek,
+				order: 5
 			}
 		});
 	}
@@ -646,7 +650,8 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
 			menuOpts: {
-				menuId: MenuId.EditorContextPeek
+				menuId: MenuId.EditorContextPeek,
+				order: 6
 			}
 		});
 	}
