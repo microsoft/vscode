@@ -265,7 +265,7 @@ export class RefactorAction extends EditorAction {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: '1_modification',
 				order: 2,
 				when: ContextKeyExpr.and(
@@ -308,7 +308,7 @@ export class SourceAction extends EditorAction {
 			label: nls.localize('source.label', "Source Action..."),
 			alias: 'Source Action...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
-			menuOpts: {
+			contextMenuOpts: {
 				group: '1_modification',
 				order: 2.1,
 				when: ContextKeyExpr.and(

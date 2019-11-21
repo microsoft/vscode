@@ -160,7 +160,7 @@ registerEditorAction(class extends EditorAction {
 			id: 'editor.showCallHierarchy',
 			label: localize('title', "Peek Call Hierarchy"),
 			alias: 'Peek Call Hierarchy',
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'navigation',
 				order: 1.48
 			},
