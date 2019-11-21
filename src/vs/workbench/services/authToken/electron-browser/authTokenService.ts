@@ -18,7 +18,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	private readonly channel: IChannel;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Inactive;
+	private _status: AuthTokenStatus = AuthTokenStatus.Initializing;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
@@ -31,10 +31,8 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	) {
 		super();
 		this.channel = sharedProcessService.getChannel('authToken');
-		this.channel.call<AuthTokenStatus>('_getInitialStatus').then(status => {
-			this.updateStatus(status);
-			this._register(this.channel.listen<AuthTokenStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
-		});
+		this._register(this.channel.listen<AuthTokenStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
+		this.channel.call<AuthTokenStatus>('_getInitialStatus').then(status => this.updateStatus(status));
 
 		this.urlService.registerHandler(this);
 	}
@@ -66,8 +64,10 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 	private async updateStatus(status: AuthTokenStatus): Promise<void> {
-		this._status = status;
-		this._onDidChangeStatus.fire(status);
+		if (status !== AuthTokenStatus.Initializing) {
+			this._status = status;
+			this._onDidChangeStatus.fire(status);
+		}
 	}
 
 }

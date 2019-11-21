@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass, position, size } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -905,13 +905,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	getClientArea(): Dimension {
-		const dim = getClientArea(this.parent);
-		return this.state.windowBorder ? new Dimension(dim.width - 2, dim.height - 2) : dim;
+		return getClientArea(this.parent);
 	}
 
 	layout(): void {
 		if (!this.disposed) {
 			this._dimension = this.getClientArea();
+
+			position(this.container, 0, 0, 0, 0, 'relative');
+			size(this.container, this._dimension.width, this._dimension.height);
 
 			// Layout the grid widget
 			this.workbenchGrid.layout(this._dimension.width, this._dimension.height);

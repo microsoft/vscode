@@ -375,7 +375,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		if (!overwriteEncoding && encoding === UTF8) {
 			try {
 				const buffer = (await this.fileService.readFile(resource, { length: UTF8_BOM.length })).value;
-				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8) {
+				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8_with_bom) {
 					return { encoding, addBOM: true };
 				}
 			} catch (error) {
@@ -400,7 +400,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 		// Encoding passed in as option
 		if (options?.encoding) {
-			if (detectedEncoding === UTF8 && options.encoding === UTF8) {
+			if (detectedEncoding === UTF8_with_bom && options.encoding === UTF8) {
 				preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
 			} else {
 				preferredEncoding = options.encoding; // give passed in encoding highest priority
@@ -409,11 +409,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 		// Encoding detected
 		else if (detectedEncoding) {
-			if (detectedEncoding === UTF8) {
-				preferredEncoding = UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
-			} else {
-				preferredEncoding = detectedEncoding;
-			}
+			preferredEncoding = detectedEncoding;
 		}
 
 		// Encoding configured

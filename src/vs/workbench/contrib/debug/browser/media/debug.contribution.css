@@ -11,11 +11,19 @@
 	opacity: .4 !important;
 }
 
+.inline-breakpoint-widget.codicon {
+	display: flex !important;
+	align-items: center;
+}
+
 /* overlapped icons */
 .inline-breakpoint-widget.codicon-debug-breakpoint-stackframe-dot::after {
 	position: absolute;
 	top: 0;
 	left: 0;
+	bottom: 0;
+	margin: auto;
+	display: table;
 }
 
 .codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe-focused::after {
@@ -31,7 +39,7 @@
 }
 
 .monaco-editor .inline-breakpoint-widget.line-start {
-	left: -0.45em !important;
+	left: -8px !important;
 }
 
 .monaco-editor .debug-breakpoint-placeholder::before,

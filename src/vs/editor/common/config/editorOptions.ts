@@ -1307,7 +1307,7 @@ export interface IGotoLocationOptions {
 	multipleDefinitions?: GoToLocationValues;
 	multipleTypeDefinitions?: GoToLocationValues;
 	multipleDeclarations?: GoToLocationValues;
-	multipleImplemenations?: GoToLocationValues;
+	multipleImplementations?: GoToLocationValues;
 	multipleReferences?: GoToLocationValues;
 }
 
@@ -1321,7 +1321,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 			multipleDefinitions: 'peek',
 			multipleTypeDefinitions: 'peek',
 			multipleDeclarations: 'peek',
-			multipleImplemenations: 'peek',
+			multipleImplementations: 'peek',
 			multipleReferences: 'peek',
 		};
 		const jsonSubset: IJSONSchema = {
@@ -1338,7 +1338,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 			EditorOption.gotoLocation, 'gotoLocation', defaults,
 			{
 				'editor.gotoLocation.multiple': {
-					deprecationMessage: nls.localize('editor.gotoLocation.multiple.deprecated', "This setting is deprecated, please use separate settings like 'editor.editor.gotoLocation.multipleDefinitions' or 'editor.editor.gotoLocation.multipleImplemenations' instead."),
+					deprecationMessage: nls.localize('editor.gotoLocation.multiple.deprecated', "This setting is deprecated, please use separate settings like 'editor.editor.gotoLocation.multipleDefinitions' or 'editor.editor.gotoLocation.multipleImplementations' instead."),
 				},
 				'editor.gotoLocation.multipleDefinitions': {
 					description: nls.localize('editor.editor.gotoLocation.multipleDefinitions', "Controls the behavior the 'Go to Definition'-command when multiple target locations exist."),
@@ -1352,8 +1352,8 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 					description: nls.localize('editor.editor.gotoLocation.multipleDeclarations', "Controls the behavior the 'Go to Declaration'-command when multiple target locations exist."),
 					...jsonSubset,
 				},
-				'editor.gotoLocation.multipleImplemenations': {
-					description: nls.localize('editor.editor.gotoLocation.multipleImplemenattions', "Controls the behavior the 'Go to Implemenations'-command when multiple target locations exist."),
+				'editor.gotoLocation.multipleImplementations': {
+					description: nls.localize('editor.editor.gotoLocation.multipleImplemenattions', "Controls the behavior the 'Go to Implementations'-command when multiple target locations exist."),
 					...jsonSubset,
 				},
 				'editor.gotoLocation.multipleReferences': {
@@ -1374,7 +1374,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 			multipleDefinitions: input.multipleDefinitions ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleTypeDefinitions: input.multipleTypeDefinitions ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleTypeDefinitions, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleDeclarations: input.multipleDeclarations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
-			multipleImplemenations: input.multipleImplemenations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleImplemenations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleImplementations: input.multipleImplementations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleImplementations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleReferences: input.multipleReferences ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleReferences, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 		};
 	}
@@ -2353,7 +2353,7 @@ export interface ISuggestOptions {
 	/**
 	 * Overwrite word ends on accept. Default to false.
 	 */
-	overwriteOnAccept?: boolean;
+	insertMode?: 'insert' | 'replace';
 	/**
 	 * Enable graceful matching. Defaults to true.
 	 */
@@ -2486,7 +2486,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 
 	constructor() {
 		const defaults: InternalSuggestOptions = {
-			overwriteOnAccept: false,
+			insertMode: 'insert',
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
@@ -2522,10 +2522,15 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		super(
 			EditorOption.suggest, 'suggest', defaults,
 			{
-				'editor.suggest.overwriteOnAccept': {
-					type: 'boolean',
-					default: defaults.overwriteOnAccept,
-					description: nls.localize('suggest.overwriteOnAccept', "Controls whether words are overwritten when accepting completions.")
+				'editor.suggest.insertMode': {
+					type: 'string',
+					enum: ['insert', 'replace'],
+					enumDescriptions: [
+						nls.localize('suggest.insertMode.insert', "Insert suggestion without overwriting text right of the cursor."),
+						nls.localize('suggest.insertMode.replace', "Insert suggestion and overwrite text right of the cursor."),
+					],
+					default: defaults.insertMode,
+					description: nls.localize('suggest.insertMode', "Controls whether words are overwritten when accepting completions. Note that this depends on extensions opting into this feature.")
 				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
@@ -2703,7 +2708,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		}
 		const input = _input as ISuggestOptions;
 		return {
-			overwriteOnAccept: EditorBooleanOption.boolean(input.overwriteOnAccept, this.defaultValue.overwriteOnAccept),
+			insertMode: EditorStringEnumOption.stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
 			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
 			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),

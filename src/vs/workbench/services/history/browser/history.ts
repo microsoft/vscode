@@ -33,6 +33,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -735,8 +736,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
 		const resource = input.getResource();
-		if (resource && this.fileService.canHandleResource(resource)) {
-			return { resource: resource };
+		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData)) {
+			// for now, only prefer well known schemes that we control to prevent
+			// issues such as https://github.com/microsoft/vscode/issues/85204
+			return { resource };
 		}
 
 		return input;

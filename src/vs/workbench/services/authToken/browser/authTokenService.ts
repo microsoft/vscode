@@ -17,7 +17,7 @@ const ACCOUNT = 'MyAccount';
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 	_serviceBrand: undefined;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Inactive;
+	private _status: AuthTokenStatus = AuthTokenStatus.Initializing;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
@@ -29,10 +29,11 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
-		this._status = AuthTokenStatus.Inactive;
 		this.getToken().then(token => {
 			if (token) {
-				this.setStatus(AuthTokenStatus.Active);
+				this.setStatus(AuthTokenStatus.SignedIn);
+			} else {
+				this.setStatus(AuthTokenStatus.SignedOut);
 			}
 		});
 	}
@@ -50,7 +51,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 		const token = await this.quickInputService.input({ placeHolder: localize('enter token', "Please provide the auth bearer token"), ignoreFocusLost: true, });
 		if (token) {
 			await this.credentialsService.setPassword(SERVICE_NAME, ACCOUNT, token);
-			this.setStatus(AuthTokenStatus.Active);
+			this.setStatus(AuthTokenStatus.SignedIn);
 		}
 	}
 
@@ -60,7 +61,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	async logout(): Promise<void> {
 		await this.credentialsService.deletePassword(SERVICE_NAME, ACCOUNT);
-		this.setStatus(AuthTokenStatus.Inactive);
+		this.setStatus(AuthTokenStatus.SignedOut);
 	}
 
 	private setStatus(status: AuthTokenStatus): void {

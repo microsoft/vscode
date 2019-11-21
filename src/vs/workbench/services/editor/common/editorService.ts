@@ -52,13 +52,17 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 	saveAs?: boolean;
 }
 
-export interface ISaveAllEditorsOptions extends ISaveEditorsOptions {
+export interface IBaseSaveRevertAllEditorOptions {
 
 	/**
 	 * Wether to include untitled editors as well.
 	 */
 	includeUntitled?: boolean;
 }
+
+export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRevertAllEditorOptions { }
+
+export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
 
 export interface IEditorService {
 
@@ -213,7 +217,12 @@ export interface IEditorService {
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
 
 	/**
+	 * Reverts the provided list of editors.
+	 */
+	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
+
+	/**
 	 * Reverts all editors.
 	 */
-	revertAll(options?: IRevertOptions): Promise<boolean>;
+	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
 }

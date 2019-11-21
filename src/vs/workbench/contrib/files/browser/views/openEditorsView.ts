@@ -30,10 +30,10 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { DirtyEditorContext, OpenEditorsGroupContext, SaveableEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext as ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
@@ -46,7 +46,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
-export class OpenEditorsView extends ViewletPanel {
+export class OpenEditorsView extends ViewletPane {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	static readonly ID = 'workbench.explorer.openEditorsView';
@@ -62,7 +62,7 @@ export class OpenEditorsView extends ViewletPanel {
 	private resourceContext!: ResourceContextKey;
 	private groupFocusedContext!: IContextKey<boolean>;
 	private dirtyEditorFocusedContext!: IContextKey<boolean>;
-	private saveableEditorFocusedContext!: IContextKey<boolean>;
+	private readonlyEditorFocusedContext!: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -79,7 +79,7 @@ export class OpenEditorsView extends ViewletPanel {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super({
-			...(options as IViewletPanelOptions),
+			...(options as IViewletPaneOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
 		}, keybindingService, contextMenuService, configurationService, contextKeyService);
 
@@ -236,19 +236,19 @@ export class OpenEditorsView extends ViewletPanel {
 		this._register(this.resourceContext);
 		this.groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
 		this.dirtyEditorFocusedContext = DirtyEditorContext.bindTo(this.contextKeyService);
-		this.saveableEditorFocusedContext = SaveableEditorContext.bindTo(this.contextKeyService);
+		this.readonlyEditorFocusedContext = ReadonlyEditorContext.bindTo(this.contextKeyService);
 
 		this._register(this.list.onContextMenu(e => this.onListContextMenu(e)));
 		this.list.onFocusChange(e => {
 			this.resourceContext.reset();
 			this.groupFocusedContext.reset();
 			this.dirtyEditorFocusedContext.reset();
-			this.saveableEditorFocusedContext.reset();
+			this.readonlyEditorFocusedContext.reset();
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
 				const resource = element.getResource();
 				this.dirtyEditorFocusedContext.set(element.editor.isDirty());
-				this.saveableEditorFocusedContext.set(!element.editor.isReadonly());
+				this.readonlyEditorFocusedContext.set(element.editor.isReadonly());
 				this.resourceContext.set(withUndefinedAsNull(resource));
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);

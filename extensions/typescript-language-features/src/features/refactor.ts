@@ -238,8 +238,13 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 
-		return this.convertApplicableRefactors(response.body, document, rangeOrSelection);
+		const actions = this.convertApplicableRefactors(response.body, document, rangeOrSelection);
+		if (!context.only) {
+			return actions;
+		}
+		return this.appendInvalidActions(actions);
 	}
+
 
 	private convertApplicableRefactors(
 		body: Proto.ApplicableRefactorInfo[],
@@ -304,6 +309,16 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return true;
 		}
 		return false;
+	}
+
+	private appendInvalidActions(actions: vscode.CodeAction[]): vscode.CodeAction[] {
+		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
+			const disabledAction = new vscode.CodeAction('Extract to constant', Extract_Constant.kind);
+			disabledAction.disabled = localize('extract.disabled', "The current selection cannot be extracted");
+			disabledAction.isPreferred = true;
+			actions.push(disabledAction);
+		}
+		return actions;
 	}
 }
 

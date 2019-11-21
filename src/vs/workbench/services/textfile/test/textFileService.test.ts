@@ -205,7 +205,7 @@ suite('Files - TextFileService', () => {
 		const res = await accessor.textFileService.saveAll(true);
 		assert.ok(loadOrCreateStub.calledOnce);
 		assert.equal(res.results.length, 1);
-		assert.ok(res.results[0].success);
+		assert.ok(!res.results[0].error);
 		assert.equal(res.results[0].target!.scheme, Schemas.file);
 		assert.equal(res.results[0].target!.authority, untitledUncUri.authority);
 		assert.equal(res.results[0].target!.path, untitledUncUri.path);

@@ -137,7 +137,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	public update(actions: CodeActionSet, atPosition: IPosition) {
-		if (actions.actions.length <= 0) {
+		if (actions.validActions.length <= 0) {
 			return this.hide();
 		}
 

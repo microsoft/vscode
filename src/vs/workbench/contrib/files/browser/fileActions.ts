@@ -937,17 +937,21 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 	});
 };
 
-export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
+export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
-	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, true);
+	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+	if (stats.length) {
+		await deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, true);
+	}
 };
 
-export const deleteFileHandler = (accessor: ServicesAccessor) => {
+export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 
-	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, false);
+	if (stats.length) {
+		await deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, false);
+	}
 };
 
 let pasteShouldMove = false;
@@ -1046,7 +1050,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				return await fileService.copy(fileToPaste, targetFile);
 			}
 		} catch (e) {
-			onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile. {0}", getErrorMessage(e))));
+			onError(notificationService, new Error(nls.localize('fileDeleted', "The file to paste has been deleted or moved since you copied it. {0}", getErrorMessage(e))));
 			return undefined;
 		}
 	}));

@@ -3073,7 +3073,7 @@ declare namespace monaco.editor {
 		multipleDefinitions?: GoToLocationValues;
 		multipleTypeDefinitions?: GoToLocationValues;
 		multipleDeclarations?: GoToLocationValues;
-		multipleImplemenations?: GoToLocationValues;
+		multipleImplementations?: GoToLocationValues;
 		multipleReferences?: GoToLocationValues;
 	}
 
@@ -3396,7 +3396,7 @@ declare namespace monaco.editor {
 		/**
 		 * Overwrite word ends on accept. Default to false.
 		 */
-		overwriteOnAccept?: boolean;
+		insertMode?: 'insert' | 'replace';
 		/**
 		 * Enable graceful matching. Defaults to true.
 		 */
@@ -4233,6 +4233,10 @@ declare namespace monaco.editor {
 		 * If the diff computation is not finished or the model is missing, will return null.
 		 */
 		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
+		/**
+		 * Update the editor's options after the editor has been created.
+		 */
+		updateOptions(newOptions: IDiffEditorOptions): void;
 	}
 
 	export class FontInfo extends BareFontInfo {
@@ -4973,6 +4977,7 @@ declare namespace monaco.languages {
 		diagnostics?: editor.IMarkerData[];
 		kind?: string;
 		isPreferred?: boolean;
+		disabled?: string;
 	}
 
 	export interface CodeActionList extends IDisposable {

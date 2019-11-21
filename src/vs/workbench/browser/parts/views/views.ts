@@ -436,14 +436,15 @@ export class ContributableViewsModel extends Disposable {
 		this._viewDescriptors = viewDescriptors.sort(this.compareViewDescriptors.bind(this));
 
 		for (let index = 0; index < previous.length; index++) {
-			if (this._viewDescriptors.every(viewDescriptor => viewDescriptor.id !== previous[index].id)) {
-				toRemove.push({ index, viewDescriptor: previous[index] });
+			const previousViewDescriptor = previous[index];
+			if (this.isViewDescriptorVisible(previousViewDescriptor) && this._viewDescriptors.every(viewDescriptor => viewDescriptor.id !== previousViewDescriptor.id)) {
+				toRemove.push({ index, viewDescriptor: previousViewDescriptor });
 			}
 		}
 
 		for (let index = 0; index < this._viewDescriptors.length; index++) {
 			const viewDescriptor = this._viewDescriptors[index];
-			if (previous.every(previousViewDescriptor => previousViewDescriptor.id !== viewDescriptor.id)) {
+			if (this.isViewDescriptorVisible(viewDescriptor) && previous.every(previousViewDescriptor => previousViewDescriptor.id !== viewDescriptor.id)) {
 				const state = this.viewStates.get(viewDescriptor.id)!;
 				toAdd.push({ index, viewDescriptor, size: state.size, collapsed: !!state.collapsed });
 			}

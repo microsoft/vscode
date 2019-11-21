@@ -594,6 +594,7 @@ export interface ExtHostWebviewsShape {
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$undoEdits(handle: WebviewPanelHandle, edits: string[]): void;
 	$redoEdits(handle: WebviewPanelHandle, edits: string[]): void;
+	$onSave(handle: WebviewPanelHandle): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -922,7 +923,7 @@ export interface FileSystemEvents {
 
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
-	$onWillRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): Promise<any>;
+	$onWillRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined, timeout: number, token: CancellationToken): Promise<any>;
 	$onDidRunFileOperation(operation: files.FileOperation, target: UriComponents, source: UriComponents | undefined): void;
 }
 
@@ -1085,6 +1086,7 @@ export interface ICodeActionDto {
 	command?: ICommandDto;
 	kind?: string;
 	isPreferred?: boolean;
+	disabled?: string;
 }
 
 export interface ICodeActionListDto {

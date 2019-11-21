@@ -160,7 +160,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	// ---- workspace folder picker
 
 	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Promise<WorkspaceFolder | undefined> {
-		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then(async (selectedFolder: WorkspaceFolder) => {
+		return this._commands.executeCommand<WorkspaceFolder>('_workbench.pickWorkspaceFolder', [options]).then(async (selectedFolder: WorkspaceFolder) => {
 			if (!selectedFolder) {
 				return undefined;
 			}

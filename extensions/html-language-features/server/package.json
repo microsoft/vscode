@@ -10,7 +10,7 @@
   "main": "./out/htmlServerMain",
   "dependencies": {
     "vscode-css-languageservice": "^4.0.3-next.20",
-    "vscode-html-languageservice": "^3.0.4-next.8",
+    "vscode-html-languageservice": "^3.0.4-next.9",
     "vscode-languageserver": "^6.0.0-next.3",
     "vscode-nls": "^4.1.1",
     "vscode-uri": "^2.0.3"

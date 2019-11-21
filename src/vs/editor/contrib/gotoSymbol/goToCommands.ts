@@ -483,7 +483,7 @@ class ImplementationAction extends SymbolNavigationAction {
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
-		return editor.getOption(EditorOption.gotoLocation).multipleImplemenations;
+		return editor.getOption(EditorOption.gotoLocation).multipleImplementations;
 	}
 }
 

@@ -856,7 +856,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (feedback[0] === -1) { // entire list feedback
 			DOM.addClass(this.domNode, 'drop-target');
-			this.currentDragFeedbackDisposable = toDisposable(() => DOM.removeClass(this.domNode, 'drop-target'));
+			DOM.addClass(this.rowsContainer, 'drop-target');
+			this.currentDragFeedbackDisposable = toDisposable(() => {
+				DOM.removeClass(this.domNode, 'drop-target');
+				DOM.removeClass(this.rowsContainer, 'drop-target');
+			});
 		} else {
 			for (const index of feedback) {
 				const item = this.items[index]!;

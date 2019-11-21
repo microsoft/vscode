@@ -615,11 +615,6 @@ interface IBaseStat {
 	 * it is optional.
 	 */
 	etag?: string;
-
-	/**
-	 * The resource is readonly.
-	 */
-	isReadonly?: boolean;
 }
 
 export interface IBaseStatWithMetadata extends IBaseStat {

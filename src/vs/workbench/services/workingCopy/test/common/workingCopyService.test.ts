@@ -56,8 +56,6 @@ suite('WorkingCopyService', () => {
 
 		assert.equal(service.hasDirty, false);
 		assert.equal(service.dirtyCount, 0);
-		assert.equal(service.getDirty().length, 0);
-		assert.equal(service.getDirty(URI.file('/'), URI.file('/some')).length, 0);
 		assert.equal(service.isDirty(URI.file('/')), false);
 
 		// resource 1
@@ -68,8 +66,6 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.dirtyCount, 0);
 		assert.equal(service.isDirty(resource1), false);
 		assert.equal(service.hasDirty, false);
-		assert.equal(service.getDirty(resource1).length, 0);
-		assert.equal(service.getDirty().length, 0);
 
 		copy1.setDirty(true);
 
@@ -78,8 +74,6 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.hasDirty, true);
 		assert.equal(onDidChangeDirty.length, 1);
 		assert.equal(onDidChangeDirty[0], copy1);
-		assert.equal(service.getDirty(resource1).length, 1);
-		assert.equal(service.getDirty().length, 1);
 
 		copy1.setDirty(false);
 
@@ -88,8 +82,6 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.hasDirty, false);
 		assert.equal(onDidChangeDirty.length, 2);
 		assert.equal(onDidChangeDirty[1], copy1);
-		assert.equal(service.getDirty(resource1).length, 0);
-		assert.equal(service.getDirty().length, 0);
 
 		unregister1.dispose();
 
@@ -101,8 +93,6 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.dirtyCount, 1);
 		assert.equal(service.isDirty(resource2), true);
 		assert.equal(service.hasDirty, true);
-		assert.equal(service.getDirty(resource1, resource2).length, 1);
-		assert.equal(service.getDirty().length, 1);
 
 		assert.equal(onDidChangeDirty.length, 3);
 		assert.equal(onDidChangeDirty[2], copy2);
@@ -112,8 +102,6 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.hasDirty, false);
 		assert.equal(onDidChangeDirty.length, 4);
 		assert.equal(onDidChangeDirty[3], copy2);
-		assert.equal(service.getDirty(resource1, resource2).length, 0);
-		assert.equal(service.getDirty().length, 0);
 	});
 
 	test('registry - multiple copies on same resource', () => {
@@ -135,31 +123,23 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.dirtyCount, 1);
 		assert.equal(onDidChangeDirty.length, 1);
 		assert.equal(service.isDirty(resource), true);
-		assert.equal(service.getDirty(resource).length, 1);
-		assert.equal(service.getDirty().length, 1);
 
 		copy2.setDirty(true);
 
 		assert.equal(service.dirtyCount, 2);
 		assert.equal(onDidChangeDirty.length, 2);
 		assert.equal(service.isDirty(resource), true);
-		assert.equal(service.getDirty(resource).length, 2);
-		assert.equal(service.getDirty().length, 2);
 
 		unregister1.dispose();
 
 		assert.equal(service.dirtyCount, 1);
 		assert.equal(onDidChangeDirty.length, 3);
 		assert.equal(service.isDirty(resource), true);
-		assert.equal(service.getDirty(resource).length, 1);
-		assert.equal(service.getDirty().length, 1);
 
 		unregister2.dispose();
 
 		assert.equal(service.dirtyCount, 0);
 		assert.equal(onDidChangeDirty.length, 4);
 		assert.equal(service.isDirty(resource), false);
-		assert.equal(service.getDirty(resource).length, 0);
-		assert.equal(service.getDirty().length, 0);
 	});
 });

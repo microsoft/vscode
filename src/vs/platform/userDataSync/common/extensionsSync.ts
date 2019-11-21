@@ -73,7 +73,10 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			this.logService.trace('Extensions: Skipping synchronizing extensions as it is disabled.');
 			return false;
 		}
-
+		if (!this.extensionGalleryService.isEnabled()) {
+			this.logService.trace('Extensions: Skipping synchronizing extensions as gallery is disabled.');
+			return false;
+		}
 		if (this.status !== SyncStatus.Idle) {
 			this.logService.trace('Extensions: Skipping synchronizing extensions as it is running already.');
 			return false;

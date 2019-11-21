@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
@@ -29,6 +29,7 @@ import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewDescriptor } from 'vs/workbench/common/views';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -167,16 +168,16 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 	}
 }
 
-export class MainPanel extends ViewletPanel {
+export class MainPane extends ViewletPane {
 
-	static readonly ID = 'scm.mainPanel';
+	static readonly ID = 'scm.mainPane';
 	static readonly TITLE = localize('scm providers', "Source Control Providers");
 
 	private list!: WorkbenchList<ISCMRepository>;
 
 	constructor(
 		protected viewModel: IViewModel,
-		options: IViewletPanelOptions,
+		options: IViewletPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ISCMService protected scmService: ISCMService,
@@ -195,7 +196,10 @@ export class MainPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<ISCMRepository>>(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
 			identityProvider,
-			horizontalScrolling: false
+			horizontalScrolling: false,
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		});
 
 		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));
@@ -311,10 +315,10 @@ export class MainPanel extends ViewletPanel {
 	}
 }
 
-export class MainPanelDescriptor implements IViewDescriptor {
+export class MainPaneDescriptor implements IViewDescriptor {
 
-	readonly id = MainPanel.ID;
-	readonly name = MainPanel.TITLE;
+	readonly id = MainPane.ID;
+	readonly name = MainPane.TITLE;
 	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
@@ -323,6 +327,6 @@ export class MainPanelDescriptor implements IViewDescriptor {
 	readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
 
 	constructor(viewModel: IViewModel) {
-		this.ctorDescriptor = { ctor: MainPanel, arguments: [viewModel] };
+		this.ctorDescriptor = { ctor: MainPane, arguments: [viewModel] };
 	}
 }

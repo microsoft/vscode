@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/43a7b842fb58ac7561184db142344a1b127e0d52",
+	"version": "https://github.com/atom/language-php/commit/b95dc79f30084c25547397ab41388af154e69895",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -439,22 +439,25 @@
 			"name": "keyword.control.exception.php"
 		},
 		{
-			"begin": "(?i)\\b(function)\\s*(?=\\()",
+			"begin": "(?i)\\b(function)\\s*(?=&?\\s*\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.type.function.php"
 				}
 			},
-			"end": "(?={)",
+			"end": "(?=\\s*{)",
 			"name": "meta.function.closure.php",
 			"patterns": [
 				{
 					"include": "#comments"
 				},
 				{
-					"begin": "\\(",
+					"begin": "(&)?\\s*(\\()",
 					"beginCaptures": {
-						"0": {
+						"1": {
+							"name": "storage.modifier.reference.php"
+						},
+						"2": {
 							"name": "punctuation.definition.parameters.begin.bracket.round.php"
 						}
 					},
@@ -504,11 +507,25 @@
 							"name": "meta.function.closure.use.php"
 						}
 					]
+				},
+				{
+					"match": "(:)\\s*(\\?)?\\s*((?:\\\\?[a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)+)",
+					"captures": {
+						"1": {
+							"name": "keyword.operator.return-value.php"
+						},
+						"2": {
+							"name": "keyword.operator.nullable-type.php"
+						},
+						"3": {
+							"name": "storage.type.php"
+						}
+					}
 				}
 			]
 		},
 		{
-			"begin": "(?x)\n((?:(?:final|abstract|public|private|protected|static)\\s+)*)\n(function)\\s+\n(?i:\n  (__(?:call|construct|debugInfo|destruct|get|set|isset|unset|toString|\n        clone|set_state|sleep|wakeup|autoload|invoke|callStatic))\n  |([a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)\n)\n\\s*(\\()",
+			"begin": "(?x)\n((?:(?:final|abstract|public|private|protected|static)\\s+)*)\n(function)\\s+\n(?i:\n  (__(?:call|construct|debugInfo|destruct|get|set|isset|unset|toString|\n        clone|set_state|sleep|wakeup|autoload|invoke|callStatic))\n  |(?:(&)?\\s*([a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*))\n)\n\\s*(\\()",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -525,14 +542,17 @@
 					"name": "support.function.magic.php"
 				},
 				"4": {
-					"name": "entity.name.function.php"
+					"name": "storage.modifier.reference.php"
 				},
 				"5": {
+					"name": "entity.name.function.php"
+				},
+				"6": {
 					"name": "punctuation.definition.parameters.begin.bracket.round.php"
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(\\))(?:\\s*(:)\\s*(\\?)?\\s*([a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*))?",
+			"end": "(\\))(?:\\s*(:)\\s*(\\?)?\\s*((?:\\\\?[a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)+))?",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"

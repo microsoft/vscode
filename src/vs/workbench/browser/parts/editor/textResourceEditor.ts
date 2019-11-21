@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { assertIsDefined, isFunction } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -17,14 +16,11 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Event } from 'vs/base/common/event';
 import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -40,12 +36,9 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IHostService hostService: IHostService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IEditorService editorService: IEditorService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, filesConfigurationService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 	}
 
 	getTitle(): string | undefined {
@@ -91,6 +84,13 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		if (!optionsGotApplied) {
 			this.restoreTextResourceEditorViewState(input, textEditor);
 		}
+
+		// Since the resolved model provides information about being readonly
+		// or not, we apply it here to the editor even though the editor input
+		// was already asked for being readonly or not. The rationale is that
+		// a resolved model might have more specific information about being
+		// readonly or not that the input did not have.
+		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
 	}
 
 	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
@@ -102,29 +102,11 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 	}
 
-	setOptions(options: EditorOptions | undefined): void {
-		const textOptions = <TextEditorOptions>options;
-		if (textOptions && isFunction(textOptions.apply)) {
-			const textEditor = assertIsDefined(this.getControl());
-			textOptions.apply(textEditor, ScrollType.Smooth);
-		}
-	}
-
-	protected getConfigurationOverrides(): IEditorOptions {
-		const options = super.getConfigurationOverrides();
-
-		options.readOnly = !(this.input instanceof UntitledTextEditorInput); // all resource editors are readonly except for the untitled one;
-
-		return options;
-	}
-
 	protected getAriaLabel(): string {
-		const input = this.input;
-		const isReadonly = !(this.input instanceof UntitledTextEditorInput);
-
 		let ariaLabel: string;
-		const inputName = input?.getName();
-		if (isReadonly) {
+
+		const inputName = this.input?.getName();
+		if (this.input?.isReadonly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
 		} else {
 			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");
@@ -204,12 +186,9 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IHostService hostService: IHostService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService, hostService, filesConfigurationService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, editorService);
 	}
 }

@@ -26,7 +26,7 @@ import { isEqual } from 'vs/base/common/resources';
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
-export const ActiveEditorIsSaveableContext = new RawContextKey<boolean>('activeEditorIsSaveable', false);
+export const ActiveEditorIsReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
@@ -334,6 +334,9 @@ export interface IRevertOptions {
 	/**
 	 * A soft revert will clear dirty state of a working copy
 	 * but will not attempt to load it from its persisted state.
+	 *
+	 * This option may be used in scenarios where an editor is
+	 * closed and where we do not require to load the contents.
 	 */
 	soft?: boolean;
 }

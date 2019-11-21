@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-panel-view .panel > .panel-header h3.title {
+.monaco-pane-view .pane > .pane-header h3.title {
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
