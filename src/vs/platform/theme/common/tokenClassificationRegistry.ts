@@ -142,9 +142,9 @@ export interface ITokenClassificationRegistry {
 	getTokenModifiers(): TokenTypeOrModifierContribution[];
 
 	/**
-	 * Resolves a token classification against the given rules and default rules from the registry.
+	 * The styling rules to used when a schema does not define any styling rules.
 	 */
-	resolveTokenStyle(classification: TokenClassification, themingRules: TokenStylingRule[] | undefined, customThemingRules: TokenStylingRule[], theme: ITheme): TokenStyle | undefined;
+	getTokenStylingDefaultRules(): TokenStylingDefaultRule[];
 
 	/**
 	 * JSON schema for an object to assign styling to token classifications
@@ -271,87 +271,13 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		return Object.keys(this.tokenModifierById).map(id => this.tokenModifierById[id]);
 	}
 
-	public resolveTokenStyle(classification: TokenClassification, themingRules: TokenStylingRule[] | undefined, customThemingRules: TokenStylingRule[], theme: ITheme): TokenStyle | undefined {
-		let result: any = {
-			foreground: undefined,
-			bold: undefined,
-			underline: undefined,
-			italic: undefined
-		};
-		let score = {
-			foreground: -1,
-			bold: -1,
-			underline: -1,
-			italic: -1
-		};
-
-		function _processStyle(matchScore: number, style: TokenStyle) {
-			if (style.foreground && score.foreground <= matchScore) {
-				score.foreground = matchScore;
-				result.foreground = style.foreground;
-			}
-			for (let p of ['bold', 'underline', 'italic']) {
-				const property = p as keyof TokenStyle;
-				const info = style[property];
-				if (info !== undefined) {
-					if (score[property] <= matchScore) {
-						score[property] = matchScore;
-						result[property] = info;
-					}
-				}
-			}
-		}
-		if (themingRules === undefined) {
-			for (const rule of this.tokenStylingDefaultRules) {
-				const matchScore = match(rule, classification);
-				if (matchScore >= 0) {
-					let style = theme.resolveScopes(rule.defaults.scopesToProbe);
-					if (!style) {
-						style = this.resolveTokenStyleValue(rule.defaults[theme.type], theme);
-					}
-					if (style) {
-						_processStyle(matchScore, style);
-					}
-				}
-			}
-		} else {
-			for (const rule of themingRules) {
-				const matchScore = match(rule, classification);
-				if (matchScore >= 0) {
-					_processStyle(matchScore, rule.value);
-				}
-			}
-		}
-		for (const rule of customThemingRules) {
-			const matchScore = match(rule, classification);
-			if (matchScore >= 0) {
-				_processStyle(matchScore, rule.value);
-			}
-		}
-		return TokenStyle.fromData(result);
-	}
-
-	/**
-	 * @param tokenStyleValue Resolve a tokenStyleValue in the context of a theme
-	 */
-	private resolveTokenStyleValue(tokenStyleValue: TokenStyleValue | null, theme: ITheme): TokenStyle | undefined {
-		if (tokenStyleValue === null) {
-			return undefined;
-		} else if (typeof tokenStyleValue === 'string') {
-			const classification = this.getTokenClassificationFromString(tokenStyleValue);
-			if (classification) {
-				return theme.getTokenStyle(classification);
-			}
-		} else if (typeof tokenStyleValue === 'object') {
-			return tokenStyleValue;
-		}
-		return undefined;
-	}
-
 	public getTokenStylingSchema(): IJSONSchema {
 		return this.tokenStylingSchema;
 	}
 
+	public getTokenStylingDefaultRules(): TokenStylingDefaultRule[] {
+		return this.tokenStylingDefaultRules;
+	}
 
 	public toString() {
 		let sorter = (a: string, b: string) => {
@@ -368,7 +294,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 }
 
-function match(themeSelector: TokenStylingRule | TokenStylingDefaultRule, classification: TokenClassification): number {
+export function matchTokenStylingRule(themeSelector: TokenStylingRule | TokenStylingDefaultRule, classification: TokenClassification): number {
 	const selectorType = themeSelector.classification.type;
 	if (selectorType !== TOKEN_TYPE_WILDCARD_NUM && selectorType !== classification.type) {
 		return -1;
