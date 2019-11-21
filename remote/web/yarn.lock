@@ -7,10 +7,10 @@ nan@^2.14.0:
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
 
-onigasm-umd@^2.2.4:
-  version "2.2.4"
-  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.4.tgz#27ee87f7496c66ad40cebfbc0d418c19bb7db5ec"
-  integrity sha512-N9VqCUhl9KBuzm47vcK8T/xUnbYylIhMN45Rwltlo1sZc3QUDda6SxIlyVB8r0SJQwURv8JOHjyXjjCriGvzRg==
+onigasm-umd@2.2.5:
+  version "2.2.5"
+  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.5.tgz#f104247334a543accd3f8d641a4d99b3d908d6a1"
+  integrity sha512-R3qD7hq6i2bBklF+QyjqZl/G4fe7GwtukI28YLH2vuiatqx52tb9vpg2sxwemKc3nF76SgkeyOKJLchBmTm0Aw==
 
 oniguruma@^7.2.0:
   version "7.2.0"

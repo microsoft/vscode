@@ -42,7 +42,7 @@
     "native-keymap": "2.1.0",
     "native-watchdog": "1.3.0",
     "node-pty": "^0.10.0-beta2",
-    "onigasm-umd": "^2.2.4",
+    "onigasm-umd": "2.2.5",
     "semver-umd": "^5.5.3",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
