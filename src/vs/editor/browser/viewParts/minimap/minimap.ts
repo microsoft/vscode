@@ -1109,7 +1109,7 @@ export class Minimap extends ViewPart {
 						if (renderMinimap === RenderMinimap.Blocks) {
 							minimapCharRenderer.blockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
 						} else { // RenderMinimap.Text
-							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
+							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, fontScale, useLighterFont);
 						}
 
 						dx += charWidth;
