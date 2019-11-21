@@ -12,14 +12,20 @@ steps:
 - task: Cache@2
   inputs:
     key: $(YARN_CACHE_KEY)
-    path: $(System.DefaultWorkingDirectory)/node_modules
+    path: $(System.DefaultWorkingDirectory)/node_modules_snapshot
     cacheHitVar: CacheRestored
-- powershell: |
-    yarn --frozen-lockfile
+- script: |
+    yarn --frozen-lockfile && mkdir node_modules_snapshot && robocopy /SL /E $(System.DefaultWorkingDirectory)/node_modules $(System.DefaultWorkingDirectory)/node_modules_snapshot *
   env:
     CHILD_CONCURRENCY: "1"
-  displayName: Install Dependencies
+  displayName: Install Dependencies (on cache miss)
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+- script: |
+    move $(System.DefaultWorkingDirectory)/ode_modules_snapshot $(System.DefaultWorkingDirectory)/node_modules
+  env:
+    CHILD_CONCURRENCY: "1"
+  displayName: Install Dependencies (on cache hit)
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 - powershell: |
     yarn electron
 - script: |

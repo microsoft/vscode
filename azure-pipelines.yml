@@ -1,6 +1,6 @@
 variables:
   # Bump YARN_CACHE_SALT to reset the cache
-  YARN_CACHE_SALT: 0
+  YARN_CACHE_SALT: 1
   YARN_CACHE_KEY: '"$(Agent.OS) Salt=$(YARN_CACHE_SALT)" | .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
 
 jobs:
