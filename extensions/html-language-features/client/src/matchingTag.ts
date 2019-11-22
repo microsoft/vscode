@@ -45,7 +45,7 @@ export function activateMatchingTagPosition(
 		isEnabled = true;
 	}
 
-	// let prevCursorCount = 0;
+	let prevCursorCount = 0;
 	let cursorCount = 0;
 	let inMirrorMode = false;
 
@@ -54,10 +54,13 @@ export function activateMatchingTagPosition(
 			return;
 		}
 
-		// prevCursorCount = cursorCount;
+		prevCursorCount = cursorCount;
 		cursorCount = event.selections.length;
 
 		if (cursorCount === 1) {
+			if (inMirrorMode && prevCursorCount === 2) {
+				return;
+			}
 			if (event.selections[0].isEmpty) {
 				matchingTagPositionProvider(event.textEditor.document, event.selections[0].active).then(position => {
 					if (position && window.activeTextEditor) {
