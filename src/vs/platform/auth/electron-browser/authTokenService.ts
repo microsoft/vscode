@@ -13,16 +13,12 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { shell } from 'electron';
 import { createServer, startServer } from 'vs/platform/auth/electron-browser/authServer';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const SERVICE_NAME = 'VS Code';
 const ACCOUNT = 'MyAccount';
 
-const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
-const activeDirectoryEndpointUrl = 'https://login.microsoftonline.com/';
 const activeDirectoryResourceId = 'https://management.core.windows.net/';
-
-const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const tenantId = 'common';
 
 function toQuery(obj: any): string {
 	return Object.keys(obj).map(key => `${key}=${obj[key]}`).join('&');
@@ -54,8 +50,13 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	constructor(
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
+		if (!this.productService.auth) {
+			return;
+		}
+
 		this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT).then(storedRefreshToken => {
 			if (storedRefreshToken) {
 				this.refresh(storedRefreshToken);
@@ -66,6 +67,10 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 	public async login(): Promise<void> {
+		if (!this.productService.auth) {
+			throw new Error('Authentication is not configured.');
+		}
+
 		this.setStatus(AuthTokenStatus.SigningIn);
 
 		const nonce = generateUuid();
@@ -88,14 +93,13 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 			const updatedPort = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
 
 			const state = `${updatedPort},${encodeURIComponent(nonce)}`;
-			const signInUrl = `${activeDirectoryEndpointUrl}${tenantId}/oauth2/authorize`;
 
 			const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
 			const codeChallenge = toBase64UrlEncoding(crypto.createHash('sha256').update(codeVerifier).digest('base64'));
 
-			let uri = URI.parse(signInUrl);
+			let uri = URI.parse(this.productService.auth.loginUrl);
 			uri = uri.with({
-				query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${encodeURIComponent(state)}&resource=${activeDirectoryResourceId}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
+				query: `response_type=code&client_id=${encodeURIComponent(this.productService.auth.clientId)}&redirect_uri=${this.productService.auth.redirectUrl}&state=${encodeURIComponent(state)}&resource=${activeDirectoryResourceId}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
 			});
 
 			await redirectReq.res.writeHead(302, { Location: uri.toString(true) });
@@ -145,17 +149,23 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	private exchangeCodeForToken(code: string, codeVerifier: string): Promise<IToken> {
 		return new Promise((resolve: (value: IToken) => void, reject) => {
 			try {
+				if (!this.productService.auth) {
+					throw new Error('Authentication is not configured.');
+				}
+
 				const postData = toQuery({
 					grant_type: 'authorization_code',
 					code: code,
-					client_id: clientId,
+					client_id: this.productService.auth?.clientId,
 					code_verifier: codeVerifier,
-					redirect_uri: redirectUrlAAD
+					redirect_uri: this.productService.auth?.redirectUrl
 				});
 
+				const tokenUrl = URI.parse(this.productService.auth.tokenUrl);
+
 				const post = https.request({
-					host: 'login.microsoftonline.com',
-					path: `/${tenantId}/oauth2/token`,
+					host: tokenUrl.authority,
+					path: tokenUrl.path,
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/x-www-form-urlencoded',
@@ -196,17 +206,23 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	private async refresh(refreshToken: string): Promise<void> {
 		return new Promise((resolve, reject) => {
+			if (!this.productService.auth) {
+				throw new Error('Authentication is not configured.');
+			}
+
 			this.setStatus(AuthTokenStatus.RefreshingToken);
 			const postData = toQuery({
 				refresh_token: refreshToken,
-				client_id: clientId,
+				client_id: this.productService.auth?.clientId,
 				grant_type: 'refresh_token',
 				resource: activeDirectoryResourceId
 			});
 
+			const tokenUrl = URI.parse(this.productService.auth.tokenUrl);
+
 			const post = https.request({
-				host: 'login.microsoftonline.com',
-				path: `/${tenantId}/oauth2/token`,
+				host: tokenUrl.authority,
+				path: tokenUrl.path,
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
