@@ -509,17 +509,18 @@ class ModelSemanticColoring extends Disposable {
 			pendingChanges.push(e);
 		});
 
+		const legend = provider.getLegend();
 		const request = Promise.resolve(provider.provideSemanticColoring(this._model, this._currentRequestCancellationTokenSource.token));
 
 		request.then((res) => {
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(res || null, provider.getLegend(), pendingChanges);
+			this._setSemanticTokens(res || null, legend, pendingChanges);
 		}, (err) => {
 			errors.onUnexpectedError(err);
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(null, provider.getLegend(), pendingChanges);
+			this._setSemanticTokens(null, legend, pendingChanges);
 		});
 	}
 
