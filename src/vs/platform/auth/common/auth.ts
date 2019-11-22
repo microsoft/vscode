@@ -26,6 +26,6 @@ export interface IAuthTokenService {
 
 	getToken(): Promise<string | undefined>;
 	refreshToken(): Promise<void>;
-	login(callbackUri?: URI): Promise<void>;
+	login(): Promise<void>;
 	logout(): Promise<void>;
 }
