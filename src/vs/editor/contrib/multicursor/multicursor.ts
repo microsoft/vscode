@@ -759,7 +759,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 			id: 'editor.action.changeAll',
 			label: nls.localize('changeAll.label', "Change All Occurrences"),
 			alias: 'Change All Occurrences',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus, EditorContextKeys.hasRenameProvider.toNegated()),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2,
