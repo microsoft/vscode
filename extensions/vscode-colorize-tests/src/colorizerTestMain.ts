@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as jsoncParser from 'jsonc-parser';
 
 export function activate(context: vscode.ExtensionContext): any {
+	console.log('activates');
 
 	const tokenModifiers = ['static', 'abstract', 'deprecated'];
 	const tokenTypes = ['strings', 'types', 'structs', 'classes', 'functions', 'variables'];
@@ -24,6 +25,7 @@ export function activate(context: vscode.ExtensionContext): any {
 	const semanticHighlightProvider: vscode.SemanticColoringProvider = {
 		provideSemanticColoring(document: vscode.TextDocument): vscode.ProviderResult<vscode.SemanticColoring> {
 			const result: number[] = [];
+			console.log('provideSemanticColoring');
 
 			const visitor: jsoncParser.JSONVisitor = {
 				onObjectProperty: (property: string, _offset: number, length: number, startLine: number, startCharacter: number) => {
@@ -55,6 +57,6 @@ export function activate(context: vscode.ExtensionContext): any {
 	};
 
 
-	context.subscriptions.push(vscode.languages.registerSemanticColoringProvider({ pattern: 'color-test.json' }, semanticHighlightProvider, legend));
+	context.subscriptions.push(vscode.languages.registerSemanticColoringProvider({ pattern: '**/color-test.json' }, semanticHighlightProvider, legend));
 
 }
