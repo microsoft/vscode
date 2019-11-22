@@ -247,10 +247,10 @@ suite('KeybindingsMerge', () => {
 			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+d', command: '-a' },
 			{ key: 'cmd+e', command: 'd' },
-			{ key: 'alt+f', command: 'f' },
-			{ key: 'alt+d', command: '-f' },
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 			{ key: 'cmd+c', command: '-c' },
+			{ key: 'alt+f', command: 'f' },
+			{ key: 'alt+d', command: '-f' },
 		]);
 		const actual = await testObject.merge(localContent, remoteContent, localContent);
 		assert.ok(actual.hasChanges);
@@ -368,6 +368,78 @@ suite('KeybindingsMerge', () => {
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
+	});
+
+	test('merge when local has moved forwareded with multiple changes and remote stays with base', async () => {
+		const localContent = stringify([
+			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+			{ key: 'cmd+e', command: 'd' },
+			{ key: 'alt+d', command: '-a' },
+			{ key: 'alt+f', command: 'f' },
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+d', command: 'c', when: 'context1' },
+			{ key: 'cmd+c', command: '-c' },
+		]);
+		const remoteContent = stringify([
+			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
+			{ key: 'alt+d', command: '-a' },
+			{ key: 'cmd+e', command: 'd' },
+			{ key: 'cmd+d', command: 'c', when: 'context1' },
+		]);
+		const expected = stringify([
+			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+			{ key: 'cmd+e', command: 'd' },
+			{ key: 'alt+d', command: '-a' },
+			{ key: 'alt+f', command: 'f' },
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+d', command: 'c', when: 'context1' },
+			{ key: 'cmd+c', command: '-c' },
+		]);
+		const actual = await testObject.merge(localContent, remoteContent, remoteContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(!actual.hasConflicts);
+		assert.equal(actual.mergeContent, expected);
+	});
+
+	test('merge when local and remove has moved forwareded with no conflicts', async () => {
+		const baseContent = stringify([
+			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+			{ key: 'alt+c', command: '-a' },
+			{ key: 'cmd+e', command: 'd' },
+			{ key: 'alt+f', command: 'f' },
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+d', command: 'c', when: 'context1' },
+			{ key: 'cmd+c', command: '-c' },
+		]);
+		const localContent = stringify([
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+e', command: 'd' },
+			{ key: 'cmd+c', command: '-c' },
+			{ key: 'cmd+d', command: 'c', when: 'context1' },
+			{ key: 'alt+a', command: 'f' },
+			{ key: 'alt+e', command: 'e' },
+		]);
+		const remoteContent = stringify([
+			{ key: 'cmd+c', command: '-c' },
+			{ key: 'cmd+d', command: 'd' },
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'alt+c', command: 'c', when: 'context1' },
+			{ key: 'alt+g', command: 'g', when: 'context2' },
+		]);
+		const expected = stringify([
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+d', command: 'd' },
+			{ key: 'cmd+c', command: '-c' },
+			{ key: 'alt+c', command: 'c', when: 'context1' },
+			{ key: 'alt+a', command: 'f' },
+			{ key: 'alt+e', command: 'e' },
+			{ key: 'alt+g', command: 'g', when: 'context2' },
+		]);
+		const actual = await testObject.merge(localContent, remoteContent, baseContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(!actual.hasConflicts);
+		assert.equal(actual.mergeContent, expected);
 	});
 
 	function stringify(value: any): any {
