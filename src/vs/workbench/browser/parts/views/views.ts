@@ -429,21 +429,21 @@ export class ContributableViewsModel extends Disposable {
 			}
 		}
 
-		const toRemove: { index: number, viewDescriptor: IViewDescriptor; }[] = [];
-		const toAdd: { index: number, viewDescriptor: IViewDescriptor, size?: number, collapsed: boolean; }[] = [];
-
 		viewDescriptors = viewDescriptors.sort(this.compareViewDescriptors.bind(this));
 
+		const toRemove: { index: number, viewDescriptor: IViewDescriptor; }[] = [];
 		for (let index = 0; index < this._viewDescriptors.length; index++) {
-			const currentViewDescriptor = this._viewDescriptors[index];
-			if (this.isViewDescriptorVisible(currentViewDescriptor) && viewDescriptors.every(viewDescriptor => viewDescriptor.id !== currentViewDescriptor.id)) {
-				const { visibleIndex } = this.find(currentViewDescriptor.id);
-				toRemove.push({ index: visibleIndex, viewDescriptor: currentViewDescriptor });
+			const previousViewDescriptor = this._viewDescriptors[index];
+			if (this.isViewDescriptorVisible(previousViewDescriptor) && viewDescriptors.every(viewDescriptor => viewDescriptor.id !== previousViewDescriptor.id)) {
+				const { visibleIndex } = this.find(previousViewDescriptor.id);
+				toRemove.push({ index: visibleIndex, viewDescriptor: previousViewDescriptor });
 			}
 		}
 
 		const previous = this._viewDescriptors;
 		this._viewDescriptors = viewDescriptors.slice(0);
+
+		const toAdd: { index: number, viewDescriptor: IViewDescriptor, size?: number, collapsed: boolean; }[] = [];
 		for (let i = 0; i < this._viewDescriptors.length; i++) {
 			const viewDescriptor = this._viewDescriptors[i];
 			if (this.isViewDescriptorVisible(viewDescriptor) && previous.every(previousViewDescriptor => previousViewDescriptor.id !== viewDescriptor.id)) {
@@ -451,7 +451,6 @@ export class ContributableViewsModel extends Disposable {
 				toAdd.push({ index: visibleIndex, viewDescriptor, size: state.size, collapsed: !!state.collapsed });
 			}
 		}
-
 
 		if (toRemove.length) {
 			this._onDidRemove.fire(toRemove);
