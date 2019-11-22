@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { PreviewStatusBarEntry } from './statusBarEntry';
+import { PreviewStatusBarEntry as OwnedStatusBarEntry } from './ownedStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
@@ -13,7 +13,7 @@ const selectZoomLevelCommandId = '_imagePreview.selectZoomLevel';
 
 export type Scale = number | 'fit';
 
-export class ZoomStatusBarEntry extends PreviewStatusBarEntry {
+export class ZoomStatusBarEntry extends OwnedStatusBarEntry {
 
 	private readonly _onDidChangeScale = this._register(new vscode.EventEmitter<{ scale: Scale }>());
 	public readonly onDidChangeScale = this._onDidChangeScale.event;
