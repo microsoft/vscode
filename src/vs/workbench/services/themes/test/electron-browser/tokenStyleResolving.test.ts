@@ -50,8 +50,8 @@ function assertTokenStyle(actual: TokenStyle | undefined | null, expected: Token
 }
 
 function assertTokenStyleMetaData(colorIndex: string[], actual: number | undefined, expected: TokenStyle | undefined | null, message?: string) {
-	if (!expected || !actual) {
-		assert.equal(actual, expected);
+	if (expected === undefined || expected === null || actual === undefined) {
+		assert.equal(actual, expected, message);
 		return;
 	}
 	const actualFontStyle = TokenMetadata.getFontStyle(actual);
