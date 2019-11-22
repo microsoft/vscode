@@ -446,7 +446,7 @@ class SemanticColoringFeature extends Disposable {
 	constructor(modelService: IModelService, themeService: IThemeService) {
 		super();
 		this._watchers = Object.create(null);
-		this._semanticStyling = new SemanticStyling(themeService);
+		this._semanticStyling = this._register(new SemanticStyling(themeService));
 		this._register(modelService.onModelAdded((model) => {
 			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, this._semanticStyling);
 		}));
@@ -457,14 +457,18 @@ class SemanticColoringFeature extends Disposable {
 	}
 }
 
-class SemanticStyling {
+class SemanticStyling extends Disposable {
 
-	private readonly _caches: WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>;
+	private _caches: WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>;
 
 	constructor(
 		private readonly _themeService: IThemeService
 	) {
+		super();
 		this._caches = new WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>();
+		this._register(this._themeService.onThemeChange(() => {
+			this._caches = new WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>();
+		}));
 	}
 
 	public get(provider: SemanticColoringProvider): SemanticColoringProviderStyling {
@@ -479,15 +483,112 @@ const enum Constants {
 	NO_STYLING = 0b01111111111111111111111111111111
 }
 
+class HashTableEntry {
+	public readonly tokenTypeIndex: number;
+	public readonly tokenModifierSet: number;
+	public readonly metadata: number;
+	public next: HashTableEntry | null;
+
+	constructor(tokenTypeIndex: number, tokenModifierSet: number, metadata: number) {
+		this.tokenTypeIndex = tokenTypeIndex;
+		this.tokenModifierSet = tokenModifierSet;
+		this.metadata = metadata;
+		this.next = null;
+	}
+}
+
+class HashTable {
+
+	private static _SIZES = [3, 7, 13, 31, 61, 127, 251, 509, 1021, 2039, 4093, 8191, 16381, 32749, 65521, 131071, 262139, 524287, 1048573, 2097143];
+
+	private _elementsCount: number;
+	private _currentLengthIndex: number;
+	private _currentLength: number;
+	private _growCount: number;
+	private _elements: (HashTableEntry | null)[];
+
+	constructor() {
+		this._elementsCount = 0;
+		this._currentLengthIndex = 0;
+		this._currentLength = HashTable._SIZES[this._currentLengthIndex];
+		this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
+		this._elements = [];
+		HashTable._nullOutEntries(this._elements, this._currentLength);
+	}
+
+	private static _nullOutEntries(entries: (HashTableEntry | null)[], length: number): void {
+		for (let i = 0; i < length; i++) {
+			entries[i] = null;
+		}
+	}
+
+	private _hashFunc(tokenTypeIndex: number, tokenModifierSet: number): number {
+		return ((((tokenTypeIndex << 5) - tokenTypeIndex) + tokenModifierSet) | 0) % this._currentLength;  // tokenTypeIndex * 31 + tokenModifierSet, keep as int32
+	}
+
+	public get(tokenTypeIndex: number, tokenModifierSet: number): HashTableEntry | null {
+		const hash = this._hashFunc(tokenTypeIndex, tokenModifierSet);
+
+		let p = this._elements[hash];
+		while (p) {
+			if (p.tokenTypeIndex === tokenTypeIndex && p.tokenModifierSet === tokenModifierSet) {
+				return p;
+			}
+			p = p.next;
+		}
+
+		return null;
+	}
+
+	public add(tokenTypeIndex: number, tokenModifierSet: number, metadata: number): void {
+		this._elementsCount++;
+		if (this._growCount !== 0 && this._elementsCount >= this._growCount) {
+			// expand!
+			const oldElements = this._elements;
+
+			this._currentLengthIndex++;
+			this._currentLength = HashTable._SIZES[this._currentLengthIndex];
+			this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
+			this._elements = [];
+			HashTable._nullOutEntries(this._elements, this._currentLength);
+
+			for (const first of oldElements) {
+				let p = first;
+				while (p) {
+					const oldNext = p.next;
+					p.next = null;
+					this._add(p);
+					p = oldNext;
+				}
+			}
+		}
+		this._add(new HashTableEntry(tokenTypeIndex, tokenModifierSet, metadata));
+	}
+
+	private _add(element: HashTableEntry): void {
+		const hash = this._hashFunc(element.tokenTypeIndex, element.tokenModifierSet);
+		element.next = this._elements[hash];
+		this._elements[hash] = element;
+	}
+}
+
 class SemanticColoringProviderStyling {
+
+	private readonly _hashTable: HashTable;
 
 	constructor(
 		private readonly _legend: SemanticColoringLegend,
 		private readonly _themeService: IThemeService
 	) {
+		this._hashTable = new HashTable();
 	}
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number): number {
+		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet);
+		if (entry) {
+			return entry.metadata;
+		}
+
 		const tokenType = this._legend.tokenTypes[tokenTypeIndex];
 		const tokenModifiers: string[] = [];
 		for (let modifierIndex = 0; tokenModifierSet !== 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
@@ -497,10 +598,12 @@ class SemanticColoringProviderStyling {
 			tokenModifierSet = tokenModifierSet >> 1;
 		}
 
-		const metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+		let metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
 		if (typeof metadata === 'undefined') {
-			return Constants.NO_STYLING;
+			metadata = Constants.NO_STYLING;
 		}
+
+		this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
 		return metadata;
 	}
 }
