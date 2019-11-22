@@ -229,7 +229,11 @@ export class ColorThemeData implements IColorTheme {
 		return this.getTokenColorIndex().asArray();
 	}
 
-	public getTokenStyleMetadata(classification: TokenClassification, useDefault?: boolean): number {
+	public getTokenStyleMetadata(type: string, modifiers: string[], useDefault?: boolean): number | undefined {
+		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
+		if (!classification) {
+			return undefined;
+		}
 		const style = this.getTokenStyle(classification, useDefault);
 		let fontStyle = FontStyle.None;
 		let foreground = 0;

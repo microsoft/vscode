@@ -49,9 +49,9 @@ function assertTokenStyle(actual: TokenStyle | undefined | null, expected: Token
 	assert.equal(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
 }
 
-function assertTokenStyleMetaData(colorIndex: string[], actual: number, expected: TokenStyle | undefined | null, message?: string) {
-	if (!expected) {
-		assert.equal(actual, 0);
+function assertTokenStyleMetaData(colorIndex: string[], actual: number | undefined, expected: TokenStyle | undefined | null, message?: string) {
+	if (!expected || !actual) {
+		assert.equal(actual, expected);
 		return;
 	}
 	const actualFontStyle = TokenMetadata.getFontStyle(actual);
@@ -74,14 +74,17 @@ function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClas
 	const colorIndex = themeData.tokenColorMap;
 
 	for (let qualifiedClassifier in expected) {
-		const classification = tokenClassificationRegistry.getTokenClassificationFromString(qualifiedClassifier);
+		const modifiers = qualifiedClassifier.split('.');
+		const type = modifiers.shift()!;
+
+		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
 		assert.ok(classification, 'Classification not found');
 
 		const tokenStyle = themeData.getTokenStyle(classification!);
 		const expectedTokenStyle = expected[qualifiedClassifier];
 		assertTokenStyle(tokenStyle, expectedTokenStyle, qualifiedClassifier);
 
-		const tokenStyleMetaData = themeData.getTokenStyleMetadata(classification!);
+		const tokenStyleMetaData = themeData.getTokenStyleMetadata(type, modifiers);
 		assertTokenStyleMetaData(colorIndex, tokenStyleMetaData, expectedTokenStyle);
 	}
 }
