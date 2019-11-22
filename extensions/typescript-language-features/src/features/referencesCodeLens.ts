@@ -16,6 +16,14 @@ import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } fr
 const localize = nls.loadMessageBundle();
 
 export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public constructor(
+		protected client: ITypeScriptServiceClient,
+		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+		private modeId: string
+	) {
+		super(client, _cachedResponse);
+	}
+
 	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
@@ -62,7 +70,6 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 			case PConst.Kind.const:
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
-			case PConst.Kind.function:
 				// Only show references for exported variables
 				if (!item.kindModifiers.match(/\bexport\b/)) {
 					break;
@@ -74,6 +81,15 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 					break;
 				}
 			// fallthrough
+
+			case PConst.Kind.function:
+				const showOnAllFunctions = vscode.workspace.getConfiguration(this.modeId).get<boolean>('referencesCodeLens.showOnAllFunctions');
+				if (showOnAllFunctions) {
+					return getSymbolRange(document, item);
+				}
+				if (!item.kindModifiers.match(/\bexport\b/)) {
+					break;
+				}
 
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.memberVariable:
@@ -98,6 +114,6 @@ export function register(
 ) {
 	return new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
 		return vscode.languages.registerCodeLensProvider(selector,
-			new TypeScriptReferencesCodeLensProvider(client, cachedResponse));
+			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, modeId));
 	});
 }
