@@ -309,8 +309,9 @@ registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				menuId: MenuId.EditorContextPeek,
+				group: 'peek',
 				order: 2
 			}
 		});
@@ -395,8 +396,9 @@ registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
-			menuOpts: {
+			contextMenuOpts: {
 				menuId: MenuId.EditorContextPeek,
+				group: 'peek',
 				order: 3
 			}
 		});
@@ -481,8 +483,9 @@ registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
-			menuOpts: {
+			contextMenuOpts: {
 				menuId: MenuId.EditorContextPeek,
+				group: 'peek',
 				order: 4
 			}
 		});
@@ -572,8 +575,9 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				menuId: MenuId.EditorContextPeek,
+				group: 'peek',
 				order: 5
 			}
 		});
@@ -656,8 +660,9 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
-			menuOpts: {
+			contextMenuOpts: {
 				menuId: MenuId.EditorContextPeek,
+				group: 'peek',
 				order: 6
 			}
 		});

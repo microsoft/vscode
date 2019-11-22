@@ -44,8 +44,8 @@ export interface ICommandKeybindingsOptions extends IKeybindings {
 }
 export interface ICommandMenuOptions {
 	menuId: MenuId;
-	group?: string;
-	order?: number;
+	group: string;
+	order: number;
 	when?: ContextKeyExpr;
 	title: string;
 }
@@ -194,53 +194,42 @@ export interface IEditorActionContextMenuOptions {
 	group: string;
 	order: number;
 	when?: ContextKeyExpr;
+	menuId?: MenuId;
 }
-export interface IActionOptions {
-	id: string;
+export interface IActionOptions extends ICommandOptions {
 	label: string;
 	alias: string;
-	description?: ICommandHandlerDescription;
-	precondition: ContextKeyExpr | undefined;
-	kbOpts?: ICommandKeybindingsOptions;
-	contextMenuOpts?: IEditorActionContextMenuOptions;
-	menuOpts?: Partial<ICommandMenuOptions> | Partial<ICommandMenuOptions[]>;
+	contextMenuOpts?: IEditorActionContextMenuOptions | IEditorActionContextMenuOptions[];
 }
 
 export abstract class EditorAction extends EditorCommand {
 
 	private static convertOptions(opts: IActionOptions): ICommandOptions {
 
-		function patch(menu: Partial<ICommandMenuOptions>): ICommandMenuOptions {
-			if (!menu.title) {
-				menu.title = opts.label;
-			}
-			if (!menu.menuId) {
-				menu.menuId = MenuId.EditorContext;
-			}
-			if (!menu.when) {
-				menu.when = opts.precondition;
-			}
-			return <ICommandMenuOptions>menu;
-		}
-
 		let menuOpts: ICommandMenuOptions[];
 		if (Array.isArray(opts.menuOpts)) {
-			menuOpts = opts.menuOpts.map(m => patch(m!));
+			menuOpts = opts.menuOpts;
 		} else if (opts.menuOpts) {
-			menuOpts = [patch(opts.menuOpts)];
+			menuOpts = [opts.menuOpts];
 		} else {
 			menuOpts = [];
 		}
 
-		if (opts.contextMenuOpts) {
-			const contextMenuItem = {
-				title: opts.label,
-				when: ContextKeyExpr.and(opts.precondition, opts.contextMenuOpts.when),
-				menuId: MenuId.EditorContext,
-				group: opts.contextMenuOpts.group,
-				order: opts.contextMenuOpts.order
-			};
-			menuOpts.push(contextMenuItem);
+		function withDefaults(item: Partial<ICommandMenuOptions>): ICommandMenuOptions {
+			if (!item.menuId) {
+				item.menuId = MenuId.EditorContext;
+			}
+			if (!item.title) {
+				item.title = opts.label;
+			}
+			item.when = ContextKeyExpr.and(opts.precondition, item.when);
+			return <ICommandMenuOptions>item;
+		}
+
+		if (Array.isArray(opts.contextMenuOpts)) {
+			menuOpts.push(...opts.contextMenuOpts.map(withDefaults));
+		} else if (opts.contextMenuOpts) {
+			menuOpts.push(withDefaults(opts.contextMenuOpts));
 		}
 
 		opts.menuOpts = menuOpts;
