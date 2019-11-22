@@ -23,13 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const previewManager = new PreviewManager(extensionRoot, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
 
-	context.subscriptions.push(vscode.window.registerWebviewEditorProvider(
-		PreviewManager.viewType,
-		{
-			async resolveWebviewEditor({ resource }, editor: vscode.WebviewPanel): Promise<vscode.WebviewEditorCapabilities> {
-				return previewManager.resolve(resource, editor);
-			}
-		}));
+	context.subscriptions.push(vscode.window.registerWebviewEditorProvider(PreviewManager.viewType, previewManager));
 
 	context.subscriptions.push(vscode.commands.registerCommand('imagePreview.zoomIn', () => {
 		previewManager.activePreview?.zoomIn();
