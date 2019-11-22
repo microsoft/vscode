@@ -14,7 +14,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, ICssStyleCollector, IIconTheme, IThemingRegistry } from 'vs/platform/theme/common/themeService';
-import { TokenStyle, TokenClassification, ProbeScope } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -131,12 +130,12 @@ class StandaloneTheme implements IStandaloneTheme {
 		return this._tokenTheme;
 	}
 
-	getTokenStyle(classification: TokenClassification, useDefault?: boolean | undefined): TokenStyle | undefined {
+	public getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
 		return undefined;
 	}
 
-	resolveScopes(scopes: ProbeScope[]): TokenStyle | undefined {
-		return undefined;
+	public get tokenColorMap(): string[] {
+		return [];
 	}
 }
 

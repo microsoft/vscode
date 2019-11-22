@@ -208,7 +208,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));
 
-		this._register(dom.addDisposableListener(this.dragArea, dom.EventType.MOUSE_UP, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseUpListner(this.dragArea, (event: MouseEvent) => {
 			const mouseClickEvent = new StandardMouseEvent(event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
@@ -218,10 +218,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 		}));
 
-		this._register(dom.addDisposableListener(this.dragArea, dom.EventType.MOUSE_DOWN, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseDownListner(this.dragArea, (event: MouseEvent) => {
 			dom.addClass(this.dragArea, 'dragged');
 
-			const mouseMoveListener = dom.addDisposableListener(window, 'mousemove', (e: MouseEvent) => {
+			const mouseMoveListener = dom.addDisposableGenericMouseMoveListner(window, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
@@ -229,7 +229,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - this.layoutService.getTitleBarOffset());
 			});
 
-			const mouseUpListener = dom.addDisposableListener(window, 'mouseup', (e: MouseEvent) => {
+			const mouseUpListener = dom.addDisposableGenericMouseUpListner(window, (e: MouseEvent) => {
 				this.storePosition();
 				dom.removeClass(this.dragArea, 'dragged');
 
@@ -377,7 +377,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
 	if (debugIconRestartColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-restart { color: ${debugIconRestartColor} !important; }`);
+		collector.addRule(`.monaco-workbench .codicon-debug-restart, .monaco-workbench .codicon-debug-restart-frame { color: ${debugIconRestartColor} !important; }`);
 	}
 
 	const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);
@@ -397,7 +397,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
 	if (debugIconContinueColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-continue { color: ${debugIconContinueColor} !important; }`);
+		collector.addRule(`.monaco-workbench .codicon-debug-continue,.monaco-workbench .codicon-debug-reverse-continue { color: ${debugIconContinueColor} !important; }`);
 	}
 
 	const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);

@@ -10,7 +10,6 @@ import * as platform from 'vs/platform/registry/common/platform';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TokenStyle, TokenClassification, ProbeScope } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -61,9 +60,15 @@ export interface ITheme {
 	 */
 	defines(color: ColorIdentifier): boolean;
 
-	getTokenStyle(classification: TokenClassification, useDefault?: boolean): TokenStyle | undefined;
+	/**
+	 * Returns the token style for a given classification. The result uses the <code>MetadataConsts</code> format
+	 */
+	getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined;
 
-	resolveScopes(scopes: ProbeScope[]): TokenStyle | undefined;
+	/**
+	 * List of all colors used with tokens. <code>getTokenStyleMetadata</code> references the colors by index into this list.
+	 */
+	readonly tokenColorMap: string[];
 }
 
 export interface IIconTheme {

@@ -83,7 +83,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(Viewlet
 	DebugViewlet,
 	VIEWLET_ID,
 	nls.localize('debug', "Debug"),
-	'codicon-debug',
+	'codicon-debug-alt',
 	3
 ));
 
@@ -304,7 +304,7 @@ registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 30, 'codicon-debug-step-
 registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, 'codicon-debug-step-out', undefined, undefined, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, 'codicon-debug-restart', undefined, undefined);
 registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), 50, 'codicon-debug-step-back', undefined, undefined, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 60, 'codicon-debug-continue', undefined, undefined, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 60, 'codicon-debug-reverse-continue', undefined, undefined, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 
 // Debug callstack context menu
 const registerDebugCallstackItem = (id: string, title: string, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr, group = 'navigation') => {

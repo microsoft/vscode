@@ -15,7 +15,7 @@ import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, 
 import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -340,8 +340,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size: resolvedBackup.meta ? resolvedBackup.meta.size : 0,
 			etag: resolvedBackup.meta ? resolvedBackup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: resolvedBackup.value,
-			encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding,
-			isReadonly: false
+			encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding
 		}, options, true /* from backup */);
 
 		// Restore orphaned flag based on state
@@ -426,8 +425,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: content.etag,
 			isFile: true,
 			isDirectory: false,
-			isSymbolicLink: false,
-			isReadonly: content.isReadonly
+			isSymbolicLink: false
 		});
 
 		// Keep the original encoding to not loose it when saving
@@ -1030,7 +1028,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	isReadonly(): boolean {
-		return !!(this.lastResolvedFileStat && this.lastResolvedFileStat.isReadonly);
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	isDisposed(): boolean {

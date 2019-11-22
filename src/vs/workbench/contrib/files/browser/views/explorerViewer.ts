@@ -1096,6 +1096,10 @@ function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Ele
 	return null;
 }
 
+export function isCompressedFolderName(target: HTMLElement | EventTarget | Element | null): boolean {
+	return !!getIconLabelNameFromHTMLElement(target);
+}
+
 export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {
 
 	isIncompressible(stat: ExplorerItem): boolean {

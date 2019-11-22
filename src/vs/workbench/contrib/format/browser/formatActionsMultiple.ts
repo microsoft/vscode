@@ -253,7 +253,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 			label: nls.localize('formatDocument.label.multiple', "Format Document With..."),
 			alias: 'Format Document...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasMultipleDocumentFormattingProvider),
-			menuOpts: {
+			contextMenuOpts: {
 				group: '1_modification',
 				order: 1.3
 			}
@@ -284,7 +284,7 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 			label: nls.localize('formatSelection.label.multiple', "Format Selection With..."),
 			alias: 'Format Code...',
 			precondition: ContextKeyExpr.and(ContextKeyExpr.and(EditorContextKeys.writable), EditorContextKeys.hasMultipleDocumentSelectionFormattingProvider),
-			menuOpts: {
+			contextMenuOpts: {
 				when: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection),
 				group: '1_modification',
 				order: 1.31

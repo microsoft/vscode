@@ -826,6 +826,53 @@ declare module 'vscode' {
 
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
 
+	/**
+	 * An event that is fired when files are going to be created.
+	 *
+	 * To make modifications to the workspace before the files are created,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillCreateEvent {
+
+		/**
+		 * The files that are going to be created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	/**
+	 * An event that is fired after files are created.
+	 */
 	export interface FileCreateEvent {
 
 		/**
@@ -834,17 +881,53 @@ declare module 'vscode' {
 		readonly files: ReadonlyArray<Uri>;
 	}
 
-	export interface FileWillCreateEvent {
+	/**
+	 * An event that is fired when files are going to be deleted.
+	 *
+	 * To make modifications to the workspace before the files are deleted,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillDeleteEvent {
 
 		/**
-		 * The files that are going to be created.
+		 * The files that are going to be deleted.
 		 */
 		readonly files: ReadonlyArray<Uri>;
 
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
 		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
 		waitUntil(thenable: Thenable<any>): void;
 	}
 
+	/**
+	 * An event that is fired after files are deleted.
+	 */
 	export interface FileDeleteEvent {
 
 		/**
@@ -853,17 +936,53 @@ declare module 'vscode' {
 		readonly files: ReadonlyArray<Uri>;
 	}
 
-	export interface FileWillDeleteEvent {
+	/**
+	 * An event that is fired when files are going to be renamed.
+	 *
+	 * To make modifications to the workspace before the files are renamed,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillRenameEvent {
 
 		/**
-		 * The files that are going to be deleted.
+		 * The files that are going to be renamed.
 		 */
-		readonly files: ReadonlyArray<Uri>;
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
 		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
 		waitUntil(thenable: Thenable<any>): void;
 	}
 
+	/**
+	 * An event that is fired after files are renamed.
+	 */
 	export interface FileRenameEvent {
 
 		/**
@@ -872,51 +991,76 @@ declare module 'vscode' {
 		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
-	export interface FileWillRenameEvent {
-
-		/**
-		 * The files that are going to be renamed.
-		 */
-		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
-		waitUntil(thenable: Thenable<any>): void;
-	}
-
 	export namespace workspace {
 
 		/**
 		 * An event that is emitted when files are being created.
 		 *
-		 * *Note* that this event is triggered by user gestures, like creating a file from the
+		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
 		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When this event is fired, edits to files thare are being created cannot be applied.
 		 */
 		export const onWillCreateFiles: Event<FileWillCreateEvent>;
 
 		/**
-		 * An event that is emitted when files are being deleted.
+		 * An event that is emitted when files have been created.
 		 *
-		 * *Note* that this event is triggered by user gestures, like deleting a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
+		 * *Note:* This event is triggered by user gestures, like creating a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * [`workspace.fs`](#FileSystem)-api.
+		 */
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+
+		/**
+		 * An event that is emitted when files are being deleted.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When deleting a folder with children only one event is fired.
 		 */
 		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
 
 		/**
-		 * An event that is emitted when files are being renamed.
+		 * An event that is emitted when files have been deleted.
 		 *
-		 * *Note* that this event is triggered by user gestures, like renaming a file from the
-		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
+		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When deleting a folder with children only one event is fired.
+		 */
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+
+		/**
+		 * An event that is emitted when files are being renamed.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
+		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When renaming a folder with children only one event is fired.
 		 */
 		export const onWillRenameFiles: Event<FileWillRenameEvent>;
 
-		export const onDidCreateFiles: Event<FileCreateEvent>;
-		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+		/**
+		 * An event that is emitted when files have been renamed.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
+		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When renaming a folder with children only one event is fired.
+		 */
 		export const onDidRenameFiles: Event<FileRenameEvent>;
 	}
 	//#endregion
@@ -931,14 +1075,6 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Tree View
-
-	export interface TreeView<T> {
-		/**
-		 * The tree view title is initially taken from the extension package.json
-		 * Changes to the title property will be properly reflected in the UI in the title of the view.
-		 */
-		title?: string;
-	}
 
 	/**
 	 * Label describing the [Tree item](#TreeItem)
@@ -1073,7 +1209,7 @@ declare module 'vscode' {
 	//#region Custom editors, mjbvz
 
 	/**
-	 *
+	 * Defines how a webview editor interacts with VS Code.
 	 */
 	interface WebviewEditorCapabilities {
 		/**
@@ -1088,26 +1224,36 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable that signals the save is complete.
 		 */
-		rename?(newResource: Uri): Thenable<void>;
+		// rename?(newResource: Uri): Thenable<void>;
 
+		/**
+		 * Controls the editing functionality of a webview editor. This allows the webview editor to hook into standard
+		 * editor events such as `undo` or `save`.
+		 *
+		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
+		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
+		 */
 		readonly editingCapability?: WebviewEditorEditingCapability;
 	}
 
+	/**
+	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
+	 * editor events such as `undo` or `save`.
+	 */
 	interface WebviewEditorEditingCapability {
 		/**
 		 * Persist the resource.
+		 *
+		 * Extensions should persist the resource
+		 *
+		 * @return Thenable signaling that the save has completed.
 		 */
 		save(): Thenable<void>;
 
 		/**
-		 * Called when the editor exits.
-		 */
-		hotExit(hotExitPath: Uri): Thenable<void>;
-
-		/**
-		 * Signal to VS Code that an edit has occurred.
+		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 *
-		 * Edits must be a json serilizable object.
+		 * The edit must be a json serializable object.
 		 */
 		readonly onEdit: Event<any>;
 
@@ -1133,14 +1279,16 @@ declare module 'vscode' {
 
 	export interface WebviewEditorProvider {
 		/**
-		 * Fills out a `WebviewEditor` for a given resource.
+		 * Resolve a webview editor for a given resource.
+		 *
+		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
+		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
 		 * @param input Information about the resource being resolved.
 		 * @param webview Webview being resolved. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
 		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
-		 *   **❗️Note**: `WebviewEditorCapabilities` is not actually implemented... yet!
 		 */
 		resolveWebviewEditor(
 			input: {
@@ -1151,6 +1299,15 @@ declare module 'vscode' {
 	}
 
 	namespace window {
+		/**
+		 * Register a new provider for webview editors of a given type.
+		 *
+		 * @param viewType  Type of the webview editor provider.
+		 * @param provider Resolves webview editors.
+		 * @param options Content settings for a webview panels the provider is given.
+		 *
+		 * @return Disposable that unregisters the `WebviewEditorProvider`.
+		 */
 		export function registerWebviewEditorProvider(
 			viewType: string,
 			provider: WebviewEditorProvider,
@@ -1187,6 +1344,20 @@ declare module 'vscode' {
 		* An optional flag to sort the final results by index of first query match in label. Defaults to true.
 		*/
 		sortByLabel: boolean;
+	}
+
+	//#endregion
+
+	//#region mjbvz - Surfacing reasons why a code action cannot be applied to users — https://github.com/microsoft/vscode/issues/85160
+
+	export interface CodeAction {
+		/**
+		 * Marks that the code action cannot currently be applied.
+		 *
+		 * This should be a human readable description of why the code action is currently disabled. Disabled code actions
+		 * will be surfaced in the refactor UI but cannot be applied.
+		 */
+		disabled?: string;
 	}
 
 	//#endregion

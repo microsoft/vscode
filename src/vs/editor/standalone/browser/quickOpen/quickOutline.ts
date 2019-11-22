@@ -121,7 +121,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'navigation',
 				order: 3
 			}

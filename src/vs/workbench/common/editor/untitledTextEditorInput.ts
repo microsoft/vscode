@@ -185,14 +185,14 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		return this.doSaveAs(group, () => this.textFileService.saveAs(this.resource, undefined, options), true /* replace editor across all groups */);
 	}
 
-	revert(options?: IRevertOptions): Promise<boolean> {
+	async revert(options?: IRevertOptions): Promise<boolean> {
 		if (this.cachedModel) {
 			this.cachedModel.revert();
 		}
 
 		this.dispose(); // a reverted untitled text editor is no longer valid, so we dispose it
 
-		return Promise.resolve(true);
+		return true;
 	}
 
 	suggestFileName(): string {

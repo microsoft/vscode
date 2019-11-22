@@ -70,7 +70,6 @@ export const enum CustomEditorPriority {
 
 export interface CustomEditorSelector {
 	readonly filenamePattern?: string;
-	readonly mime?: string;
 }
 
 export interface CustomEditorInfo {

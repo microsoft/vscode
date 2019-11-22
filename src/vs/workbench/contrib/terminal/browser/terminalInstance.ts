@@ -589,7 +589,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// within commandsToSkipShell
 				const standardKeyboardEvent = new StandardKeyboardEvent(event);
 				const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
-				const allowChords = resolveResult && resolveResult.enterChord && this._configHelper.config.allowChords;
+				// Respect chords if the allowChords setting is set and it's not Escape. Escape is
+				// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
+				// terminals generally
+				const allowChords = resolveResult && resolveResult.enterChord && this._configHelper.config.allowChords && event.key !== 'Escape';
 				if (allowChords || resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 					event.preventDefault();
 					return false;
@@ -599,6 +602,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 					return false;
 				}
+
 				// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
 				// system
 				if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {

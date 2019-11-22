@@ -56,11 +56,12 @@ import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/servic
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { relativePath } from 'vs/base/common/resources';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -70,8 +71,13 @@ enum SearchUIState {
 	SlowSearch
 }
 
+export enum SearchViewPosition {
+	SideBar,
+	Panel
+}
+
 const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
-export class SearchView extends ViewletPanel {
+export class SearchView extends ViewletPane {
 
 	private static readonly MAX_TEXT_RESULTS = 10000;
 
@@ -132,7 +138,8 @@ export class SearchView extends ViewletPanel {
 	private addToSearchHistoryDelayer: Delayer<void>;
 
 	constructor(
-		options: IViewletPanelOptions,
+		private position: SearchViewPosition,
+		options: IViewletPaneOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -156,7 +163,7 @@ export class SearchView extends ViewletPanel {
 		@IStorageService storageService: IStorageService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
-		super({ ...(options as IViewletPanelOptions), id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...options, id: VIEW_ID, ariaHeaderLabel: nls.localize('searchView', "Search") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
@@ -651,7 +658,10 @@ export class SearchView extends ViewletPanel {
 				identityProvider,
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel),
 				dnd: this.instantiationService.createInstance(SearchDND),
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				overrideStyles: {
+					listBackground: this.position === SearchViewPosition.SideBar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
+				}
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 

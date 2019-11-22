@@ -100,13 +100,21 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private onTitleClick(e: MouseEvent | GestureEvent): void {
 
-		// Close editor on middle mouse click
-		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
-			EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+		if (e instanceof MouseEvent) {
+			// Close editor on middle mouse click
+			if (e.button === 1 /* Middle Button */) {
+				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
 
-			if (this.group.activeEditor) {
-				this.group.closeEditor(this.group.activeEditor);
+				if (this.group.activeEditor) {
+					this.group.closeEditor(this.group.activeEditor);
+				}
 			}
+		} else {
+			// @rebornix
+			// gesture tap should open the quick open
+			// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
+			// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
+			setTimeout(() => this.quickOpenService.show(), 50);
 		}
 	}
 

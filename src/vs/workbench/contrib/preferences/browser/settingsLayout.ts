@@ -202,9 +202,9 @@ export const tocData: ITOCEntry = {
 					settings: ['telemetry.*']
 				},
 				{
-					id: 'application/configurationSync',
-					label: localize('configuration sync', "Configuration Sync"),
-					settings: ['configurationSync.*']
+					id: 'application/sync',
+					label: localize('sync', "Sync"),
+					settings: ['sync.*']
 				}
 			]
 		}

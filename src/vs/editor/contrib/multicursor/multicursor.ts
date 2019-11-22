@@ -46,7 +46,7 @@ export class InsertCursorAbove extends EditorAction {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
 				title: nls.localize({ key: 'miInsertCursorAbove', comment: ['&& denotes a mnemonic'] }, "&&Add Cursor Above"),
@@ -95,7 +95,7 @@ export class InsertCursorBelow extends EditorAction {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
 				title: nls.localize({ key: 'miInsertCursorBelow', comment: ['&& denotes a mnemonic'] }, "A&&dd Cursor Below"),
@@ -140,7 +140,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
 				title: nls.localize({ key: 'miInsertCursorAtEndOfEachLineSelected', comment: ['&& denotes a mnemonic'] }, "Add C&&ursors to Line Ends"),
@@ -662,7 +662,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_D,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
 				title: nls.localize({ key: 'miAddSelectionToNextFindMatch', comment: ['&& denotes a mnemonic'] }, "Add &&Next Occurrence"),
@@ -682,7 +682,7 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 			label: nls.localize('addSelectionToPreviousFindMatch', "Add Selection To Previous Find Match"),
 			alias: 'Add Selection To Previous Find Match',
 			precondition: undefined,
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
 				title: nls.localize({ key: 'miAddSelectionToPreviousFindMatch', comment: ['&& denotes a mnemonic'] }, "Add P&&revious Occurrence"),
@@ -740,7 +740,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
 				title: nls.localize({ key: 'miSelectHighlights', comment: ['&& denotes a mnemonic'] }, "Select All &&Occurrences"),
@@ -759,13 +759,13 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 			id: 'editor.action.changeAll',
 			label: nls.localize('changeAll.label', "Change All Occurrences"),
 			alias: 'Change All Occurrences',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus, EditorContextKeys.hasRenameProvider.toNegated()),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: '1_modification',
 				order: 1.2
 			}

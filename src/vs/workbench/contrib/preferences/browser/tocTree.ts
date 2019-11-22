@@ -209,6 +209,7 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 			options);
 
 		this.disposables.add(attachStyler(themeService, {
+			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
 			listFocusAndSelectionBackground: editorBackground,

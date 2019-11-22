@@ -3015,6 +3015,9 @@ declare module 'vscode' {
 		 * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol
 		 * which is being renamed - when omitted the text in the returned range is used.
 		 *
+		 * *Note: * This function should throw an error or return a rejected thenable when the provided location
+		 * doesn't allow for a rename.
+		 *
 		 * @param document The document in which rename will be invoked.
 		 * @param position The position at which rename will be invoked.
 		 * @param token A cancellation token.
@@ -4843,7 +4846,7 @@ declare module 'vscode' {
 		/**
 		 * The process ID of the shell process.
 		 */
-		readonly processId: Thenable<number>;
+		readonly processId: Thenable<number | undefined>;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
@@ -7283,6 +7286,12 @@ declare module 'vscode' {
 		 * Setting the message to null, undefined, or empty string will remove the message from the view.
 		 */
 		message?: string;
+
+		/**
+		 * The tree view title is initially taken from the extension package.json
+		 * Changes to the title property will be properly reflected in the UI in the title of the view.
+		 */
+		title?: string;
 
 		/**
 		 * Reveals the given element in the tree view.

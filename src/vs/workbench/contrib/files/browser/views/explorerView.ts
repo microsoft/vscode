@@ -27,9 +27,9 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { TreeResourceNavigator2, WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IViewletPaneOptions, ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
+import { ExplorerDelegate, ExplorerAccessibilityProvider, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -64,7 +64,7 @@ interface IExplorerViewStyles {
 	listDropBackground?: Color;
 }
 
-export class ExplorerView extends ViewletPanel {
+export class ExplorerView extends ViewletPane {
 	static readonly ID: string = 'workbench.explorer.fileView';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
@@ -92,7 +92,7 @@ export class ExplorerView extends ViewletPanel {
 	private actions: IAction[] | undefined;
 
 	constructor(
-		options: IViewletPanelOptions,
+		options: IViewletPaneOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -112,7 +112,7 @@ export class ExplorerView extends ViewletPanel {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super({ ...(options as IViewletPanelOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewletPaneOptions), id: ExplorerView.ID, ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
@@ -293,10 +293,6 @@ export class ExplorerView extends ViewletPanel {
 			focusedStat = focus.length ? focus[0] : undefined;
 		}
 
-		if (!focusedStat) {
-			return [];
-		}
-
 		const selectedStats: ExplorerItem[] = [];
 
 		for (const stat of this.tree.getSelection()) {
@@ -306,6 +302,13 @@ export class ExplorerView extends ViewletPanel {
 				selectedStats.push(...controller.items);
 			} else {
 				selectedStats.push(stat);
+			}
+		}
+		if (!focusedStat) {
+			if (respectMultiSelection) {
+				return selectedStats;
+			} else {
+				return [];
 			}
 		}
 
@@ -475,7 +478,11 @@ export class ExplorerView extends ViewletPanel {
 			const controller = this.renderer.getCompressedNavigationController(stat);
 
 			if (controller) {
-				anchor = controller.labels[controller.index];
+				if (isCompressedFolderName(e.browserEvent.target)) {
+					anchor = controller.labels[controller.index];
+				} else {
+					controller.last();
+				}
 			}
 		}
 

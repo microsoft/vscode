@@ -16,6 +16,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 const GENERATE_TESTS = false;
 
@@ -27,7 +28,7 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService());
 	});
 
 	teardown(() => {

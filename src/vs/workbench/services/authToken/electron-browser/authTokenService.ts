@@ -9,7 +9,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
-import { IURLService } from 'vs/platform/url/common/url';
 import { URI } from 'vs/base/common/uri';
 
 export class AuthTokenService extends Disposable implements IAuthTokenService {
@@ -18,7 +17,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	private readonly channel: IChannel;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Inactive;
+	private _status: AuthTokenStatus = AuthTokenStatus.Initializing;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
@@ -27,25 +26,11 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
-		@IURLService private readonly urlService: IURLService
 	) {
 		super();
 		this.channel = sharedProcessService.getChannel('authToken');
-		this.channel.call<AuthTokenStatus>('_getInitialStatus').then(status => {
-			this.updateStatus(status);
-			this._register(this.channel.listen<AuthTokenStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
-		});
-
-		this.urlService.registerHandler(this);
-	}
-
-	handleURL(uri: URI) {
-		if (uri.authority === 'vscode.login') {
-			this.channel.call('exchangeCodeForToken', uri);
-			return Promise.resolve(true);
-		} else {
-			return Promise.resolve(false);
-		}
+		this._register(this.channel.listen<AuthTokenStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
+		this.channel.call<AuthTokenStatus>('_getInitialStatus').then(status => this.updateStatus(status));
 	}
 
 	getToken(): Promise<string> {
@@ -53,8 +38,7 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 	login(): Promise<void> {
-		const callbackUri = this.urlService.create({ authority: 'vscode.login ' });
-		return this.channel.call('login', callbackUri);
+		return this.channel.call('login');
 	}
 
 	refreshToken(): Promise<void> {
@@ -66,8 +50,10 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 	}
 
 	private async updateStatus(status: AuthTokenStatus): Promise<void> {
-		this._status = status;
-		this._onDidChangeStatus.fire(status);
+		if (status !== AuthTokenStatus.Initializing) {
+			this._status = status;
+			this._onDidChangeStatus.fire(status);
+		}
 	}
 
 }

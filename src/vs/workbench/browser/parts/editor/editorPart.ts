@@ -89,26 +89,26 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region Events
 
-	private readonly _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
-	readonly onDidLayout: Event<Dimension> = this._onDidLayout.event;
+	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
+	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onDidActiveGroupChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidActiveGroupChange: Event<IEditorGroupView> = this._onDidActiveGroupChange.event;
+	private readonly _onDidActiveGroupChange = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidActiveGroupChange = this._onDidActiveGroupChange.event;
 
-	private readonly _onDidGroupIndexChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidGroupIndexChange: Event<IEditorGroupView> = this._onDidGroupIndexChange.event;
+	private readonly _onDidGroupIndexChange = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidGroupIndexChange = this._onDidGroupIndexChange.event;
 
-	private readonly _onDidActivateGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidActivateGroup: Event<IEditorGroupView> = this._onDidActivateGroup.event;
+	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
-	private readonly _onDidAddGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidAddGroup: Event<IEditorGroupView> = this._onDidAddGroup.event;
+	private readonly _onDidAddGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidAddGroup = this._onDidAddGroup.event;
 
-	private readonly _onDidRemoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidRemoveGroup: Event<IEditorGroupView> = this._onDidRemoveGroup.event;
+	private readonly _onDidRemoveGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidRemoveGroup = this._onDidRemoveGroup.event;
 
-	private readonly _onDidMoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidMoveGroup: Event<IEditorGroupView> = this._onDidMoveGroup.event;
+	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidMoveGroup = this._onDidMoveGroup.event;
 
 	private onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());

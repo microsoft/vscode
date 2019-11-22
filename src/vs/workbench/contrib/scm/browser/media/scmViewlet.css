@@ -15,7 +15,7 @@
 }
 
 .scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-panel-view {
+.scm-viewlet.empty .monaco-pane-view {
 	display: none;
 }
 
@@ -47,6 +47,7 @@
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
+	min-width: 14px; /* minimum size of icons */
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label .codicon {
