@@ -340,12 +340,12 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	public setCustomTokenStyleRules(tokenStylingRules: IExperimentalTokenStyleCustomizations) {
-		this.tokenStylingRules = [];
-		readCustomTokenStyleRules(tokenStylingRules, this.tokenStylingRules);
+		this.customTokenStylingRules = [];
+		readCustomTokenStyleRules(tokenStylingRules, this.customTokenStylingRules);
 
 		const themeSpecificColors = tokenStylingRules[`[${this.settingsId}]`] as IExperimentalTokenStyleCustomizations;
 		if (types.isObject(themeSpecificColors)) {
-			readCustomTokenStyleRules(themeSpecificColors, this.tokenStylingRules);
+			readCustomTokenStyleRules(themeSpecificColors, this.customTokenStylingRules);
 		}
 
 		this.tokenColorIndex = undefined;

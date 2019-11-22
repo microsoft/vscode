@@ -476,6 +476,7 @@ class ModelSemanticColoring extends Disposable {
 
 		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
 		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
+		this._register(themeService.onThemeChange(_ => this._fetchSemanticTokens.schedule()));
 		this._fetchSemanticTokens.schedule(0);
 	}
 
@@ -554,12 +555,13 @@ class ModelSemanticColoring extends Disposable {
 				const tokenTypeIndex = srcTokens[srcOffset + 3];
 				const tokenType = legend.tokenTypes[tokenTypeIndex];
 
-				const tokenModifierSet = srcTokens[srcOffset + 4];
+				let tokenModifierSet = srcTokens[srcOffset + 4];
 				let tokenModifiers: string[] = [];
 				for (let modifierIndex = 0; tokenModifierSet !== 0 && modifierIndex < legend.tokenModifiers.length; modifierIndex++) {
 					if (tokenModifierSet & 1) {
-						tokenModifiers.push(legend.tokenTypes[modifierIndex]);
+						tokenModifiers.push(legend.tokenModifiers[modifierIndex]);
 					}
+					tokenModifierSet = tokenModifierSet >> 1;
 				}
 
 				const metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);

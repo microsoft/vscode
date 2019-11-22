@@ -34,16 +34,16 @@ export function activate(context: vscode.ExtensionContext): any {
 					result.push(startCharacter + length);
 
 
-					const segments = property.split('.');
-					let tokenType = legend.tokenTypes.indexOf(segments[0]);
+					const [type, ...modifiers] = property.split('.');
+					let tokenType = legend.tokenTypes.indexOf(type);
 					if (tokenType === -1) {
 						tokenType = 0;
 					}
 					result.push(tokenType);
 
 					let tokenModifiers = 0;
-					for (let i = 1; i < segments.length; i++) {
-						const index = legend.tokenTypes.indexOf(segments[0]);
+					for (let i = 0; i < modifiers.length; i++) {
+						const index = legend.tokenModifiers.indexOf(modifiers[i]);
 						if (index !== -1) {
 							tokenModifiers = tokenModifiers | 1 << index;
 						}
