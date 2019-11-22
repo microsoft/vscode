@@ -377,7 +377,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }): void {
-		this.editorContributions.push({ id, ctor });
+		this.editorContributions.push({ id, ctor: ctor as IEditorContributionCtor });
 	}
 
 	public getEditorContributions(): IEditorContributionDescription[] {
@@ -385,7 +385,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
-		this.diffEditorContributions.push({ id, ctor });
+		this.diffEditorContributions.push({ id, ctor: ctor as IDiffEditorContributionCtor });
 	}
 
 	public getDiffEditorContributions(): IDiffEditorContributionDescription[] {

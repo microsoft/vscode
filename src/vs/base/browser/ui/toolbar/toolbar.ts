@@ -52,7 +52,7 @@ export class ToolBar extends Disposable {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
-			actionViewItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: IAction) => {
 
 				// Return special action item for the toggle menu action
 				if (action.id === ToggleMenuAction.ID) {
