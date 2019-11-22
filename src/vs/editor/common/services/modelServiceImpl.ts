@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier, SemanticColoringProviderRegistry, SemanticColoringProvider, SemanticColoring, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
+import { LanguageIdentifier, SemanticColoringProviderRegistry, SemanticColoringProvider, SemanticColoring, SemanticColoringLegend } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -23,6 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { SparseEncodedTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -118,7 +119,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService
+		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
+		@IThemeService themeService: IThemeService
 	) {
 		super();
 		this._configurationService = configurationService;
@@ -129,7 +131,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
 
-		this._register(new SemanticColoringFeature(this));
+		this._register(new SemanticColoringFeature(this, themeService));
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -440,11 +442,11 @@ export interface ILineSequence {
 class SemanticColoringFeature extends Disposable {
 	private _watchers: Record<string, ModelSemanticColoring>;
 
-	constructor(modelService: IModelService) {
+	constructor(modelService: IModelService, themeService: IThemeService) {
 		super();
 		this._watchers = Object.create(null);
 		this._register(modelService.onModelAdded((model) => {
-			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model);
+			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService);
 		}));
 		this._register(modelService.onModelRemoved((model) => {
 			this._watchers[model.uri.toString()].dispose();
@@ -460,8 +462,9 @@ class ModelSemanticColoring extends Disposable {
 	private readonly _fetchSemanticTokens: RunOnceScheduler;
 	private _currentResponse: SemanticColoring | null;
 	private _currentRequestCancellationTokenSource: CancellationTokenSource | null;
+	private _themeService: IThemeService;
 
-	constructor(model: ITextModel) {
+	constructor(model: ITextModel, themeService: IThemeService) {
 		super();
 
 		this._isDisposed = false;
@@ -469,6 +472,7 @@ class ModelSemanticColoring extends Disposable {
 		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 500));
 		this._currentResponse = null;
 		this._currentRequestCancellationTokenSource = null;
+		this._themeService = themeService;
 
 		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
 		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
@@ -509,16 +513,16 @@ class ModelSemanticColoring extends Disposable {
 		request.then((res) => {
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(res || null, pendingChanges);
+			this._setSemanticTokens(res || null, provider.getLegend(), pendingChanges);
 		}, (err) => {
 			errors.onUnexpectedError(err);
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(null, pendingChanges);
+			this._setSemanticTokens(null, provider.getLegend(), pendingChanges);
 		});
 	}
 
-	private _setSemanticTokens(tokens: SemanticColoring | null, pendingChanges: IModelContentChangedEvent[]): void {
+	private _setSemanticTokens(tokens: SemanticColoring | null, legend: SemanticColoringLegend, pendingChanges: IModelContentChangedEvent[]): void {
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
 			this._currentResponse = null;
@@ -540,30 +544,37 @@ class ModelSemanticColoring extends Disposable {
 		for (const area of this._currentResponse.areas) {
 			const srcTokens = area.data;
 			const tokenCount = srcTokens.length / 5;
-			const destTokens = new Uint32Array(4 * tokenCount);
+			let destTokens = new Uint32Array(4 * tokenCount);
+			let destOffset = 0;
 			for (let i = 0; i < tokenCount; i++) {
 				const srcOffset = 5 * i;
 				const deltaLine = srcTokens[srcOffset];
 				const startCharacter = srcTokens[srcOffset + 1];
 				const endCharacter = srcTokens[srcOffset + 2];
-				// const tokenType = srcTokens[srcOffset + 3];
-				// const tokenModifiers = srcTokens[srcOffset + 4];
-				// TODO@semantic: map here tokenType and tokenModifiers to metadata
+				const tokenTypeIndex = srcTokens[srcOffset + 3];
+				const tokenType = legend.tokenTypes[tokenTypeIndex];
 
-				const fontStyle = FontStyle.Italic | FontStyle.Bold | FontStyle.Underline;
-				const foregroundColorId = 3;
-				const metadata = (
-					(fontStyle << MetadataConsts.FONT_STYLE_OFFSET)
-					| (foregroundColorId << MetadataConsts.FOREGROUND_OFFSET)
-				) >>> 0;
+				const tokenModifierSet = srcTokens[srcOffset + 4];
+				let tokenModifiers: string[] = [];
+				for (let modifierIndex = 0; tokenModifierSet !== 0 && modifierIndex < legend.tokenModifiers.length; modifierIndex++) {
+					if (tokenModifierSet & 1) {
+						tokenModifiers.push(legend.tokenTypes[modifierIndex]);
+					}
+				}
 
-				const destOffset = 4 * i;
-				destTokens[destOffset] = deltaLine;
-				destTokens[destOffset + 1] = startCharacter;
-				destTokens[destOffset + 2] = endCharacter;
-				destTokens[destOffset + 3] = metadata;
+				const metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+				if (metadata !== undefined) {
+					destTokens[destOffset] = deltaLine;
+					destTokens[destOffset + 1] = startCharacter;
+					destTokens[destOffset + 2] = endCharacter;
+					destTokens[destOffset + 3] = metadata;
+					destOffset += 4;
+				}
 			}
 
+			if (destOffset !== destTokens.length) {
+				destTokens = destTokens.subarray(0, destOffset);
+			}
 			const tokens = new MultilineTokens2(area.line, new SparseEncodedTokens(destTokens));
 			result.push(tokens);
 		}
