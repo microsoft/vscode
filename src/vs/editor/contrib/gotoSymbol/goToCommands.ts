@@ -34,7 +34,7 @@ import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editor
 import { isStandalone } from 'vs/base/browser/browser';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditorAction } from 'vs/editor/common/editorCommon';
 import { assertType } from 'vs/base/common/types';
 
 
@@ -82,8 +82,15 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 			alert(references.ariaMessage);
 
+			let altAction: IEditorAction | null | undefined;
+			if (references.referenceAt(model.uri, pos)) {
+				const altActionId = this._getAlternativeCommand(editor);
+				if (altActionId !== this.id) {
+					altAction = editor.getAction(altActionId);
+				}
+			}
+
 			const referenceCount = references.references.length;
-			const altAction = references.referenceAt(model.uri, pos) && editor.getAction(this._getAlternativeCommand(editor));
 
 			if (referenceCount === 0) {
 				// no result -> show message
