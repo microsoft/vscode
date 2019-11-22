@@ -187,7 +187,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.canSelectMany = true;
 			quickPick.ignoreFocusOut = true;
 			const items = [{
-				id: 'sync.settings',
+				id: 'sync.enableSettings',
 				label: localize('user settings', "User Settings")
 			}, {
 				id: 'sync.enableExtensions',
