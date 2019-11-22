@@ -3066,15 +3066,17 @@ declare namespace monaco.editor {
 	 * Configuration options for go to location
 	 */
 	export interface IGotoLocationOptions {
-		/**
-		 * Control how goto-command work when having multiple results.
-		 */
 		multiple?: GoToLocationValues;
 		multipleDefinitions?: GoToLocationValues;
 		multipleTypeDefinitions?: GoToLocationValues;
 		multipleDeclarations?: GoToLocationValues;
 		multipleImplementations?: GoToLocationValues;
 		multipleReferences?: GoToLocationValues;
+		alternativeDefinitionCommand?: string;
+		alternativeTypeDefinitionCommand?: string;
+		alternativeDeclarationCommand?: string;
+		alternativeImplementationCommand?: string;
+		alternativeReferenceCommand?: string;
 	}
 
 	export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;

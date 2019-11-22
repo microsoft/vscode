@@ -1300,15 +1300,20 @@ export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
  * Configuration options for go to location
  */
 export interface IGotoLocationOptions {
-	/**
-	 * Control how goto-command work when having multiple results.
-	 */
+
 	multiple?: GoToLocationValues;
+
 	multipleDefinitions?: GoToLocationValues;
 	multipleTypeDefinitions?: GoToLocationValues;
 	multipleDeclarations?: GoToLocationValues;
 	multipleImplementations?: GoToLocationValues;
 	multipleReferences?: GoToLocationValues;
+
+	alternativeDefinitionCommand?: string;
+	alternativeTypeDefinitionCommand?: string;
+	alternativeDeclarationCommand?: string;
+	alternativeImplementationCommand?: string;
+	alternativeReferenceCommand?: string;
 }
 
 export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
@@ -1323,6 +1328,11 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 			multipleDeclarations: 'peek',
 			multipleImplementations: 'peek',
 			multipleReferences: 'peek',
+			alternativeDefinitionCommand: 'editor.action.goToReferences',
+			alternativeTypeDefinitionCommand: 'editor.action.goToReferences',
+			alternativeDeclarationCommand: 'editor.action.goToReferences',
+			alternativeImplementationCommand: '',
+			alternativeReferenceCommand: '',
 		};
 		const jsonSubset: IJSONSchema = {
 			type: 'string',
@@ -1360,6 +1370,31 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 					description: nls.localize('editor.editor.gotoLocation.multipleReferences', "Controls the behavior the 'Go to References'-command when multiple target locations exist."),
 					...jsonSubset,
 				},
+				'editor.gotoLocation.alternativeDefinitionCommand': {
+					type: 'string',
+					default: defaults.alternativeDefinitionCommand,
+					description: nls.localize('alternativeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Definition' is the current location.")
+				},
+				'editor.gotoLocation.alternativeTypeDefinitionCommand': {
+					type: 'string',
+					default: defaults.alternativeTypeDefinitionCommand,
+					description: nls.localize('alternativeTypeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Type Definition' is the current location.")
+				},
+				'editor.gotoLocation.alternativeDeclarationCommand': {
+					type: 'string',
+					default: defaults.alternativeDeclarationCommand,
+					description: nls.localize('alternativeDeclarationCommand', "Alternative command id that is being executed when the result of 'Go to Declaration' is the current location.")
+				},
+				'editor.gotoLocation.alternativeImplementationCommand': {
+					type: 'string',
+					default: defaults.alternativeImplementationCommand,
+					description: nls.localize('alternativeImplementationCommand', "Alternative command id that is being executed when the result of 'Go to Implementation' is the current location.")
+				},
+				'editor.gotoLocation.alternativeReferenceCommand': {
+					type: 'string',
+					default: defaults.alternativeReferenceCommand,
+					description: nls.localize('alternativeReferenceCommand', "Alternative command id that is being executed when the result of 'Go to Reference' is the current location.")
+				},
 			}
 		);
 	}
@@ -1376,6 +1411,11 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 			multipleDeclarations: input.multipleDeclarations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleImplementations: input.multipleImplementations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleImplementations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleReferences: input.multipleReferences ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleReferences, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			alternativeDefinitionCommand: EditorStringOption.string(input.alternativeDefinitionCommand, this.defaultValue.alternativeDefinitionCommand),
+			alternativeTypeDefinitionCommand: EditorStringOption.string(input.alternativeTypeDefinitionCommand, this.defaultValue.alternativeTypeDefinitionCommand),
+			alternativeDeclarationCommand: EditorStringOption.string(input.alternativeDeclarationCommand, this.defaultValue.alternativeDeclarationCommand),
+			alternativeImplementationCommand: EditorStringOption.string(input.alternativeImplementationCommand, this.defaultValue.alternativeImplementationCommand),
+			alternativeReferenceCommand: EditorStringOption.string(input.alternativeReferenceCommand, this.defaultValue.alternativeReferenceCommand),
 		};
 	}
 }
