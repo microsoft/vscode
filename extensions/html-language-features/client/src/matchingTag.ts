@@ -100,21 +100,18 @@ export function activateMatchingTagPosition(
 						charBeforeSecondarySelection === ' ' &&
 						charAfterSecondarySelection === '>'
 					) {
-						inMirrorMode = false;
-						const cleanupEdit = new WorkspaceEdit();
-
 						const primaryBeforeSecondary =
 							event.textEditor.document.offsetAt(event.selections[0].anchor) <
 							event.textEditor.document.offsetAt(event.selections[1].anchor);
-						const cleanupRange = primaryBeforeSecondary
-							? new Range(event.selections[1].anchor.translate(0, -1), event.selections[1].anchor)
-							: new Range(event.selections[0].anchor.translate(0, -1), event.selections[0].anchor);
 
-						cleanupEdit.replace(event.textEditor.document.uri, cleanupRange, '');
-						window.activeTextEditor!.selections = primaryBeforeSecondary
-							? [window.activeTextEditor!.selections[0]]
-							: [window.activeTextEditor!.selections[1]];
-						workspace.applyEdit(cleanupEdit);
+						if (primaryBeforeSecondary) {
+							inMirrorMode = false;
+							const cleanupEdit = new WorkspaceEdit();
+							const cleanupRange = new Range(event.selections[1].anchor.translate(0, -1), event.selections[1].anchor);
+							cleanupEdit.replace(event.textEditor.document.uri, cleanupRange, '');
+							window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
+							workspace.applyEdit(cleanupEdit);
+						}
 					}
 				}
 			}
@@ -130,9 +127,7 @@ function getCharBefore(document: TextDocument, position: Position) {
 		return '';
 	}
 
-	return document.getText(
-		new Range(document.positionAt(offset - 1), position)
-	);
+	return document.getText(new Range(document.positionAt(offset - 1), position));
 }
 
 function getCharAfter(document: TextDocument, position: Position) {
@@ -141,7 +136,5 @@ function getCharAfter(document: TextDocument, position: Position) {
 		return '';
 	}
 
-	return document.getText(
-		new Range(position, document.positionAt(offset + 1))
-	);
+	return document.getText(new Range(position, document.positionAt(offset + 1)));
 }
