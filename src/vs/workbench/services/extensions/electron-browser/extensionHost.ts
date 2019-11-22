@@ -158,6 +158,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						'--nolazy',
 						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portNumber
 					];
+				} else {
+					opts.execArgv = ['--inspect-port=0'];
 				}
 
 				const crashReporterOptions = undefined; // TODO@electron pass this in as options to the extension host after verifying this actually works
