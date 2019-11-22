@@ -1209,7 +1209,7 @@ declare module 'vscode' {
 	//#region Custom editors, mjbvz
 
 	/**
-	 *
+	 * Defines how a webview editor interacts with VS Code.
 	 */
 	interface WebviewEditorCapabilities {
 		/**
@@ -1224,26 +1224,36 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable that signals the save is complete.
 		 */
-		rename?(newResource: Uri): Thenable<void>;
+		// rename?(newResource: Uri): Thenable<void>;
 
+		/**
+		 * Controls the editing functionality of a webview editor. This allows the webview editor to hook into standard
+		 * editor events such as `undo` or `save`.
+		 *
+		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
+		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
+		 */
 		readonly editingCapability?: WebviewEditorEditingCapability;
 	}
 
+	/**
+	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
+	 * editor events such as `undo` or `save`.
+	 */
 	interface WebviewEditorEditingCapability {
 		/**
 		 * Persist the resource.
+		 *
+		 * Extensions should persist the resource
+		 *
+		 * @return Thenable signaling that the save has completed.
 		 */
 		save(): Thenable<void>;
 
 		/**
-		 * Called when the editor exits.
-		 */
-		hotExit(hotExitPath: Uri): Thenable<void>;
-
-		/**
-		 * Signal to VS Code that an edit has occurred.
+		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 *
-		 * Edits must be a json serilizable object.
+		 * The edit must be a json serializable object.
 		 */
 		readonly onEdit: Event<any>;
 
@@ -1269,14 +1279,16 @@ declare module 'vscode' {
 
 	export interface WebviewEditorProvider {
 		/**
-		 * Fills out a `WebviewEditor` for a given resource.
+		 * Resolve a webview editor for a given resource.
+		 *
+		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
+		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
 		 * @param input Information about the resource being resolved.
 		 * @param webview Webview being resolved. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
 		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
-		 *   **❗️Note**: `WebviewEditorCapabilities` is not actually implemented... yet!
 		 */
 		resolveWebviewEditor(
 			input: {
@@ -1287,6 +1299,15 @@ declare module 'vscode' {
 	}
 
 	namespace window {
+		/**
+		 * Register a new provider for webview editors of a given type.
+		 *
+		 * @param viewType  Type of the webview editor provider.
+		 * @param provider Resolves webview editors.
+		 * @param options Content settings for a webview panels the provider is given.
+		 *
+		 * @return Disposable that unregisters the `WebviewEditorProvider`.
+		 */
 		export function registerWebviewEditorProvider(
 			viewType: string,
 			provider: WebviewEditorProvider,
