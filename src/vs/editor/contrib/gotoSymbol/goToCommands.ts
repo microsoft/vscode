@@ -49,16 +49,15 @@ export interface SymbolNavigationActionConfig {
 	openToSide: boolean;
 	openInPeek: boolean;
 	muteMessage: boolean;
-	alternativeCommand?: string;
 }
 
 abstract class SymbolNavigationAction extends EditorAction {
 
-	private readonly _config: SymbolNavigationActionConfig;
+	private readonly _configuration: SymbolNavigationActionConfig;
 
 	constructor(configuration: SymbolNavigationActionConfig, opts: IActionOptions) {
 		super(opts);
-		this._config = configuration;
+		this._configuration = configuration;
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
@@ -84,11 +83,11 @@ abstract class SymbolNavigationAction extends EditorAction {
 			alert(references.ariaMessage);
 
 			const referenceCount = references.references.length;
-			const altAction = references.referenceAt(model.uri, pos) && editor.getAction(this._config.alternativeCommand || '');
+			const altAction = references.referenceAt(model.uri, pos) && editor.getAction(this._getAlternativeCommand());
 
 			if (referenceCount === 0) {
 				// no result -> show message
-				if (!this._config.muteMessage) {
+				if (!this._configuration.muteMessage) {
 					const info = model.getWordAtPosition(pos);
 					MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
 				}
@@ -116,18 +115,20 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 	protected abstract _getNoResultFoundMessage(info: IWordAtPosition | null): string;
 
+	protected abstract _getAlternativeCommand(): string;
+
 	protected abstract _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues;
 
 	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: IActiveCodeEditor, model: ReferencesModel): Promise<void> {
 
 		const gotoLocation = this._getGoToPreference(editor);
-		if (this._config.openInPeek || (gotoLocation === 'peek' && model.references.length > 1)) {
+		if (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1)) {
 			this._openInPeek(editor, model);
 
 		} else {
 			const next = model.firstReference()!;
 			const peek = model.references.length > 1 && gotoLocation === 'gotoAndPeek';
-			const targetEditor = await this._openReference(editor, editorService, next, this._config.openToSide, !peek);
+			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide, !peek);
 			if (peek && targetEditor) {
 				this._openInPeek(targetEditor, model);
 			} else {
@@ -181,7 +182,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 	private _openInPeek(target: ICodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.get(target);
 		if (controller && target.hasModel()) {
-			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this._config.openInPeek);
+			controller.toggleWidget(target.getSelection(), createCancelablePromise(_ => Promise.resolve(model)), this._configuration.openInPeek);
 		} else {
 			model.dispose();
 		}
@@ -202,6 +203,10 @@ export class DefinitionAction extends SymbolNavigationAction {
 			: nls.localize('generic.noResults', "No definition found");
 	}
 
+	protected _getAlternativeCommand(): string {
+		return 'editor.action.goToReferences';
+	}
+
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
 		return editor.getOption(EditorOption.gotoLocation).multipleDefinitions;
 	}
@@ -219,8 +224,7 @@ registerEditorAction(class GoToDefinitionAction extends DefinitionAction {
 		super({
 			openToSide: false,
 			openInPeek: false,
-			muteMessage: false,
-			alternativeCommand: 'editor.action.goToReferences'
+			muteMessage: false
 		}, {
 			id: GoToDefinitionAction.id,
 			label: nls.localize('actions.goToDecl.label', "Go to Definition"),
@@ -323,6 +327,10 @@ class DeclarationAction extends SymbolNavigationAction {
 			: nls.localize('decl.generic.noResults', "No declaration found");
 	}
 
+	protected _getAlternativeCommand(): string {
+		return 'editor.action.goToReferences';
+	}
+
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
 		return editor.getOption(EditorOption.gotoLocation).multipleDeclarations;
 	}
@@ -336,8 +344,7 @@ registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
 		super({
 			openToSide: false,
 			openInPeek: false,
-			muteMessage: false,
-			alternativeCommand: 'editor.action.goToReferences'
+			muteMessage: false
 		}, {
 			id: GoToDeclarationAction.id,
 			label: nls.localize('actions.goToDeclaration.label', "Go to Declaration"),
@@ -405,6 +412,10 @@ class TypeDefinitionAction extends SymbolNavigationAction {
 			: nls.localize('goToTypeDefinition.generic.noResults', "No type definition found");
 	}
 
+	protected _getAlternativeCommand(): string {
+		return 'editor.action.goToReferences';
+	}
+
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
 		return editor.getOption(EditorOption.gotoLocation).multipleTypeDefinitions;
 	}
@@ -418,8 +429,7 @@ registerEditorAction(class GoToTypeDefinitionAction extends TypeDefinitionAction
 		super({
 			openToSide: false,
 			openInPeek: false,
-			muteMessage: false,
-			alternativeCommand: 'editor.action.goToReferences'
+			muteMessage: false
 		}, {
 			id: GoToTypeDefinitionAction.ID,
 			label: nls.localize('actions.goToTypeDefinition.label', "Go to Type Definition"),
@@ -486,6 +496,10 @@ class ImplementationAction extends SymbolNavigationAction {
 		return info && info.word
 			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
 			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
+	}
+
+	protected _getAlternativeCommand(): string {
+		return '';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -573,6 +587,10 @@ class ReferencesAction extends SymbolNavigationAction {
 		return info
 			? nls.localize('references.no', "No references found for '{0}'", info.word)
 			: nls.localize('references.noGeneric', "No references found");
+	}
+
+	protected _getAlternativeCommand(): string {
+		return '';
 	}
 
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
@@ -676,6 +694,8 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 	protected _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues {
 		return this._gotoMultipleBehaviour ?? editor.getOption(EditorOption.gotoLocation).multipleReferences;
 	}
+
+	protected _getAlternativeCommand() { return ''; }
 }
 
 CommandsRegistry.registerCommand({
