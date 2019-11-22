@@ -122,5 +122,3 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this.updateDirty();
 	}
 }
-
-
