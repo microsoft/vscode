@@ -68,7 +68,7 @@ interface Modifiers {
 	shiftKey?: boolean;
 }
 
-suite.skip('KeybindingsEditing', () => {
+suite('KeybindingsEditing', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditingService;

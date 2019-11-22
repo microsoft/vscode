@@ -173,6 +173,16 @@ export interface ISettingsMergeService {
 
 }
 
+export const IKeybindingsMergeService = createDecorator<IKeybindingsMergeService>('IKeybindingsMergeService');
+
+export interface IKeybindingsMergeService {
+
+	_serviceBrand: undefined;
+
+	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
+
+}
+
 export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');
 
 export interface IUserDataSyncLogService extends ILogService {
