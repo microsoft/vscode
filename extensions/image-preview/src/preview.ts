@@ -240,9 +240,9 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 			default:
 				// Avoid adding cache busting if there is already a query string
 				if (resource.query) {
-					return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true));
+					return webviewEditor.webview.asWebviewUri(resource).toString(true);
 				}
-				return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString(true) + `?version=${version}`);
+				return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString(true);
 		}
 	}
 
