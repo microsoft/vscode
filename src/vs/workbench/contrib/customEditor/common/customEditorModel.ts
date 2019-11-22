@@ -60,14 +60,19 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this._onDidChangeDirty.fire();
 	}
 
-	public async save(options?: ISaveOptions): Promise<boolean> {
-		this._savePoint = this._currentEditIndex;
-		this.updateDirty();
-
+	public async save(_options?: ISaveOptions): Promise<boolean> {
 		const untils: Promise<any>[] = [];
 		const handler = { waitUntil: (until: Promise<any>) => untils.push(until) };
-		this._onWillSave.fire(handler);
-		await Promise.all(untils);
+
+		try {
+			this._onWillSave.fire(handler);
+			await Promise.all(untils);
+		} catch {
+			return false;
+		}
+
+		this._savePoint = this._currentEditIndex;
+		this.updateDirty();
 
 		return true;
 	}
