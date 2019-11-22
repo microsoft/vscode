@@ -48,6 +48,7 @@ export interface LanguageMode {
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
+	findMatchingTagPosition?: (document: TextDocument, position: Position) => Position | null;
 	getFoldingRanges?: (document: TextDocument) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
