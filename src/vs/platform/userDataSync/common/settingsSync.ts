@@ -218,8 +218,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			}
 
 			if (!lastSyncData // First time sync
-				|| lastSyncData.content !== localContent // Local has moved forwarded
-				|| lastSyncData.content !== remoteContent // Remote has moved forwarded
+				|| lastSyncData.content !== localContent // Local has forwarded
+				|| lastSyncData.content !== remoteContent // Remote has forwarded
 			) {
 				this.logService.trace('Settings: Merging remote settings with local settings...');
 				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, this.getIgnoredSettings());
