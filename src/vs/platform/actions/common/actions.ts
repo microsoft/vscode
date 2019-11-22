@@ -97,6 +97,8 @@ export const enum MenuId {
 	StatusBarWindowIndicatorMenu,
 	TouchBarContext,
 	TitleBarContext,
+	TunnelContext,
+	TunnelInline,
 	ViewItemContext,
 	ViewTitle,
 	CommentThreadTitle,
