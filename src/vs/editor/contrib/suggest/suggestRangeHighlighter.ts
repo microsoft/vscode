@@ -62,28 +62,30 @@ export class SuggestRangeHighlighter {
 		const opts = this._controller.editor.getOption(EditorOption.suggest);
 		let newDeco: IModelDeltaDecoration[] = [];
 
-		if (!this._shiftKeyListener) {
-			this._shiftKeyListener = shiftKey.event(() => this._highlight(this._currentItem!));
-		}
+		if (opts.insertHighlight) {
+			if (!this._shiftKeyListener) {
+				this._shiftKeyListener = shiftKey.event(() => this._highlight(this._currentItem!));
+			}
 
-		const info = this._controller.getOverwriteInfo(item, shiftKey.isPressed);
-		const position = this._controller.editor.getPosition()!;
+			const info = this._controller.getOverwriteInfo(item, shiftKey.isPressed);
+			const position = this._controller.editor.getPosition()!;
 
-		if (opts.insertMode === 'insert' && info.overwriteAfter > 0) {
-			// wants inserts but got replace-mode -> highlight AFTER range
-			newDeco = [{
-				range: new Range(position.lineNumber, position.column, position.lineNumber, position.column + info.overwriteAfter),
-				options: { inlineClassName: 'suggest-insertMode-goes' }
-			}];
-
-		} else if (opts.insertMode === 'replace' && info.overwriteAfter === 0) {
-			// want replace but likely got insert -> highlight AFTER range
-			const wordInfo = this._controller.editor.getModel()?.getWordAtPosition(position);
-			if (wordInfo && wordInfo.endColumn > position.column) {
+			if (opts.insertMode === 'insert' && info.overwriteAfter > 0) {
+				// wants inserts but got replace-mode -> highlight AFTER range
 				newDeco = [{
-					range: new Range(position.lineNumber, position.column, position.lineNumber, wordInfo.endColumn),
-					options: { inlineClassName: 'suggest-insertMode-stays' }
+					range: new Range(position.lineNumber, position.column, position.lineNumber, position.column + info.overwriteAfter),
+					options: { inlineClassName: 'suggest-insertMode-goes' }
 				}];
+
+			} else if (opts.insertMode === 'replace' && info.overwriteAfter === 0) {
+				// want replace but likely got insert -> highlight AFTER range
+				const wordInfo = this._controller.editor.getModel()?.getWordAtPosition(position);
+				if (wordInfo && wordInfo.endColumn > position.column) {
+					newDeco = [{
+						range: new Range(position.lineNumber, position.column, position.lineNumber, wordInfo.endColumn),
+						options: { inlineClassName: 'suggest-insertMode-stays' }
+					}];
+				}
 			}
 		}
 
