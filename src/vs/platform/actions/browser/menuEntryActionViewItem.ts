@@ -147,7 +147,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation), label: !_action.class && !_action.item.iconLocation });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation || _action.item.iconClassName), label: !_action.class && !_action.item.iconLocation && !_action.item.iconClassName });
 		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 

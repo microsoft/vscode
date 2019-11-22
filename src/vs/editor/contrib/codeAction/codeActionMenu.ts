@@ -43,7 +43,7 @@ export interface CodeActionShowOptions {
 	readonly includeDisabledActions: boolean;
 }
 
-export class CodeActionWidget extends Disposable {
+export class CodeActionMenu extends Disposable {
 
 	private _visible: boolean = false;
 	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
@@ -52,9 +52,9 @@ export class CodeActionWidget extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _contextMenuService: IContextMenuService,
-		keybindingService: IKeybindingService,
 		private readonly _delegate: CodeActionWidgetDelegate,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super();
 

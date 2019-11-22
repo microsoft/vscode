@@ -1406,6 +1406,7 @@ export class CommandCenter {
 		const message = repository.inputBox.value;
 		const getCommitMessage = async () => {
 			let _message: string | undefined = message;
+
 			if (!_message) {
 				let value: string | undefined = undefined;
 
@@ -1430,7 +1431,7 @@ export class CommandCenter {
 				});
 			}
 
-			return _message ? repository.cleanUpCommitEditMessage(_message) : _message;
+			return _message;
 		};
 
 		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);

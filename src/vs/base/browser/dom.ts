@@ -267,6 +267,12 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
+export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+};
+
 export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
 }
@@ -506,7 +512,16 @@ export function getClientArea(element: HTMLElement): Dimension {
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
 	if (platform.isIOS && (<any>window).visualViewport) {
-		return new Dimension((<any>window).visualViewport.width, (<any>window).visualViewport.height);
+		const width = (<any>window).visualViewport.width;
+		const height = (<any>window).visualViewport.height - (
+			browser.isStandalone
+				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
+				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
+				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
+				? (20 + 4) // + 4px for body margin
+				: 0
+		);
+		return new Dimension(width, height);
 	}
 
 	// Try innerWidth / innerHeight
