@@ -629,7 +629,11 @@ class ModelSemanticColoring extends Disposable {
 
 		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
 		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
-		this._register(themeService.onThemeChange(_ => this._fetchSemanticTokens.schedule()));
+		this._register(themeService.onThemeChange(_ => {
+			// clear out existing tokens
+			this._setSemanticTokens(null, null, []);
+			this._fetchSemanticTokens.schedule();
+		}));
 		this._fetchSemanticTokens.schedule(0);
 	}
 
@@ -677,7 +681,7 @@ class ModelSemanticColoring extends Disposable {
 		});
 	}
 
-	private _setSemanticTokens(tokens: SemanticColoring | null, styling: SemanticColoringProviderStyling, pendingChanges: IModelContentChangedEvent[]): void {
+	private _setSemanticTokens(tokens: SemanticColoring | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
 			this._currentResponse = null;
@@ -690,7 +694,7 @@ class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		this._currentResponse = tokens;
-		if (!this._currentResponse) {
+		if (!this._currentResponse || !styling) {
 			this._model.setSemanticTokens(null);
 			return;
 		}
