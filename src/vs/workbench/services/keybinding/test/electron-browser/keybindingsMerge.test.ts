@@ -402,7 +402,7 @@ suite('KeybindingsMerge', () => {
 		assert.equal(actual.mergeContent, expected);
 	});
 
-	test('merge when local and remove has moved forwareded with no conflicts', async () => {
+	test('merge when local and remote has moved forwareded with no conflicts', async () => {
 		const baseContent = stringify([
 			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+c', command: '-a' },
