@@ -74,8 +74,7 @@ function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClas
 	const colorIndex = themeData.tokenColorMap;
 
 	for (let qualifiedClassifier in expected) {
-		const modifiers = qualifiedClassifier.split('.');
-		const type = modifiers.shift()!;
+		const [type, ...modifiers] = qualifiedClassifier.split('.');
 
 		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
 		assert.ok(classification, 'Classification not found');

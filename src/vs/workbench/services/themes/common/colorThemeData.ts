@@ -189,7 +189,8 @@ export class ColorThemeData implements IColorTheme {
 		if (tokenStyleValue === null) {
 			return undefined;
 		} else if (typeof tokenStyleValue === 'string') {
-			const classification = tokenClassificationRegistry.getTokenClassificationFromString(tokenStyleValue);
+			const [type, ...modifiers] = tokenStyleValue.split('.');
+			const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
 			if (classification) {
 				return this.getTokenStyle(classification);
 			}
@@ -713,7 +714,8 @@ function getTokenStyle(foreground: string | undefined, fontStyle: string | undef
 function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenStyleCustomizations, result: TokenStylingRule[] = []) {
 	for (let key in tokenStylingRuleSection) {
 		if (key[0] !== '[') {
-			const classification = tokenClassificationRegistry.getTokenClassificationFromString(key);
+			const [type, ...modifiers] = key.split('.');
+			const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
 			if (classification) {
 				const settings = tokenStylingRuleSection[key];
 				let style: TokenStyle | undefined;
