@@ -466,9 +466,12 @@ class SemanticStyling extends Disposable {
 	) {
 		super();
 		this._caches = new WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>();
-		this._register(this._themeService.onThemeChange(() => {
-			this._caches = new WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>();
-		}));
+		if (this._themeService) {
+			// workaround for tests which use undefined... :/
+			this._register(this._themeService.onThemeChange(() => {
+				this._caches = new WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>();
+			}));
+		}
 	}
 
 	public get(provider: SemanticColoringProvider): SemanticColoringProviderStyling {
@@ -629,11 +632,14 @@ class ModelSemanticColoring extends Disposable {
 
 		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
 		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
-		this._register(themeService.onThemeChange(_ => {
-			// clear out existing tokens
-			this._setSemanticTokens(null, null, []);
-			this._fetchSemanticTokens.schedule();
-		}));
+		if (themeService) {
+			// workaround for tests which use undefined... :/
+			this._register(themeService.onThemeChange(_ => {
+				// clear out existing tokens
+				this._setSemanticTokens(null, null, []);
+				this._fetchSemanticTokens.schedule();
+			}));
+		}
 		this._fetchSemanticTokens.schedule(0);
 	}
 
