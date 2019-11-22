@@ -22,31 +22,31 @@ class SemanticColoringProvider implements vscode.SemanticColoringProvider {
 	getLegend(): vscode.SemanticColoringLegend {
 		const tokens: string[] = [];
 
-		tokens[ExperimentalProtocol.ClassificationType.comment] = 'comment'; // ok
-		tokens[ExperimentalProtocol.ClassificationType.identifier] = 'identifier';
-		tokens[ExperimentalProtocol.ClassificationType.keyword] = 'keyword';
-		tokens[ExperimentalProtocol.ClassificationType.numericLiteral] = 'numericLiteral';
-		tokens[ExperimentalProtocol.ClassificationType.operator] = 'operator';
-		tokens[ExperimentalProtocol.ClassificationType.stringLiteral] = 'stringLiteral';
-		tokens[ExperimentalProtocol.ClassificationType.regularExpressionLiteral] = 'regularExpressionLiteral';
-		tokens[ExperimentalProtocol.ClassificationType.whiteSpace] = 'whiteSpace';
-		tokens[ExperimentalProtocol.ClassificationType.text] = 'text';
-		tokens[ExperimentalProtocol.ClassificationType.punctuation] = 'punctuation';
-		tokens[ExperimentalProtocol.ClassificationType.className] = 'class'; // ok
-		tokens[ExperimentalProtocol.ClassificationType.enumName] = 'enum'; // ok
-		tokens[ExperimentalProtocol.ClassificationType.interfaceName] = 'interface'; // ok
-		tokens[ExperimentalProtocol.ClassificationType.moduleName] = 'moduleName';
-		tokens[ExperimentalProtocol.ClassificationType.typeParameterName] = 'parameterType'; // ok
-		tokens[ExperimentalProtocol.ClassificationType.typeAliasName] = 'typeAliasName';
-		tokens[ExperimentalProtocol.ClassificationType.parameterName] = 'parameter'; // ok
-		tokens[ExperimentalProtocol.ClassificationType.docCommentTagName] = 'docCommentTagName';
-		tokens[ExperimentalProtocol.ClassificationType.jsxOpenTagName] = 'jsxOpenTagName';
-		tokens[ExperimentalProtocol.ClassificationType.jsxCloseTagName] = 'jsxCloseTagName';
-		tokens[ExperimentalProtocol.ClassificationType.jsxSelfClosingTagName] = 'jsxSelfClosingTagName';
-		tokens[ExperimentalProtocol.ClassificationType.jsxAttribute] = 'jsxAttribute';
-		tokens[ExperimentalProtocol.ClassificationType.jsxText] = 'jsxText';
-		tokens[ExperimentalProtocol.ClassificationType.jsxAttributeStringLiteralValue] = 'jsxAttributeStringLiteralValue';
-		tokens[ExperimentalProtocol.ClassificationType.bigintLiteral] = 'bigintLiteral';
+		tokens[ExperimentalProtocol.ClassificationType.comment] = 'comments'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.identifier] = 'variables'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.keyword] = 'keywords'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.numericLiteral] = 'numbers'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.operator] = 'operators'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.stringLiteral] = 'strings'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.regularExpressionLiteral] = 'regexp'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.whiteSpace] = '';
+		tokens[ExperimentalProtocol.ClassificationType.text] = '';
+		tokens[ExperimentalProtocol.ClassificationType.punctuation] = '';
+		tokens[ExperimentalProtocol.ClassificationType.className] = 'classes'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.enumName] = 'enums'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.interfaceName] = 'interfaces'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.moduleName] = 'types'; // not ideal
+		tokens[ExperimentalProtocol.ClassificationType.typeParameterName] = 'parameterTypes'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.typeAliasName] = 'types'; // not ideal
+		tokens[ExperimentalProtocol.ClassificationType.parameterName] = 'parameters'; // ok
+		tokens[ExperimentalProtocol.ClassificationType.docCommentTagName] = '';
+		tokens[ExperimentalProtocol.ClassificationType.jsxOpenTagName] = '';
+		tokens[ExperimentalProtocol.ClassificationType.jsxCloseTagName] = '';
+		tokens[ExperimentalProtocol.ClassificationType.jsxSelfClosingTagName] = '';
+		tokens[ExperimentalProtocol.ClassificationType.jsxAttribute] = '';
+		tokens[ExperimentalProtocol.ClassificationType.jsxText] = '';
+		tokens[ExperimentalProtocol.ClassificationType.jsxAttributeStringLiteralValue] = '';
+		tokens[ExperimentalProtocol.ClassificationType.bigintLiteral] = 'numbers';
 
 		return new vscode.SemanticColoringLegend(tokens, []);
 	}
