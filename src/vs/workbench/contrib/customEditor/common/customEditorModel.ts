@@ -41,11 +41,11 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 	//#endregion
 
-	protected readonly _onUndo = this._register(new Emitter<CustomEditorEdit>());
-	readonly onUndo: Event<CustomEditorEdit> = this._onUndo.event;
+	protected readonly _onUndo = this._register(new Emitter<readonly CustomEditorEdit[]>());
+	readonly onUndo = this._onUndo.event;
 
-	protected readonly _onRedo = this._register(new Emitter<CustomEditorEdit>());
-	readonly onRedo: Event<CustomEditorEdit> = this._onRedo.event;
+	protected readonly _onRedo = this._register(new Emitter<readonly CustomEditorEdit[]>());
+	readonly onRedo = this._onRedo.event;
 
 	protected readonly _onWillSave = this._register(new Emitter<{ waitUntil: (until: Promise<any>) => void }>());
 	readonly onWillSave = this._onWillSave.event;
@@ -72,11 +72,22 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		return true;
 	}
 
-	public async revert(options?: IRevertOptions) {
-		while (this._currentEditIndex > 0) {
-			this.undo();
+	public async revert(_options?: IRevertOptions) {
+		if (this._currentEditIndex === this._savePoint) {
+			return true;
 		}
 
+		if (this._currentEditIndex >= this._savePoint) {
+			const editsToUndo = this._edits.slice(this._savePoint, this._currentEditIndex);
+			this._onUndo.fire(editsToUndo.reverse());
+		} else if (this._currentEditIndex < this._savePoint) {
+			const editsToRedo = this._edits.slice(this._currentEditIndex, this._savePoint);
+			this._onRedo.fire(editsToRedo);
+		}
+
+		this._currentEditIndex = this._savePoint;
+		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex);
+		this.updateDirty();
 		return true;
 	}
 
@@ -88,7 +99,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		const undoneEdit = this._edits[this._currentEditIndex];
 		--this._currentEditIndex;
-		this._onUndo.fire(undoneEdit);
+		this._onUndo.fire([undoneEdit]);
 
 		this.updateDirty();
 	}
@@ -101,7 +112,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		++this._currentEditIndex;
 		const redoneEdit = this._edits[this._currentEditIndex];
-		this._onRedo.fire(redoneEdit);
+		this._onRedo.fire([redoneEdit]);
 
 		this.updateDirty();
 	}

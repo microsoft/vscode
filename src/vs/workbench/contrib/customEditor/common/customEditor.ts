@@ -38,7 +38,7 @@ export interface ICustomEditorService {
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 }
 
-export type CustomEditorEdit = string;
+export type CustomEditorEdit = unknown;
 
 export interface ICustomEditorModelManager {
 	get(resource: URI, viewType: string): ICustomEditorModel | undefined;
@@ -49,8 +49,8 @@ export interface ICustomEditorModelManager {
 }
 
 export interface ICustomEditorModel extends IWorkingCopy {
-	readonly onUndo: Event<CustomEditorEdit>;
-	readonly onRedo: Event<CustomEditorEdit>;
+	readonly onUndo: Event<readonly CustomEditorEdit[]>;
+	readonly onRedo: Event<readonly CustomEditorEdit[]>;
 	readonly onWillSave: Event<{ waitUntil: (until: Promise<any>) => void }>;
 
 	undo(): void;

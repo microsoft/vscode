@@ -592,8 +592,8 @@ export interface ExtHostWebviewsShape {
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
-	$undoEdits(handle: WebviewPanelHandle, edits: string[]): void;
-	$redoEdits(handle: WebviewPanelHandle, edits: string[]): void;
+	$undoEdits(handle: WebviewPanelHandle, edits: readonly any[]): void;
+	$redoEdits(handle: WebviewPanelHandle, edits: readonly any[]): void;
 	$onSave(handle: WebviewPanelHandle): Promise<void>;
 }
 
