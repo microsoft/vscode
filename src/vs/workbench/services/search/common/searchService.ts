@@ -391,6 +391,12 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
+				// Skip search results
+				if (model.getModeId() === 'search-result' && !(query.includePattern && query.includePattern['**/*.vsc-search'])) {
+					// TODO: untitled search editors will be excluded from search even when include *.vsc-search is specified
+					return;
+				}
+
 				// Support untitled files
 				if (resource.scheme === Schemas.untitled) {
 					if (!this.untitledTextEditorService.exists(resource)) {
