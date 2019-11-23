@@ -20,7 +20,7 @@
       {
         "id": "search-result",
         "extensions": [
-          ".vsc-search"
+          ".code-search"
         ],
         "aliases": [
           "Search Result"

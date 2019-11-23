@@ -966,7 +966,7 @@ export class SearchModel extends Disposable {
 		this.cancelSearch();
 
 		// Exclude Search Editor results unless explicity included
-		const searchEditorFilenameGlob = `**/*.vsc-search`;
+		const searchEditorFilenameGlob = `**/*.code-search`;
 		if (!query.includePattern || !query.includePattern[searchEditorFilenameGlob]) {
 			query.excludePattern = { ...(query.excludePattern ?? {}), [searchEditorFilenameGlob]: true };
 		}
