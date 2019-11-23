@@ -16,13 +16,6 @@
     "*"
   ],
   "contributes": {
-    "keybindings": [
-      {
-        "command": "editor.action.openLink",
-        "key": "alt+enter",
-        "when": "editorLangId == search-result"
-      }
-    ],
     "languages": [
       {
         "id": "search-result",
