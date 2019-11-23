@@ -278,7 +278,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
 				model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
 
-				webviewInput.onDispose(() => {
+				webviewInput.onDisposeWebview(() => {
 					this._customEditorService.models.disposeModel(model);
 				});
 
@@ -326,7 +326,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
 		input.webview.onDidClickLink((uri: URI) => this.onDidClickLink(handle, uri));
 		input.webview.onMessage((message: any) => this._proxy.$onMessage(handle, message));
-		input.onDispose(() => {
+		input.onDisposeWebview(() => {
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
 				this._webviewInputs.delete(handle);
 			});

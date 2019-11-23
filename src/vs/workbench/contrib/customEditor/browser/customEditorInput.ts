@@ -5,12 +5,12 @@
 
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
-import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IEditorModel, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
@@ -18,6 +18,7 @@ import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/c
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
@@ -30,9 +31,10 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		resource: URI,
 		viewType: string,
 		id: string,
-		webview: Lazy<UnownedDisposable<WebviewEditorOverlay>>,
+		webview: Lazy<WebviewEditorOverlay>,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -149,5 +151,14 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
 
 		return this.fileDialogService.pickFileToSave({});//this.getSaveDialogOptions(defaultUri, availableFileSystems));
+	}
+
+	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
+		const webview = assertIsDefined(this.takeOwnershipOfWebview());
+		return this.instantiationService.createInstance(CustomFileEditorInput,
+			uri,
+			this.viewType,
+			this.id,
+			new Lazy(() => webview));
 	}
 }
