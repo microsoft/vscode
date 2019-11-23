@@ -15,6 +15,7 @@ export const RemoveActionId = 'search.action.remove';
 export const CopyPathCommandId = 'search.action.copyPath';
 export const CopyMatchCommandId = 'search.action.copyMatch';
 export const CopyAllCommandId = 'search.action.copyAll';
+export const OpenInEditorCommandId = 'search.action.openInEditor';
 export const ClearSearchHistoryCommandId = 'search.action.clearHistory';
 export const FocusSearchListCommandID = 'search.action.focusSearchList';
 export const ReplaceActionId = 'search.action.replace';
@@ -37,6 +38,7 @@ export const PatternIncludesFocusedKey = new RawContextKey<boolean>('patternIncl
 export const PatternExcludesFocusedKey = new RawContextKey<boolean>('patternExcludesInputBoxFocus', false);
 export const ReplaceActiveKey = new RawContextKey<boolean>('replaceActive', false);
 export const HasSearchResults = new RawContextKey<boolean>('hasSearchResult', false);
+export const EnableSearchEditorPreview = new RawContextKey<boolean>('previewSearchEditor', false);
 
 export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);
 export const FileMatchOrMatchFocusKey = new RawContextKey<boolean>('fileMatchOrMatchFocus', false); // This is actually, Match or File or Folder
