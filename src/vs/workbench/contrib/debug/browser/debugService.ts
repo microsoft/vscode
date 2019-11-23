@@ -569,7 +569,7 @@ export class DebugService implements IDebugService {
 				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
 			}
 
-			const closeConsoleOnEnd = this.configurationService.getValue<IDebugConfiguration>('debug').closeConsoleOnEnd;
+			const closeConsoleOnEnd = this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd;
 			if (closeConsoleOnEnd === 'always' || (closeConsoleOnEnd === 'whenOpenedByDebug' && !this.internalTerminalWasOpened)) {
 				this.panelService.hideActivePanel();
 			}

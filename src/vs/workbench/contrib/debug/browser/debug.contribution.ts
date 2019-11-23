@@ -213,7 +213,7 @@ configurationRegistry.registerConfiguration({
 			default: 'onFirstSessionStart'
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-		'debug.closeConsoleOnEnd': {
+		'debug.console.closeOnEnd': {
 			enum: ['never', 'always', 'whenOpenedByDebug'],
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'closeConsoleOnFinish' }, "If set to true, the debug console will be closed automatically when opened because of the debugging (see `internalConsoleOptions`). Has no effect if `internalConsoleOptions` was set to `neverOpen`."),
 			default: 'never'
