@@ -420,7 +420,7 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string): Promise<void> {
+	async clone(url?: string, parentPath?: string): Promise<void> {
 		if (!url) {
 			url = await window.showInputBox({
 				prompt: localize('repourl', "Repository URL"),
@@ -440,30 +440,32 @@ export class CommandCenter {
 
 		url = url.trim().replace(/^git\s+clone\s+/, '');
 
-		const config = workspace.getConfiguration('git');
-		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
-		defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
+		if (!parentPath) {
+			const config = workspace.getConfiguration('git');
+			let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
+			defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
 
-		const uris = await window.showOpenDialog({
-			canSelectFiles: false,
-			canSelectFolders: true,
-			canSelectMany: false,
-			defaultUri: Uri.file(defaultCloneDirectory),
-			openLabel: localize('selectFolder', "Select Repository Location")
-		});
+			const uris = await window.showOpenDialog({
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				defaultUri: Uri.file(defaultCloneDirectory),
+				openLabel: localize('selectFolder', "Select Repository Location")
+			});
 
-		if (!uris || uris.length === 0) {
-			/* __GDPR__
-				"clone" : {
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
-			return;
+			if (!uris || uris.length === 0) {
+				/* __GDPR__
+					"clone" : {
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
+				return;
+			}
+
+			const uri = uris[0];
+			parentPath = uri.fsPath;
 		}
-
-		const uri = uris[0];
-		const parentPath = uri.fsPath;
 
 		try {
 			const opts = {
@@ -474,7 +476,7 @@ export class CommandCenter {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => this.git.clone(url!, parentPath, progress, token)
+				(progress, token) => this.git.clone(url!, parentPath!, progress, token)
 			);
 
 			let message = localize('proposeopen', "Would you like to open the cloned repository?");
