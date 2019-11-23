@@ -367,6 +367,60 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 	}
 }
 
+export class ExpandAllAction extends Action {
+
+	static readonly ID: string = 'search.action.expandSearchResults';
+	static LABEL: string = nls.localize('ExpandAllAction.label', "Expand All");
+
+	constructor(id: string, label: string,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
+	) {
+		super(id, label, 'search-action codicon-chrome-restore');
+		this.update();
+	}
+
+	update(): void {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		this.enabled = !!searchView && searchView.hasSearchResults();
+	}
+
+	run(): Promise<void> {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		if (searchView) {
+			const viewer = searchView.getControl();
+
+			const navigator = viewer.navigate();
+			let node = navigator.first();
+			let expandFolderMatchLevel = false;
+			if (node instanceof FolderMatch) {
+				expandFolderMatchLevel = true;
+				while (node = navigator.next()) {
+					if (node instanceof FileMatch) {
+						expandFolderMatchLevel = false;
+						break;
+					}
+				}
+			}
+
+			if (expandFolderMatchLevel) {
+				node = navigator.first();
+				do {
+					if (node instanceof FolderMatch) {
+						viewer.expand(node);
+					}
+				} while (node = navigator.next());
+			} else {
+				viewer.expandAll();
+			}
+
+			viewer.domFocus();
+			viewer.focusFirst();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
 export class ClearSearchResultsAction extends Action {
 
 	static readonly ID: string = 'search.action.clearSearchResults';
