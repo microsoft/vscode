@@ -624,7 +624,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(RefreshAction, Refr
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear Search Results', category);
 
 registry.registerWorkbenchAction(
-	new SyncActionDescriptor(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
+	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
 		{ primary: KeyMod.CtrlCmd | KeyCode.Enter },
 		ContextKeyExpr.and(Constants.HasSearchResults, Constants.SearchViewFocusedKey, Constants.EnableSearchEditorPreview)),
 	'Search: Open Results in Editor', category,
