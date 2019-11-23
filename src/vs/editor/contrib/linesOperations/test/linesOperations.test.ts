@@ -300,13 +300,76 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.equal(model.getLineContent(1), 'Typing some text here on line one');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 31, 1, 31));
 
+					editor.setSelection(new Selection(1, 30, 1, 30));
+
 					deleteAllLeftAction.run(null!, editor);
-					assert.equal(model.getLineContent(1), 'one');
+					assert.equal(model.getLineContent(1), ' one');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 1));
 
 					editor.trigger('keyboard', Handler.Undo, {});
 					assert.equal(model.getLineContent(1), 'Typing some text here on line one');
-					assert.deepEqual(editor.getSelection(), new Selection(1, 31, 1, 31));
+					assert.deepEqual(editor.getSelection(), new Selection(1, 30, 1, 30));
+				});
+		});
+
+		test('issue #71506: smart backspace deletes all trailing whitespaces', () => {
+			withTestCodeEditor(
+				[
+					'',
+				], {}, (editor) => {
+					let model = editor.getModel()!;
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					editor.setSelection(new Selection(1, 1, 1, 1));
+
+					editor.trigger('keyboard', Handler.Type, { text: 'Typing some text here on line      ' });
+					assert.equal(model.getLineContent(1), 'Typing some text here on line      ');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 36, 1, 36));
+
+					deleteAllLeftAction.run(null!, editor);
+					assert.equal(model.getLineContent(1), 'Typing some text here on line');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 30, 1, 30));
+
+					deleteAllLeftAction.run(null!, editor);
+					assert.equal(model.getLineContent(1), '');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 1));
+				});
+		});
+
+		test('issue #71506: smart backspace deletes multiline trailing whitespaces', () => {
+			withTestCodeEditor(
+				[
+					'',
+					'',
+					''
+				], {}, (editor) => {
+					let model = editor.getModel()!;
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					// Line 1
+					editor.setSelection(new Selection(1, 1, 1, 1));
+					editor.trigger('keyboard', Handler.Type, { text: 'Typing some text here on line 1     ' });
+
+					// Line 2
+					editor.setSelection(new Selection(2, 1, 2, 1));
+					editor.trigger('keyboard', Handler.Type, { text: '      		 ' });
+
+					// Line 3
+					editor.setSelection(new Selection(3, 1, 3, 1));
+					editor.trigger('keyboard', Handler.Type, { text: '     ' });
+
+					assert.equal(model.getLineContent(1), 'Typing some text here on line 1     ');
+					assert.equal(model.getLineContent(2), '      		 ');
+					assert.equal(model.getLineContent(3), '     ');
+					assert.deepEqual(editor.getSelection(), new Selection(3, 6, 3, 6));
+
+					deleteAllLeftAction.run(null!, editor);
+					assert.equal(model.getLineContent(1), 'Typing some text here on line 1');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 32, 1, 32));
+
+					deleteAllLeftAction.run(null!, editor);
+					assert.equal(model.getLineContent(1), '');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 1));
 				});
 		});
 	});

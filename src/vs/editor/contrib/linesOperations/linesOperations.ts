@@ -618,17 +618,39 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		let startColumn = selections[0].startColumn - 1;
 		let startLineNumber = selections[0].startLineNumber;
 		let endLineNumber = selections[0].endLineNumber;
+		let linesContent = model.getLineContent(startLineNumber);
+
+		let whitespace_case = (endColumn === 0) || (/^\s*$/.test(linesContent[endColumn - 1]));
 
 		// Case where user wants to delete all trailing whitespaces for a single line
-		if (selections.length === 1 && startColumn === endColumn && startLineNumber === endLineNumber) {
-			let linesContent = model.getLineContent(endLineNumber);
+		if (whitespace_case && selections.length === 1 && startColumn === endColumn && startLineNumber === endLineNumber) {
+			let finish_search = false;
 			let result_start = endColumn;
 
-			while (linesContent[result_start - 1] === ' ') {
-				--result_start;
+			while (!finish_search && startLineNumber > 0) {
+
+				while (result_start > 0 && (/^\s*$/.test(linesContent[result_start - 1]))) {//*/linesContent[result_start - 1] === ' ') {
+					--result_start;
+				}
+
+				if (result_start === 0) {
+					--startLineNumber;
+					if (startLineNumber === 0) {
+						startLineNumber = 1;
+						break;
+					}
+					linesContent = model.getLineContent(startLineNumber);
+					result_start = linesContent.length;
+				} else {
+					finish_search = true;
+					startColumn = result_start;
+					if (startLineNumber === endLineNumber && startColumn > endColumn) {
+						startColumn = endColumn;
+					}
+				}
 			}
 
-			rangesToDelete.push(new Range(selections[0].startLineNumber, result_start + 1, selections[0].endLineNumber, endColumn + 1));
+			rangesToDelete.push(new Range(startLineNumber, startColumn + 1, endLineNumber, endColumn + 1));
 			return rangesToDelete;
 		}
 
