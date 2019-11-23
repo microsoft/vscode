@@ -9,12 +9,12 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { coalesce } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
-import { isWindows } from 'vs/base/common/platform';
 import { ITextQuery, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import * as network from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-const lineDelimiter = isWindows ? '\r\n' : '\n';
+// Using \r\n on Windows inserts an extra newline between results.
+const lineDelimiter = '\n';
 
 function matchToSearchResultFormat(match: Match, indent = 0): string {
 	const getLinePrefix = (i: number) => `${match.range().startLineNumber + i}`;
