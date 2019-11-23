@@ -95,6 +95,7 @@ export interface ITerminalConfiguration {
 	fontFamily: string;
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
+	minimumContrastRatio: number;
 	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
