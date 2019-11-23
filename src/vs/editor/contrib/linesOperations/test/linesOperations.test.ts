@@ -333,6 +333,14 @@ suite('Editor Contrib - Line Operations', () => {
 					deleteAllLeftAction.run(null!, editor);
 					assert.equal(model.getLineContent(1), '');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 1));
+
+					editor.trigger('keyboard', Handler.Type, { text: '        ' });
+					assert.equal(model.getLineContent(1), '        ');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 9, 1, 9));
+
+					deleteAllLeftAction.run(null!, editor);
+					assert.equal(model.getLineContent(1), '');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 1));
 				});
 		});
 

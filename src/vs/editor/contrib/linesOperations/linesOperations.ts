@@ -622,14 +622,13 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 
 		let whitespace_case = (endColumn === 0) || (/^\s*$/.test(linesContent[endColumn - 1]));
 
-		// Case where user wants to delete all trailing whitespaces for a single line
+		// Case where user wants to delete all trailing whitespaces for multiple lines with single selection
 		if (whitespace_case && selections.length === 1 && startColumn === endColumn && startLineNumber === endLineNumber) {
 			let finish_search = false;
 			let result_start = endColumn;
 
 			while (!finish_search && startLineNumber > 0) {
-
-				while (result_start > 0 && (/^\s*$/.test(linesContent[result_start - 1]))) {//*/linesContent[result_start - 1] === ' ') {
+				while (result_start > 0 && (/^\s*$/.test(linesContent[result_start - 1]))) {
 					--result_start;
 				}
 
@@ -643,13 +642,10 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 					result_start = linesContent.length;
 				} else {
 					finish_search = true;
-					startColumn = result_start;
-					if (startLineNumber === endLineNumber && startColumn > endColumn) {
-						startColumn = endColumn;
-					}
 				}
 			}
 
+			startColumn = result_start;
 			rangesToDelete.push(new Range(startLineNumber, startColumn + 1, endLineNumber, endColumn + 1));
 			return rangesToDelete;
 		}
