@@ -590,11 +590,15 @@ export interface ExtHostWebviewsShape {
 	$onMissingCsp(handle: WebviewPanelHandle, extensionId: string): void;
 	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
+
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+
 	$undoEdits(handle: WebviewPanelHandle, edits: readonly any[]): void;
 	$redoEdits(handle: WebviewPanelHandle, edits: readonly any[]): void;
+
 	$onSave(handle: WebviewPanelHandle): Promise<void>;
+	$onSaveAs(handle: WebviewPanelHandle, resource: UriComponents, targetResource: UriComponents): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

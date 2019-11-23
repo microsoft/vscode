@@ -48,16 +48,29 @@ export interface ICustomEditorModelManager {
 	disposeModel(model: ICustomEditorModel): void;
 }
 
+export interface CustomEditorSaveEvent {
+	readonly resource: URI;
+	readonly waitUntil: (until: Promise<any>) => void;
+}
+
+export interface CustomEditorSaveAsEvent {
+	readonly resource: URI;
+	readonly targetResource: URI;
+	readonly waitUntil: (until: Promise<any>) => void;
+}
+
 export interface ICustomEditorModel extends IWorkingCopy {
 	readonly onUndo: Event<readonly CustomEditorEdit[]>;
 	readonly onRedo: Event<readonly CustomEditorEdit[]>;
-	readonly onWillSave: Event<{ waitUntil: (until: Promise<any>) => void }>;
+	readonly onWillSave: Event<CustomEditorSaveEvent>;
+	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
 
 	undo(): void;
 	redo(): void;
 	revert(options?: IRevertOptions): Promise<boolean>;
 
 	save(options?: ISaveOptions): Promise<boolean>;
+	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
 
 	makeEdit(data: string): void;
 }

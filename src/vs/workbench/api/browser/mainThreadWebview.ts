@@ -276,6 +276,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				model.onUndo(edits => { this._proxy.$undoEdits(handle, edits); });
 				model.onRedo(edits => { this._proxy.$redoEdits(handle, edits); });
 				model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
+				model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
 
 				webviewInput.onDispose(() => {
 					this._customEditorService.models.disposeModel(model);

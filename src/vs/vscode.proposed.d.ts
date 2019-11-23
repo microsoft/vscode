@@ -1251,6 +1251,13 @@ declare module 'vscode' {
 		save(): Thenable<void>;
 
 		/**
+		 *
+		 * @param resource Resource being saved.
+		 * @param targetResource Location to save to.
+		 */
+		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
+
+		/**
 		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 *
 		 * The edit must be a json serializable object.

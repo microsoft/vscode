@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ICustomEditorModel, CustomEditorEdit } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { ICustomEditorModel, CustomEditorEdit, CustomEditorSaveAsEvent, CustomEditorSaveEvent } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 
@@ -47,8 +47,11 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	protected readonly _onRedo = this._register(new Emitter<readonly CustomEditorEdit[]>());
 	readonly onRedo = this._onRedo.event;
 
-	protected readonly _onWillSave = this._register(new Emitter<{ waitUntil: (until: Promise<any>) => void }>());
+	protected readonly _onWillSave = this._register(new Emitter<CustomEditorSaveEvent>());
 	readonly onWillSave = this._onWillSave.event;
+
+	protected readonly _onWillSaveAs = this._register(new Emitter<CustomEditorSaveAsEvent>());
+	readonly onWillSaveAs = this._onWillSaveAs.event;
 
 	public makeEdit(data: string): void {
 		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex, data);
@@ -62,10 +65,34 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 	public async save(_options?: ISaveOptions): Promise<boolean> {
 		const untils: Promise<any>[] = [];
-		const handler = { waitUntil: (until: Promise<any>) => untils.push(until) };
+		const handler: CustomEditorSaveEvent = {
+			resource: this._resource,
+			waitUntil: (until: Promise<any>) => untils.push(until)
+		};
 
 		try {
 			this._onWillSave.fire(handler);
+			await Promise.all(untils);
+		} catch {
+			return false;
+		}
+
+		this._savePoint = this._currentEditIndex;
+		this.updateDirty();
+
+		return true;
+	}
+
+	public async saveAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {
+		const untils: Promise<any>[] = [];
+		const handler: CustomEditorSaveAsEvent = {
+			resource,
+			targetResource,
+			waitUntil: (until: Promise<any>) => untils.push(until)
+		};
+
+		try {
+			this._onWillSaveAs.fire(handler);
 			await Promise.all(untils);
 		} catch {
 			return false;
