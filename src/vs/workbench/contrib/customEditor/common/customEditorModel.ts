@@ -44,8 +44,8 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	protected readonly _onUndo = this._register(new Emitter<readonly CustomEditorEdit[]>());
 	readonly onUndo = this._onUndo.event;
 
-	protected readonly _onRedo = this._register(new Emitter<readonly CustomEditorEdit[]>());
-	readonly onRedo = this._onRedo.event;
+	protected readonly _onApplyEdit = this._register(new Emitter<readonly CustomEditorEdit[]>());
+	readonly onApplyEdit = this._onApplyEdit.event;
 
 	protected readonly _onWillSave = this._register(new Emitter<CustomEditorSaveEvent>());
 	readonly onWillSave = this._onWillSave.event;
@@ -53,10 +53,11 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	protected readonly _onWillSaveAs = this._register(new Emitter<CustomEditorSaveAsEvent>());
 	readonly onWillSaveAs = this._onWillSaveAs.event;
 
-	public makeEdit(data: string): void {
-		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex, data);
+	public makeEdit(edit: CustomEditorEdit): void {
+		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex, edit.data);
 		this._currentEditIndex = this._edits.length - 1;
 		this.updateDirty();
+		this._onApplyEdit.fire([edit]);
 	}
 
 	private updateDirty() {
@@ -114,7 +115,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 			this._onUndo.fire(editsToUndo.reverse());
 		} else if (this._currentEditIndex < this._savePoint) {
 			const editsToRedo = this._edits.slice(this._currentEditIndex, this._savePoint);
-			this._onRedo.fire(editsToRedo);
+			this._onApplyEdit.fire(editsToRedo);
 		}
 
 		this._currentEditIndex = this._savePoint;
@@ -144,7 +145,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		++this._currentEditIndex;
 		const redoneEdit = this._edits[this._currentEditIndex];
-		this._onRedo.fire([redoneEdit]);
+		this._onApplyEdit.fire([redoneEdit]);
 
 		this.updateDirty();
 	}

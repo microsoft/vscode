@@ -38,7 +38,7 @@ export interface ICustomEditorService {
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 }
 
-export type CustomEditorEdit = unknown;
+export type CustomEditorEdit = { source?: any, data: any };
 
 export interface ICustomEditorModelManager {
 	get(resource: URI, viewType: string): ICustomEditorModel | undefined;
@@ -61,7 +61,7 @@ export interface CustomEditorSaveAsEvent {
 
 export interface ICustomEditorModel extends IWorkingCopy {
 	readonly onUndo: Event<readonly CustomEditorEdit[]>;
-	readonly onRedo: Event<readonly CustomEditorEdit[]>;
+	readonly onApplyEdit: Event<readonly CustomEditorEdit[]>;
 	readonly onWillSave: Event<CustomEditorSaveEvent>;
 	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
 
@@ -72,7 +72,7 @@ export interface ICustomEditorModel extends IWorkingCopy {
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
 
-	makeEdit(data: string): void;
+	makeEdit(edit: CustomEditorEdit): void;
 }
 
 export const enum CustomEditorPriority {
