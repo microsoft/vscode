@@ -613,6 +613,25 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		}
 
 		rangesToDelete.sort(Range.compareRangesUsingStarts);
+
+		let endColumn = selections[0].endColumn - 1;
+		let startColumn = selections[0].startColumn - 1;
+		let startLineNumber = selections[0].startLineNumber;
+		let endLineNumber = selections[0].endLineNumber;
+
+		// Case where user wants to delete all trailing whitespaces for a single line
+		if (selections.length === 1 && startColumn === endColumn && startLineNumber === endLineNumber) {
+			let linesContent = model.getLineContent(endLineNumber);
+			let result_start = endColumn;
+
+			while (linesContent[result_start - 1] === ' ') {
+				--result_start;
+			}
+
+			rangesToDelete.push(new Range(selections[0].startLineNumber, result_start + 1, selections[0].endLineNumber, endColumn + 1));
+			return rangesToDelete;
+		}
+
 		rangesToDelete = rangesToDelete.map(selection => {
 			if (selection.isEmpty()) {
 				if (selection.startColumn === 1) {
