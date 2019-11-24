@@ -150,7 +150,7 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 		const previewKeybindings = <IUserFriendlyKeybinding[]>parse(keybindingsPreviewModel.getValue());
 		for (const command of values(conflictCommands)) {
 			const index = firstIndex(previewKeybindings, keybinding => keybinding.command === command || keybinding.command === `-${command}`);
-			if (index > 0) {
+			if (index >= 0) {
 				conflicts.push({ command, index });
 			}
 		}
@@ -165,8 +165,7 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 		for (const conflict of conflicts) {
 			const tree = parseTree(keybindingsPreviewModel.getValue());
 			const valueNode = findNodeAtLocation(tree, [conflict.index]);
-			const remoteEdit = setProperty(`[${eol}\t${eol}]`, [-1], remoteByCommand.get(conflict.command), { tabSize: 4, insertSpaces: false, eol: eol })[0];
-			const remoteContent = remoteEdit ? `${remoteEdit.content.substring(remoteEdit.offset + remoteEdit.length + 1)},${eol}` : '';
+			const remoteContent = this.getRemoteContentForConflict(eol, remoteByCommand.get(conflict.command)!);
 			if (valueNode) {
 				// Updated in Local and Remote with different value
 				const valueStartPosition = keybindingsPreviewModel.getPositionAt(valueNode.offset);
@@ -187,6 +186,15 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 		}
 
 		return { mergeContent: keybindingsPreviewModel.getValue(), hasChanges: true, hasConflicts: conflicts.length > 0 };
+	}
+
+	private getRemoteContentForConflict(eol: string, keybindings: IUserFriendlyKeybinding[]): string {
+		let content = `[${eol}${eol}]`;
+		for (const keybinding of keybindings) {
+			const edit = setProperty(content, [-1], keybinding, { tabSize: 4, insertSpaces: false, eol })[0];
+			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
+		}
+		return content.substring(2, content.length - 2);
 	}
 
 	private compare(from: Map<string, IUserFriendlyKeybinding[]>, to: Map<string, IUserFriendlyKeybinding[]>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
