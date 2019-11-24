@@ -9,7 +9,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { coalesce } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
-import { ITextQuery, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { ITextQuery } from 'vs/workbench/services/search/common/search';
 import * as network from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -66,7 +66,8 @@ const allFolderMatchesToSearchResultFormat = (folderMatches: Array<FolderMatchWi
 function contentPatternToSearchResultHeader(pattern: ITextQuery | null, includes: string, excludes: string) {
 	if (!pattern) { return ''; }
 
-	const escapeNewlines = (str: string) => str.replace(/\\n/g, '\\\\n').replace(/\n/g, '\\n');
+	const escapeNewlines = (str: string) => str.replace(/\\/g, '\\\\').replace(/\n/g, '\\n');
+
 	return coalesce([
 		`# Query: ${escapeNewlines(pattern.contentPattern.pattern)}`,
 		...coalesce([
@@ -89,18 +90,16 @@ const serializeSearchResultForEditor = (searchResult: SearchResult, rawIncludePa
 
 export const createEditorFromSearchResult =
 	async (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, labelService: ILabelService, editorService: IEditorService, configurationService: IConfigurationService) => {
-		const searchTerm = JSON.stringify(searchResult.query?.contentPattern.pattern).replace(/^"|"$/g, '');
+		const searchTerm = JSON.stringify(searchResult.query?.contentPattern.pattern).replace(/[^\w-_.]/g, '') || 'Search';
+		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
-		const forceAbsolute = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditorPreviewForceAbsolutePaths;
-
-		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: !forceAbsolute, noPrefix: forceAbsolute });
-
-		let id = 0;
 		let possible = {
 			contents: serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, labelFormatter),
 			mode: 'search-result',
-			resource: URI.from({ scheme: network.Schemas.untitled, path: searchTerm, query: JSON.stringify({ skipPromptOnDiscardChanges: true }) })
+			resource: URI.from({ scheme: network.Schemas.untitled, path: searchTerm })
 		};
+
+		let id = 0;
 		while (editorService.getOpened(possible)) {
 			possible.resource = possible.resource.with({ path: searchTerm + '-' + ++id });
 		}
