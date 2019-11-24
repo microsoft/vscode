@@ -23,12 +23,13 @@ import { FolderMatch, FileMatch, FileMatchOrMatch, FolderMatchWithResource, Matc
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchConfiguration, VIEWLET_ID, PANEL_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, VIEWLET_ID, PANEL_ID, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
+import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditor';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -417,6 +418,39 @@ export class CancelSearchAction extends Action {
 		return Promise.resolve(undefined);
 	}
 }
+
+export class OpenResultsInEditorAction extends Action {
+
+	static readonly ID: string = Constants.OpenInEditorCommandId;
+	static readonly LABEL = nls.localize('search.openResultsInEditor', "Open Results in Editor");
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IPanelService private panelService: IPanelService,
+		@ILabelService private labelService: ILabelService,
+		@IEditorService private editorService: IEditorService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(id, label, 'codicon-go-to-file');
+	}
+
+	get enabled(): boolean {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		return !!searchView && searchView.hasSearchResults();
+	}
+
+	update() {
+		this._setEnabled(this.enabled);
+	}
+
+	async run() {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService);
+		}
+	}
+}
+
 
 export class FocusNextSearchResultAction extends Action {
 	static readonly ID = 'search.action.focusNextSearchResult';
