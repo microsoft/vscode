@@ -18,7 +18,9 @@ export function activate() {
 			const lineResult = parseSearchResults(document, token)[position.line];
 			if (!lineResult) { return []; }
 			if (lineResult.type === 'file') {
-				return lineResult.allLocations.length > 1 ? lineResult.allLocations : [lineResult.location];
+				// TODO: The multi-match peek UX isnt very smooth.
+				// return lineResult.allLocations.length > 1 ? lineResult.allLocations : [lineResult.location];
+				return [];
 			}
 
 			return [lineResult.location];
