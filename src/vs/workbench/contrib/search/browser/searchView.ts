@@ -62,6 +62,7 @@ import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const $ = dom.$;
 
@@ -1561,15 +1562,21 @@ export class SearchView extends ViewletPanel {
 			}
 		}).then(editor => {
 			if (editor) {
-				let codeEditor = getCodeEditor(editor.getControl());
-				if (codeEditor) {
-					let multiCursorController = MultiCursorSelectionController.get(codeEditor);
-					let isRegex = this.searchWidget.searchInput.getRegex();
-					let isWholeWords = this.searchWidget.searchInput.getWholeWords();
-					let isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-					let contentPattern = this.searchWidget.searchInput.getValue();
+				let fileMatch = null;
+				if (element instanceof FileMatch) {
+					fileMatch = element;
+				}
+				else if (element instanceof Match) {
+					fileMatch = element.parent();
+				}
 
-					multiCursorController.selectAllUsingString(contentPattern, isRegex, isCaseSensitive, isWholeWords);
+				if (fileMatch) {
+					const selections = fileMatch.matches().map(m => new Selection(m.range().startLineNumber, m.range().startColumn, m.range().endLineNumber, m.range().endColumn));
+					const codeEditor = getCodeEditor(editor.getControl());
+					if (codeEditor) {
+						let multiCursorController = MultiCursorSelectionController.get(codeEditor);
+						multiCursorController.selectAllUsingSelections(selections);
+					}
 				}
 			}
 			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
