@@ -151,7 +151,6 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 		}
 
 		const allKeybindings = <IUserFriendlyKeybinding[]>parse(mergeContent);
-		const tree = parseTree(mergeContent);
 		for (const conflict of conflicts) {
 			conflict.firstIndex = findFirstIndex(allKeybindings, keybinding => keybinding.command === conflict.command || keybinding.command === `-${conflict.command}`);
 		}
@@ -159,6 +158,7 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 		conflicts.sort((a, b) => b.firstIndex - a.firstIndex);
 
 		const model = this.modelService.createModel(mergeContent, null);
+		const tree = parseTree(mergeContent);
 		for (const { firstIndex, local, remote } of conflicts) {
 			const firstNode = findNodeAtLocation(tree, [firstIndex])!;
 			const fistNodePosition = model.getPositionAt(firstNode.offset);
