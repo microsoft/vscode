@@ -5,18 +5,13 @@
 
 import * as assert from 'assert';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsMergeService } from 'vs/workbench/services/keybinding/common/keybindingsMerge';
 
-suite('KeybindingsMerge', () => {
+let testObject: KeybindingsMergeService;
 
-	let instantiationService: IInstantiationService;
-	let testObject: KeybindingsMergeService;
+suiteSetup(() => testObject = workbenchInstantiationService().createInstance(KeybindingsMergeService));
 
-	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		testObject = instantiationService.createInstance(KeybindingsMergeService);
-	});
+suite('KeybindingsMerge - No Conflicts', () => {
 
 	test('merge when local and remote are same with one entry', async () => {
 		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
@@ -442,8 +437,36 @@ suite('KeybindingsMerge', () => {
 		assert.equal(actual.mergeContent, expected);
 	});
 
-	function stringify(value: any): any {
-		return JSON.stringify(value, null, '\t');
+});
+
+suite('KeybindingsMerge - Conflicts', () => {
+
+	test('merge when local and remote with one entry but different value', async () => {
+		const localContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const actual = await testObject.merge(localContent, remoteContent, null);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`[
+<<<<<<< local
+	{
+		"key": "alt+d",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
 	}
+=======
+	{
+		"key": "alt+c",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	}
+>>>>>>> remote
+]`);
+	});
 
 });
+
+function stringify(value: any): any {
+	return JSON.stringify(value, null, '\t');
+}
