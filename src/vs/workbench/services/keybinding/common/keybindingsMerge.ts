@@ -5,17 +5,12 @@
 
 import * as objects from 'vs/base/common/objects';
 import { parse, findNodeAtLocation, parseTree, JSONPath } from 'vs/base/common/json';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModel } from 'vs/editor/common/model';
 import { setProperty } from 'vs/base/common/jsonEdit';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Position } from 'vs/editor/common/core/position';
 import { values, keys } from 'vs/base/common/map';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { firstIndex, equals } from 'vs/base/common/arrays';
+import { firstIndex as findFirstIndex, equals } from 'vs/base/common/arrays';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IKeybindingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -25,8 +20,7 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 	_serviceBrand: undefined;
 
 	constructor(
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@IModelService private readonly modelService: IModelService
 	) { }
 
 	async merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
@@ -61,7 +55,8 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 		const conflictCommands: Set<string> = new Set<string>();
 		const baseToLocal = baseByCommand ? this.compare(baseByCommand, localByCommand) : { added: keys(localByCommand).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
 		const baseToRemote = baseByCommand ? this.compare(baseByCommand, remoteByCommand) : { added: keys(remoteByCommand).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-		const keybindingsPreviewModel = this.modelService.createModel(localContent, this.modeService.create('jsonc'));
+		let mergeContent = localContent;
+		const eol = this.modelService.createModel(mergeContent, null).getEOL();
 
 		// Removed commands in Local
 		for (const command of values(baseToLocal.removed)) {
@@ -81,7 +76,7 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 				conflictCommands.add(command);
 			} else {
 				// remove the command
-				this.removeKeybindings(keybindingsPreviewModel, command);
+				mergeContent = this.removeKeybindings(mergeContent, eol, command);
 			}
 		}
 
@@ -111,7 +106,7 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 					conflictCommands.add(command);
 				}
 			} else {
-				this.addKeybinding(keybindingsPreviewModel, command, remoteByCommand.get(command)!);
+				mergeContent = this.addKeybinding(mergeContent, eol, command, remoteByCommand.get(command)!);
 			}
 		}
 
@@ -142,59 +137,54 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 				}
 			} else {
 				// update the command
-				this.updateKeybinding(keybindingsPreviewModel, command, remoteByCommand.get(command)!);
+				mergeContent = this.updateKeybinding(mergeContent, eol, command, remoteByCommand.get(command)!);
 			}
 		}
 
-		const conflicts: { index: number, command: string }[] = [];
-		const previewKeybindings = <IUserFriendlyKeybinding[]>parse(keybindingsPreviewModel.getValue());
+		const conflicts: { command: string, local: IUserFriendlyKeybinding[] | undefined, remote: IUserFriendlyKeybinding[] | undefined, firstIndex: number }[] = [];
+
 		for (const command of values(conflictCommands)) {
-			const index = firstIndex(previewKeybindings, keybinding => keybinding.command === command || keybinding.command === `-${command}`);
-			if (index >= 0) {
-				conflicts.push({ command, index });
-			}
+			const local = localByCommand.get(command);
+			const remote = remoteByCommand.get(command);
+			mergeContent = this.updateKeybinding(mergeContent, eol, command, [...local || [], ...remote || []]);
+			conflicts.push({ command, local, remote, firstIndex: -1 });
 		}
-		conflicts.sort((a, b) => b.index - a.index);
 
-		// Move all entries with same command together
+		const allKeybindings = <IUserFriendlyKeybinding[]>parse(mergeContent);
+		const tree = parseTree(mergeContent);
 		for (const conflict of conflicts) {
-			this.updateKeybinding(keybindingsPreviewModel, conflict.command, localByCommand.get(conflict.command)!);
+			conflict.firstIndex = findFirstIndex(allKeybindings, keybinding => keybinding.command === conflict.command || keybinding.command === `-${conflict.command}`);
 		}
+		// Sort reverse so that conflicts content is added from last
+		conflicts.sort((a, b) => b.firstIndex - a.firstIndex);
 
-		const eol = keybindingsPreviewModel.getEOL();
-		for (const conflict of conflicts) {
-			const tree = parseTree(keybindingsPreviewModel.getValue());
-			const valueNode = findNodeAtLocation(tree, [conflict.index]);
-			const remoteContent = this.getRemoteContentForConflict(eol, remoteByCommand.get(conflict.command)!);
-			if (valueNode) {
-				// Updated in Local and Remote with different value
-				const valueStartPosition = keybindingsPreviewModel.getPositionAt(valueNode.offset);
-				const valueEndPosition = keybindingsPreviewModel.getPositionAt(valueNode.offset + valueNode.length);
-				const editOperations = [
-					EditOperation.insert(new Position(valueStartPosition.lineNumber - 1, keybindingsPreviewModel.getLineMaxColumn(valueStartPosition.lineNumber - 1)), `${eol}<<<<<<< local`),
-					EditOperation.insert(new Position(valueEndPosition.lineNumber, keybindingsPreviewModel.getLineMaxColumn(valueEndPosition.lineNumber)), `${eol}=======${eol}${remoteContent}>>>>>>> remote`)
-				];
-				keybindingsPreviewModel.pushEditOperations([new Selection(valueStartPosition.lineNumber, valueStartPosition.column, valueStartPosition.lineNumber, valueStartPosition.column)], editOperations, () => []);
-			} else {
-				// Removed in Local, but updated in Remote
-				const position = new Position(keybindingsPreviewModel.getLineCount() - 1, keybindingsPreviewModel.getLineMaxColumn(keybindingsPreviewModel.getLineCount() - 1));
-				const editOperations = [
-					EditOperation.insert(position, `${eol}<<<<<<< local${eol}=======${eol}${remoteContent}>>>>>>> remote`)
-				];
-				keybindingsPreviewModel.pushEditOperations([new Selection(position.lineNumber, position.column, position.lineNumber, position.column)], editOperations, () => []);
+		const model = this.modelService.createModel(mergeContent, null);
+		for (const { firstIndex, local, remote } of conflicts) {
+			const firstNode = findNodeAtLocation(tree, [firstIndex])!;
+			const fistNodePosition = model.getPositionAt(firstNode.offset);
+			const startLocalOffset = model.getOffsetAt(new Position(fistNodePosition.lineNumber - 1, model.getLineMaxColumn(fistNodePosition.lineNumber - 1)));
+			let endLocalOffset = startLocalOffset;
+			let remoteOffset = endLocalOffset;
+			if (local) {
+				const lastLocalValueNode = findNodeAtLocation(tree, [firstIndex + local.length - 1])!;
+				const lastLocalValueEndPosition = model.getPositionAt(lastLocalValueNode.offset + lastLocalValueNode.length);
+				endLocalOffset = model.getOffsetAt(new Position(lastLocalValueEndPosition.lineNumber, model.getLineMaxColumn(lastLocalValueEndPosition.lineNumber)));
 			}
+			if (remote) {
+				const lastRemoteValueNode = findNodeAtLocation(tree, [firstIndex + (local ? local.length : 0) + remote.length - 1])!;
+				const lastRemoteValueEndPosition = model.getPositionAt(lastRemoteValueNode.offset + lastRemoteValueNode.length);
+				remoteOffset = model.getOffsetAt(new Position(lastRemoteValueEndPosition.lineNumber, model.getLineMaxColumn(lastRemoteValueEndPosition.lineNumber)));
+			}
+			mergeContent = mergeContent.substring(0, startLocalOffset)
+				+ `${eol}<<<<<<< local`
+				+ mergeContent.substring(startLocalOffset, endLocalOffset)
+				+ `${eol}=======`
+				+ mergeContent.substring(endLocalOffset, remoteOffset)
+				+ `${eol}>>>>>>> remote`
+				+ mergeContent.substring(remoteOffset);
 		}
 
-		return { mergeContent: keybindingsPreviewModel.getValue(), hasChanges: true, hasConflicts: conflicts.length > 0 };
-	}
-
-	private getRemoteContentForConflict(eol: string, keybindings: IUserFriendlyKeybinding[]): string {
-		let content = `[${eol}${eol}]`;
-		for (const keybinding of keybindings) {
-			const edit = setProperty(content, [-1], keybinding, { tabSize: 4, insertSpaces: false, eol })[0];
-			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
-		}
-		return content.substring(2, content.length - 2);
+		return { mergeContent, hasChanges: true, hasConflicts: conflicts.length > 0 };
 	}
 
 	private compare(from: Map<string, IUserFriendlyKeybinding[]>, to: Map<string, IUserFriendlyKeybinding[]>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
@@ -251,48 +241,45 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 		return true;
 	}
 
-	private addKeybinding(model: ITextModel, command: string, keybindings: IUserFriendlyKeybinding[]): void {
+	private addKeybinding(content: string, eol: string, command: string, keybindings: IUserFriendlyKeybinding[]): string {
 		for (const keybinding of keybindings) {
-			this.edit(model, [-1], keybinding);
+			content = this.edit(content, eol, [-1], keybinding);
 		}
+		return content;
 	}
 
-	private removeKeybindings(model: ITextModel, command: string): void {
-		const keybindings = <IUserFriendlyKeybinding[]>parse(model.getValue());
+	private removeKeybindings(content: string, eol: string, command: string): string {
+		const keybindings = <IUserFriendlyKeybinding[]>parse(content);
 		for (let index = keybindings.length - 1; index >= 0; index--) {
 			if (keybindings[index].command === command || keybindings[index].command === `-${command}`) {
-				this.edit(model, [index], undefined);
+				content = this.edit(content, eol, [index], undefined);
 			}
 		}
+		return content;
 	}
 
-	private updateKeybinding(model: ITextModel, command: string, keybindings: IUserFriendlyKeybinding[]): void {
-		const allKeybindings = <IUserFriendlyKeybinding[]>parse(model.getValue());
-		const location = firstIndex(allKeybindings, keybinding => keybinding.command === command || keybinding.command === `-${command}`);
+	private updateKeybinding(content: string, eol: string, command: string, keybindings: IUserFriendlyKeybinding[]): string {
+		const allKeybindings = <IUserFriendlyKeybinding[]>parse(content);
+		const location = findFirstIndex(allKeybindings, keybinding => keybinding.command === command || keybinding.command === `-${command}`);
 		// Remove all entries with this command
 		for (let index = allKeybindings.length - 1; index >= 0; index--) {
 			if (allKeybindings[index].command === command || allKeybindings[index].command === `-${command}`) {
-				this.edit(model, [index], undefined);
+				content = this.edit(content, eol, [index], undefined);
 			}
 		}
 		// add all entries at the same location where the entry with this command was located.
 		for (let index = keybindings.length - 1; index >= 0; index--) {
-			this.edit(model, [location], keybindings[index]);
+			content = this.edit(content, eol, [location], keybindings[index]);
 		}
+		return content;
 	}
 
-	private edit(model: ITextModel, originalPath: JSONPath, value: any) {
-		const edit = setProperty(model.getValue(), originalPath, value, { tabSize: 4, insertSpaces: false, eol: model.getEOL() })[0];
+	private edit(content: string, eol: string, originalPath: JSONPath, value: any): string {
+		const edit = setProperty(content, originalPath, value, { tabSize: 4, insertSpaces: false, eol })[0];
 		if (edit) {
-			const startPosition = model.getPositionAt(edit.offset);
-			const endPosition = model.getPositionAt(edit.offset + edit.length);
-			const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-			let currentText = model.getValueInRange(range);
-			if (edit.content !== currentText) {
-				const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
-				model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
-			}
+			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
 		}
+		return content;
 	}
 
 }
