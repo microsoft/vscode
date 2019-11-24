@@ -98,6 +98,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private headerContainer!: HTMLElement;
 	private searchWidget!: SuggestEnabledInput;
 	private countElement!: HTMLElement;
+	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
 
 	private settingsTreeContainer!: HTMLElement;
@@ -301,7 +302,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.layoutTrees(dimension);
 
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
-		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - 12; // minus padding inside inputbox, countElement width, extra padding before countElement
+		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
+		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
@@ -442,9 +444,9 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 
-		const actionsContainer = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
+		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
 
-		const actionBar = this._register(new ActionBar(actionsContainer, {
+		const actionBar = this._register(new ActionBar(this.controlsElement, {
 			animated: false,
 			actionViewItemProvider: (action: Action) => { return undefined; }
 		}));
