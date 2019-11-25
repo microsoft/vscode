@@ -30,7 +30,14 @@ jobs:
     - uses: actions/setup-node@v1
       with:
         node-version: 10
-    # TODO: cache node modules
+    - name: Set yarn cache location
+      run: yarn config set cache-folder ~/yarn-cache/
+    - uses: actions/cache@v1
+      with:
+        path: ~/yarn-cache/
+        key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-
     - run: yarn --frozen-lockfile
       name: Install Dependencies
     - run: yarn electron x64
@@ -63,6 +70,14 @@ jobs:
     - uses: actions/setup-python@v1
       with:
         python-version: '2.x'
+    - name: Set yarn cache location
+      run: yarn config set cache-folder ~/yarn-cache/
+    - uses: actions/cache@v1
+      with:
+        path: ~/yarn-cache/
+        key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-
     - run: yarn --frozen-lockfile
       name: Install Dependencies
     - run: yarn electron
@@ -92,6 +107,14 @@ jobs:
     - uses: actions/setup-node@v1
       with:
         node-version: 10
+    - name: Set yarn cache location
+      run: yarn config set cache-folder ~/yarn-cache/
+    - uses: actions/cache@v1
+      with:
+        path: ~/yarn-cache/
+        key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-
     - run: yarn --frozen-lockfile
       name: Install Dependencies
     - run: yarn electron x64
