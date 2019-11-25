@@ -18,13 +18,15 @@ const textEncoder = new TextEncoder();
 const SCHEME = 'memfs';
 
 export function activate(context: vscode.ExtensionContext) {
-	const memFs = enableFs(context);
-	enableProblems(context);
-	enableSearch(context, memFs);
-	enableTasks();
-	enableDebug(context, memFs);
+	if (typeof window !== 'undefined') {	// do not run under node.js
+		const memFs = enableFs(context);
+		enableProblems(context);
+		enableSearch(context, memFs);
+		enableTasks();
+		enableDebug(context, memFs);
 
-	vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
+		vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
+	}
 }
 
 function enableFs(context: vscode.ExtensionContext): MemFS {
@@ -896,6 +898,7 @@ export class MemFS implements vscode.FileSystemProvider, vscode.FileSearchProvid
 //---------------------------------------------------------------------------
 
 function enableDebug(context: vscode.ExtensionContext, memFs: MemFS): void {
+	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('mock', new MockConfigurationProvider()));
 	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('mock', new MockDebugAdapterDescriptorFactory(memFs)));
 }
 
@@ -3796,12 +3799,34 @@ export class Handles<T> {
 
 //---------------------------------------------------------------------------
 
-function basename(path: string): string {
-	const pos = path.lastIndexOf('/');
-	if (pos >= 0) {
-		return path.substring(pos + 1);
+class MockConfigurationProvider implements vscode.DebugConfigurationProvider {
+
+	/**
+	 * Massage a debug configuration just before a debug session is being launched,
+	 * e.g. add all missing attributes to the debug configuration.
+	 */
+	resolveDebugConfiguration(_folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration, _token?: vscode.CancellationToken): vscode.ProviderResult<vscode.DebugConfiguration> {
+
+		// if launch.json is missing or empty
+		if (!config.type && !config.request && !config.name) {
+			const editor = vscode.window.activeTextEditor;
+			if (editor && editor.document.languageId === 'markdown') {
+				config.type = 'mock';
+				config.name = 'Launch';
+				config.request = 'launch';
+				config.program = '${file}';
+				config.stopOnEntry = true;
+			}
+		}
+
+		if (!config.program) {
+			return vscode.window.showInformationMessage('Cannot find a program to debug').then(_ => {
+				return undefined;	// abort launch
+			});
+		}
+
+		return config;
 	}
-	return path;
 }
 
 export class MockDebugAdapterDescriptorFactory implements vscode.DebugAdapterDescriptorFactory {
@@ -3816,6 +3841,14 @@ export class MockDebugAdapterDescriptorFactory implements vscode.DebugAdapterDes
 		a['implementation'] = new MockDebugSession(this.memfs);
 		return descriptor;
 	}
+}
+
+function basename(path: string): string {
+	const pos = path.lastIndexOf('/');
+	if (pos >= 0) {
+		return path.substring(pos + 1);
+	}
+	return path;
 }
 
 function timeout(ms: number) {

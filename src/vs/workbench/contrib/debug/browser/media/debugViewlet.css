@@ -148,6 +148,11 @@
 	display: none;
 }
 
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file,
+.debug-viewlet .debug-call-stack .monaco-list-row.focused .stack-frame.has-actions .file {
+	display: none;
+}
+
 .debug-viewlet .debug-call-stack .monaco-list-row .monaco-action-bar {
 	display: none;
 }

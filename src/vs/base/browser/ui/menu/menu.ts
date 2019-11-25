@@ -6,7 +6,7 @@
 import 'vs/css!./menu';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
+import { IActionRunner, IAction, Action, IActionViewItem } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider, ActionsOrientation, Separator, ActionViewItem, IActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses } from 'vs/base/browser/dom';
@@ -205,8 +205,8 @@ export class Menu extends ActionBar {
 		container.appendChild(this.scrollableElement.getDomNode());
 		this.scrollableElement.scanDomNode();
 
-		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item: BaseMenuActionViewItem, index: number, array: any[]) => {
-			item.updatePositionInSet(index + 1, array.length);
+		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item: IActionViewItem, index: number, array: any[]) => {
+			(item as BaseMenuActionViewItem).updatePositionInSet(index + 1, array.length);
 		});
 	}
 

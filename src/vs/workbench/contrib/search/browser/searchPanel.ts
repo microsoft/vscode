@@ -31,7 +31,7 @@ export class SearchPanel extends Panel {
 	}
 
 	create(parent: HTMLElement): void {
-		dom.addClasses(parent, 'monaco-panel-view', 'search-panel');
+		dom.addClasses(parent, 'monaco-pane-view', 'search-panel');
 		this.searchView.render();
 		dom.append(parent, this.searchView.element);
 		this.searchView.setExpanded(true);

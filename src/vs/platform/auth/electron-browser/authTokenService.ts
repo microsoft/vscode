@@ -8,28 +8,17 @@ import * as https from 'https';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { shell } from 'electron';
+import { createServer, startServer } from 'vs/platform/auth/electron-browser/authServer';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const SERVICE_NAME = 'VS Code';
 const ACCOUNT = 'MyAccount';
 
-const redirectUrlAAD = 'https://vscode-redirect.azurewebsites.net/';
-const activeDirectoryEndpointUrl = 'https://login.microsoftonline.com/';
 const activeDirectoryResourceId = 'https://management.core.windows.net/';
-
-const clientId = 'aebc6443-996d-45c2-90f0-388ff96faa56';
-const tenantId = 'common';
-
-function parseQuery(uri: URI) {
-	return uri.query.split('&').reduce((prev: any, current) => {
-		const queryString = current.split('=');
-		prev[queryString[0]] = queryString[1];
-		return prev;
-	}, {});
-}
 
 function toQuery(obj: any): string {
 	return Object.keys(obj).map(key => `${key}=${obj[key]}`).join('&');
@@ -61,8 +50,13 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	constructor(
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
+		if (!this.productService.auth) {
+			return;
+		}
+
 		this.credentialsService.getPassword(SERVICE_NAME, ACCOUNT).then(storedRefreshToken => {
 			if (storedRefreshToken) {
 				this.refresh(storedRefreshToken);
@@ -72,34 +66,66 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 		});
 	}
 
-	public async login(callbackUri: URI): Promise<void> {
+	public async login(): Promise<void> {
+		if (!this.productService.auth) {
+			throw new Error('Authentication is not configured.');
+		}
+
 		this.setStatus(AuthTokenStatus.SigningIn);
+
 		const nonce = generateUuid();
-		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' || callbackUri.scheme === 'http' ? 443 : 80);
-		const state = `${callbackUri.scheme},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
-		const signInUrl = `${activeDirectoryEndpointUrl}${tenantId}/oauth2/authorize`;
+		const { server, redirectPromise, codePromise } = createServer(nonce);
 
-		const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
-		const codeChallenge = toBase64UrlEncoding(crypto.createHash('sha256').update(codeVerifier).digest('base64'));
+		try {
+			const port = await startServer(server);
+			shell.openExternal(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`);
 
-		let uri = URI.parse(signInUrl);
-		uri = uri.with({
-			query: `response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirectUrlAAD}&state=${encodeURIComponent(state)}&resource=${activeDirectoryResourceId}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
-		});
+			const redirectReq = await redirectPromise;
+			if ('err' in redirectReq) {
+				const { err, res } = redirectReq;
+				res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
+				res.end();
+				throw err;
+			}
 
-		await shell.openExternal(uri.toString(true));
+			const host = redirectReq.req.headers.host || '';
+			const updatedPortStr = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
+			const updatedPort = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
 
-		const timeoutPromise = new Promise((resolve: (value: IToken) => void, reject) => {
-			const wait = setTimeout(() => {
-				this.setStatus(AuthTokenStatus.SignedOut);
-				clearTimeout(wait);
-				reject('Login timed out.');
-			}, 1000 * 60 * 5);
-		});
+			const state = `${updatedPort},${encodeURIComponent(nonce)}`;
 
-		return Promise.race([this.exchangeCodeForToken(clientId, tenantId, codeVerifier, state), timeoutPromise]).then(token => {
-			this.setToken(token);
-		});
+			const codeVerifier = toBase64UrlEncoding(crypto.randomBytes(32).toString('base64'));
+			const codeChallenge = toBase64UrlEncoding(crypto.createHash('sha256').update(codeVerifier).digest('base64'));
+
+			let uri = URI.parse(this.productService.auth.loginUrl);
+			uri = uri.with({
+				query: `response_type=code&client_id=${encodeURIComponent(this.productService.auth.clientId)}&redirect_uri=${this.productService.auth.redirectUrl}&state=${encodeURIComponent(state)}&resource=${activeDirectoryResourceId}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
+			});
+
+			await redirectReq.res.writeHead(302, { Location: uri.toString(true) });
+			redirectReq.res.end();
+
+			const codeRes = await codePromise;
+			const res = codeRes.res;
+
+			try {
+				if ('err' in codeRes) {
+					throw codeRes.err;
+				}
+				const token = await this.exchangeCodeForToken(codeRes.code, codeVerifier);
+				this.setToken(token);
+				res.writeHead(302, { Location: '/' });
+				res.end();
+			} catch (err) {
+				res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unkown error')}` });
+				res.end();
+			}
+		} finally {
+			setTimeout(() => {
+				server.close();
+			}, 5000);
+		}
+
 	}
 
 	public getToken(): Promise<string | undefined> {
@@ -120,87 +146,83 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 		this.setStatus(AuthTokenStatus.SignedIn);
 	}
 
-	private async exchangeCodeForToken(clientId: string, tenantId: string, codeVerifier: string, state: string): Promise<IToken> {
-		let uriEventListener: IDisposable;
+	private exchangeCodeForToken(code: string, codeVerifier: string): Promise<IToken> {
 		return new Promise((resolve: (value: IToken) => void, reject) => {
-			uriEventListener = this.onDidGetCallback(async (uri: URI) => {
-				try {
-					const query = parseQuery(uri);
-					const code = query.code;
-
-					if (query.state !== state) {
-						return;
-					}
-
-					const postData = toQuery({
-						grant_type: 'authorization_code',
-						code: code,
-						client_id: clientId,
-						code_verifier: codeVerifier,
-						redirect_uri: redirectUrlAAD
-					});
-
-					const post = https.request({
-						host: 'login.microsoftonline.com',
-						path: `/${tenantId}/oauth2/token`,
-						method: 'POST',
-						headers: {
-							'Content-Type': 'application/x-www-form-urlencoded',
-							'Content-Length': postData.length
-						}
-					}, result => {
-						const buffer: Buffer[] = [];
-						result.on('data', (chunk: Buffer) => {
-							buffer.push(chunk);
-						});
-						result.on('end', () => {
-							if (result.statusCode === 200) {
-								const json = JSON.parse(Buffer.concat(buffer).toString());
-								resolve({
-									expiresIn: json.access_token,
-									expiresOn: json.expires_on,
-									accessToken: json.access_token,
-									refreshToken: json.refresh_token
-								});
-							} else {
-								reject(new Error('Bad!'));
-							}
-						});
-					});
-
-					post.write(postData);
-
-					post.end();
-					post.on('error', err => {
-						reject(err);
-					});
-
-				} catch (e) {
-					reject(e);
+			try {
+				if (!this.productService.auth) {
+					throw new Error('Authentication is not configured.');
 				}
-			});
-		}).then(result => {
-			uriEventListener.dispose();
-			return result;
-		}).catch(err => {
-			uriEventListener.dispose();
-			throw err;
+
+				const postData = toQuery({
+					grant_type: 'authorization_code',
+					code: code,
+					client_id: this.productService.auth?.clientId,
+					code_verifier: codeVerifier,
+					redirect_uri: this.productService.auth?.redirectUrl
+				});
+
+				const tokenUrl = URI.parse(this.productService.auth.tokenUrl);
+
+				const post = https.request({
+					host: tokenUrl.authority,
+					path: tokenUrl.path,
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+						'Content-Length': postData.length
+					}
+				}, result => {
+					const buffer: Buffer[] = [];
+					result.on('data', (chunk: Buffer) => {
+						buffer.push(chunk);
+					});
+					result.on('end', () => {
+						if (result.statusCode === 200) {
+							const json = JSON.parse(Buffer.concat(buffer).toString());
+							resolve({
+								expiresIn: json.access_token,
+								expiresOn: json.expires_on,
+								accessToken: json.access_token,
+								refreshToken: json.refresh_token
+							});
+						} else {
+							reject(new Error('Bad!'));
+						}
+					});
+				});
+
+				post.write(postData);
+
+				post.end();
+				post.on('error', err => {
+					reject(err);
+				});
+
+			} catch (e) {
+				reject(e);
+			}
 		});
 	}
 
 	private async refresh(refreshToken: string): Promise<void> {
 		return new Promise((resolve, reject) => {
+			if (!this.productService.auth) {
+				throw new Error('Authentication is not configured.');
+			}
+
 			this.setStatus(AuthTokenStatus.RefreshingToken);
 			const postData = toQuery({
 				refresh_token: refreshToken,
-				client_id: clientId,
+				client_id: this.productService.auth?.clientId,
 				grant_type: 'refresh_token',
 				resource: activeDirectoryResourceId
 			});
 
+			const tokenUrl = URI.parse(this.productService.auth.tokenUrl);
+
 			const post = https.request({
-				host: 'login.microsoftonline.com',
-				path: `/${tenantId}/oauth2/token`,
+				host: tokenUrl.authority,
+				path: tokenUrl.path,
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',

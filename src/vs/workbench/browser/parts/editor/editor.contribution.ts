@@ -52,8 +52,8 @@ import { toLocalResource } from 'vs/base/common/resources';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -223,6 +223,9 @@ registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButt
 
 // Register Editor Status
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatus, LifecyclePhase.Ready);
+
+// Register Editor Auto Save
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, LifecyclePhase.Ready);
 
 // Register Status Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -452,13 +455,14 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 
-interface IEditorToolItem { id: string; title: string; iconDark: URI; iconLight: URI; }
+interface IEditorToolItem { id: string; title: string; iconDark?: URI; iconLight?: URI; iconClassName?: string; }
 
 function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | undefined, order: number, alternative?: IEditorToolItem): void {
 	const item: IMenuItem = {
 		command: {
 			id: primary.id,
 			title: primary.title,
+			iconClassName: primary.iconClassName,
 			iconLocation: {
 				dark: primary.iconDark,
 				light: primary.iconLight
@@ -473,6 +477,7 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | u
 		item.alt = {
 			id: alternative.id,
 			title: alternative.title,
+			iconClassName: alternative.iconClassName,
 			iconLocation: {
 				dark: alternative.iconDark,
 				light: alternative.iconLight
@@ -483,26 +488,19 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | u
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, item);
 }
 
-const SPLIT_EDITOR_HORIZONTAL_DARK_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-horizontal-dark.svg'));
-const SPLIT_EDITOR_HORIZONTAL_LIGHT_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-horizontal-light.svg'));
-const SPLIT_EDITOR_VERTICAL_DARK_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-vertical-dark.svg'));
-const SPLIT_EDITOR_VERTICAL_LIGHT_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/split-editor-vertical-light.svg'));
-
 // Editor Title Menu: Split Editor
 appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconDark: SPLIT_EDITOR_HORIZONTAL_DARK_ICON,
-		iconLight: SPLIT_EDITOR_HORIZONTAL_LIGHT_ICON
+		iconClassName: 'codicon-split-horizontal'
 	},
 	ContextKeyExpr.not('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_DOWN,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconDark: SPLIT_EDITOR_VERTICAL_DARK_ICON,
-		iconLight: SPLIT_EDITOR_VERTICAL_LIGHT_ICON
+		iconClassName: 'codicon-split-vertical'
 	}
 );
 
@@ -510,37 +508,30 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconDark: SPLIT_EDITOR_VERTICAL_DARK_ICON,
-		iconLight: SPLIT_EDITOR_VERTICAL_LIGHT_ICON
+		iconClassName: 'codicon-split-vertical'
 	},
 	ContextKeyExpr.has('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconDark: SPLIT_EDITOR_HORIZONTAL_DARK_ICON,
-		iconLight: SPLIT_EDITOR_HORIZONTAL_LIGHT_ICON
+		iconClassName: 'codicon-split-horizontal'
 	}
 );
-
-const CLOSE_ALL_DARK_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-all-dark.svg'));
-const CLOSE_ALL_LIGHT_ICON = URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-all-light.svg'));
 
 // Editor Title Menu: Close Group (tabs disabled)
 appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-dark-alt.svg')),
-		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-light-alt.svg'))
+		iconClassName: 'codicon-close'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconDark: CLOSE_ALL_DARK_ICON,
-		iconLight: CLOSE_ALL_LIGHT_ICON
+		iconClassName: 'codicon-close-all'
 	}
 );
 
@@ -548,16 +539,14 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-dirty-dark-alt.svg')),
-		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/close-dirty-light-alt.svg'))
+		iconClassName: 'codicon-close-dirty'
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconDark: CLOSE_ALL_DARK_ICON,
-		iconLight: CLOSE_ALL_LIGHT_ICON
+		iconClassName: 'codicon-close-all'
 	}
 );
 
@@ -566,8 +555,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_PREVIOUS_CHANGE,
 		title: nls.localize('navigate.prev.label', "Previous Change"),
-		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/previous-diff-dark.svg')),
-		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/previous-diff-light.svg'))
+		iconClassName: 'codicon-arrow-up'
 	},
 	TextCompareEditorActiveContext,
 	10
@@ -578,8 +566,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_NEXT_CHANGE,
 		title: nls.localize('navigate.next.label', "Next Change"),
-		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/next-diff-dark.svg')),
-		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/next-diff-light.svg'))
+		iconClassName: 'codicon-arrow-down'
 	},
 	TextCompareEditorActiveContext,
 	11
@@ -590,8 +577,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace Differences"),
-		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-dark.svg')),
-		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-light.svg'))
+		iconClassName: 'codicon-whitespace'
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
 	20
@@ -602,8 +588,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('showTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
-		iconDark: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-disabled-dark.svg')),
-		iconLight: URI.parse(registerAndGetAmdImageURL('vs/workbench/browser/parts/editor/media/paragraph-disabled-light.svg'))
+		iconClassName: 'codicon-whitespace disabled'
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
 	20

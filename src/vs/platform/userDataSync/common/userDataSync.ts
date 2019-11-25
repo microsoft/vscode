@@ -20,48 +20,48 @@ const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
 export const DEFAULT_IGNORED_SETTINGS = [
 	CONFIGURATION_SYNC_STORE_KEY,
-	'configurationSync.enable',
-	'configurationSync.enableSettings',
-	'configurationSync.enableExtensions',
+	'sync.enable',
+	'sync.enableSettings',
+	'sync.enableExtensions',
 ];
 
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	configurationRegistry.registerConfiguration({
-		id: 'configurationSync',
+		id: 'sync',
 		order: 30,
-		title: localize('configurationSync', "Configuration Sync"),
+		title: localize('sync', "Sync"),
 		type: 'object',
 		properties: {
-			'configurationSync.enable': {
+			'sync.enable': {
 				type: 'boolean',
-				description: localize('configurationSync.enable', "When enabled, synchronizes configuration that includes Settings and Extensions."),
+				description: localize('sync.enable', "Enable synchronization."),
 				default: false,
 				scope: ConfigurationScope.APPLICATION
 			},
-			'configurationSync.enableSettings': {
+			'sync.enableSettings': {
 				type: 'boolean',
-				description: localize('configurationSync.enableSettings', "When enabled settings are synchronized while synchronizing configuration."),
+				description: localize('sync.enableSettings', "Enable synchronizing settings."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
-			'configurationSync.enableExtensions': {
+			'sync.enableExtensions': {
 				type: 'boolean',
-				description: localize('configurationSync.enableExtensions', "When enabled extensions are synchronized while synchronizing configuration."),
+				description: localize('sync.enableExtensions', "Enable synchronizing extensions."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
-			'configurationSync.extensionsToIgnore': {
+			'sync.ignoredExtensions': {
 				'type': 'array',
-				description: localize('configurationSync.extensionsToIgnore', "Configure extensions to be ignored while syncing."),
+				description: localize('sync.ignoredExtensions', "Configure extensions to be ignored while synchronizing."),
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				uniqueItems: true
 			},
-			'configurationSync.settingsToIgnore': {
+			'sync.ignoredSettings': {
 				'type': 'array',
-				description: localize('configurationSync.settingsToIgnore', "Configure settings to be ignored while syncing. \nDefault Ignored Settings:\n\n{0}", DEFAULT_IGNORED_SETTINGS.sort().map(setting => `- ${setting}`).join('\n')),
+				description: localize('sync.ignoredSettings', "Configure settings to be ignored while synchronizing. \nDefault Ignored Settings:\n\n{0}", DEFAULT_IGNORED_SETTINGS.sort().map(setting => `- ${setting}`).join('\n')),
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				$ref: ignoredSettingsSchemaId,

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as path from 'vs/base/common/path';
-import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asPromise } from 'vs/base/common/async';
@@ -33,6 +31,7 @@ import * as vscode from 'vscode';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -372,10 +371,14 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 		return Promise.resolve(undefined);
 	}
 
+	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
+		return new ExtHostVariableResolverService(folders, editorService, configurationService);
+	}
+
 	public async $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
 		if (!this._variableResolver) {
 			const [workspaceFolders, configProvider] = await Promise.all([this._workspaceService.getWorkspaceFolders2(), this._configurationService.getConfigProvider()]);
-			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._editorsService, configProvider!);
+			this._variableResolver = this.createVariableResolver(workspaceFolders || [], this._editorsService, configProvider);
 		}
 		let ws: IWorkspaceFolder | undefined;
 		const folder = await this.getFolder(folderUri);
@@ -954,9 +957,9 @@ export class ExtHostDebugConsole implements vscode.DebugConsole {
 	}
 }
 
-class ExtHostVariableResolverService extends AbstractVariableResolverService {
+export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider) {
+	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider, env?: IProcessEnvironment) {
 		super({
 			getFolderUri: (folderName: string): URI | undefined => {
 				const found = folders.filter(f => f.name === folderName);
@@ -972,15 +975,12 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
 			},
 			getExecPath: (): string | undefined => {
-				return undefined;
+				return env ? env['VSCODE_EXEC_PATH'] : undefined;
 			},
 			getFilePath: (): string | undefined => {
 				const activeEditor = editorService.activeEditor();
 				if (activeEditor) {
-					const resource = activeEditor.document.uri;
-					if (resource.scheme === Schemas.file) {
-						return path.normalize(resource.fsPath);
-					}
+					return path.normalize(activeEditor.document.uri.fsPath);
 				}
 				return undefined;
 			},
@@ -998,7 +998,7 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 				}
 				return undefined;
 			}
-		}, {} /* process.env as IProcessEnvironment */);
+		}, env);
 	}
 }
 
@@ -1056,8 +1056,10 @@ interface IDapTransport {
 	stop(): void;
 }
 
+/*
+ * experimental: call directly into a debug adapter implementation
+ */
 class DirectDebugAdapter extends AbstractDebugAdapter implements IDapTransport {
-
 
 	private _sendUp!: (msg: DebugProtocol.ProtocolMessage) => void;
 

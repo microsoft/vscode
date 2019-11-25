@@ -137,7 +137,7 @@ export class UserDataAutoSync extends Disposable {
 		super();
 		this.updateEnablement(false);
 		this._register(Event.any<any>(authTokenService.onDidChangeStatus, userDataSyncService.onDidChangeStatus)(() => this.updateEnablement(true)));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('configurationSync.enable'))(() => this.updateEnablement(true)));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('sync.enable'))(() => this.updateEnablement(true)));
 
 		// Sync immediately if there is a local change.
 		this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
@@ -178,7 +178,7 @@ export class UserDataAutoSync extends Disposable {
 	}
 
 	private isSyncEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('configurationSync.enable')
+		return this.configurationService.getValue<boolean>('sync.enable')
 			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
 			&& this.authTokenService.status === AuthTokenStatus.SignedIn;
 	}

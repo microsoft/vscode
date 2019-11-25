@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/resourceviewer';
 import * as nls from 'vs/nls';
@@ -132,13 +131,11 @@ class FileSeemsBinaryFileView {
 		label.textContent = nls.localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
 		container.appendChild(label);
 
-		if (descriptor.resource.scheme !== Schemas.data) {
-			const link = DOM.append(label, DOM.$('a.embedded-link'));
-			link.setAttribute('role', 'button');
-			link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
+		const link = DOM.append(label, DOM.$('a.embedded-link'));
+		link.setAttribute('role', 'button');
+		link.textContent = nls.localize('openAsText', "Do you want to open it anyway?");
 
-			disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => delegate.openInternalClb(descriptor.resource)));
-		}
+		disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, () => delegate.openInternalClb(descriptor.resource)));
 
 		scrollbar.scanDomNode();
 

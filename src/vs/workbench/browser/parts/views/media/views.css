@@ -32,7 +32,7 @@
 .file-icon-themable-tree.hide-arrows .monaco-tl-twistie:not(.force-twistie) {
 	background-image: none !important;
 	width: 0 !important;
-	margin-right: 0 !important;
+	padding-right: 0 !important;
 	visibility: hidden;
 }
 

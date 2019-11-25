@@ -296,6 +296,52 @@ suite('ContributableViewsModel', () => {
 		assert.equal(seq.elements.length, 0);
 	});
 
+	test('view states and when contexts multiple views', async function () {
+		const viewStates = new Map<string, IViewState>();
+		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
+		const model = new ContributableViewsModel(container, viewsService, viewStates);
+		const seq = new ViewDescriptorSequence(model);
+
+		assert.equal(model.visibleViewDescriptors.length, 0);
+		assert.equal(seq.elements.length, 0);
+
+		const view1: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			when: ContextKeyExpr.equals('showview', true)
+		};
+		const view2: IViewDescriptor = {
+			id: 'view2',
+			ctorDescriptor: null!,
+			name: 'Test View 2',
+		};
+		const view3: IViewDescriptor = {
+			id: 'view3',
+			ctorDescriptor: null!,
+			name: 'Test View 3',
+			when: ContextKeyExpr.equals('showview', true)
+		};
+
+		ViewsRegistry.registerViews([view1, view2, view3], container);
+		assert.deepEqual(model.visibleViewDescriptors, [view2], 'Only view2 should be visible');
+		assert.deepEqual(seq.elements, [view2]);
+
+		const key = contextKeyService.createKey('showview', false);
+		assert.deepEqual(model.visibleViewDescriptors, [view2], 'Only view2 should be visible');
+		assert.deepEqual(seq.elements, [view2]);
+
+		key.set(true);
+		await new Promise(c => setTimeout(c, 30));
+		assert.deepEqual(model.visibleViewDescriptors, [view2, view3], 'view3 should be visible');
+		assert.deepEqual(seq.elements, [view2, view3]);
+
+		key.set(false);
+		await new Promise(c => setTimeout(c, 30));
+		assert.deepEqual(model.visibleViewDescriptors, [view2], 'Only view2 should be visible');
+		assert.deepEqual(seq.elements, [view2]);
+	});
+
 	test('remove event is not triggered if view was hidden and removed', async function () {
 		const model = new ContributableViewsModel(container, viewsService);
 		const seq = new ViewDescriptorSequence(model);
@@ -324,4 +370,5 @@ suite('ContributableViewsModel', () => {
 		await new Promise(c => setTimeout(c, 30));
 		assert.ok(!target.called, 'remove event should not be called since it is already hidden');
 	});
+
 });

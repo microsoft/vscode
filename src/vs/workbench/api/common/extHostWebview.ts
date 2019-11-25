@@ -243,7 +243,7 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 		this._capabilities = capabilities;
 		if (capabilities.editingCapability) {
 			this._register(capabilities.editingCapability.onEdit(edit => {
-				this._proxy.$onEdit(this._handle, JSON.stringify(edit));
+				this._proxy.$onEdit(this._handle, edit);
 			}));
 		}
 	}
@@ -449,18 +449,12 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	$undoEdits(handle: WebviewPanelHandle, edits: string[]): void {
 		const panel = this.getWebviewPanel(handle);
-		if (!panel) {
-			return;
-		}
-		panel._undoEdits(edits);
+		panel?._undoEdits(edits);
 	}
 
 	$redoEdits(handle: WebviewPanelHandle, edits: string[]): void {
 		const panel = this.getWebviewPanel(handle);
-		if (!panel) {
-			return;
-		}
-		panel._redoEdits(edits);
+		panel?._redoEdits(edits);
 	}
 
 	async $onSave(handle: WebviewPanelHandle): Promise<void> {

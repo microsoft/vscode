@@ -809,13 +809,13 @@ class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 
 		if (!config.console.wordWrap) {
-			return Math.ceil(1.4 * config.console.fontSize);
+			return this.estimateHeight(element, true);
 		}
 
 		return super.getHeight(element);
 	}
 
-	protected estimateHeight(element: IReplElement): number {
+	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		const rowHeight = Math.ceil(1.4 * config.console.fontSize);
 		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
@@ -825,7 +825,7 @@ class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		// For every 30 characters increase the number of lines needed
 		if (hasValue(element)) {
 			let value = element.value;
-			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 30);
+			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 30));
 
 			return valueRows * rowHeight;
 		}

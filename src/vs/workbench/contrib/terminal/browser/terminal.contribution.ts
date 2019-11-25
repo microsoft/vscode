@@ -169,6 +169,11 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			default: DEFAULT_LINE_HEIGHT
 		},
+		'terminal.integrated.minimumContrastRatio': {
+			description: nls.localize('terminal.integrated.minimumContrastRatio', "When set the foreground color of each cell will change to try meet the contrast ratio specified. Example values:\n\n- 1: The default, do nothing.\n- 4.5: Minimum for WCAG AA compliance.\n- 7: Minimum for WCAG AAA compliance.\n- 21: White on black or black on white."),
+			type: 'number',
+			default: 1
+		},
 		'terminal.integrated.fontWeight': {
 			type: 'string',
 			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],

@@ -13,6 +13,6 @@ module.exports = withDefaults({
 	context: __dirname,
 	entry: {
 		main: './src/main.ts',
-		['askpass-main']: './src/askpass-main.ts'
+		['askpass-main']: './src/askpass/askpass-main.ts'
 	}
 });

@@ -514,12 +514,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			const pickRunningLocation = (extension: IExtensionDescription): RunningLocation => {
 				for (const extensionKind of getExtensionKind(extension, this._productService, this._configurationService)) {
 					if (extensionKind === 'ui') {
-						// a ui extension can run on both sides for now...
 						if (isInstalledLocally.has(ExtensionIdentifier.toKey(extension.identifier))) {
 							return RunningLocation.Local;
-						}
-						if (isInstalledRemotely.has(ExtensionIdentifier.toKey(extension.identifier))) {
-							return RunningLocation.Remote;
 						}
 					} else if (extensionKind === 'workspace') {
 						if (isInstalledRemotely.has(ExtensionIdentifier.toKey(extension.identifier))) {

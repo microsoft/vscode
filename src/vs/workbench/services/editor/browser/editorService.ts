@@ -5,9 +5,8 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, toResource, SideBySideEditor, IRevertOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -28,10 +27,8 @@ import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/wor
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 
-type CachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
+type CachedEditorInput = ResourceEditorInput | IFileEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
 
 export class EditorService extends Disposable implements EditorServiceImpl {
@@ -59,9 +56,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private fileInputFactory: IFileInputFactory;
 	private openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
-	private lastActiveEditor: IEditorInput | null = null;
-	private lastActiveGroupId: GroupIdentifier | null = null;
-	private lastActiveEditorControlDisposable = this._register(new DisposableStore());
+	private lastActiveEditor: IEditorInput | undefined = undefined;
+	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -69,9 +65,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IHostService private readonly hostService: IHostService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -86,33 +80,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this.editorGroupService.whenRestored.then(() => this.onEditorsRestored());
 		this.editorGroupService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
-
-		// Auto save support
-		this._register(this.onDidActiveEditorChange(() => this.onEditorFocusLost()));
-		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
-	}
-
-	private onEditorFocusLost(): void {
-		this.maybeTriggerSaveAll(SaveReason.FOCUS_CHANGE);
-	}
-
-	private onWindowFocusChange(focused: boolean): void {
-		if (!focused) {
-			this.maybeTriggerSaveAll(SaveReason.WINDOW_CHANGE);
-		}
-	}
-
-	private maybeTriggerSaveAll(reason: SaveReason): void {
-		const mode = this.filesConfigurationService.getAutoSaveMode();
-
-		// Determine if we need to save all. In case of a window focus change we also save if auto save mode
-		// is configured to be ON_FOCUS_CHANGE (editor focus change)
-		if (
-			(reason === SaveReason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||
-			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
-		) {
-			this.saveAll({ reason });
-		}
 	}
 
 	private onEditorsRestored(): void {
@@ -148,19 +115,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
 		this.lastActiveGroupId = activeGroup.id;
-		this.lastActiveEditor = activeGroup.activeEditor;
-
-		// Dispose previous active control listeners
-		this.lastActiveEditorControlDisposable.clear();
-
-		// Listen to focus changes on control for auto save
-		const controlsToObserve: ICodeEditor[] = [];
-		if (isCodeEditor(this.activeTextEditorWidget)) {
-			controlsToObserve.push(this.activeTextEditorWidget);
-		} else if (isDiffEditor(this.activeTextEditorWidget)) {
-			controlsToObserve.push(this.activeTextEditorWidget.getOriginalEditor(), this.activeTextEditorWidget.getModifiedEditor());
-		}
-		controlsToObserve.forEach(control => this.lastActiveEditorControlDisposable.add(control.onDidBlurEditorWidget(() => this.onEditorFocusLost())));
+		this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
 
 		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
@@ -628,8 +583,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const resourceInput = input as IResourceInput;
 		if (resourceInput.resource instanceof URI) {
 			let label = resourceInput.label;
-			if (!label && resourceInput.resource.scheme !== Schemas.data) {
-				label = basename(resourceInput.resource); // derive the label from the path (but not for data URIs)
+			if (!label) {
+				label = basename(resourceInput.resource); // derive the label from the path
 			}
 
 			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, resourceInput.mode, resourceInput.forceFile) as EditorInput;
@@ -653,7 +608,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				if (mode) {
 					input.setPreferredMode(mode);
 				}
-			} else if (!(input instanceof DataUriEditorInput)) {
+			} else {
 				if (encoding) {
 					input.setPreferredEncoding(encoding);
 				}
@@ -670,11 +625,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		let input: CachedEditorInput;
 		if (forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resource)) {
 			input = this.fileInputFactory.createFileInput(resource, encoding, mode, instantiationService);
-		}
-
-		// Data URI
-		else if (resource.scheme === Schemas.data) {
-			input = instantiationService.createInstance(DataUriEditorInput, label || basename(resource), description, resource);
 		}
 
 		// Resource
@@ -824,9 +774,7 @@ export class DelegatingEditorService extends EditorService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@IHostService hostService: IHostService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			editorGroupService,
@@ -834,9 +782,7 @@ export class DelegatingEditorService extends EditorService {
 			instantiationService,
 			labelService,
 			fileService,
-			configurationService,
-			filesConfigurationService,
-			hostService
+			configurationService
 		);
 	}
 
