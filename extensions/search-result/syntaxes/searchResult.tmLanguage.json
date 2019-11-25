@@ -3,7 +3,7 @@
 	"scopeName": "text.searchResult",
 	"patterns": [
 		{
-			"match": "^# (Query|Flags|Include|Exclude): .*$",
+			"match": "^# (Query|Flags|Including|Excluding): .*$",
 			"name": "comment"
 		},
 		{

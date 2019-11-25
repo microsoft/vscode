@@ -11,7 +11,7 @@
   "categories": [
     "Programming Languages"
   ],
-  "main": "out/extension.js",
+  "main": "./out/extension.js",
   "activationEvents": [
     "*"
   ],
