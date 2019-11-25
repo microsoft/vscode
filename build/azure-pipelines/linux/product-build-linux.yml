@@ -127,16 +127,11 @@ steps:
     ./build/azure-pipelines/linux/publish.sh
   displayName: Publish
 
-- script: |
-    set -e
-    pushd ../VSCode-linux-x64 && zip -r -X -y ../VSCode-linux-x64.zip * && popd
-  displayName: Archive rpm for signing
-
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
-    FolderPath: '$(agent.builddirectory)'
-    Pattern: 'VSCode-linux-x64.zip'
+    FolderPath: '$(agent.builddirectory)/.build/linux/rpm/x86_64'
+    Pattern: '*.rpm'
     signConfigType: inlineSignParams
     inlineOperation: |
       [
