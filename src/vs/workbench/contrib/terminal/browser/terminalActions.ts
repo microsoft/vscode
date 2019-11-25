@@ -1055,35 +1055,29 @@ export class RenameTerminalAction extends Action {
 		});
 	}
 }
-export class RenameActiveTerminalCommand extends Command {
+export class RenameWithArgTerminalCommand extends Command {
 	public static readonly ID = TERMINAL_COMMAND_ID.RENAME_NONINTERACTIVE;
-	public static readonly LABEL = nls.localize(
-		'workbench.action.terminal.renameNoninteractive',
-		'Rename the Currently Active Terminal'
-	);
-	public static readonly NEW_NAME_ARG_LABEL = nls.localize(
-		'workbench.action.terminal.renameNoninteractive.newName',
-		'The new name for the terminal'
-	);
+	public static readonly LABEL = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
+	public static readonly NAME_ARG_LABEL = nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal");
 
 	public runCommand(
 		accessor: ServicesAccessor,
-		args: {
-			newName: string;
-		}
+		args?: { name?: string }
 	): void {
 		const notificationService = accessor.get(INotificationService);
 		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
 
 		if (!terminalInstance) {
-			notificationService.warn(nls.localize(
-				RenameActiveTerminalCommand.LABEL + '.noActiveTerminal',
-				'No active terminal to rename'
-			));
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noTerminal', "No active terminal to rename"));
 			return;
 		}
 
-		terminalInstance.setTitle(args.newName, TitleEventSource.Api);
+		if (!args || !args.name) {
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
+			return;
+		}
+
+		terminalInstance.setTitle(args.name, TitleEventSource.Api);
 	}
 }
 
