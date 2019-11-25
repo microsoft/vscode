@@ -64,7 +64,7 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
-		export function forwardPort(remotePort: number, localPort: number, name: string, closeable: boolean): Thenable<Tunnel>;
+		export function forwardPort(forward: (Port & { closeable: boolean })): Thenable<Tunnel>;
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & PortInformation;
