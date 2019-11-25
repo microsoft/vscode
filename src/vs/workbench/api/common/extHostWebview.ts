@@ -457,12 +457,12 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$undoEdits(handle: WebviewPanelHandle, edits: string[]): void {
+	$undoEdits(handle: WebviewPanelHandle, edits: readonly any[]): void {
 		const panel = this.getWebviewPanel(handle);
 		panel?._undoEdits(edits);
 	}
 
-	$applyEdits(handle: WebviewPanelHandle, edits: string[]): void {
+	$applyEdits(handle: WebviewPanelHandle, edits: readonly any[]): void {
 		const panel = this.getWebviewPanel(handle);
 		panel?._redoEdits(edits);
 	}

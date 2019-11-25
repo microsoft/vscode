@@ -14,7 +14,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
-	private _edits: Array<CustomEditorEdit> = [];
+	private _edits: Array<any> = [];
 
 	constructor(
 		private readonly _resource: URI,
@@ -136,7 +136,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		const undoneEdit = this._edits[this._currentEditIndex];
 		--this._currentEditIndex;
-		this._onUndo.fire([undoneEdit]);
+		this._onUndo.fire([{ data: undoneEdit }]);
 
 		this.updateDirty();
 	}
@@ -149,7 +149,8 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		++this._currentEditIndex;
 		const redoneEdit = this._edits[this._currentEditIndex];
-		this._onApplyEdit.fire([redoneEdit]);
+
+		this._onApplyEdit.fire([{ data: redoneEdit }]);
 
 		this.updateDirty();
 	}
