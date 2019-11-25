@@ -138,7 +138,7 @@ steps:
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
-    FolderPath: '$(agent.builddirectory)/.build/linux/rpm/x86_64'
+    FolderPath: '.build/linux/rpm/x86_64'
     Pattern: '*.rpm'
     signConfigType: inlineSignParams
     inlineOperation: |
