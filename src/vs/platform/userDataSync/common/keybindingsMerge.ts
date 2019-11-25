@@ -150,11 +150,11 @@ export function mergeKeybindings(localContent: string, remoteContent: string, ba
 		const firstNode = findNodeAtLocation(tree, [firstIndex])!;
 		const startLocalOffset = contentUtil.getLineStartOffset(mergeContent, eol, firstNode.offset) - eol.length;
 		let endLocalOffset = startLocalOffset;
-		let remoteOffset = endLocalOffset;
 		if (local) {
 			const lastLocalValueNode = findNodeAtLocation(tree, [firstIndex + local.length - 1])!;
 			endLocalOffset = contentUtil.getLineEndOffset(mergeContent, eol, lastLocalValueNode.offset + lastLocalValueNode.length);
 		}
+		let remoteOffset = endLocalOffset;
 		if (remote) {
 			const lastRemoteValueNode = findNodeAtLocation(tree, [firstIndex + (local ? local.length : 0) + remote.length - 1])!;
 			remoteOffset = contentUtil.getLineEndOffset(mergeContent, eol, lastRemoteValueNode.offset + lastRemoteValueNode.length);
