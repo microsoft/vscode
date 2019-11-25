@@ -15,6 +15,9 @@
   "activationEvents": [
     "*"
   ],
+  "scripts": {
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:search-result ./tsconfig.json"
+  },
   "contributes": {
     "commands": [
       {
