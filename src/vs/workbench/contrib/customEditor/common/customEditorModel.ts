@@ -53,6 +53,10 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	protected readonly _onWillSaveAs = this._register(new Emitter<CustomEditorSaveAsEvent>());
 	readonly onWillSaveAs = this._onWillSaveAs.event;
 
+	get currentEdits(): readonly CustomEditorEdit[] {
+		return this._edits.slice(0, Math.max(0, this._currentEditIndex + 1));
+	}
+
 	public makeEdit(edit: CustomEditorEdit): void {
 		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex, edit.data);
 		this._currentEditIndex = this._edits.length - 1;

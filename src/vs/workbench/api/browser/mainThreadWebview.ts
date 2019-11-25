@@ -289,7 +289,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 				try {
 					await this._proxy.$resolveWebviewEditor(
-						webviewInput.getResource(),
+						{ resource: webviewInput.getResource(), edits: model.currentEdits },
 						handle,
 						viewType,
 						webviewInput.getTitle(),
@@ -299,6 +299,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
+					return;
 				}
 			}
 		}));

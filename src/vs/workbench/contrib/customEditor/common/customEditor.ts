@@ -65,6 +65,8 @@ export interface ICustomEditorModel extends IWorkingCopy {
 	readonly onWillSave: Event<CustomEditorSaveEvent>;
 	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
 
+	readonly currentEdits: readonly CustomEditorEdit[];
+
 	undo(): void;
 	redo(): void;
 	revert(options?: IRevertOptions): Promise<boolean>;

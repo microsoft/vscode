@@ -248,11 +248,11 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 		}
 	}
 
-	_undoEdits(edits: string[]): void {
+	_undoEdits(edits: readonly any[]): void {
 		assertIsDefined(this._capabilities).editingCapability?.undoEdits(edits);
 	}
 
-	_redoEdits(edits: string[]): void {
+	_redoEdits(edits: readonly any[]): void {
 		assertIsDefined(this._capabilities).editingCapability?.applyEdits(edits);
 	}
 
@@ -432,7 +432,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	async $resolveWebviewEditor(
-		resource: UriComponents,
+		input: { resource: UriComponents, edits: readonly any[] },
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
@@ -448,8 +448,13 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
 		const revivedPanel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(handle, revivedPanel);
-		const capabilities = await provider.resolveWebviewEditor({ resource: URI.revive(resource) }, revivedPanel);
+		const capabilities = await provider.resolveWebviewEditor({ resource: URI.revive(input.resource) }, revivedPanel);
 		revivedPanel._setCapabilities(capabilities);
+
+		// TODO: the first set of edits should likely be passed when resolving
+		if (input.edits.length) {
+			revivedPanel._redoEdits(input.edits);
+		}
 	}
 
 	$undoEdits(handle: WebviewPanelHandle, edits: string[]): void {
