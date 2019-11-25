@@ -64,6 +64,10 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
+		/**
+		 * Forwards a port.
+		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
 		export function forwardPort(forward: (Port & { closeable: boolean })): Thenable<Tunnel>;
 	}
 
