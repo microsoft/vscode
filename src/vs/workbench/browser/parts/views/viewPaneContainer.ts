@@ -356,11 +356,17 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getContextMenuActions(): IAction[] {
-		// const otherActions = this.options.contextMenuActionsProvider();
+		const result: IAction[] = [];
+		const viewToggleActions = this.viewsModel.viewDescriptors.map(viewDescriptor => (<IAction>{
+			id: `${viewDescriptor.id}.toggleVisibility`,
+			label: viewDescriptor.name,
+			checked: this.viewsModel.isVisible(viewDescriptor.id),
+			enabled: viewDescriptor.canToggleVisibility,
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		}));
 
-		// TODO@sbatten get pane context menu items?
-		// return [...otherActions];
-		return [];
+		result.push(...viewToggleActions);
+		return result;
 	}
 
 	getActions(): IAction[] {
@@ -500,11 +506,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return sizes;
 	}
 
-	protected saveState(): void {
+	saveState(): void {
 		this.panes.forEach((view) => view.saveState());
 		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE);
-
-		// super.saveState();
 	}
 
 	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {

@@ -519,7 +519,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		return this.searchBox ? this.searchBox.getValue().replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:') : '';
 	}
 
-	protected saveState(): void {
+	saveState(): void {
 		const value = this.searchBox ? this.searchBox.getValue() : '';
 		if (ExtensionsListView.isLocalExtensionsQuery(value)) {
 			this.searchViewletState['query.value'] = value;

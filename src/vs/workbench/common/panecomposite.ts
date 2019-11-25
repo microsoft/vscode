@@ -10,4 +10,5 @@ import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 export interface IPaneComposite extends IComposite {
 	openView(id: string, focus?: boolean): IView;
 	getViewPaneContainer(): IViewPaneContainer;
+	saveState(): void;
 }

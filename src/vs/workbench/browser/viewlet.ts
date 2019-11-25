@@ -27,6 +27,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export abstract class Viewlet extends PaneComposite implements IViewlet {
 
@@ -46,14 +47,19 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 	}
 
 	getContextMenuActions(): IAction[] {
+		const containerActions = this.viewPaneContainer.getContextMenuActions();
+		if (containerActions.length) {
+			containerActions.push(new Separator());
+		}
+
 		const toggleSidebarPositionAction = new ToggleSidebarPositionAction(ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.getLabel(this.layoutService), this.layoutService, this.configurationService);
-		return [toggleSidebarPositionAction,
-			<IAction>{
-				id: ToggleSidebarVisibilityAction.ID,
-				label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
-				enabled: true,
-				run: () => this.layoutService.setSideBarHidden(true)
-			}];
+		return [...containerActions, toggleSidebarPositionAction,
+		<IAction>{
+			id: ToggleSidebarVisibilityAction.ID,
+			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			enabled: true,
+			run: () => this.layoutService.setSideBarHidden(true)
+		}];
 	}
 }
 
