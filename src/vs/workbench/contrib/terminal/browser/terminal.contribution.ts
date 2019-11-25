@@ -623,7 +623,7 @@ if (BrowserFeatures.clipboard.readText) {
 				type: 'object',
 				required: ['name'],
 				properties: {
-					newName: {
+					name: {
 						description: RenameWithArgTerminalCommand.NAME_ARG_LABEL,
 						type: 'string',
 						minLength: 1
