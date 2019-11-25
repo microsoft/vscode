@@ -43,3 +43,11 @@
 	opacity: 1;
 	background-size: 16px !important;
 }
+
+.monaco-custom-checkbox.monaco-simple-checkbox.checked {
+	background: url('check-light.svg') center center no-repeat;
+}
+
+.monaco-custom-checkbox.monaco-simple-checkbox.checked {
+	background: url('check-dark.svg') center center no-repeat;
+}
