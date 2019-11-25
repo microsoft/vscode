@@ -7,7 +7,7 @@ import 'vs/css!./media/tunnelView';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewDescriptor } from 'vs/workbench/common/views';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -273,8 +273,8 @@ class TunnelItem implements ITunnelItem {
 		public local?: string,
 	) { }
 	get label(): string {
-		if (this.name) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel0', "{0} to localhost", this.name);
+		if (this.name && this.local) {
+			return nls.localize('remote.tunnelsView.forwardedPortLabel0', "{0}", this.name);
 		} else if (this.local === this.remote) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel1', "{0} to localhost", this.remote);
 		} else if (this.local) {
@@ -343,7 +343,12 @@ export class TunnelPanel extends ViewletPane {
 				keyboardSupport: true,
 				collapseByDefault: (e: ITunnelItem | ITunnelGroup): boolean => {
 					return false;
-				}
+				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (item: ITunnelItem | ITunnelGroup) => {
+						return item.label;
+					}
+				},
 			}
 		);
 		const actionRunner: ActionRunner = new ActionRunner();
@@ -356,12 +361,13 @@ export class TunnelPanel extends ViewletPane {
 			this.tree.updateChildren(undefined, true);
 		}));
 
-		// TODO: add navigator
-		// const helpItemNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: false, openOnSelection: false }));
+		const helpItemNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: false, openOnSelection: false }));
 
-		// this._register(Event.debounce(helpItemNavigator.onDidOpenResource, (last, event) => event, 75, true)(e => {
-		// 	e.element.handleClick();
-		// }));
+		this._register(Event.debounce(helpItemNavigator.onDidOpenResource, (last, event) => event, 75, true)(e => {
+			if (e.element.tunnelType === TunnelType.Add) {
+				this.commandService.executeCommand(ForwardPortAction.ID);
+			}
+		}));
 	}
 
 	private get contributedContextMenu(): IMenu {
@@ -454,19 +460,28 @@ namespace ForwardPortAction {
 
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
+			const quickInputService = accessor.get(IQuickInputService);
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			let remote: string | undefined = undefined;
 			if (arg instanceof TunnelItem) {
-				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				const quickInputService = accessor.get(IQuickInputService);
-				const local: string = await quickInputService.input({ placeHolder: nls.localize('remote.tunnelView.pickLocal', 'Local port to forward to, or leave blank for {0}', arg.remote) });
-				if (local === undefined) {
-					return;
-				}
-				const name = await quickInputService.input({ placeHolder: nls.localize('remote.tunnelView.pickName', 'Port name, or leave blank for no name') });
-				if (name === undefined) {
-					return;
-				}
-				remoteExplorerService.tunnelModel.forward(arg.remote, (local !== '') ? local : arg.remote, (name !== '') ? name : undefined);
+				remote = arg.remote;
+			} else {
+				remote = await quickInputService.input({ placeHolder: nls.localize('remote.tunnelView.pickRemote', 'Remote port to forward') });
 			}
+
+			if (!remote) {
+				return;
+			}
+
+			const local: string = await quickInputService.input({ placeHolder: nls.localize('remote.tunnelView.pickLocal', 'Local port to forward to, or leave blank for {0}', remote) });
+			if (local === undefined) {
+				return;
+			}
+			const name = await quickInputService.input({ placeHolder: nls.localize('remote.tunnelView.pickName', 'Port name, or leave blank for no name') });
+			if (name === undefined) {
+				return;
+			}
+			remoteExplorerService.tunnelModel.forward(remote, (local !== '') ? local : remote, (name !== '') ? name : undefined);
 		};
 	}
 }
