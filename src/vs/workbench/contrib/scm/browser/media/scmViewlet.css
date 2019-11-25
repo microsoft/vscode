@@ -172,7 +172,7 @@
 }
 
 .scm-viewlet .scm-editor-container {
-	padding: 3px 4px;
+	padding: 1px;
 }
 
 .scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {

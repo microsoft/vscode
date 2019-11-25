@@ -55,6 +55,10 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -693,10 +697,18 @@ export class RepositoryPane extends ViewletPane {
 		// const triggerValidation = () => validationDelayer.trigger(validate);
 
 		const editorOptions: IEditorConstructionOptions = {
-			...getSimpleEditorOptions()
+			...getSimpleEditorOptions(),
+			lineDecorationsWidth: 4,
+			dragAndDrop: false,
+			// fontFamily: 'Arial'
 		};
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true
+			isSimpleWidget: true,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				MenuPreventer.ID,
+				SelectionClipboardContributionID,
+				ContextMenuController.ID
+			])
 		};
 
 		this.inputEditor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
@@ -712,6 +724,10 @@ export class RepositoryPane extends ViewletPane {
 		let resource = URI.parse('scm://input');
 		this.inputModel = this.modelService.createModel('', null, resource, true);
 		this.inputEditor.setModel(this.inputModel);
+
+		this.inputEditor.changeViewZones(accessor => {
+			accessor.addZone({ afterLineNumber: 0, domNode: $('div'), heightInPx: 3 });
+		});
 
 		// this._register(this.inputBox.onDidChange(triggerValidation, null));
 
@@ -851,10 +867,11 @@ export class RepositoryPane extends ViewletPane {
 
 		if (this.repository.input.visible) {
 			removeClass(this.inputContainer, 'hidden');
-			this.inputEditor.layout({ height: 38, width: width! - 12 - 16 - 2 }); // TODO@joao
+			// const editorHeight = 25; // TODO@joao
+			const editorHeight = 250; // TODO@joao
+			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 /* - 8 */ }); // TODO@joao
 
-			const editorHeight = 40; // TODO@joao
-			const listHeight = height - (editorHeight + 12 /* margin */);
+			const listHeight = height - (editorHeight + 5 + 2 /* + 3 + 3 */ + 5);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.tree.layout(listHeight, width);
 		} else {
