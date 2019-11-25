@@ -29,7 +29,7 @@ import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/ed
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor } from 'vs/workbench/common/editor';
-import { ViewPane, ViewPaneContainer, IViewPaneContainerOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -183,7 +183,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 		@IExtensionService extensionService: IExtensionService
 	) {
 
-		super(VIEWLET_ID, ExplorerViewPaneContainer.EXPLORER_VIEWS_STATE, {} as IViewPaneContainerOptions, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
+		super(VIEWLET_ID, ExplorerViewPaneContainer.EXPLORER_VIEWS_STATE, { showHeaderInTitleWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 

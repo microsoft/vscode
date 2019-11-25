@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ViewPaneContainer, ViewPane, IViewPaneOptions, IViewPaneContainerOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPaneContainer, ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
@@ -25,7 +25,6 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 
 export interface IViewletViewOptions extends IViewPaneOptions {
-	// viewletState: MementoObject;
 }
 
 export abstract class FilterViewPaneContainer extends ViewPaneContainer {
@@ -47,7 +46,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 
-		super(viewletId, `${viewletId}.state`, {} as IViewPaneContainerOptions, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
+		super(viewletId, `${viewletId}.state`, { showHeaderInTitleWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);

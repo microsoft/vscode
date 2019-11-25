@@ -16,7 +16,7 @@ import { VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search'
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletRegistry, Extensions, Viewlet } from 'vs/workbench/browser/viewlet';
-import { ViewPaneContainer, IViewPaneContainerOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 
 export class SearchViewlet extends Viewlet {
@@ -48,7 +48,7 @@ export class SearchViewPaneContainer extends ViewPaneContainer {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, {} as IViewPaneContainerOptions, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, { showHeaderInTitleWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 	}
 
 	getTitle(): string {

@@ -30,7 +30,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { nextTick } from 'vs/base/common/process';
 import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPane';
 import { MainPaneDescriptor, MainPane } from 'vs/workbench/contrib/scm/browser/mainPane';
-import { ViewPaneContainer, IViewPaneContainerOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 
 export interface ISpliceEvent<T> {
@@ -116,7 +116,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(VIEWLET_ID, SCMViewPaneContainer.STATE_KEY, {} as IViewPaneContainerOptions, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
+		super(VIEWLET_ID, SCMViewPaneContainer.STATE_KEY, { showHeaderInTitleWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this._register(this.menus.onDidChangeTitle(this.updateTitleArea, this));
