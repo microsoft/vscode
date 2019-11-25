@@ -99,7 +99,7 @@ export class Checkbox extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = 'monaco-custom-checkbox codicon ' + (this._opts.actionClassName || '') + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.domNode.className = 'monaco-custom-checkbox codicon ' + (this._opts.actionClassName || '') + ' ' + (this._checked ? 'codicon-check' : 'unchecked');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
@@ -143,9 +143,9 @@ export class Checkbox extends Widget {
 		this._checked = newIsChecked;
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		if (this._checked) {
-			this.domNode.classList.add('checked');
+			this.domNode.classList.add('codicon-check');
 		} else {
-			this.domNode.classList.remove('checked');
+			this.domNode.classList.remove('codicon-check');
 		}
 
 		this.applyStyles();
