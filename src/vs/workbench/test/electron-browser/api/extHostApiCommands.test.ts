@@ -885,16 +885,17 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		await rpcProtocol.sync();
 
-		const root = await commands.executeCommand<vscode.CallHierarchyItem>('vscode.prepareCallHierarchy', model.uri, new types.Position(0, 0));
+		const root = await commands.executeCommand<vscode.CallHierarchyItem[]>('vscode.prepareCallHierarchy', model.uri, new types.Position(0, 0));
 
-		assert.ok(root);
-		assert.equal(root.name, 'ROOT');
+		assert.ok(Array.isArray(root));
+		assert.equal(root.length, 1);
+		assert.equal(root[0].name, 'ROOT');
 
-		const incoming = await commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', root);
+		const incoming = await commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', root[0]);
 		assert.equal(incoming.length, 1);
 		assert.equal(incoming[0].from.name, 'INCOMING');
 
-		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root);
+		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root[0]);
 		assert.equal(outgoing.length, 1);
 		assert.equal(outgoing[0].to.name, 'OUTGOING');
 	});
