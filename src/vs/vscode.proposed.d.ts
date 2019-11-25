@@ -54,10 +54,6 @@ declare module 'vscode' {
 	 */
 	export interface PortInformation {
 		/**
-		 * Ports the extension knows are interesting and might be nice to forward.
-		 */
-		candidates?: Port[];
-		/**
 		 * Ports that are already immutably published. This is not the same as forwarding.
 		 */
 		published?: Port[];
