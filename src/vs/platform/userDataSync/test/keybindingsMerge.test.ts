@@ -546,8 +546,6 @@ suite('KeybindingsMerge - Conflicts', () => {
 		const localContent = stringify([]);
 		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
-		//'[\n<<<<<<< local\n\n=======\t{\n\t\t"key": "alt+c",\n\t\t"command": "a",\n\t\t"when": "editorTextFocus && !editorReadonly"\n\t}\n>>>>>>> remote\n]'
-		//'[\n<<<<<<< local\n=======\n\t{\n\t\t"key": "alt+c",\n\t\t"command": "a",\n\t\t"when": "editorTextFocus && !editorReadonly"\n\t}\n>>>>>>> remote\n]'
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
@@ -584,6 +582,50 @@ suite('KeybindingsMerge - Conflicts', () => {
 		"when": "editorTextFocus && !editorReadonly"
 	}
 >>>>>>> remote
+]`);
+	});
+
+	test('merge when the entry is removed in remote but updated in local', () => {
+		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const remoteContent = stringify([]);
+		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`[
+<<<<<<< local
+	{
+		"key": "alt+c",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	}
+=======
+>>>>>>> remote
+]`);
+	});
+
+	test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', () => {
+		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const remoteContent = stringify([{ key: 'alt+b', command: 'b' }]);
+		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`[
+<<<<<<< local
+	{
+		"key": "alt+c",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	},
+=======
+>>>>>>> remote
+	{
+		"key": "alt+b",
+		"command": "b"
+	}
 ]`);
 	});
 
