@@ -569,6 +569,7 @@ export class SearchView extends ViewletPane {
 					progressComplete();
 					const messageEl = this.clearMessage();
 					dom.append(messageEl, $('p', undefined, afterReplaceAllMessage));
+					this.reLayout();
 				}, (error) => {
 					progressComplete();
 					errors.isPromiseCanceledError(error);
