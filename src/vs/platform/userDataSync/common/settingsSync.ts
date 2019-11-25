@@ -135,10 +135,9 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	private async continueSync(): Promise<boolean> {
-		if (this.status !== SyncStatus.HasConflicts) {
-			return false;
+		if (this.status === SyncStatus.HasConflicts) {
+			await this.apply();
 		}
-		await this.apply();
 		return true;
 	}
 
