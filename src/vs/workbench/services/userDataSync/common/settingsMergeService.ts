@@ -156,7 +156,7 @@ class SettingsMergeService implements ISettingsMergeService {
 		const remote = parse(remoteContent);
 		const remoteModel = this.modelService.createModel(localContent, this.modeService.create('jsonc'));
 		const ignored = ignoredSettings.reduce((set, key) => { set.add(key); return set; }, new Set<string>());
-		for (const key of Object.keys(ignoredSettings)) {
+		for (const key of ignoredSettings) {
 			if (ignored.has(key)) {
 				this.editSetting(remoteModel, key, undefined);
 				this.editSetting(remoteModel, key, remote[key]);

@@ -52,6 +52,12 @@ export function registerConfiguration(): IDisposable {
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
+			'sync.enableKeybindings': {
+				type: 'boolean',
+				description: localize('sync.enableKeybindings', "Enable synchronizing keybindings."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
 			'sync.ignoredExtensions': {
 				'type': 'array',
 				description: localize('sync.ignoredExtensions', "Configure extensions to be ignored while synchronizing."),
@@ -132,6 +138,7 @@ export interface ISyncExtension {
 
 export const enum SyncSource {
 	Settings = 1,
+	Keybindings,
 	Extensions
 }
 

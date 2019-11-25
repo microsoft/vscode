@@ -190,6 +190,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				id: 'sync.enableSettings',
 				label: localize('user settings', "User Settings")
 			}, {
+				id: 'sync.enableKeybindings',
+				label: localize('user keybindings', "User Keybindings")
+			}, {
 				id: 'sync.enableExtensions',
 				label: localize('extensions', "Extensions")
 			}];
@@ -251,13 +254,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private getPreviewEditorInput(): IEditorInput | undefined {
-		return this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource))[0];
+		return this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource) || isEqual(input.getResource(), this.workbenchEnvironmentService.keybindingsSyncPreviewResource))[0];
 	}
 
 	private async handleConflicts(): Promise<void> {
-		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
+		const conflictsResource = this.getConflictsResource();
+		if (conflictsResource) {
 			const resourceInput = {
-				resource: this.workbenchEnvironmentService.settingsSyncPreviewResource,
+				resource: conflictsResource,
 				options: {
 					preserveFocus: false,
 					pinned: false,
@@ -277,6 +281,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 		}
+	}
+
+	private getConflictsResource(): URI | null {
+		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
+			return this.workbenchEnvironmentService.settingsSyncPreviewResource;
+		}
+		if (this.userDataSyncService.conflictsSource === SyncSource.Keybindings) {
+			return this.workbenchEnvironmentService.keybindingsSyncPreviewResource;
+		}
+		return null;
 	}
 
 	private registerActions(): void {
@@ -379,6 +393,19 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: 'navigation',
 			order: 1,
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Resource.isEqualTo(this.workbenchEnvironmentService.settingsSyncPreviewResource.toString())),
+		});
+		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+			command: {
+				id: continueSyncCommandId,
+				title: localize('continue sync', "Sync: Continue"),
+				iconLocation: {
+					light: SYNC_PUSH_LIGHT_ICON_URI,
+					dark: SYNC_PUSH_DARK_ICON_URI
+				}
+			},
+			group: 'navigation',
+			order: 1,
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Resource.isEqualTo(this.workbenchEnvironmentService.keybindingsSyncPreviewResource.toString())),
 		});
 
 		const signOutMenuItem: IMenuItem = {
