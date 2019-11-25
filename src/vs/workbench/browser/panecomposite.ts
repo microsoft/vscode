@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Composite } from 'vs/workbench/browser/composite';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer, ViewPane } from './parts/views/viewPaneContainer';
+import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
 export class PaneComposite extends Composite implements IPaneComposite {
@@ -59,9 +59,7 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	openView(id: string, focus?: boolean): IView {
 		return this.viewPaneContainer.openView(id, focus);
 	}
-	getView(id: string): ViewPane | undefined {
-		return this.viewPaneContainer.getView(id);
-	}
+
 	getViewPaneContainer(): ViewPaneContainer {
 		return this.viewPaneContainer;
 	}
