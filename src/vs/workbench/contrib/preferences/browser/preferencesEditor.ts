@@ -52,10 +52,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IFilterResult, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
-import { IAutoSaveConfigurationService } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -255,7 +252,7 @@ export class PreferencesEditor extends BaseEditor {
 		if (this.editorService.activeControl !== this) {
 			this.focus();
 		}
-		const promise: Promise<boolean> = this.input && this.input.isDirty() ? this.input.save() : Promise.resolve(true);
+		const promise: Promise<boolean> = this.input && this.input.isDirty() ? this.input.save(this.group!.id) : Promise.resolve(true);
 		promise.then(() => {
 			if (target === ConfigurationTarget.USER_LOCAL) {
 				this.preferencesService.switchSettings(ConfigurationTarget.USER_LOCAL, this.preferencesService.userSettingsResource, true);
@@ -979,13 +976,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService,
-		@IHostService hostService: IHostService,
-		@IAutoSaveConfigurationService autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IEditorService editorService: IEditorService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, autoSaveConfigurationService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 	}
 
 	private static _getContributions(): IEditorContributionDescription[] {

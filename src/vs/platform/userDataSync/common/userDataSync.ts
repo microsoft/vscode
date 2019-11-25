@@ -14,61 +14,59 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
 export const DEFAULT_IGNORED_SETTINGS = [
-	'configurationSync.enable',
-	'configurationSync.enableSettings',
-	'configurationSync.enableExtensions',
+	CONFIGURATION_SYNC_STORE_KEY,
+	'sync.enable',
+	'sync.enableSettings',
+	'sync.enableExtensions',
 ];
 
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	configurationRegistry.registerConfiguration({
-		id: 'configurationSync',
+		id: 'sync',
 		order: 30,
-		title: localize('configurationSync', "Configuration Sync"),
+		title: localize('sync', "Sync"),
 		type: 'object',
 		properties: {
-			'configurationSync.enable': {
+			'sync.enable': {
 				type: 'boolean',
-				description: localize('configurationSync.enable', "When enabled, synchronizes configuration that includes Settings and Extensions."),
-				default: true,
+				description: localize('sync.enable', "Enable synchronization."),
+				default: false,
 				scope: ConfigurationScope.APPLICATION
 			},
-			'configurationSync.enableSettings': {
+			'sync.enableSettings': {
 				type: 'boolean',
-				description: localize('configurationSync.enableSettings', "When enabled settings are synchronized while synchronizing configuration."),
+				description: localize('sync.enableSettings', "Enable synchronizing settings."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
-			'configurationSync.enableExtensions': {
+			'sync.enableExtensions': {
 				type: 'boolean',
-				description: localize('configurationSync.enableExtensions', "When enabled extensions are synchronized while synchronizing configuration."),
+				description: localize('sync.enableExtensions', "Enable synchronizing extensions."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
-			'configurationSync.extensionsToIgnore': {
+			'sync.ignoredExtensions': {
 				'type': 'array',
-				description: localize('configurationSync.extensionsToIgnore', "Configure extensions to be ignored while syncing."),
+				description: localize('sync.ignoredExtensions', "Configure extensions to be ignored while synchronizing."),
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				uniqueItems: true
 			},
-			'configurationSync.settingsToIgnore': {
+			'sync.ignoredSettings': {
 				'type': 'array',
-				description: localize('configurationSync.settingsToIgnore', "Configure settings to be ignored while syncing. \nDefault Ignored Settings:\n\n{0}", DEFAULT_IGNORED_SETTINGS.sort().map(setting => `- ${setting}`).join('\n')),
+				description: localize('sync.ignoredSettings', "Configure settings to be ignored while synchronizing. \nDefault Ignored Settings:\n\n{0}", DEFAULT_IGNORED_SETTINGS.sort().map(setting => `- ${setting}`).join('\n')),
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				$ref: ignoredSettingsSchemaId,
 				additionalProperties: true,
 				uniqueItems: true
-			},
-			'configurationSync.enableAuth': {
-				'type': 'boolean',
-				description: localize('configurationSync.enableAuth', "Enables authentication and requires VS Code restart when changed"),
-				'default': false,
-				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});
@@ -104,12 +102,23 @@ export class UserDataSyncStoreError extends Error {
 
 }
 
+export interface IUserDataSyncStore {
+	url: string;
+	name: string;
+	account: string;
+}
+
+export function getUserDataSyncStore(configurationService: IConfigurationService): IUserDataSyncStore | undefined {
+	const value = configurationService.getValue<IUserDataSyncStore>(CONFIGURATION_SYNC_STORE_KEY);
+	return value && value.url && value.name && value.account ? value : undefined;
+}
+
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
 
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
 
-	readonly enabled: boolean;
+	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 
 	read(key: string, oldValue: IUserData | null): Promise<IUserData>;
 	write(key: string, content: string, ref: string | null): Promise<string>;

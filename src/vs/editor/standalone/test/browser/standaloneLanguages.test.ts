@@ -56,11 +56,14 @@ suite('TokenizationSupport2Adapter', () => {
 					throw new Error('Not implemented');
 				},
 
-				getTokenStyle: () => undefined,
-				resolveScopes: () => undefined
+				getTokenStyleMetadata: (type: string, modifiers: string[]): number | undefined => {
+					return undefined;
+				},
 
+				tokenColorMap: []
 			};
 		}
+
 		public getIconTheme(): IIconTheme {
 			return {
 				hasFileIcons: false,

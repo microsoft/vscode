@@ -14,9 +14,13 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
+import { activateMatchingTagPosition as activateMatchingTagSelection } from './matchingTag';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
+}
+namespace MatchingTagPositionRequest {
+	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
 }
 
 interface IPackageInfo {
@@ -82,6 +86,14 @@ export function activate(context: ExtensionContext) {
 			return client.sendRequest(TagCloseRequest.type, param);
 		};
 		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags');
+		toDispose.push(disposable);
+
+		const matchingTagPositionRequestor = (document: TextDocument, position: Position) => {
+			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
+			return client.sendRequest(MatchingTagPositionRequest.type, param);
+		};
+
+		disposable = activateMatchingTagSelection(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.autoSelectingMatchingTags');
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {

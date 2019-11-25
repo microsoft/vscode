@@ -359,14 +359,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const themeData = data;
 			return themeData.ensureLoaded(this.extensionResourceLoaderService).then(_ => {
 				if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
+					this.currentColorTheme.clearCaches();
 					// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 					this.currentColorTheme = themeData;
 					themeData.setCustomColors(this.colorCustomizations);
 					themeData.setCustomTokenColors(this.tokenColorCustomizations);
+					themeData.setCustomTokenStyleRules(this.tokenStylesCustomizations);
 					return Promise.resolve(themeData);
 				}
 				themeData.setCustomColors(this.colorCustomizations);
 				themeData.setCustomTokenColors(this.tokenColorCustomizations);
+				themeData.setCustomTokenStyleRules(this.tokenStylesCustomizations);
 				this.updateDynamicCSSRules(themeData);
 				return this.applyTheme(themeData, settingsTarget);
 			}, error => {
@@ -379,6 +382,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		await this.currentColorTheme.reload(this.extensionResourceLoaderService);
 		this.currentColorTheme.setCustomColors(this.colorCustomizations);
 		this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
+		this.currentColorTheme.setCustomTokenStyleRules(this.tokenStylesCustomizations);
 		this.updateDynamicCSSRules(this.currentColorTheme);
 		this.applyTheme(this.currentColorTheme, undefined, false);
 	}
@@ -415,6 +419,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 		addClasses(this.container, newTheme.id);
 
+		this.currentColorTheme.clearCaches();
 		this.currentColorTheme = newTheme;
 		if (!this.themingParticipantChangeListener) {
 			this.themingParticipantChangeListener = themingRegistry.onThemingParticipantAdded(_ => this.updateDynamicCSSRules(this.currentColorTheme));

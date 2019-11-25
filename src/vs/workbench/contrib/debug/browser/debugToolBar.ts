@@ -102,6 +102,12 @@ export const debugIconContinueForeground = registerColor('debugIcon.continueFore
 	hc: '#75BEFF'
 }, localize('debugIcon.continueForeground', "Debug toolbar icon for continue."));
 
+export const debugIconStepBackForeground = registerColor('debugIcon.stepBackForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
+
 export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	private $el: HTMLElement;
@@ -111,6 +117,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
 	private disposeOnUpdate: IDisposable | undefined;
+	private yCoordinate = 0;
 
 	private isVisible = false;
 	private isBuilt = false;
@@ -201,7 +208,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));
 
-		this._register(dom.addDisposableListener(this.dragArea, dom.EventType.MOUSE_UP, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseUpListner(this.dragArea, (event: MouseEvent) => {
 			const mouseClickEvent = new StandardMouseEvent(event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
@@ -211,10 +218,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 		}));
 
-		this._register(dom.addDisposableListener(this.dragArea, dom.EventType.MOUSE_DOWN, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseDownListner(this.dragArea, (event: MouseEvent) => {
 			dom.addClass(this.dragArea, 'dragged');
 
-			const mouseMoveListener = dom.addDisposableListener(window, 'mousemove', (e: MouseEvent) => {
+			const mouseMoveListener = dom.addDisposableGenericMouseMoveListner(window, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
@@ -222,7 +229,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - this.layoutService.getTitleBarOffset());
 			});
 
-			const mouseUpListener = dom.addDisposableListener(window, 'mouseup', (e: MouseEvent) => {
+			const mouseUpListener = dom.addDisposableGenericMouseUpListner(window, (e: MouseEvent) => {
 				this.storePosition();
 				dom.removeClass(this.dragArea, 'dragged');
 
@@ -264,9 +271,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	private setYCoordinate(y = 0): void {
+	private setYCoordinate(y = this.yCoordinate): void {
 		const titlebarOffset = this.layoutService.getTitleBarOffset();
 		this.$el.style.top = `${titlebarOffset + y}px`;
+		this.yCoordinate = y;
 	}
 
 	private setCoordinates(x?: number, y?: number): void {
@@ -369,7 +377,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
 	if (debugIconRestartColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-restart { color: ${debugIconRestartColor} !important; }`);
+		collector.addRule(`.monaco-workbench .codicon-debug-restart, .monaco-workbench .codicon-debug-restart-frame { color: ${debugIconRestartColor} !important; }`);
 	}
 
 	const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);
@@ -389,6 +397,11 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
 	if (debugIconContinueColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-continue { color: ${debugIconContinueColor} !important; }`);
+		collector.addRule(`.monaco-workbench .codicon-debug-continue,.monaco-workbench .codicon-debug-reverse-continue { color: ${debugIconContinueColor} !important; }`);
+	}
+
+	const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);
+	if (debugIconStepBackColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-back { color: ${debugIconStepBackColor} !important; }`);
 	}
 });

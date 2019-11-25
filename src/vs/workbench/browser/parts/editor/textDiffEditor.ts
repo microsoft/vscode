@@ -10,7 +10,6 @@ import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditor, IEditorMemento } from 'vs/workbench/common/editor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -20,7 +19,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -30,10 +29,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IAutoSaveConfigurationService } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -53,19 +50,16 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IHostService hostService: IHostService,
-		@IClipboardService private _clipboardService: IClipboardService,
-		@IAutoSaveConfigurationService autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IClipboardService private clipboardService: IClipboardService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, hostService, autoSaveConfigurationService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 	}
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		return new EditorMemento(this.getId(), key, Object.create(null), limit, editorGroupService); // do not persist in storage as diff editors are never persisted
 	}
 
-	getTitle(): string | undefined {
+	getTitle(): string {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -74,7 +68,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, this._clipboardService);
+		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, this.clipboardService);
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
@@ -124,8 +118,15 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			});
 			this.diffNavigatorDisposables.add(this.diffNavigator);
 
-			// Readonly flag
-			diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
+			// Since the resolved model provides information about being readonly
+			// or not, we apply it here to the editor even though the editor input
+			// was already asked for being readonly or not. The rationale is that
+			// a resolved model might have more specific information about being
+			// readonly or not that the input did not have.
+			diffEditor.updateOptions({
+				readOnly: resolvedDiffEditorModel.modifiedModel?.isReadonly(),
+				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
+			});
 		} catch (error) {
 
 			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
@@ -134,14 +135,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			}
 
 			throw error;
-		}
-	}
-
-	setOptions(options: EditorOptions | undefined): void {
-		const textOptions = <TextEditorOptions>options;
-		if (textOptions && isFunction(textOptions.apply)) {
-			const diffEditor = assertIsDefined(this.getControl());
-			textOptions.apply(diffEditor, ScrollType.Smooth);
 		}
 	}
 
@@ -211,7 +204,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	protected getConfigurationOverrides(): ICodeEditorOptions {
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
-		options.readOnly = this.isReadOnly();
+		options.readOnly = this.input instanceof DiffEditorInput && this.input.modifiedInput.isReadonly();
+		options.originalEditable = this.input instanceof DiffEditorInput && !this.input.originalInput.isReadonly();
 		options.lineDecorationsWidth = '2ch';
 
 		return options;
@@ -219,25 +213,15 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	protected getAriaLabel(): string {
 		let ariaLabel: string;
-		const inputName = this.input && this.input.getName();
-		if (this.isReadOnly()) {
+
+		const inputName = this.input?.getName();
+		if (this.input?.isReadonly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text compare editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text compare editor.");
 		} else {
 			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0}. Text file compare editor.", inputName) : nls.localize('editableEditorAriaLabel', "Text file compare editor.");
 		}
 
 		return ariaLabel;
-	}
-
-	private isReadOnly(): boolean {
-		const input = this.input;
-		if (input instanceof DiffEditorInput) {
-			const modifiedInput = input.modifiedInput;
-
-			return modifiedInput instanceof ResourceEditorInput;
-		}
-
-		return false;
 	}
 
 	private isFileBinaryError(error: Error[]): boolean;

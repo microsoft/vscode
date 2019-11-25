@@ -11,4 +11,4 @@ import { OpenLogsFolderAction } from 'vs/workbench/contrib/logs/electron-browser
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 const devCategory = nls.localize('developer', "Developer");
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.LABEL), 'Developer: Open Logs Folder', devCategory);
+workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.create(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.LABEL), 'Developer: Open Logs Folder', devCategory);

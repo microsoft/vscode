@@ -78,6 +78,10 @@
 	color: #666;
 }
 
+.debug-viewlet .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+	color: inherit !important;
+}
+
 .debug-viewlet .disabled {
 	opacity: 0.35;
 }
@@ -141,6 +145,11 @@
 }
 
 .debug-viewlet .debug-call-stack .monaco-list-row:hover .state {
+	display: none;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file,
+.debug-viewlet .debug-call-stack .monaco-list-row.focused .stack-frame.has-actions .file {
 	display: none;
 }
 
@@ -333,10 +342,17 @@
 	flex-shrink: 0;
 }
 
-.debug-viewlet .debug-breakpoints .breakpoint > .icon {
+.debug-viewlet .debug-breakpoints .breakpoint > .codicon {
 	width: 19px;
 	height: 19px;
 	min-width: 19px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint > .codicon-debug-breakpoint-stackframe-dot::before {
+	content: "\ea71";
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

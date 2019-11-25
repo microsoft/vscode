@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext, toResource, SideBySideEditor, SaveReason } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -50,7 +50,8 @@ import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -131,7 +132,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(themeService);
 
@@ -515,11 +518,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			editorsToClose.push(editor.master, editor.details);
 		}
 
-		// Close the editor when it is no longer open in any group including diff editors
+		// Dispose the editor when it is no longer open in any group including diff editors
 		editorsToClose.forEach(editorToClose => {
-			const resource = editorToClose ? editorToClose.getResource() : undefined; // prefer resource to not close right-hand side editors of a diff editor
-			if (!this.accessor.groups.some(groupView => groupView.group.contains(resource || editorToClose))) {
-				editorToClose.close();
+			if (!this.accessor.groups.some(groupView => groupView.group.contains(editorToClose, true /* include side by side editor master & details */))) {
+				editorToClose.dispose();
 			}
 		});
 
@@ -758,8 +760,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.editors;
 	}
 
-	getEditor(index: number): EditorInput | undefined {
-		return this._group.getEditor(index);
+	getEditorByIndex(index: number): EditorInput | undefined {
+		return this._group.getEditorByIndex(index);
 	}
 
 	getIndexOfEditor(editor: EditorInput): number {
@@ -920,64 +922,74 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private async doHandleOpenEditorError(error: Error, editor: EditorInput, options?: EditorOptions): Promise<void> {
 
-		// Report error only if this was not us restoring previous error state or
-		// we are told to ignore errors that occur from opening an editor
-		if (this.isRestored && !isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
+		// Report error only if we are not told to ignore errors that occur from opening an editor
+		if (!isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
 
-			// Extract possible error actions from the error
-			let errorActions: ReadonlyArray<IAction> | undefined = undefined;
-			if (isErrorWithActions(error)) {
-				errorActions = (error as IErrorWithActions).actions;
+			// Since it is more likely that errors fail to open when restoring them e.g.
+			// because files got deleted or moved meanwhile, we do not show any notifications
+			// if we are still restoring editors.
+			if (this.isRestored) {
+
+				// Extract possible error actions from the error
+				let errorActions: ReadonlyArray<IAction> | undefined = undefined;
+				if (isErrorWithActions(error)) {
+					errorActions = (error as IErrorWithActions).actions;
+				}
+
+				// If the context is USER, we try to show a modal dialog instead of a background notification
+				if (options?.context === EditorOpenContext.USER) {
+					const buttons: string[] = [];
+					if (Array.isArray(errorActions) && errorActions.length > 0) {
+						errorActions.forEach(action => buttons.push(action.label));
+					} else {
+						buttons.push(localize('ok', 'OK'));
+					}
+
+					let cancelId: number | undefined = undefined;
+					if (buttons.length === 1) {
+						buttons.push(localize('cancel', "Cancel"));
+						cancelId = 1;
+					}
+
+					const result = await this.dialogService.show(
+						Severity.Error,
+						localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+						buttons,
+						{
+							detail: toErrorMessage(error),
+							cancelId
+						}
+					);
+
+					// Make sure to run any error action if present
+					if (result.choice !== cancelId && Array.isArray(errorActions)) {
+						const errorAction = errorActions[result.choice];
+						if (errorAction) {
+							errorAction.run();
+						}
+					}
+				}
+
+				// Otherwise, show a background notification.
+				else {
+					const actions: INotificationActions = { primary: [] };
+					if (Array.isArray(errorActions)) {
+						actions.primary = errorActions;
+					}
+
+					const handle = this.notificationService.notify({
+						severity: Severity.Error,
+						message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
+						actions
+					});
+
+					Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+				}
 			}
 
-			// If the context is USER, we try to show a modal dialog instead of a background notification
-			if (options?.context === EditorOpenContext.USER) {
-				const buttons: string[] = [];
-				if (Array.isArray(errorActions) && errorActions.length > 0) {
-					errorActions.forEach(action => buttons.push(action.label));
-				} else {
-					buttons.push(localize('ok', 'OK'));
-				}
-
-				let cancelId: number | undefined = undefined;
-				if (buttons.length === 1) {
-					buttons.push(localize('cancel', "Cancel"));
-					cancelId = 1;
-				}
-
-				const result = await this.dialogService.show(
-					Severity.Error,
-					localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
-					buttons,
-					{
-						detail: toErrorMessage(error),
-						cancelId
-					}
-				);
-
-				// Make sure to run any error action if present
-				if (result.choice !== cancelId && Array.isArray(errorActions)) {
-					const errorAction = errorActions[result.choice];
-					if (errorAction) {
-						errorAction.run();
-					}
-				}
-			}
-
-			// Otherwise, show a background notification.
+			// Restoring: just log errors to console
 			else {
-				const actions: INotificationActions = { primary: [] };
-				if (Array.isArray(errorActions)) {
-					actions.primary = errorActions;
-				}
-
-				const handle = this.notificationService.notify({
-					severity: Severity.Error,
-					message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
-					actions
-				});
-
-				Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
+				this.logService.error(error);
 			}
 		}
 
@@ -1108,7 +1120,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Check for dirty and veto
-		const veto = await this.handleDirty([editor]);
+		const veto = await this.handleDirtyClosing([editor]);
 		if (veto) {
 			return;
 		}
@@ -1219,7 +1231,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._group.closeEditor(editor);
 	}
 
-	private async handleDirty(editors: EditorInput[]): Promise<boolean /* veto */> {
+	private async handleDirtyClosing(editors: EditorInput[]): Promise<boolean /* veto */> {
 		if (!editors.length) {
 			return false; // no veto
 		}
@@ -1228,13 +1240,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// To prevent multiple confirmation dialogs from showing up one after the other
 		// we check if a pending confirmation is currently showing and if so, join that
-		let handleDirtyPromise = this.mapEditorToPendingConfirmation.get(editor);
-		if (!handleDirtyPromise) {
-			handleDirtyPromise = this.doHandleDirty(editor);
-			this.mapEditorToPendingConfirmation.set(editor, handleDirtyPromise);
+		let handleDirtyClosingPromise = this.mapEditorToPendingConfirmation.get(editor);
+		if (!handleDirtyClosingPromise) {
+			handleDirtyClosingPromise = this.doHandleDirtyClosing(editor);
+			this.mapEditorToPendingConfirmation.set(editor, handleDirtyClosingPromise);
 		}
 
-		const veto = await handleDirtyPromise;
+		const veto = await handleDirtyClosingPromise;
 
 		// Make sure to remove from our map of cached pending confirmations
 		this.mapEditorToPendingConfirmation.delete(editor);
@@ -1245,22 +1257,47 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Otherwise continue with the remainders
-		return this.handleDirty(editors);
+		return this.handleDirtyClosing(editors);
 	}
 
-	private async doHandleDirty(editor: EditorInput): Promise<boolean /* veto */> {
-		if (
-			!editor.isDirty() || // editor must be dirty
-			this.accessor.groups.some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */)) ||  // editor is opened in other group
-			editor instanceof SideBySideEditorInput && this.isOpened(editor.master) // side by side editor master is still opened
-		) {
+	private async doHandleDirtyClosing(editor: EditorInput): Promise<boolean /* veto */> {
+		if (!editor.isDirty()) {
+			return false; // editor must be dirty
+		}
+
+		if (editor instanceof SideBySideEditorInput && this.isOpened(editor.master)) {
+			return false; // master-side of editor is still opened somewhere else
+		}
+
+		// Note: we explicitly decide to ask for confirm if closing a normal editor even
+		// if it is opened in a side-by-side editor in the group. This decision is made
+		// because it may be less obvious that one side of a side by side editor is dirty
+		// and can still be changed.
+
+		if (this.accessor.groups.some(groupView => {
+			if (groupView === this) {
+				return false; // skip this group to avoid false assumptions about the editor being opened still
+			}
+
+			const otherGroup = groupView.group;
+			if (otherGroup.contains(editor)) {
+				return true; // exact editor still opened
+			}
+
+			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.master)) {
+				return true; // master side of side by side editor still opened
+			}
+
 			return false;
+		})) {
+			return false; // editor is still editable somewhere else
 		}
 
 		// Switch to editor that we want to handle and confirm to save/revert
 		await this.openEditor(editor);
 
-		const res = await editor.confirmSave();
+		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+		const res = await this.fileDialogService.showSaveConfirm(editorResource ? [editorResource] : [editor.getName()]);
 
 		// It could be that the editor saved meanwhile, so we check again
 		// to see if anything needs to happen before closing for good.
@@ -1273,7 +1310,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Otherwise, handle accordingly
 		switch (res) {
 			case ConfirmResult.SAVE:
-				const result = await editor.save();
+				const result = await editor.save(this._group.id, { reason: SaveReason.EXPLICIT });
 
 				return !result;
 			case ConfirmResult.DONT_SAVE:
@@ -1310,7 +1347,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editors = this.getEditorsToClose(args);
 
 		// Check for dirty and veto
-		const veto = await this.handleDirty(editors.slice(0));
+		const veto = await this.handleDirtyClosing(editors.slice(0));
 		if (veto) {
 			return;
 		}
@@ -1389,7 +1426,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Check for dirty and veto
 		const editors = this._group.getEditors(true);
-		const veto = await this.handleDirty(editors.slice(0));
+		const veto = await this.handleDirtyClosing(editors.slice(0));
 		if (veto) {
 			return;
 		}

@@ -106,7 +106,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 						}
 					}
 				}
-			}, contextMenuService, keybindingService))
+			}, this._instantiationService))
 		);
 	}
 
@@ -115,7 +115,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 	}
 
 	public showCodeActions(actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this._ui.getValue().showCodeActionList(actions, at);
+		return this._ui.getValue().showCodeActionList(actions, at, { includeDisabledActions: false });
 	}
 
 	public manualTriggerAtCurrentPosition(
@@ -240,7 +240,7 @@ export class CodeActionCommand extends EditorCommand {
 					? nls.localize('editor.action.codeAction.noneMessage.preferred', "No preferred code actions available")
 					: nls.localize('editor.action.codeAction.noneMessage', "No code actions available"),
 			{
-				kind: args.kind,
+				include: args.kind,
 				includeSourceActions: true,
 				onlyIncludePreferredActions: args.preferred,
 			},
@@ -265,7 +265,7 @@ export class RefactorAction extends EditorAction {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: '1_modification',
 				order: 2,
 				when: ContextKeyExpr.and(
@@ -293,7 +293,7 @@ export class RefactorAction extends EditorAction {
 					? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
 					: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
 			{
-				kind: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
+				include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
 				onlyIncludePreferredActions: args.preferred,
 			},
 			args.apply);
@@ -308,7 +308,7 @@ export class SourceAction extends EditorAction {
 			label: nls.localize('source.label', "Source Action..."),
 			alias: 'Source Action...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
-			menuOpts: {
+			contextMenuOpts: {
 				group: '1_modification',
 				order: 2.1,
 				when: ContextKeyExpr.and(
@@ -336,7 +336,7 @@ export class SourceAction extends EditorAction {
 					? nls.localize('editor.action.source.noneMessage.preferred', "No preferred source actions available")
 					: nls.localize('editor.action.source.noneMessage', "No source actions available"),
 			{
-				kind: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.None,
+				include: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.None,
 				includeSourceActions: true,
 				onlyIncludePreferredActions: args.preferred,
 			},
@@ -365,7 +365,7 @@ export class OrganizeImportsAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.organize.noneMessage', "No organize imports action available"),
-			{ kind: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },
+			{ include: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },
 			CodeActionAutoApply.IfSingle);
 	}
 }
@@ -386,7 +386,7 @@ export class FixAllAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('fixAll.noneMessage', "No fix all action available"),
-			{ kind: CodeActionKind.SourceFixAll, includeSourceActions: true },
+			{ include: CodeActionKind.SourceFixAll, includeSourceActions: true },
 			CodeActionAutoApply.IfSingle);
 	}
 }
@@ -418,7 +418,7 @@ export class AutoFixAction extends EditorAction {
 		return triggerCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.autoFix.noneMessage', "No auto fixes available"),
 			{
-				kind: CodeActionKind.QuickFix,
+				include: CodeActionKind.QuickFix,
 				onlyIncludePreferredActions: true
 			},
 			CodeActionAutoApply.IfSingle);

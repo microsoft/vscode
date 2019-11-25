@@ -29,6 +29,7 @@ export interface IWorkingCopy {
 
 	//#endregion
 
+
 	readonly resource: URI;
 
 	readonly capabilities: WorkingCopyCapabilities;

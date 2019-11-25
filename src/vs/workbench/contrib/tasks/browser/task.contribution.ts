@@ -45,7 +45,7 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ManageAutomaticTaskRunning, ManageAutomaticTaskRunning.ID, ManageAutomaticTaskRunning.LABEL), 'Tasks: Manage Automatic Tasks in Folder', tasksCategory);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ManageAutomaticTaskRunning, ManageAutomaticTaskRunning.ID, ManageAutomaticTaskRunning.LABEL), 'Tasks: Manage Automatic Tasks in Folder', tasksCategory);
 
 export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
 	private runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
@@ -254,7 +254,7 @@ const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Q
 const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		QuickOpenHandler,
 		QuickOpenHandler.ID,
 		'task ',
@@ -313,7 +313,7 @@ configurationRegistry.registerConfiguration({
 	type: 'object',
 	properties: {
 		'task.problemMatchers.neverPrompt': {
-			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never promp, or use a dictionary of task types to turn off prompting only for specific task types."),
+			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never prompt, or use a dictionary of task types to turn off prompting only for specific task types."),
 			'oneOf': [
 				{
 					type: 'boolean',

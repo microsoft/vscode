@@ -19,7 +19,7 @@ export const BrowserFeatures = {
 	clipboard: {
 		writeText: (
 			platform.isNative
-			|| document.queryCommandSupported('copy')
+			|| (document.queryCommandSupported && document.queryCommandSupported('copy'))
 			|| !!(navigator && navigator.clipboard && navigator.clipboard.writeText)
 		),
 		readText: (
@@ -55,5 +55,6 @@ export const BrowserFeatures = {
 		return KeyboardSupport.None;
 	})(),
 
-	touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0
+	touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0,
+	pointerEvents: window.PointerEvent && ('ontouchstart' in window || window.navigator.maxTouchPoints > 0 || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0)
 };

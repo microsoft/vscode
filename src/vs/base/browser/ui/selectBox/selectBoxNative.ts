@@ -10,6 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
+import { Gesture, EventType } from 'vs/base/browser/touch';
 
 export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
@@ -43,6 +44,12 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 	}
 
 	private registerListeners() {
+		this._register(Gesture.addTarget(this.selectElement));
+		[EventType.Tap].forEach(eventType => {
+			this._register(dom.addDisposableListener(this.selectElement, eventType, (e) => {
+				this.selectElement.focus();
+			}));
+		});
 
 		this._register(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;

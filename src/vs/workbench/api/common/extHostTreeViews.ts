@@ -93,12 +93,10 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
 			get message() { return treeView.message; },
 			set message(message: string) {
-				checkProposedApiEnabled(extension);
 				treeView.message = message;
 			},
 			get title() { return treeView.title; },
 			set title(title: string) {
-				checkProposedApiEnabled(extension);
 				treeView.title = title;
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {

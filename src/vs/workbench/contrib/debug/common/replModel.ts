@@ -136,6 +136,7 @@ export class ReplModel {
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
 			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !endsWith(previousElement.value, '\n') && !endsWith(previousElement.value, '\r\n')) {
 				previousElement.value += data;
+				this._onDidChangeElements.fire();
 			} else {
 				const element = new SimpleReplElement(session, `topReplElement:${topReplElementCounter++}`, data, sev, source);
 				this.addReplElement(element);

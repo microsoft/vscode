@@ -19,7 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkspaceStatsService } from 'vs/workbench/contrib/stats/common/workspaceStats';
+import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 
 export const enum ExperimentState {
 	Evaluating,
@@ -124,7 +124,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@IRequestService private readonly requestService: IRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkspaceStatsService private readonly workspaceStatsService: IWorkspaceStatsService
+		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService
 	) {
 		super();
 
@@ -424,11 +424,11 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						filePathCheck = match(fileEdits.filePathPattern, event.resource.fsPath);
 					}
 					if (Array.isArray(fileEdits.workspaceIncludes) && fileEdits.workspaceIncludes.length) {
-						const tags = await this.workspaceStatsService.getTags();
+						const tags = await this.workspaceTagsService.getTags();
 						workspaceCheck = !!tags && fileEdits.workspaceIncludes.some(x => !!tags[x]);
 					}
 					if (workspaceCheck && Array.isArray(fileEdits.workspaceExcludes) && fileEdits.workspaceExcludes.length) {
-						const tags = await this.workspaceStatsService.getTags();
+						const tags = await this.workspaceTagsService.getTags();
 						workspaceCheck = !!tags && !fileEdits.workspaceExcludes.some(x => !!tags[x]);
 					}
 					if (filePathCheck && workspaceCheck) {

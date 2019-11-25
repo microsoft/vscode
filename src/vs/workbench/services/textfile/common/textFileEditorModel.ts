@@ -11,11 +11,11 @@ import { URI } from 'vs/base/common/uri';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { EncodingMode } from 'vs/workbench/common/editor';
+import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -30,7 +30,7 @@ import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/c
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IAutoSaveConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export interface IBackupMetaData {
 	mtime: number;
@@ -123,11 +123,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(modelService, modeService);
 
-		this.updateAutoSaveConfiguration(autoSaveConfigurationService.getAutoSaveConfiguration());
+		this.updateAutoSaveConfiguration(filesConfigurationService.getAutoSaveConfiguration());
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -137,8 +137,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private registerListeners(): void {
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this._register(this.autoSaveConfigurationService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
-		this._register(this.textFileService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.updateAutoSaveConfiguration(config)));
+		this._register(this.filesConfigurationService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
 		this._register(this.onDidStateChange(e => this.onStateChange(e)));
 	}
 
@@ -252,9 +252,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
 	}
 
-	async revert(soft?: boolean): Promise<void> {
+	async revert(options?: IRevertOptions): Promise<boolean> {
 		if (!this.isResolved()) {
-			return;
+			return false;
 		}
 
 		// Cancel any running auto-save
@@ -265,7 +265,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const undo = this.setDirty(false);
 
 		// Force read from disk unless reverting soft
-		if (!soft) {
+		const softUndo = options?.soft;
+		if (!softUndo) {
 			try {
 				await this.load({ forceReadFromDisk: true });
 			} catch (error) {
@@ -284,6 +285,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (wasDirty) {
 			this._onDidChangeDirty.fire();
 		}
+
+		return true;
 	}
 
 	async load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
@@ -337,8 +340,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size: resolvedBackup.meta ? resolvedBackup.meta.size : 0,
 			etag: resolvedBackup.meta ? resolvedBackup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: resolvedBackup.value,
-			encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding,
-			isReadonly: false
+			encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding
 		}, options, true /* from backup */);
 
 		// Restore orphaned flag based on state
@@ -423,8 +425,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: content.etag,
 			isFile: true,
 			isDirectory: false,
-			isSymbolicLink: false,
-			isReadonly: content.isReadonly
+			isSymbolicLink: false
 		});
 
 		// Keep the original encoding to not loose it when saving
@@ -612,9 +613,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoSaveDisposable.value = toDisposable(() => clearTimeout(handle));
 	}
 
-	async save(options: ISaveOptions = Object.create(null)): Promise<void> {
+	async save(options: ITextFileSaveOptions = Object.create(null)): Promise<boolean> {
 		if (!this.isResolved()) {
-			return;
+			return false;
 		}
 
 		this.logService.trace('save() - enter', this.resource);
@@ -622,10 +623,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.autoSaveDisposable.clear();
 
-		return this.doSave(this.versionId, options);
+		await this.doSave(this.versionId, options);
+
+		return true;
 	}
 
-	private doSave(versionId: number, options: ISaveOptions): Promise<void> {
+	private doSave(versionId: number, options: ITextFileSaveOptions): Promise<void> {
 		if (isUndefinedOrNull(options.reason)) {
 			options.reason = SaveReason.EXPLICIT;
 		}
@@ -1025,7 +1028,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	isReadonly(): boolean {
-		return !!(this.lastResolvedFileStat && this.lastResolvedFileStat.isReadonly);
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	isDisposed(): boolean {

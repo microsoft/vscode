@@ -161,6 +161,12 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
+        "html.autoSelectingMatchingTags": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%html.autoSelectingMatchingTags%"
+        },
         "html.trace.server": {
           "type": "string",
           "scope": "window",

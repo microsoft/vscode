@@ -131,6 +131,7 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
+			"port": 9222,
 			"timeout": 20000,
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null

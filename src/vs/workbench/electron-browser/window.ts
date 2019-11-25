@@ -21,7 +21,7 @@ import * as browser from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
-import { ipcRenderer as ipc, webFrame, crashReporter, Event } from 'electron';
+import { ipcRenderer as ipc, webFrame, crashReporter, Event as IpcEvent } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -60,7 +60,9 @@ import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/pl
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { Event } from 'vs/base/common/event';
 
 export class ElectronWindow extends Disposable {
 
@@ -103,7 +105,8 @@ export class ElectronWindow extends Disposable {
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -124,7 +127,7 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// Support runAction event
-		ipc.on('vscode:runAction', async (event: Event, request: IRunActionInWindowRequest) => {
+		ipc.on('vscode:runAction', async (event: IpcEvent, request: IRunActionInWindowRequest) => {
 			const args: unknown[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
@@ -155,27 +158,27 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// Support runKeybinding event
-		ipc.on('vscode:runKeybinding', (event: Event, request: IRunKeybindingInWindowRequest) => {
+		ipc.on('vscode:runKeybinding', (event: IpcEvent, request: IRunKeybindingInWindowRequest) => {
 			if (document.activeElement) {
 				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
 			}
 		});
 
 		// Error reporting from main
-		ipc.on('vscode:reportError', (event: Event, error: string) => {
+		ipc.on('vscode:reportError', (event: IpcEvent, error: string) => {
 			if (error) {
 				errors.onUnexpectedError(JSON.parse(error));
 			}
 		});
 
 		// Support openFiles event for existing and new files
-		ipc.on('vscode:openFiles', (event: Event, request: IOpenFileRequest) => this.onOpenFiles(request));
+		ipc.on('vscode:openFiles', (event: IpcEvent, request: IOpenFileRequest) => this.onOpenFiles(request));
 
 		// Support addFolders event if we have a workspace opened
-		ipc.on('vscode:addFolders', (event: Event, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
+		ipc.on('vscode:addFolders', (event: IpcEvent, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
-		ipc.on('vscode:showInfoMessage', (event: Event, message: string) => {
+		ipc.on('vscode:showInfoMessage', (event: IpcEvent, message: string) => {
 			this.notificationService.info(message);
 		});
 
@@ -213,7 +216,7 @@ export class ElectronWindow extends Disposable {
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:accessibilitySupportChanged', (event: Event, accessibilitySupportEnabled: boolean) => {
+		ipc.on('vscode:accessibilitySupportChanged', (event: IpcEvent, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
@@ -267,6 +270,10 @@ export class ElectronWindow extends Disposable {
 		if (isMacintosh) {
 			this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
 				const gotDirty = workingCopy.isDirty();
+				if (gotDirty && !!(workingCopy.capabilities & WorkingCopyCapabilities.AutoSave) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+					return; // do not indicate dirty of working copies that are auto saved after short delay
+				}
+
 				if ((!this.isDocumentedEdited && gotDirty) || (this.isDocumentedEdited && !gotDirty)) {
 					const hasDirtyFiles = this.workingCopyService.hasDirty;
 					this.isDocumentedEdited = hasDirtyFiles;
@@ -275,6 +282,17 @@ export class ElectronWindow extends Disposable {
 				}
 			}));
 		}
+
+		this._register(Event.any(
+			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronEnvironmentService.windowId), () => true),
+			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronEnvironmentService.windowId), () => false)
+		)(e => this.onDidChangeMaximized(e)));
+
+		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+	}
+
+	private onDidChangeMaximized(maximized: boolean): void {
+		this.layoutService.updateWindowMaximizedState(maximized);
 	}
 
 	private onDidVisibleEditorsChange(): void {

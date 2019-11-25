@@ -73,10 +73,3 @@ yarnInstall(`build`); // node modules required for build
 yarnInstall('test/automation'); // node modules required for smoketest
 yarnInstall('test/smoke'); // node modules required for smoketest
 yarnInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron
-
-// Remove the windows process tree typings as this causes duplicate identifier errors in tsc builds
-const processTreeDts = path.join('node_modules', 'windows-process-tree', 'typings', 'windows-process-tree.d.ts');
-if (fs.existsSync(processTreeDts)) {
-	console.log('Removing windows-process-tree.d.ts');
-	fs.unlinkSync(processTreeDts);
-}

@@ -33,6 +33,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -482,10 +483,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {
-		const input = editor?.input;
 
-		// Ensure we have at least a name to show and not configured to exclude input
-		if (!input || !input.getName() || !this.include(input)) {
+		// Ensure we have not configured to exclude input and don't track invalid inputs
+		const input = editor?.input;
+		if (!input || input.isDisposed() || !this.include(input)) {
 			return;
 		}
 
@@ -592,10 +593,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// stack but we need to keep our currentTextEditorState up to date with
 		// the navigtion that occurs.
 		if (this.navigatingInStack) {
-			if (codeEditor && control?.input) {
+			if (codeEditor && control?.input && !control.input.isDisposed()) {
 				this.currentTextEditorState = new TextEditorState(control.input, codeEditor.getSelection());
 			} else {
-				this.currentTextEditorState = null; // we navigated to a non text editor
+				this.currentTextEditorState = null; // we navigated to a non text or disposed editor
 			}
 		}
 
@@ -603,15 +604,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 		else {
 
 			// navigation inside text editor
-			if (codeEditor && control?.input) {
+			if (codeEditor && control?.input && !control.input.isDisposed()) {
 				this.handleTextEditorEvent(control, codeEditor, event);
 			}
 
-			// navigation to non-text editor
+			// navigation to non-text disposed editor
 			else {
 				this.currentTextEditorState = null; // at this time we have no active text editor view state
 
-				if (control?.input) {
+				if (control?.input && !control.input.isDisposed()) {
 					this.handleNonTextEditorEvent(control);
 				}
 			}
@@ -735,8 +736,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
 		const resource = input.getResource();
-		if (resource && this.fileService.canHandleResource(resource)) {
-			return { resource: resource };
+		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData)) {
+			// for now, only prefer well known schemes that we control to prevent
+			// issues such as https://github.com/microsoft/vscode/issues/85204
+			return { resource };
 		}
 
 		return input;

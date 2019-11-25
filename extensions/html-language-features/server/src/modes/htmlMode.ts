@@ -74,8 +74,16 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			}
 			return null;
 		},
+		doRename(document: TextDocument, position: Position, newName: string) {
+			const htmlDocument = htmlDocuments.get(document);
+			return htmlLanguageService.doRename(document, position, newName, htmlDocument);
+		},
 		onDocumentRemoved(document: TextDocument) {
 			htmlDocuments.onDocumentRemoved(document);
+		},
+		findMatchingTagPosition(document: TextDocument, position: Position) {
+			const htmlDocument = htmlDocuments.get(document);
+			return htmlLanguageService.findMatchingTagPosition(document, position, htmlDocument);
 		},
 		dispose() {
 			htmlDocuments.dispose();

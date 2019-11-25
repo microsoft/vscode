@@ -73,8 +73,9 @@ class CodeActionOracle extends Disposable {
 			return undefined;
 		}
 		for (const marker of this._markerService.read({ resource: model.uri })) {
-			if (Range.intersectRanges(marker, selection)) {
-				return Range.lift(marker);
+			const markerRange = model.validateRange(marker);
+			if (Range.intersectRanges(markerRange, selection)) {
+				return Range.lift(markerRange);
 			}
 		}
 

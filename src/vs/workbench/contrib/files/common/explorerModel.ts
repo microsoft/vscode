@@ -8,7 +8,7 @@ import { isEqual } from 'vs/base/common/extpath';
 import { posix } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
-import { IFileStat, IFileService } from 'vs/platform/files/common/files';
+import { IFileStat, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -154,8 +154,8 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime);
+	static create(service: IFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, service.hasCapability(raw.resource, FileSystemProviderCapabilities.Readonly), raw.name, raw.mtime);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -170,7 +170,7 @@ export class ExplorerItem {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = ExplorerItem.create(raw.children[i], stat, resolveTo);
+					const child = ExplorerItem.create(service, raw.children[i], stat, resolveTo);
 					stat.addChild(child);
 				}
 			}
@@ -260,7 +260,7 @@ export class ExplorerItem {
 			const resolveMetadata = explorerService.sortOrder === 'modified';
 			try {
 				const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-				const resolved = ExplorerItem.create(stat, this);
+				const resolved = ExplorerItem.create(fileService, stat, this);
 				ExplorerItem.mergeLocalWithDisk(resolved, this);
 			} catch (e) {
 				this.isError = true;

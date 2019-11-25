@@ -98,9 +98,13 @@ suite('Workbench untitled text editors', () => {
 			assert.ok(!workingCopyService.isDirty(input2.getResource()));
 			assert.equal(workingCopyService.dirtyCount, 0);
 
-			input2.dispose();
+			assert.ok(input1.revert());
+			assert.ok(input1.isDisposed());
+			assert.ok(!service.exists(input1.getResource()));
 
+			input2.dispose();
 			assert.ok(!service.exists(input2.getResource()));
+
 			done();
 		});
 

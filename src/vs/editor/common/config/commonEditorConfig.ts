@@ -413,14 +413,18 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 }
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-const editorConfiguration: IConfigurationNode = {
+export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'editor',
 	order: 5,
 	type: 'object',
 	title: nls.localize('editorConfigurationTitle', "Editor"),
 	overridable: true,
 	scope: ConfigurationScope.RESOURCE,
+});
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+const editorConfiguration: IConfigurationNode = {
+	...editorConfigurationBaseNode,
 	properties: {
 		'editor.tabSize': {
 			type: 'number',

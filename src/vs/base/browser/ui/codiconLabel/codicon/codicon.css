@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?3443fb4013ab5a04c23a30f912dd6627") format("truetype");
+	src: url("./codicon.ttf?c4e66586cd3ad4acc55fc456c0760dec") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -69,6 +69,10 @@
 .codicon-eye-watch:before { content: "\ea70" }
 .codicon-circle-filled:before { content: "\ea71" }
 .codicon-primitive-dot:before { content: "\ea71" }
+.codicon-close-dirty:before { content: "\ea71" }
+.codicon-debug-breakpoint:before { content: "\ea71" }
+.codicon-debug-breakpoint-disabled:before { content: "\ea71" }
+.codicon-debug-hint:before { content: "\ea71" }
 .codicon-primitive-square:before { content: "\ea72" }
 .codicon-edit:before { content: "\ea73" }
 .codicon-pencil:before { content: "\ea73" }
@@ -139,7 +143,6 @@
 .codicon-symbol-parameter:before { content: "\ea92" }
 .codicon-symbol-type-parameter:before { content: "\ea92" }
 .codicon-symbol-key:before { content: "\ea93" }
-.codicon-symbol-string:before { content: "\ea93" }
 .codicon-symbol-text:before { content: "\ea93" }
 .codicon-symbol-reference:before { content: "\ea94" }
 .codicon-go-to-file:before { content: "\ea94" }
@@ -162,12 +165,15 @@
 .codicon-bold:before { content: "\eaa3" }
 .codicon-book:before { content: "\eaa4" }
 .codicon-bookmark:before { content: "\eaa5" }
-.codicon-breakpoint-conditional-unverified:before { content: "\eaa6" }
-.codicon-breakpoint-conditional:before { content: "\eaa7" }
-.codicon-breakpoint-data-unverified:before { content: "\eaa8" }
-.codicon-breakpoint-data:before { content: "\eaa9" }
-.codicon-breakpoint-log-unverified:before { content: "\eaaa" }
-.codicon-breakpoint-log:before { content: "\eaab" }
+.codicon-debug-breakpoint-conditional-unverified:before { content: "\eaa6" }
+.codicon-debug-breakpoint-conditional:before { content: "\eaa7" }
+.codicon-debug-breakpoint-conditional-disabled:before { content: "\eaa7" }
+.codicon-debug-breakpoint-data-unverified:before { content: "\eaa8" }
+.codicon-debug-breakpoint-data:before { content: "\eaa9" }
+.codicon-debug-breakpoint-data-disabled:before { content: "\eaa9" }
+.codicon-debug-breakpoint-log-unverified:before { content: "\eaaa" }
+.codicon-debug-breakpoint-log:before { content: "\eaab" }
+.codicon-debug-breakpoint-log-disabled:before { content: "\eaab" }
 .codicon-briefcase:before { content: "\eaac" }
 .codicon-broadcast:before { content: "\eaad" }
 .codicon-browser:before { content: "\eaae" }
@@ -185,6 +191,7 @@
 .codicon-chrome-minimize:before { content: "\eaba" }
 .codicon-chrome-restore:before { content: "\eabb" }
 .codicon-circle-outline:before { content: "\eabc" }
+.codicon-debug-breakpoint-unverified:before { content: "\eabc" }
 .codicon-circle-slash:before { content: "\eabd" }
 .codicon-circuit-board:before { content: "\eabe" }
 .codicon-clear-all:before { content: "\eabf" }
@@ -198,8 +205,6 @@
 .codicon-comment-discussion:before { content: "\eac7" }
 .codicon-compare-changes:before { content: "\eac8" }
 .codicon-credit-card:before { content: "\eac9" }
-.codicon-current-and-breakpoint:before { content: "\eaca" }
-.codicon-current:before { content: "\eacb" }
 .codicon-dash:before { content: "\eacc" }
 .codicon-dashboard:before { content: "\eacd" }
 .codicon-database:before { content: "\eace" }
@@ -385,4 +390,19 @@
 .codicon-list-filter:before { content: "\eb83" }
 .codicon-list-flat:before { content: "\eb84" }
 .codicon-list-selection:before { content: "\eb85" }
+.codicon-selection:before { content: "\eb85" }
 .codicon-list-tree:before { content: "\eb86" }
+.codicon-debug-breakpoint-function-unverified:before { content: "\eb87" }
+.codicon-debug-breakpoint-function:before { content: "\eb88" }
+.codicon-debug-breakpoint-function-disabled:before { content: "\eb88" }
+.codicon-debug-breakpoint-stackframe-active:before { content: "\eb89" }
+.codicon-debug-breakpoint-stackframe-dot:before { content: "\eb8a" }
+.codicon-debug-breakpoint-stackframe:before { content: "\eb8b" }
+.codicon-debug-breakpoint-stackframe-focused:before { content: "\eb8b" }
+.codicon-debug-breakpoint-unsupported:before { content: "\eb8c" }
+.codicon-symbol-string:before { content: "\eb8d" }
+.codicon-debug-reverse-continue:before { content: "\eb8e" }
+.codicon-debug-step-back:before { content: "\eb8f" }
+.codicon-debug-restart-frame:before { content: "\eb90" }
+.codicon-debug-alternate:before { content: "\eb91" }
+.codicon-debug-alt:before { content: "\f101" }

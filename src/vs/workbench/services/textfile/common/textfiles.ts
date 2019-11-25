@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, ConfirmResult, IRevertOptions, IModeSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult, FileOperation } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -21,10 +21,6 @@ export const ITextFileService = createDecorator<ITextFileService>('textFileServi
 export interface ITextFileService extends IDisposable {
 
 	_serviceBrand: undefined;
-
-	readonly onFilesAssociationChange: Event<void>;
-
-	readonly isHotExitEnabled: boolean;
 
 	/**
 	 * An event that is fired before attempting a certain file operation.
@@ -133,34 +129,13 @@ export interface ITextFileService extends IDisposable {
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
 	 */
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
-
-	/**
-	 * Brings up the confirm dialog to either save, don't save or cancel.
-	 *
-	 * @param resources the resources of the files to ask for confirmation or null if
-	 * confirming for all dirty resources.
-	 */
-	confirmSave(resources?: URI[]): Promise<ConfirmResult>;
 }
 
-
-export class FileOperationWillRunEvent implements IWaitUntil {
-
-	constructor(
-		private _thenables: Promise<any>[],
-		readonly operation: FileOperation,
-		readonly target: URI,
-		readonly source?: URI | undefined
-	) { }
-
-	waitUntil(thenable: Promise<any>): void {
-		if (Object.isFrozen(this._thenables)) {
-			throw new Error('waitUntil cannot be used aync');
-		}
-		this._thenables.push(thenable);
-	}
+export interface FileOperationWillRunEvent extends IWaitUntil {
+	operation: FileOperation;
+	target: URI;
+	source?: URI;
 }
-
 
 export class FileOperationDidRunEvent {
 
@@ -170,7 +145,6 @@ export class FileOperationDidRunEvent {
 		readonly source?: URI | undefined
 	) { }
 }
-
 
 export interface IReadTextFileOptions extends IReadFileOptions {
 
@@ -335,14 +309,7 @@ export interface ITextFileOperationResult {
 export interface IResult {
 	source: URI;
 	target?: URI;
-	success?: boolean;
-}
-
-export const enum SaveReason {
-	EXPLICIT = 1,
-	AUTO = 2,
-	FOCUS_CHANGE = 3,
-	WINDOW_CHANGE = 4
+	error?: boolean;
 }
 
 export const enum LoadReason {
@@ -436,14 +403,10 @@ export interface ITextFileEditorModelManager {
 	disposeModel(model: ITextFileEditorModel): void;
 }
 
-export interface ISaveOptions {
-	force?: boolean;
-	reason?: SaveReason;
+export interface ITextFileSaveOptions extends ISaveOptions {
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
-	skipSaveParticipants?: boolean;
 	writeElevated?: boolean;
-	availableFileSystems?: readonly string[];
 }
 
 export interface ILoadOptions {
@@ -473,11 +436,11 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	updatePreferredEncoding(encoding: string | undefined): void;
 
-	save(options?: ISaveOptions): Promise<void>;
+	save(options?: ITextFileSaveOptions): Promise<boolean>;
 
 	load(options?: ILoadOptions): Promise<ITextFileEditorModel>;
 
-	revert(soft?: boolean): Promise<void>;
+	revert(options?: IRevertOptions): Promise<boolean>;
 
 	backup(target?: URI): Promise<void>;
 

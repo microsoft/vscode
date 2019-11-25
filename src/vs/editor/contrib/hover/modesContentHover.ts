@@ -207,7 +207,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		private readonly _themeService: IThemeService,
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _modeService: IModeService,
-		private readonly _openerService: IOpenerService | null = NullOpenerService,
+		private readonly _openerService: IOpenerService = NullOpenerService,
 	) {
 		super(ModesContentHoverWidget.ID, editor);
 
@@ -548,7 +548,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			quickfixPlaceholderElement.style.transition = '';
 			quickfixPlaceholderElement.style.opacity = '1';
 
-			if (!actions.actions.length) {
+			if (!actions.validActions.length) {
 				actions.dispose();
 				quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
 				return;
@@ -586,7 +586,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			return getCodeActions(
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
-				{ type: 'manual', filter: { kind: CodeActionKind.QuickFix } },
+				{ type: 'manual', filter: { include: CodeActionKind.QuickFix } },
 				cancellationToken);
 		});
 	}

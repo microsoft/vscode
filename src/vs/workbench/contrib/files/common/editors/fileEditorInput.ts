@@ -7,17 +7,19 @@ import { localize } from 'vs/nls';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
+import { EncodingMode, IFileEditorInput, ITextEditorModel, Verbosity, TextEditorInput, IRevertOptions } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ITextFileService, ModelState, TextFileModelChangeEvent, LoadReason, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IAutoSaveConfigurationService, AutoSaveMode } from 'vs/workbench/services/autoSaveConfiguration/common/autoSaveConfigurationService';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const enum ForceOpenAs {
 	None,
@@ -28,7 +30,7 @@ const enum ForceOpenAs {
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
-export class FileEditorInput extends EditorInput implements IFileEditorInput {
+export class FileEditorInput extends TextEditorInput implements IFileEditorInput {
 
 	private static readonly MEMOIZER = createMemoizer();
 
@@ -39,21 +41,20 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private textModelReference: Promise<IReference<ITextEditorModel>> | null = null;
 
-	/**
-	 * An editor input who's contents are retrieved from file services.
-	 */
 	constructor(
-		private resource: URI,
+		resource: URI,
 		preferredEncoding: string | undefined,
 		preferredMode: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextFileService private readonly textFileService: ITextFileService,
+		@ITextFileService textFileService: ITextFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService,
-		@IAutoSaveConfigurationService private readonly autoSaveConfigurationService: IAutoSaveConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super();
+		super(resource, editorService, editorGroupService, textFileService);
 
 		if (preferredEncoding) {
 			this.setPreferredEncoding(preferredEncoding);
@@ -89,10 +90,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			FileEditorInput.MEMOIZER.clear();
 			this._onDidChangeLabel.fire();
 		}
-	}
-
-	getResource(): URI {
-		return this.resource;
 	}
 
 	getEncoding(): string | undefined {
@@ -219,11 +216,17 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}
 
-		if (model?.isReadonly()) {
+		if (this.isReadonly()) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
 
 		return label;
+	}
+
+	isReadonly(): boolean {
+		const model = this.textFileService.models.get(this.resource);
+
+		return model?.isReadonly() || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	isDirty(): boolean {
@@ -236,19 +239,11 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			return true; // always indicate dirty state if we are in conflict or error state
 		}
 
-		if (this.autoSaveConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 			return false; // fast auto save enabled so we do not declare dirty
 		}
 
 		return model.isDirty();
-	}
-
-	confirmSave(): Promise<ConfirmResult> {
-		return this.textFileService.confirmSave([this.resource]);
-	}
-
-	save(): Promise<boolean> {
-		return this.textFileService.save(this.resource);
 	}
 
 	revert(options?: IRevertOptions): Promise<boolean> {

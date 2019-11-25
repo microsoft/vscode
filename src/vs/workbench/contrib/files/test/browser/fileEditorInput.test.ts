@@ -141,7 +141,7 @@ suite('Files - FileEditorInput', () => {
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
 
-		await input.save();
+		await input.save(0);
 		assert.ok(!input.isDirty());
 		resolved.dispose();
 	});
@@ -153,8 +153,12 @@ suite('Files - FileEditorInput', () => {
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
 
-		await input.revert();
+		assert.ok(await input.revert());
 		assert.ok(!input.isDirty());
+
+		input.dispose();
+		assert.ok(input.isDisposed());
+
 		resolved.dispose();
 	});
 

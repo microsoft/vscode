@@ -1,0 +1,18 @@
+{
+	"name": "Search Results",
+	"scopeName": "text.searchResult",
+	"patterns": [
+		{
+			"match": "^# (Query|Flags|Include|Exclude): .*$",
+			"name": "comment"
+		},
+		{
+			"match": "^\\S.*:$",
+			"name": "string path.searchResult"
+		},
+		{
+			"match": "^  \\d+",
+			"name": "constant.numeric lineNumber.searchResult"
+		}
+	]
+}

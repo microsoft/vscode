@@ -91,18 +91,25 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			const anchor = delegate.getAnchor();
 			let x: number, y: number;
 
+			let zoom = webFrame.getZoomFactor();
 			if (dom.isHTMLElement(anchor)) {
 				let elementPosition = dom.getDomNodePagePosition(anchor);
 
 				x = elementPosition.left;
 				y = elementPosition.top + elementPosition.height;
+
+				// Shift macOS menus by a few pixels below elements
+				// to account for extra padding on top of native menu
+				// https://github.com/microsoft/vscode/issues/84231
+				if (isMacintosh) {
+					y += 4 / zoom;
+				}
 			} else {
 				const pos: { x: number; y: number; } = anchor;
 				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
 				y = pos.y;
 			}
 
-			let zoom = webFrame.getZoomFactor();
 			x *= zoom;
 			y *= zoom;
 

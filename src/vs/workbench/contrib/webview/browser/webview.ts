@@ -19,6 +19,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('webviewFindWidgetFocused', false);
 
+export const webviewHasOwnEditFunctionsContextKey = 'webviewHasOwnEditFunctions';
+export const webviewHasOwnEditFunctionsContext = new RawContextKey<boolean>(webviewHasOwnEditFunctionsContextKey, false);
+
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
 /**

@@ -8,9 +8,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
 export const enum AuthTokenStatus {
-	Disabled = 'Disabled',
-	Inactive = 'Inactive',
-	Active = 'Active'
+	Initializing = 'Initializing',
+	SignedOut = 'SignedOut',
+	SignedIn = 'SignedIn',
+	SigningIn = 'SigningIn',
+	RefreshingToken = 'RefreshingToken'
 }
 
 export const IAuthTokenService = createDecorator<IAuthTokenService>('IAuthTokenService');
@@ -24,6 +26,6 @@ export interface IAuthTokenService {
 
 	getToken(): Promise<string | undefined>;
 	refreshToken(): Promise<void>;
-	login(callbackUri?: URI): Promise<void>;
+	login(): Promise<void>;
 	logout(): Promise<void>;
 }
