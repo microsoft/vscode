@@ -127,6 +127,15 @@ steps:
     ./build/azure-pipelines/linux/publish.sh
   displayName: Publish
 
+- script: |
+    ls -lR .
+  displayName: Debug log 1
+
+- script: |
+    apt-get install tree
+    tree
+  displayName: Debug log 2
+
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
