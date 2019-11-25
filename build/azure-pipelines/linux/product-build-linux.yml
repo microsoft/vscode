@@ -128,13 +128,12 @@ steps:
   displayName: Publish
 
 - script: |
-    ls -lR .
+    pwd
+    echo '******* .build'
+    ls -lR .build
+    echo '******* ..'
+    ls -lR ..
   displayName: Debug log 1
-
-- script: |
-    apt-get install tree
-    tree
-  displayName: Debug log 2
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
