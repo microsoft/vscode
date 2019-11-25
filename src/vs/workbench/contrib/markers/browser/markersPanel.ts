@@ -27,7 +27,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Iterator } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, TreeResourceNavigator2, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, TreeResourceNavigator2, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
@@ -44,8 +44,8 @@ import { IMarker } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterator<ITreeElement<TreeElement>> {
 	const markersIt = Iterator.fromArray(resourceMarkers.markers);
@@ -360,8 +360,11 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 				accessibilityProvider,
 				identityProvider,
 				dnd: new ResourceDragAndDrop(this.instantiationService),
-				expandOnlyOnTwistieClick: (e: TreeElement) => e instanceof Marker && e.relatedInformation.length > 0
-			}
+				expandOnlyOnTwistieClick: (e: TreeElement) => e instanceof Marker && e.relatedInformation.length > 0,
+				overrideStyles: {
+					listBackground: PANEL_BACKGROUND
+				}
+			},
 		));
 
 		onDidChangeRenderNodeCount.input = this.tree.onDidChangeRenderNodeCount;
@@ -482,9 +485,8 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		this.setCurrentActiveEditor();
 		if (this.filterAction.activeFile) {
 			this.refreshPanel();
-		} else {
-			this.autoReveal();
 		}
+		this.autoReveal();
 	}
 
 	private setCurrentActiveEditor(): void {
@@ -547,32 +549,32 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 	}
 
 	private autoReveal(focus: boolean = false): void {
+		// No need to auto reveal if active file filter is on
+		if (this.filterAction.activeFile) {
+			return;
+		}
 		let autoReveal = this.configurationService.getValue<boolean>('problems.autoReveal');
 		if (typeof autoReveal === 'boolean' && autoReveal) {
-			this.revealMarkersForCurrentActiveEditor(focus);
-		}
-	}
+			let currentActiveResource = this.getResourceForCurrentActiveResource();
+			if (currentActiveResource) {
+				if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
+					this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
+					if (focus) {
+						this.tree.setFocus(this.tree.getSelection());
+					}
+				} else {
+					this.tree.expand(currentActiveResource);
+					this.tree.reveal(currentActiveResource, 0);
 
-	private revealMarkersForCurrentActiveEditor(focus: boolean = false): void {
-		let currentActiveResource = this.getResourceForCurrentActiveResource();
-		if (currentActiveResource) {
-			if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
-				this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
-				if (focus) {
-					this.tree.setFocus(this.tree.getSelection());
+					if (focus) {
+						this.tree.setFocus([currentActiveResource]);
+						this.tree.setSelection([currentActiveResource]);
+					}
 				}
-			} else {
-				this.tree.expand(currentActiveResource);
-				this.tree.reveal(currentActiveResource, 0);
-
-				if (focus) {
-					this.tree.setFocus([currentActiveResource]);
-					this.tree.setSelection([currentActiveResource]);
-				}
+			} else if (focus) {
+				this.tree.setSelection([]);
+				this.tree.focusFirst();
 			}
-		} else if (focus) {
-			this.tree.setSelection([]);
-			this.tree.focusFirst();
 		}
 	}
 
@@ -734,7 +736,7 @@ class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
 		readonly container: HTMLElement,
 		delegate: IListVirtualDelegate<TreeElement>,
 		renderers: ITreeRenderer<TreeElement, FilterData, any>[],
-		options: IObjectTreeOptions<TreeElement, FilterData>,
+		options: IWorkbenchObjectTreeOptions<TreeElement, FilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,

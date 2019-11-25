@@ -503,6 +503,7 @@ export class Minimap extends ViewPart {
 		this._slider.setPosition('absolute');
 		this._slider.setClassName('minimap-slider');
 		this._slider.setLayerHinting(true);
+		this._slider.setContain('strict');
 		this._domNode.appendChild(this._slider);
 
 		this._sliderHorizontal = createFastDomNode(document.createElement('div'));
@@ -1108,7 +1109,7 @@ export class Minimap extends ViewPart {
 						if (renderMinimap === RenderMinimap.Blocks) {
 							minimapCharRenderer.blockRenderChar(target, dx, dy, tokenColor, backgroundColor, useLighterFont);
 						} else { // RenderMinimap.Text
-							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, useLighterFont);
+							minimapCharRenderer.renderChar(target, dx, dy, charCode, tokenColor, backgroundColor, fontScale, useLighterFont);
 						}
 
 						dx += charWidth;

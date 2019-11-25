@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { find } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IPosition } from 'vs/editor/common/core/position';
 import { CodeAction } from 'vs/editor/common/modes';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CodeActionsState } from './codeActionModel';
-import { CodeActionAutoApply } from './types';
-import { CodeActionWidget } from './codeActionWidget';
+import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
 import { LightBulbWidget } from './lightBulbWidget';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Lazy } from 'vs/base/common/lazy';
+import { CodeActionAutoApply, CodeActionTrigger } from './types';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class CodeActionUi extends Disposable {
 
-	private readonly _codeActionWidget: Lazy<CodeActionWidget>;
+	private readonly _codeActionWidget: Lazy<CodeActionMenu>;
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
@@ -32,13 +32,12 @@ export class CodeActionUi extends Disposable {
 		private readonly delegate: {
 			applyCodeAction: (action: CodeAction, regtriggerAfterApply: boolean) => Promise<void>
 		},
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._codeActionWidget = new Lazy(() => {
-			return this._register(new CodeActionWidget(this._editor, contextMenuService, keybindingService, {
+			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
 				onSelectCodeAction: async (action) => {
 					this.delegate.applyCodeAction(action, /* retrigger */ true);
 				}
@@ -46,8 +45,8 @@ export class CodeActionUi extends Disposable {
 		});
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(new LightBulbWidget(this._editor, quickFixActionId, preferredFixActionId, keybindingService));
-			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e)));
+			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
+			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false })));
 			return widget;
 		});
 	}
@@ -68,29 +67,43 @@ export class CodeActionUi extends Disposable {
 
 		this._lightBulbWidget.getValue().update(actions, newState.position);
 
-		if (!actions.actions.length && newState.trigger.context) {
-			MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
-			this._activeCodeActions.value = actions;
-			return;
-		}
-
 		if (newState.trigger.type === 'manual') {
-			if (newState.trigger.filter && newState.trigger.filter.kind) {
-				// Triggered for specific scope
-				if (actions.actions.length > 0) {
-					// Apply if we only have one action or requested autoApply
-					if (newState.trigger.autoApply === CodeActionAutoApply.First || (newState.trigger.autoApply === CodeActionAutoApply.IfSingle && actions.actions.length === 1)) {
-						try {
-							await this.delegate.applyCodeAction(actions.actions[0], false);
-						} finally {
-							actions.dispose();
-						}
+			if (newState.trigger.filter?.include) { // Triggered for specific scope
+				// Check to see if we want to auto apply.
+
+				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
+				if (validActionToApply) {
+					try {
+						await this.delegate.applyCodeAction(validActionToApply, false);
+					} finally {
+						actions.dispose();
+					}
+					return;
+				}
+
+				// Check to see if there is an action that we would have applied were it not invalid
+				if (newState.trigger.context) {
+					const invalidAction = this.getInvalidActionThatWouldHaveBeenApplied(newState.trigger, actions);
+					if (invalidAction && invalidAction.disabled) {
+						MessageController.get(this._editor).showMessage(invalidAction.disabled, newState.trigger.context.position);
+						actions.dispose();
 						return;
 					}
 				}
 			}
+
+			const includeDisabledActions = !!newState.trigger.filter?.include;
+			if (newState.trigger.context) {
+				if (!actions.allActions.length || !includeDisabledActions && !actions.validActions.length) {
+					MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
+					this._activeCodeActions.value = actions;
+					actions.dispose();
+					return;
+				}
+			}
+
 			this._activeCodeActions.value = actions;
-			this._codeActionWidget.getValue().show(actions, newState.position);
+			this._codeActionWidget.getValue().show(actions, newState.position, { includeDisabledActions });
 		} else {
 			// auto magically triggered
 			if (this._codeActionWidget.getValue().isVisible) {
@@ -102,7 +115,35 @@ export class CodeActionUi extends Disposable {
 		}
 	}
 
-	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
-		this._codeActionWidget.getValue().show(actions, at);
+	private getInvalidActionThatWouldHaveBeenApplied(trigger: CodeActionTrigger, actions: CodeActionSet): CodeAction | undefined {
+		if (!actions.allActions.length) {
+			return undefined;
+		}
+
+		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length === 0)
+			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.allActions.length === 1)
+		) {
+			return find(actions.allActions, action => action.disabled);
+		}
+
+		return undefined;
+	}
+
+	private tryGetValidActionToApply(trigger: CodeActionTrigger, actions: CodeActionSet): CodeAction | undefined {
+		if (!actions.validActions.length) {
+			return undefined;
+		}
+
+		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length > 0)
+			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.validActions.length === 1)
+		) {
+			return actions.validActions[0];
+		}
+
+		return undefined;
+	}
+
+	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
+		this._codeActionWidget.getValue().show(actions, at, options);
 	}
 }

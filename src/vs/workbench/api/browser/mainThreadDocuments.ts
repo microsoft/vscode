@@ -233,7 +233,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 			initialValue,
 			useResourcePath: Boolean(resource && resource.path)
 		}).then(model => {
-			const resource = model.getResource();
+			const resource = model.resource;
 
 			if (!this._modelIsSynced.has(resource.toString())) {
 				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);

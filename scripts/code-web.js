@@ -20,17 +20,35 @@ const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
 const args = minimist(process.argv, {
-	string: [
+	boolean: [
 		'no-launch',
-		'scheme',
-		'host'
+		'help'
 	],
-	number: [
-		'port'
-	]
+	string: [
+		'scheme',
+		'host',
+		'port',
+		'local_port'
+	],
 });
 
+if (args.help) {
+	console.log(
+		'yarn web [options]\n' +
+		' --no-launch   Do not open VSCode web in the browser\n' +
+		' --scheme      Protocol (https or http)\n' +
+		' --host        Remote host\n' +
+		' --port        Remote/Local port\n' +
+		' --local_port  Local port override\n' +
+		' --help\n' +
+		'[Example]\n' +
+		' yarn web --scheme https --host example.com --port 8080 --local_port 30000'
+	);
+	process.exit(0);
+}
+
 const PORT = args.port || process.env.PORT || 8080;
+const LOCAL_PORT = args.local_port || process.env.LOCAL_PORT || PORT;
 const SCHEME = args.scheme || process.env.VSCODE_SCHEME || 'http';
 const HOST = args.host || 'localhost';
 const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
@@ -65,8 +83,11 @@ const server = http.createServer((req, res) => {
 	}
 });
 
-server.listen(PORT, () => {
-	console.log(`Web UI available at ${SCHEME}://${AUTHORITY}`);
+server.listen(LOCAL_PORT, () => {
+	if (LOCAL_PORT !== PORT) {
+		console.log(`Operating location at http://0.0.0.0:${LOCAL_PORT}`);
+	}
+	console.log(`Web UI available at   ${SCHEME}://${AUTHORITY}`);
 });
 
 server.on('error', err => {
@@ -206,6 +227,14 @@ function getMediaMime(forPath) {
  */
 async function serveFile(req, res, filePath, responseHeaders = Object.create(null)) {
 	try {
+
+		// Sanity checks
+		filePath = path.normalize(filePath); // ensure no "." and ".."
+		if (filePath.indexOf(`${APP_ROOT}${path.sep}`) !== 0) {
+			// invalid location outside of APP_ROOT
+			return serveError(req, res, 400, `Bad request.`);
+		}
+
 		const stat = await util.promisify(fs.stat)(filePath);
 
 		// Check if file modified since

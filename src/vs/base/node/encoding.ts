@@ -167,7 +167,7 @@ function toNodeEncoding(enc: string | null): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): string | null {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): typeof UTF8_with_bom | typeof UTF16le | typeof UTF16be | null {
 	if (!buffer || bytesRead < UTF16be_BOM.length) {
 		return null;
 	}
@@ -193,14 +193,11 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 
 	// UTF-8
 	if (b0 === UTF8_BOM[0] && b1 === UTF8_BOM[1] && b2 === UTF8_BOM[2]) {
-		return UTF8;
+		return UTF8_with_bom;
 	}
 
 	return null;
 }
-
-const MINIMUM_THRESHOLD = 0.2;
-const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 
 /**
  * Guesses the encoding from buffer.
@@ -208,18 +205,19 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 	const jschardet = await import('jschardet');
 
-	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
-
 	const guessed = jschardet.detect(buffer);
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
 
-	const enc = guessed.encoding.toLowerCase();
-
-	// Ignore encodings that cannot guess correctly
-	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
-	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
+	// Ignore 'ascii' as guessed encoding because that
+	// is almost never what we want, rather fallback
+	// to the configured encoding then. Otherwise,
+	// opening a ascii-only file with auto guessing
+	// enabled will put the file into 'ascii' mode
+	// and thus typing any special characters is
+	// not possible anymore.
+	if (guessed.encoding.toLowerCase() === 'ascii') {
 		return null;
 	}
 

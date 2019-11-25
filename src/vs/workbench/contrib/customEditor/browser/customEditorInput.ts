@@ -6,23 +6,23 @@
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
 import { UnownedDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
-import { DataUri, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
+import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { CustomEditorModel } from './customEditorModel';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private _model?: CustomEditorModel;
+	private _model?: ICustomEditorModel;
 
 	constructor(
 		resource: URI,
@@ -32,6 +32,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 	) {
 		super(id, viewType, '', webview, webviewWorkbenchService, lifecycleService);
 		this._editorResource = resource;
@@ -47,25 +48,11 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	@memoize
 	getName(): string {
-		if (this.getResource().scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(this.getResource());
-			const label = metadata.get(DataUri.META_DATA_LABEL);
-			if (typeof label === 'string') {
-				return label;
-			}
-		}
 		return basename(this.labelService.getUriLabel(this.getResource()));
 	}
 
 	@memoize
 	getDescription(): string | undefined {
-		if (this.getResource().scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(this.getResource());
-			const description = metadata.get(DataUri.META_DATA_DESCRIPTION);
-			if (typeof description === 'string') {
-				return description;
-			}
-		}
 		return super.getDescription();
 	}
 
@@ -82,17 +69,11 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	@memoize
 	private get mediumTitle(): string {
-		if (this.getResource().scheme === Schemas.data) {
-			return this.getName();
-		}
 		return this.labelService.getUriLabel(this.getResource(), { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
-		if (this.getResource().scheme === Schemas.data) {
-			return this.getName();
-		}
 		return this.labelService.getUriLabel(this.getResource());
 	}
 
@@ -108,15 +89,30 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 	}
 
-	public setModel(model: CustomEditorModel) {
-		if (this._model) {
-			throw new Error('Model is already set');
-		}
-		this._model = model;
-		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+	public isReadonly(): boolean {
+		return false;
 	}
 
 	public isDirty(): boolean {
 		return this._model ? this._model.isDirty() : false;
+	}
+
+	public save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		return this._model ? this._model.save(options) : Promise.resolve(false);
+	}
+
+	public saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		// TODO@matt implement properly (see TextEditorInput#saveAs())
+		return this._model ? this._model.save(options) : Promise.resolve(false);
+	}
+
+	public revert(options?: IRevertOptions): Promise<boolean> {
+		return this._model ? this._model.revert(options) : Promise.resolve(false);
+	}
+
+	public async resolve(): Promise<IEditorModel> {
+		this._model = await this.customEditorService.models.loadOrCreate(this.getResource(), this.viewType);
+		this._register(this._model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		return await super.resolve();
 	}
 }

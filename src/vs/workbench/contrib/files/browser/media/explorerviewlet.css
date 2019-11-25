@@ -61,14 +61,14 @@
 	align-items: center;
 }
 
-.explorer-viewlet .panel-header .count {
+.explorer-viewlet .pane-header .count {
 	min-width: fit-content;
 	min-width: -moz-fit-content;
 	display: flex;
 	align-items: center;
 }
 
-.explorer-viewlet .panel-header .monaco-count-badge.hidden {
+.explorer-viewlet .pane-header .monaco-count-badge.hidden {
 	display: none;
 }
 
@@ -126,6 +126,16 @@
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
+}
+
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
+	padding: 1px;
+	border-radius: 3px;
+}
+
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover > .monaco-highlighted-label,
+.explorer-viewlet .monaco-list .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
+	text-decoration: underline;
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,

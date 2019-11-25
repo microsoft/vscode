@@ -32,10 +32,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource } from 'vs/workbench/common/editor';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { SaveReason } from 'vs/workbench/common/editor';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -53,13 +52,12 @@ export namespace SaveLocalFileCommand {
 	export const LABEL = nls.localize('saveLocalFile', "Save Local File...");
 	export function handler(): ICommandHandler {
 		return accessor => {
-			const textFileService = accessor.get(ITextFileService);
 			const editorService = accessor.get(IEditorService);
-			let resource: URI | undefined = toResource(editorService.activeEditor);
-			const options: ISaveOptions = { force: true, availableFileSystems: [Schemas.file] };
-			if (resource) {
-				return textFileService.saveAs(resource, undefined, options);
+			const activeControl = editorService.activeControl;
+			if (activeControl) {
+				return editorService.save({ groupId: activeControl.group.id, editor: activeControl.input }, { saveAs: true, availableFileSystems: [Schemas.file], reason: SaveReason.EXPLICIT });
 			}
+
 			return Promise.resolve(undefined);
 		};
 	}
@@ -262,6 +260,7 @@ export class SimpleFileDialog {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
 			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
+			this.filePickBox.sortByLabel = false;
 			this.filePickBox.autoFocusOnList = false;
 			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;

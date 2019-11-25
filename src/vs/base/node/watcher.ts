@@ -10,7 +10,7 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import { toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { exists, readdir } from 'vs/base/node/pfs';
 
-export function watchFile(path: string, onChange: (type: 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+export function watchFile(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
 	return doWatchNonRecursive({ path, isDirectory: false }, onChange, onError);
 }
 

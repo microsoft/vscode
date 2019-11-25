@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, ConfirmResult, IRevertOptions, EditorOptions } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, EditorModel, EditorOptions, GroupIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -24,8 +24,13 @@ import { isEqual } from 'vs/base/common/resources';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { env } from 'vs/base/common/process';
 
-export class TestCustomEditorsAction extends Action {
+const CUSTOM_SCHEME = 'testCustomEditor';
+const ENABLE = !!env['VSCODE_DEV'];
+
+class TestCustomEditorsAction extends Action {
 
 	static readonly ID = 'workbench.action.openCustomEditor';
 	static readonly LABEL = nls.localize('openCustomEditor', "Test Open Custom Editor");
@@ -33,19 +38,21 @@ export class TestCustomEditorsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<boolean> {
-		await this.editorService.openEditor(new TestCustomEditorInput(URI.parse(`testCustomEditor:/${generateUuid()}`)));
+		const input = this.instantiationService.createInstance(TestCustomEditorInput, URI.parse(`${CUSTOM_SCHEME}:/${generateUuid()}`));
+		await this.editorService.openEditor(input);
 
 		return true;
 	}
 }
 
-export class TestCustomEditor extends BaseEditor {
+class TestCustomEditor extends BaseEditor {
 
 	static ID = 'testCustomEditor';
 
@@ -109,12 +116,17 @@ export class TestCustomEditor extends BaseEditor {
 	layout(dimension: Dimension): void { }
 }
 
-export class TestCustomEditorInput extends EditorInput {
+class TestCustomEditorInput extends EditorInput implements IWorkingCopy {
 	private model: TestCustomEditorModel | undefined = undefined;
+
 	private dirty = false;
 
-	constructor(public readonly resource: URI) {
+	readonly capabilities = 0;
+
+	constructor(public readonly resource: URI, @IWorkingCopyService workingCopyService: IWorkingCopyService) {
 		super();
+
+		this._register(workingCopyService.registerWorkingCopy(this));
 	}
 
 	getResource(): URI {
@@ -126,41 +138,52 @@ export class TestCustomEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return `Custom Editor: ${this.resource.toString()}`;
+		return this.resource.toString();
 	}
 
 	setValue(value: string) {
 		if (this.model) {
+			if (this.model.value === value) {
+				return;
+			}
+
 			this.model.value = value;
 		}
 
 		this.setDirty(value.length > 0);
 	}
 
-	setDirty(dirty: boolean) {
-		this.dirty = dirty;
-		this._onDidChangeDirty.fire();
+	private setDirty(dirty: boolean) {
+		if (this.dirty !== dirty) {
+			this.dirty = dirty;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
+	isReadonly(): boolean {
+		return false;
 	}
 
 	isDirty(): boolean {
 		return this.dirty;
 	}
 
-	confirmSave(): Promise<ConfirmResult> {
-		// TODO
-		return Promise.resolve(ConfirmResult.DONT_SAVE);
-	}
-
-	save(): Promise<boolean> {
+	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.setDirty(false);
 
-		return Promise.resolve(true);
+		return true;
 	}
 
-	revert(options?: IRevertOptions): Promise<boolean> {
+	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.setDirty(false);
 
-		return Promise.resolve(true);
+		return true;
+	}
+
+	async revert(options?: IRevertOptions): Promise<boolean> {
+		this.setDirty(false);
+
+		return true;
 	}
 
 	async resolve(): Promise<IEditorModel | null> {
@@ -174,9 +197,20 @@ export class TestCustomEditorInput extends EditorInput {
 	matches(other: EditorInput) {
 		return other instanceof TestCustomEditorInput && isEqual(other.resource, this.resource);
 	}
+
+	dispose(): void {
+		this.setDirty(false);
+
+		if (this.model) {
+			this.model.dispose();
+			this.model = undefined;
+		}
+
+		super.dispose();
+	}
 }
 
-export class TestCustomEditorModel extends EditorModel {
+class TestCustomEditorModel extends EditorModel {
 
 	public value: string = '';
 
@@ -185,32 +219,34 @@ export class TestCustomEditorModel extends EditorModel {
 	}
 }
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
-		TestCustomEditor,
-		TestCustomEditor.ID,
-		nls.localize('testCustomEditor', "Test Custom Editor")
-	),
-	[
-		new SyncDescriptor<EditorInput>(TestCustomEditorInput),
-	]
-);
+if (ENABLE) {
+	Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+		EditorDescriptor.create(
+			TestCustomEditor,
+			TestCustomEditor.ID,
+			nls.localize('testCustomEditor', "Test Custom Editor")
+		),
+		[
+			new SyncDescriptor<EditorInput>(TestCustomEditorInput),
+		]
+	);
 
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+	const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(TestCustomEditorsAction, TestCustomEditorsAction.ID, TestCustomEditorsAction.LABEL), 'Test Open Custom Editor');
+	registry.registerWorkbenchAction(SyncActionDescriptor.create(TestCustomEditorsAction, TestCustomEditorsAction.ID, TestCustomEditorsAction.LABEL), 'Test Open Custom Editor');
 
-class TestCustomEditorInputFactory implements IEditorInputFactory {
+	class TestCustomEditorInputFactory implements IEditorInputFactory {
 
-	serialize(editorInput: TestCustomEditorInput): string {
-		return JSON.stringify({
-			resource: editorInput.resource.toString()
-		});
+		serialize(editorInput: TestCustomEditorInput): string {
+			return JSON.stringify({
+				resource: editorInput.resource.toString()
+			});
+		}
+
+		deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TestCustomEditorInput {
+			return instantiationService.createInstance(TestCustomEditorInput, URI.parse(JSON.parse(serializedEditorInput).resource));
+		}
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TestCustomEditorInput {
-		return new TestCustomEditorInput(URI.parse(JSON.parse(serializedEditorInput).resource));
-	}
+	Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(TestCustomEditor.ID, TestCustomEditorInputFactory);
 }
-
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(TestCustomEditor.ID, TestCustomEditorInputFactory);

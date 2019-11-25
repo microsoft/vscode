@@ -21,6 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
+import { decodeSemanticTokensDto, ISemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -324,6 +325,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- semantic coloring
+
+	$registerSemanticColoringProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticColoringLegend): void {
+		this._registrations.set(handle, modes.SemanticColoringProviderRegistry.register(selector, new MainThreadSemanticColoringProvider(this._proxy, handle, legend)));
+	}
+
 	// --- suggest
 
 	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
@@ -593,4 +600,77 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
+}
+
+class MainThreadSemanticColoringCacheEntry implements modes.SemanticColoring {
+
+	constructor(
+		private readonly _parent: MainThreadSemanticColoringProvider,
+		public readonly uri: URI,
+		public readonly id: number,
+		public readonly areas: modes.SemanticColoringArea[],
+	) {
+	}
+
+	dispose(): void {
+		this._parent.release(this);
+	}
+}
+
+export class MainThreadSemanticColoringProvider implements modes.SemanticColoringProvider {
+
+	private readonly _cache = new Map<string, MainThreadSemanticColoringCacheEntry>();
+
+	constructor(
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		private readonly _handle: number,
+		private readonly _legend: modes.SemanticColoringLegend,
+	) {
+	}
+
+	release(entry: MainThreadSemanticColoringCacheEntry): void {
+		const currentCacheEntry = this._cache.get(entry.uri.toString()) || null;
+		if (currentCacheEntry && currentCacheEntry.id === entry.id) {
+			this._cache.delete(entry.uri.toString());
+		}
+		this._proxy.$releaseSemanticColoring(this._handle, entry.id);
+	}
+
+	getLegend(): modes.SemanticColoringLegend {
+		return this._legend;
+	}
+
+	async provideSemanticColoring(model: ITextModel, token: CancellationToken): Promise<modes.SemanticColoring | null> {
+		const lastResult = this._cache.get(model.uri.toString()) || null;
+		const encodedDto = await this._proxy.$provideSemanticColoring(this._handle, model.uri, lastResult ? lastResult.id : 0, token);
+		if (!encodedDto) {
+			return null;
+		}
+		if (token.isCancellationRequested) {
+			return null;
+		}
+		const dto = decodeSemanticTokensDto(encodedDto);
+		const res = this._resolveDeltas(model, lastResult, dto);
+		this._cache.set(model.uri.toString(), res);
+		return res;
+	}
+
+	private _resolveDeltas(model: ITextModel, lastResult: MainThreadSemanticColoringCacheEntry | null, dto: ISemanticTokensDto): MainThreadSemanticColoringCacheEntry {
+		let areas: modes.SemanticColoringArea[] = [];
+		for (let i = 0, len = dto.areas.length; i < len; i++) {
+			const areaDto = dto.areas[i];
+			if (areaDto.type === 'full') {
+				areas[i] = {
+					line: areaDto.line,
+					data: areaDto.data
+				};
+			} else {
+				areas[i] = {
+					line: areaDto.line,
+					data: lastResult!.areas[areaDto.oldIndex].data
+				};
+			}
+		}
+		return new MainThreadSemanticColoringCacheEntry(this, model.uri, dto.id, areas);
+	}
 }

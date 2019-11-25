@@ -48,6 +48,20 @@
 	overflow: hidden;
 }
 
+.monaco-workbench.windows.chromium .part.editor > .content .editor-group-container > .title,
+.monaco-workbench.linux.chromium .part.editor > .content .editor-group-container > .title {
+	/*
+	 * Explicitly put the part onto its own layer to help Chrome to
+	 * render the content with LCD-anti-aliasing. By partioning the
+	 * workbench into multiple layers, we can ensure that a bad
+	 * behaving part is not making another part fallback to greyscale
+	 * rendering.
+	 *
+	 * macOS: does not render LCD-anti-aliased.
+	 */
+	transform: translate3d(0px, 0px, 0px);
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title:not(.tabs) {
 	display: flex; /* when tabs are not shown, use flex layout */
 	flex-wrap: nowrap;

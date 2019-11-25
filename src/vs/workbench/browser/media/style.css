@@ -44,6 +44,10 @@ body.web {
 	position: fixed; /* prevent bounce effect */
 }
 
+.monaco-workbench.web {
+	touch-action: initial; /* reenable touch events on workbench */
+}
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .monaco-workbench {
@@ -52,13 +56,10 @@ body.web {
 	position: relative;
 	z-index: 1;
 	overflow: hidden;
-	height: 100vh;
-	width: 100vw;
 }
 
-.monaco-workbench.border {
-	height: calc(100vh - 2px);
-	width: calc(100vw - 2px);
+.monaco-workbench.border:not(.fullscreen) {
+	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
 }
 

@@ -89,7 +89,7 @@ export module StaticServices {
 
 	let _all: LazyStaticService<any>[] = [];
 
-	function define<T>(serviceId: ServiceIdentifier<T>, factory: (overrides: IEditorOverrideServices) => T): LazyStaticService<T> {
+	function define<T>(serviceId: ServiceIdentifier<T>, factory: (overrides: IEditorOverrideServices | undefined) => T): LazyStaticService<T> {
 		let r = new LazyStaticService(serviceId, factory);
 		_all.push(r);
 		return r;
@@ -144,11 +144,11 @@ export module StaticServices {
 
 	export const modeService = define(IModeService, (o) => new ModeServiceImpl());
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o)));
+	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
+
+	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o)));
 
 	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
-
-	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 
 	export const codeEditorService = define(ICodeEditorService, (o) => new StandaloneCodeEditorServiceImpl(standaloneThemeService.get(o)));
 
@@ -194,7 +194,7 @@ export class DynamicStandaloneServices extends Disposable {
 
 		ensure(IAccessibilityService, () => new BrowserAccessibilityService(contextKeyService, configurationService));
 
-		ensure(IListService, () => new ListService(contextKeyService));
+		ensure(IListService, () => new ListService(themeService));
 
 		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
 

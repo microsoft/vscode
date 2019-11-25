@@ -406,6 +406,10 @@ export class TextAreaHandler extends ViewPart {
 		this._textAreaInput.focusTextArea();
 	}
 
+	public refreshFocusState() {
+		this._textAreaInput.refreshFocusState();
+	}
+
 	// --- end view API
 
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;

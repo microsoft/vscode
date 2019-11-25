@@ -4936,6 +4936,35 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #84998: Overtyping Brackets doesn\'t work after backslash', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				''
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1)]);
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), '\\');
+
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.equal(model.getValue(), '\\()');
+
+			cursorCommand(cursor, H.Type, { text: 'abc' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc)');
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc\\)');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc\\)');
+		});
+		mode.dispose();
+	});
+
 	test('issue #2773: Accents (´`¨^, others?) are inserted in the wrong position (Mac)', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({

@@ -32,7 +32,7 @@ import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/comm
 import { ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
-import { TokensStore, MultilineTokens, countEOL } from 'vs/editor/common/model/tokensStore';
+import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
 
 function createTextBufferBuilder() {
@@ -276,6 +276,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private _languageIdentifier: LanguageIdentifier;
 	private readonly _languageRegistryListener: IDisposable;
 	private readonly _tokens: TokensStore;
+	private readonly _tokens2: TokensStore2;
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
@@ -339,6 +340,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._trimAutoWhitespaceLines = null;
 
 		this._tokens = new TokensStore();
+		this._tokens2 = new TokensStore2();
 		this._tokenization = new TextModelTokenization(this);
 	}
 
@@ -414,6 +416,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		// Flush all tokens
 		this._tokens.flush();
+		this._tokens2.flush();
 
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
@@ -1262,8 +1265,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
-				const [eolCount, firstLineLength] = countEOL(change.text);
+				const [eolCount, firstLineLength, lastLineLength] = countEOL(change.text);
 				this._tokens.acceptEdit(change.range, eolCount, firstLineLength);
+				this._tokens2.acceptEdit(change.range, eolCount, firstLineLength, lastLineLength, change.text.length > 0 ? change.text.charCodeAt(0) : CharCode.Null);
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
@@ -1717,6 +1721,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 		});
 	}
 
+	public setSemanticTokens(tokens: MultilineTokens2[] | null): void {
+		this._tokens2.set(tokens);
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
+		});
+	}
+
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
 		startLineNumber = Math.max(1, startLineNumber);
 		endLineNumber = Math.min(this._buffer.getLineCount(), endLineNumber);
@@ -1731,6 +1744,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 				fromLineNumber: 1,
 				toLineNumber: this._buffer.getLineCount()
 			}]
+		});
+	}
+
+	public clearSemanticTokens(): void {
+		this._tokens2.flush();
+
+		this._emitModelTokensChangedEvent({
+			tokenizationSupportChanged: false,
+			ranges: [{ fromLineNumber: 1, toLineNumber: this.getLineCount() }]
 		});
 	}
 
@@ -1772,7 +1794,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	private _getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this.getLineContent(lineNumber);
-		return this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
+		const syntacticTokens = this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
+		return this._tokens2.addSemanticTokens(lineNumber, syntacticTokens);
 	}
 
 	public getLanguageIdentifier(): LanguageIdentifier {

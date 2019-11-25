@@ -78,6 +78,10 @@
 	color: #666;
 }
 
+.debug-viewlet .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+	color: inherit !important;
+}
+
 .debug-viewlet .disabled {
 	opacity: 0.35;
 }
@@ -140,9 +144,12 @@
 	text-transform: uppercase;
 }
 
-.debug-viewlet .debug-call-stack .thread:hover > .state,
-.debug-viewlet .debug-call-stack .session:hover > .state,
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .state {
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .state {
+	display: none;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file,
+.debug-viewlet .debug-call-stack .monaco-list-row.focused .stack-frame.has-actions .file {
 	display: none;
 }
 
@@ -159,6 +166,7 @@
 	width: 16px;
 	height: 100%;
 	margin-right: 8px;
+	vertical-align: text-top;
 }
 
 .debug-viewlet .debug-call-stack .thread > .state > .label,
@@ -240,7 +248,7 @@
 	overflow: hidden;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .codicon {
 	color: inherit !important;
 }
 
@@ -334,10 +342,17 @@
 	flex-shrink: 0;
 }
 
-.debug-viewlet .debug-breakpoints .breakpoint > .icon {
+.debug-viewlet .debug-breakpoints .breakpoint > .codicon {
 	width: 19px;
 	height: 19px;
 	min-width: 19px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint > .codicon-debug-breakpoint-stackframe-dot::before {
+	content: "\ea71";
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

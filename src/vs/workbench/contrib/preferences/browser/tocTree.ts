@@ -189,7 +189,6 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 	) {
 		// test open mode
 
-		const treeClass = 'settings-toc-tree';
 		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
 		const options: IObjectTreeOptions<SettingsTreeGroupElement> = {
 			filter,
@@ -199,7 +198,7 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 					return e.id;
 				}
 			},
-			styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass),
+			styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true
 		};
@@ -209,9 +208,8 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 			[new TOCRenderer()],
 			options);
 
-		this.getHTMLElement().classList.add(treeClass);
-
 		this.disposables.add(attachStyler(themeService, {
+			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
 			listFocusAndSelectionBackground: editorBackground,

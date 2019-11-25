@@ -740,6 +740,18 @@ export class SnippetString {
 		return this;
 	}
 
+	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
+		const value = SnippetString._escape(values.toString());
+
+		this.value += '${';
+		this.value += number;
+		this.value += '|';
+		this.value += value;
+		this.value += '|}';
+
+		return this;
+	}
+
 	appendVariable(name: string, defaultValue?: string | ((snippet: SnippetString) => any)): SnippetString {
 
 		if (typeof defaultValue === 'function') {
@@ -1143,8 +1155,8 @@ export class SelectionRange {
 
 export class CallHierarchyItem {
 
-	_sessionId: string;
-	_itemId: string;
+	_sessionId?: string;
+	_itemId?: string;
 
 	kind: SymbolKind;
 	name: string;
@@ -2352,6 +2364,38 @@ export enum CommentThreadCollapsibleState {
 export enum CommentMode {
 	Editing = 0,
 	Preview = 1
+}
+
+//#endregion
+
+//#region Semantic Coloring
+
+export class SemanticColoringLegend {
+	public readonly tokenTypes: string[];
+	public readonly tokenModifiers: string[];
+
+	constructor(tokenTypes: string[], tokenModifiers: string[]) {
+		this.tokenTypes = tokenTypes;
+		this.tokenModifiers = tokenModifiers;
+	}
+}
+
+export class SemanticColoringArea {
+	public readonly line: number;
+	public readonly data: Uint32Array;
+
+	constructor(line: number, data: Uint32Array) {
+		this.line = line;
+		this.data = data;
+	}
+}
+
+export class SemanticColoring {
+	public readonly areas: SemanticColoringArea[];
+
+	constructor(areas: SemanticColoringArea[]) {
+		this.areas = areas;
+	}
 }
 
 //#endregion

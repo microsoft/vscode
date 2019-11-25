@@ -421,24 +421,22 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	public getLoadStatus(): ILoadStatus {
 		let promises: Thenable<any>[] = [];
 		for (let nestedModeId in this._embeddedModes) {
-			if (this._embeddedModes.hasOwnProperty(nestedModeId)) {
-				const tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
-				if (tokenizationSupport) {
-					// The nested mode is already loaded
-					if (tokenizationSupport instanceof MonarchTokenizer) {
-						const nestedModeStatus = tokenizationSupport.getLoadStatus();
-						if (nestedModeStatus.loaded === false) {
-							promises.push(nestedModeStatus.promise);
-						}
+			const tokenizationSupport = modes.TokenizationRegistry.get(nestedModeId);
+			if (tokenizationSupport) {
+				// The nested mode is already loaded
+				if (tokenizationSupport instanceof MonarchTokenizer) {
+					const nestedModeStatus = tokenizationSupport.getLoadStatus();
+					if (nestedModeStatus.loaded === false) {
+						promises.push(nestedModeStatus.promise);
 					}
-					continue;
 				}
+				continue;
+			}
 
-				const tokenizationSupportPromise = modes.TokenizationRegistry.getPromise(nestedModeId);
-				if (tokenizationSupportPromise) {
-					// The nested mode is in the process of being loaded
-					promises.push(tokenizationSupportPromise);
-				}
+			const tokenizationSupportPromise = modes.TokenizationRegistry.getPromise(nestedModeId);
+			if (tokenizationSupportPromise) {
+				// The nested mode is in the process of being loaded
+				promises.push(tokenizationSupportPromise);
 			}
 		}
 

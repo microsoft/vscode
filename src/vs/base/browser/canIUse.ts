@@ -6,6 +6,12 @@
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 
+export const enum KeyboardSupport {
+	Always,
+	FullScreen,
+	None
+}
+
 /**
  * Browser feature we can support in current platform, browser and environment.
  */
@@ -13,7 +19,7 @@ export const BrowserFeatures = {
 	clipboard: {
 		writeText: (
 			platform.isNative
-			|| document.queryCommandSupported('copy')
+			|| (document.queryCommandSupported && document.queryCommandSupported('copy'))
 			|| !!(navigator && navigator.clipboard && navigator.clipboard.writeText)
 		),
 		readText: (
@@ -37,9 +43,18 @@ export const BrowserFeatures = {
 			return true;
 		})()
 	},
-	/*
-	 * Full Keyboard Support in Full Screen Mode or Standablone
-	 */
-	fullKeyboard: !!(<any>navigator).keyboard || browser.isSafari,
-	touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0
+	keyboard: (() => {
+		if (platform.isNative || browser.isStandalone) {
+			return KeyboardSupport.Always;
+		}
+
+		if ((<any>navigator).keyboard || browser.isSafari) {
+			return KeyboardSupport.FullScreen;
+		}
+
+		return KeyboardSupport.None;
+	})(),
+
+	touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0,
+	pointerEvents: window.PointerEvent && ('ontouchstart' in window || window.navigator.maxTouchPoints > 0 || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0)
 };

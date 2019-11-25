@@ -24,7 +24,8 @@ export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
 
 export interface CodeActionSet extends IDisposable {
-	readonly actions: readonly CodeAction[];
+	readonly validActions: readonly CodeAction[];
+	readonly allActions: readonly CodeAction[];
 	readonly hasAutoFix: boolean;
 }
 
@@ -44,16 +45,18 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 		}
 	}
 
-	public readonly actions: readonly CodeAction[];
+	public readonly validActions: readonly CodeAction[];
+	public readonly allActions: readonly CodeAction[];
 
 	public constructor(actions: readonly CodeAction[], disposables: DisposableStore) {
 		super();
 		this._register(disposables);
-		this.actions = mergeSort([...actions], ManagedCodeActionSet.codeActionsComparator);
+		this.allActions = mergeSort([...actions], ManagedCodeActionSet.codeActionsComparator);
+		this.validActions = this.allActions.filter(action => !action.disabled);
 	}
 
 	public get hasAutoFix() {
-		return this.actions.some(fix => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
+		return this.validActions.some(fix => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
 	}
 }
 
@@ -66,7 +69,7 @@ export function getCodeActions(
 	const filter = trigger.filter || {};
 
 	const codeActionContext: CodeActionContext = {
-		only: filter.kind?.value,
+		only: filter.include?.value,
 		trigger: trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
@@ -146,9 +149,9 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 	const codeActionSet = await getCodeActions(
 		model,
 		validatedRangeOrSelection,
-		{ type: 'manual', filter: { includeSourceActions: true, kind: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
+		{ type: 'manual', filter: { includeSourceActions: true, include: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 
 	setTimeout(() => codeActionSet.dispose(), 100);
-	return codeActionSet.actions;
+	return codeActionSet.validActions;
 });
