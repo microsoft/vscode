@@ -16,6 +16,7 @@ export const CopyPathCommandId = 'search.action.copyPath';
 export const CopyMatchCommandId = 'search.action.copyMatch';
 export const CopyAllCommandId = 'search.action.copyAll';
 export const OpenInEditorCommandId = 'search.action.openInEditor';
+export const RerunEditorSearchCommandId = 'search.action.rerunEditorSearch';
 export const ClearSearchHistoryCommandId = 'search.action.clearHistory';
 export const FocusSearchListCommandID = 'search.action.focusSearchList';
 export const ReplaceActionId = 'search.action.replace';

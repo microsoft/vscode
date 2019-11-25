@@ -16,6 +16,26 @@
     "*"
   ],
   "contributes": {
+    "commands": [
+      {
+        "command": "searchResult.rerunSearch",
+        "title": "%searchResult.rerunSearch.title%",
+        "category": "Search Result",
+        "icon": {
+          "light": "./src/media/refresh-light.svg",
+          "dark": "./src/media/refresh-dark.svg"
+        }
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "searchResult.rerunSearch",
+          "when": "editorLangId == search-result",
+          "group": "navigation"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "search-result",

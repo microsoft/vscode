@@ -3,25 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Match, searchMatchComparer, FileMatch, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { Match, searchMatchComparer, FileMatch, SearchResult, SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { repeat } from 'vs/base/common/strings';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
-import { ITextQuery } from 'vs/workbench/services/search/common/search';
+import { ITextQuery, IPatternInfo, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import * as network from 'vs/base/common/network';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
 
-const translateRangeLines = (n: number) => (range: Range) => new Range(range.startLineNumber + n, range.startColumn, range.endLineNumber + n, range.endColumn);
+const translateRangeLines =
+	(n: number) =>
+		(range: Range) =>
+			new Range(range.startLineNumber + n, range.startColumn, range.endLineNumber + n, range.endColumn);
 
-type SearchResultSerialization = { text: string[], matchRanges: Range[] };
-
-function matchToSearchResultFormat(match: Match): { line: string, ranges: Range[], lineNumber: string }[] {
+const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[], lineNumber: string }[] => {
 	const getLinePrefix = (i: number) => `${match.range().startLineNumber + i}`;
 
 	const fullMatchLines = match.fullPreviewLines();
@@ -54,8 +60,9 @@ function matchToSearchResultFormat(match: Match): { line: string, ranges: Range[
 		});
 
 	return results;
-}
+};
 
+type SearchResultSerialization = { text: string[], matchRanges: Range[] };
 function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
 	const serializedMatches = flatten(fileMatch.matches()
 		.sort(searchMatchComparer)
@@ -95,7 +102,7 @@ const flattenSearchResultSerializations = (serializations: SearchResultSerializa
 	return { text, matchRanges };
 };
 
-function contentPatternToSearchResultHeader(pattern: ITextQuery | null, includes: string, excludes: string): string[] {
+const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes: string, excludes: string): string[] => {
 	if (!pattern) { return []; }
 
 	const removeNullFalseAndUndefined = <T>(a: (T | null | false | undefined)[]) => a.filter(a => a !== false && a !== null && a !== undefined) as T[];
@@ -105,28 +112,118 @@ function contentPatternToSearchResultHeader(pattern: ITextQuery | null, includes
 	return removeNullFalseAndUndefined([
 		`# Query: ${escapeNewlines(pattern.contentPattern.pattern)}`,
 
-		(pattern.contentPattern.isCaseSensitive || pattern.contentPattern.isWordMatch || pattern.contentPattern.isRegExp)
+		(pattern.contentPattern.isCaseSensitive || pattern.contentPattern.isWordMatch || pattern.contentPattern.isRegExp || pattern.userDisabledExcludesAndIgnoreFiles)
 		&& `# Flags: ${coalesce([
 			pattern.contentPattern.isCaseSensitive && 'CaseSensitive',
 			pattern.contentPattern.isWordMatch && 'WordMatch',
-			pattern.contentPattern.isRegExp && 'RegExp'
+			pattern.contentPattern.isRegExp && 'RegExp',
+			pattern.userDisabledExcludesAndIgnoreFiles && 'IgnoreExcludeSettings'
 		]).join(' ')}`,
 		includes ? `# Including: ${includes}` : undefined,
 		excludes ? `# Excluding: ${excludes}` : undefined,
 		''
 	]);
-}
+};
+
+const searchHeaderToContentPattern = (header: string[]): { pattern: string, flags: { regex: boolean, wholeWord: boolean, caseSensitive: boolean, ignoreExcludes: boolean }, includes: string, excludes: string } => {
+	const query = {
+		pattern: '',
+		flags: { regex: false, caseSensitive: false, ignoreExcludes: false, wholeWord: false },
+		includes: '',
+		excludes: ''
+	};
+
+	const unescapeNewlines = (str: string) => str.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
+	const parseYML = /^# ([^:]*): (.*)$/;
+	for (const line of header) {
+		const parsed = parseYML.exec(line);
+		if (!parsed) { continue; }
+		const [, key, value] = parsed;
+		switch (key) {
+			case 'Query': query.pattern = unescapeNewlines(value); break;
+			case 'Including': query.includes = value; break;
+			case 'Excluding': query.excludes = value; break;
+			case 'Flags': {
+				query.flags = {
+					regex: value.indexOf('RegExp') !== -1,
+					caseSensitive: value.indexOf('CaseSensitive') !== -1,
+					ignoreExcludes: value.indexOf('IgnoreExcludeSettings') !== -1,
+					wholeWord: value.indexOf('WordMatch') !== -1
+				};
+			}
+		}
+	}
+
+	return query;
+};
 
 const serializeSearchResultForEditor = (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, labelFormatter: (x: URI) => string): SearchResultSerialization => {
 	const header = contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern);
 	const allResults =
 		flattenSearchResultSerializations(
-			flatten(searchResult.folderMatches()
-				.map(folderMatch => folderMatch.matches()
+			flatten(searchResult.folderMatches().sort(searchMatchComparer)
+				.map(folderMatch => folderMatch.matches().sort(searchMatchComparer)
 					.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
 
 	return { matchRanges: allResults.matchRanges.map(translateRangeLines(header.length)), text: header.concat(allResults.text) };
 };
+
+export const refreshActiveEditorSearch =
+	async (editorService: IEditorService, instantiationService: IInstantiationService, contextService: IWorkspaceContextService, labelService: ILabelService, configurationService: IConfigurationService) => {
+		const model = editorService.activeTextEditorWidget?.getModel();
+		if (!model) { return; }
+
+		const textModel = model as ITextModel;
+
+		const header = textModel.getValueInRange(new Range(1, 1, 5, 1))
+			.split(lineDelimiter)
+			.filter(line => line.indexOf('# ') === 0);
+
+		const contentPattern = searchHeaderToContentPattern(header);
+
+		const content: IPatternInfo = {
+			pattern: contentPattern.pattern,
+			isRegExp: contentPattern.flags.regex,
+			isCaseSensitive: contentPattern.flags.caseSensitive,
+			isWordMatch: contentPattern.flags.wholeWord
+		};
+
+		const options: ITextQueryBuilderOptions = {
+			_reason: 'searchEditor',
+			extraFileResources: instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
+			maxResults: 10000,
+			disregardIgnoreFiles: contentPattern.flags.ignoreExcludes,
+			disregardExcludeSettings: contentPattern.flags.ignoreExcludes,
+			excludePattern: contentPattern.excludes,
+			includePattern: contentPattern.includes,
+			previewOptions: {
+				matchLines: 1,
+				charsPerLine: 1000
+			},
+			isSmartCase: configurationService.getValue<ISearchConfigurationProperties>('search').smartCase,
+			expandPatterns: true
+		};
+
+		const folderResources = contextService.getWorkspace().folders;
+
+		let query: ITextQuery;
+		try {
+			const queryBuilder = instantiationService.createInstance(QueryBuilder);
+			query = queryBuilder.text(content, folderResources.map(folder => folder.uri), options);
+		} catch (err) {
+			return;
+		}
+
+		const searchModel = instantiationService.createInstance(SearchModel);
+		await searchModel.search(query);
+
+		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
+		const results = serializeSearchResultForEditor(searchModel.searchResult, '', '', labelFormatter);
+
+		textModel.setValue(results.text.join(lineDelimiter));
+		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'findMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+	};
+
 
 export const createEditorFromSearchResult =
 	async (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, labelService: ILabelService, editorService: IEditorService) => {
@@ -154,5 +251,4 @@ export const createEditorFromSearchResult =
 		const model = control.getModel() as ITextModel;
 
 		model.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'findMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
-
 	};

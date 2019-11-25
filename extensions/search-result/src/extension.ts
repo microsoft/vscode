@@ -8,12 +8,26 @@ import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
 const RESULT_LINE_REGEX = /^(\s+)(\d+):(\s+)(.*)$/;
+const LANGUAGE_SELECTOR = { language: 'search-result' };
 
 let cachedLastParse: { version: number, parse: ParsedSearchResults } | undefined;
 
 export function activate() {
 
-	vscode.languages.registerDefinitionProvider({ language: 'search-result' }, {
+	vscode.commands.registerCommand('searchResult.rerunSearch', () => vscode.commands.executeCommand('search.action.rerunEditorSearch'));
+
+	vscode.languages.registerCompletionItemProvider(LANGUAGE_SELECTOR, {
+		provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
+			const line = document.lineAt(position.line);
+			if (line.text.indexOf('# Flags:') === -1) { return []; }
+
+			return ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch']
+				.filter(flag => line.text.indexOf(flag) === -1)
+				.map(flag => ({ label: flag, insertText: flag + ' ' }));
+		}
+	});
+
+	vscode.languages.registerDefinitionProvider(LANGUAGE_SELECTOR, {
 		provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.DefinitionLink[] {
 			const lineResult = parseSearchResults(document, token)[position.line];
 			if (!lineResult) { return []; }
@@ -27,7 +41,7 @@ export function activate() {
 		}
 	});
 
-	vscode.languages.registerDocumentLinkProvider({ language: 'search-result' }, {
+	vscode.languages.registerDocumentLinkProvider(LANGUAGE_SELECTOR, {
 		async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentLink[]> {
 			return parseSearchResults(document, token)
 				.filter(({ type }) => type === 'file')

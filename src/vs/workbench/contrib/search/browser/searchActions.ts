@@ -13,7 +13,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
@@ -29,7 +29,9 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { createEditorFromSearchResult, refreshActiveEditorSearch } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -447,6 +449,30 @@ export class OpenResultsInEditorAction extends Action {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
 			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService);
+		}
+	}
+}
+
+export class RerunEditorSearchAction extends Action {
+
+	static readonly ID: string = Constants.RerunEditorSearchCommandId;
+	static readonly LABEL = nls.localize('search.rerunEditorSearch', "Search Again");
+
+	constructor(id: string, label: string,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEditorService private editorService: IEditorService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ILabelService private labelService: ILabelService,
+		@IProgressService private progressService: IProgressService
+	) {
+		super(id, label);
+	}
+
+	async run() {
+		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+			await this.progressService.withProgress({ location: ProgressLocation.Window },
+				() => refreshActiveEditorSearch(this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
 		}
 	}
 }
