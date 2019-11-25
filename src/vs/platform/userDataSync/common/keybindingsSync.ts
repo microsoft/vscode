@@ -57,7 +57,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 	}
 
 	private async onDidChangeKeybindings(): Promise<void> {
-		const localFileContent = await this.getLocalFileContent();
+		const localFileContent = await this.getLocalContent();
 		const lastSyncData = await this.getLastSyncUserData();
 		if (localFileContent && lastSyncData) {
 			if (localFileContent.value.toString() !== lastSyncData.content) {
@@ -161,16 +161,16 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 			}
 			if (hasLocalChanged) {
 				this.logService.info('Keybindings: Updating local keybindings');
-				await this.writeToLocal(content, fileContent);
+				await this.updateLocalContent(content, fileContent);
 			}
 			if (hasRemoteChanged) {
 				this.logService.info('Keybindings: Updating remote keybindings');
-				const ref = await this.writeToRemote(content, remoteUserData.ref);
+				const ref = await this.updateRemoteContent(content, remoteUserData.ref);
 				remoteUserData = { ref, content };
 			}
 			if (remoteUserData.content) {
 				this.logService.info('Keybindings: Updating last synchronised keybindings');
-				await this.updateLastSyncValue(remoteUserData);
+				await this.updateLastSyncUserData(remoteUserData);
 			}
 
 			// Delete the preview
@@ -199,10 +199,10 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 
 	private async generatePreview(token: CancellationToken): Promise<ISyncPreviewResult> {
 		const lastSyncData = await this.getLastSyncUserData();
-		const remoteUserData = await this.userDataSyncStoreService.read(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, lastSyncData);
+		const remoteUserData = await this.getRemoteContent(lastSyncData);
 		const remoteContent: string | null = remoteUserData.content;
 		// Get file content last to get the latest
-		const fileContent = await this.getLocalFileContent();
+		const fileContent = await this.getLocalContent();
 		let hasLocalChanged: boolean = false;
 		let hasRemoteChanged: boolean = false;
 		let hasConflicts: boolean = false;
@@ -245,16 +245,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 	}
 
-	private async getLastSyncUserData(): Promise<IUserData | null> {
-		try {
-			const content = await this.fileService.readFile(this.lastSyncKeybindingsResource);
-			return JSON.parse(content.value.toString());
-		} catch (error) {
-			return null;
-		}
-	}
-
-	private async getLocalFileContent(): Promise<IFileContent | null> {
+	private async getLocalContent(): Promise<IFileContent | null> {
 		try {
 			return await this.fileService.readFile(this.environmentService.keybindingsResource);
 		} catch (error) {
@@ -262,11 +253,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		}
 	}
 
-	private async writeToRemote(content: string, ref: string | null): Promise<string> {
-		return this.userDataSyncStoreService.write(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, content, ref);
-	}
-
-	private async writeToLocal(newContent: string, oldContent: IFileContent | null): Promise<void> {
+	private async updateLocalContent(newContent: string, oldContent: IFileContent | null): Promise<void> {
 		if (oldContent) {
 			// file exists already
 			await this.fileService.writeFile(this.environmentService.keybindingsResource, VSBuffer.fromString(newContent), oldContent);
@@ -276,7 +263,24 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		}
 	}
 
-	private async updateLastSyncValue(remoteUserData: IUserData): Promise<void> {
+	private async getLastSyncUserData(): Promise<IUserData | null> {
+		try {
+			const content = await this.fileService.readFile(this.lastSyncKeybindingsResource);
+			return JSON.parse(content.value.toString());
+		} catch (error) {
+			return null;
+		}
+	}
+
+	private async updateLastSyncUserData(remoteUserData: IUserData): Promise<void> {
 		await this.fileService.writeFile(this.lastSyncKeybindingsResource, VSBuffer.fromString(JSON.stringify(remoteUserData)));
+	}
+
+	private async getRemoteContent(lastSyncData: IUserData | null): Promise<IUserData> {
+		return this.userDataSyncStoreService.read(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, lastSyncData);
+	}
+
+	private async updateRemoteContent(content: string, ref: string | null): Promise<string> {
+		return this.userDataSyncStoreService.write(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, content, ref);
 	}
 }
