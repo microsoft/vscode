@@ -28,7 +28,7 @@ export interface IViewletViewOptions extends IViewPaneOptions {
 	// viewletState: MementoObject;
 }
 
-export abstract class FilterViewContainerViewlet extends ViewPaneContainer {
+export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 	private constantViewDescriptors: Map<string, IViewDescriptor> = new Map();
 	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
 	private filterValue: string | undefined;

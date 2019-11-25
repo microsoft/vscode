@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { createDecorator, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values, keys } from 'vs/base/common/map';
@@ -51,7 +51,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(ctor: IConstructorSignature0<IViewPaneContainer>, id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
+	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -96,7 +96,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(ctor: IConstructorSignature0<IViewPaneContainer>, id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
+	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
 		const existing = this.viewContainers.get(id);
 		if (existing) {
 			return existing;
@@ -109,7 +109,6 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		};
 
 		this.viewContainers.set(id, viewContainer);
-
 		this._onDidRegister.fire(viewContainer);
 		return viewContainer;
 	}

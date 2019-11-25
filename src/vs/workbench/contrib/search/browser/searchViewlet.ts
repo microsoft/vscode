@@ -15,10 +15,27 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ViewletRegistry, Extensions } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions, Viewlet } from 'vs/workbench/browser/viewlet';
 import { ViewPaneContainer, IViewPaneContainerOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
-export class SearchViewlet extends ViewPaneContainer {
+
+export class SearchViewlet extends Viewlet {
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService protected storageService: IStorageService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IExtensionService protected extensionService: IExtensionService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
+		@IConfigurationService protected configurationService: IConfigurationService
+	) {
+		super(VIEWLET_ID, instantiationService.createInstance(SearchViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
+	}
+}
+
+export class SearchViewPaneContainer extends ViewPaneContainer {
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,

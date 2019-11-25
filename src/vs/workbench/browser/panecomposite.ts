@@ -17,7 +17,8 @@ import { ViewPaneContainer, ViewPane } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
 export class PaneComposite extends Composite implements IPaneComposite {
-	constructor(id: string, private readonly viewPaneContainer: ViewPaneContainer,
+	constructor(id: string,
+		private readonly viewPaneContainer: ViewPaneContainer,
 		@ITelemetryService
 		telemetryService: ITelemetryService,
 		@IStorageService

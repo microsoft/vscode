@@ -11,7 +11,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
 
 import './outlineNavigation';
-import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/files.contribution';
+import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
 
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,

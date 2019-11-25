@@ -35,7 +35,7 @@ import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandler
 import { Extensions as ViewletExtensions, ViewletDescriptor, ViewletRegistry } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewExtensions, IViewsRegistry, IViewContainersRegistry } from 'vs/workbench/common/views';
+import { Extensions as ViewExtensions, IViewsRegistry } from 'vs/workbench/common/views';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, IExplorerService, VIEWLET_ID as VIEWLET_ID_FILES } from 'vs/workbench/contrib/files/common/files';
 import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
@@ -52,10 +52,10 @@ import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contri
 import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, Match, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_ID, VIEW_CONTAINER } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
+import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -320,7 +320,7 @@ CommandsRegistry.registerCommand({
 		const uri = fileMatch.resource;
 
 		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet) => {
-			const explorerViewContainer = viewlet?.getViewPaneContainer() as ExplorerViewlet;
+			const explorerViewContainer = viewlet?.getViewPaneContainer() as ExplorerViewPaneContainer;
 
 			if (uri && contextService.isInsideWorkspace(uri)) {
 				const explorerView = explorerViewContainer?.getExplorerView();
@@ -504,9 +504,8 @@ class ShowAllSymbolsAction extends Action {
 	}
 }
 
-export const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer(SearchViewlet, VIEWLET_ID, true);
-
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
+	SearchViewlet,
 	VIEWLET_ID,
 	nls.localize('name', "Search"),
 	'codicon-search',

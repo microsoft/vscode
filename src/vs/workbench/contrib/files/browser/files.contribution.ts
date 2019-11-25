@@ -39,7 +39,6 @@ import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
-import { Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -75,10 +74,8 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 }
 
 // Register Viewlet
-
-export const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer(ExplorerViewlet, VIEWLET_ID);
-
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
+	ExplorerViewlet,
 	VIEWLET_ID,
 	nls.localize('explore', "Explorer"),
 	'codicon-files',

@@ -10,7 +10,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleSidebarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
@@ -27,7 +27,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
 
 export abstract class Viewlet extends PaneComposite implements IViewlet {
 
@@ -63,7 +62,8 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
-	public static create(
+	public static create<Services extends BrandedService[]>(
+		ctor: { new(...services: Services): Viewlet },
 		id: string,
 		name: string,
 		cssClass?: string,
@@ -71,24 +71,7 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		iconUrl?: URI
 	): ViewletDescriptor {
 
-		class CustomViewlet extends Viewlet {
-			constructor(
-				@IConfigurationService configurationService: IConfigurationService,
-				@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-				@ITelemetryService telemetryService: ITelemetryService,
-				@IWorkspaceContextService contextService: IWorkspaceContextService,
-				@IStorageService storageService: IStorageService,
-				@IInstantiationService instantiationService: IInstantiationService,
-				@IThemeService themeService: IThemeService,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService
-			) {
-				const viewPaneContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).getViewPaneContainer(id)!;
-				super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
-			}
-		}
-
-		return new ViewletDescriptor(CustomViewlet, id, name, cssClass, order, iconUrl);
+		return new ViewletDescriptor(ctor as IConstructorSignature0<Viewlet>, id, name, cssClass, order, iconUrl);
 	}
 
 	private constructor(
