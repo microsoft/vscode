@@ -33,11 +33,20 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export interface Port extends Disposable {
+	export interface Tunnel extends Port, Disposable {
+		localPort: number;
+		localAddress: Uri;
+		forwardMechanism?: string;
+		closeable: boolean;
+	}
+
+	export interface Port {
 		remotePort: number;
 		localPort?: number;
+		remoteAddress: Uri;
+		localAddress?: Uri;
+		name?: string;
 		description?: string;
-		forwardMechanism?: string;
 	}
 
 	/**
@@ -52,16 +61,10 @@ declare module 'vscode' {
 		 * Ports that are already immutably published. This is not the same as forwarding.
 		 */
 		published?: Port[];
-		/**
-		 * An array of ports to be forwarded once connected. For example,
-		 * if the extension wants to have a configuration file with some default ports, they could be passed through for forwarding here.
-		 */
-		toForward?: { remote: number, local: number, name: string, closeable?: boolean }[];
-		/**
-		 * Allows ports that have been forwarded in a workspace to be restored next time that workspace is opened.
-		 * Alternative to this: have API for getting all the ports then an event when they change so that the extension can save and restore ports(as it can do today).
-		 */
-		restorePorts: boolean;
+	}
+
+	export namespace workspace {
+		export function forwardPort(remotePort: number, localPort: number, name: string, closeable: boolean): Thenable<Tunnel>;
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & PortInformation;
