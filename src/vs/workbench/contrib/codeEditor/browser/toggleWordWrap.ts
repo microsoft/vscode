@@ -211,6 +211,10 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 				// in the settings editor...
 				return;
 			}
+			if (this.editor.isSimpleWidget) {
+				// in a simple widget...
+				return;
+			}
 			// Ensure correct word wrap settings
 			const newModel = this.editor.getModel();
 			if (!newModel) {
