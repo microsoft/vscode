@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values, keys } from 'vs/base/common/map';
@@ -17,6 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
@@ -50,7 +51,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
+	registerViewContainer(ctor: IConstructorSignature0<IViewPaneContainer>, id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -64,6 +65,13 @@ export interface IViewContainersRegistry {
 	 * @returns the view container with given id.
 	 */
 	get(id: string): ViewContainer | undefined;
+
+	/**
+	 * Returns the view pane container with given id.
+	 *
+	 * @returns the view pane container with given id.
+	 */
+	getViewPaneContainer(id: string): IViewPaneContainer | undefined;
 }
 
 interface ViewOrderDelegate {
@@ -88,7 +96,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
+	registerViewContainer(ctor: IConstructorSignature0<IViewPaneContainer>, id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
 		const existing = this.viewContainers.get(id);
 		if (existing) {
 			return existing;
@@ -99,7 +107,9 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 				super(id, !!hideIfEmpty, extensionId, viewOrderDelegate);
 			}
 		};
+
 		this.viewContainers.set(id, viewContainer);
+
 		this._onDidRegister.fire(viewContainer);
 		return viewContainer;
 	}
@@ -114,6 +124,10 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 
 	get(id: string): ViewContainer | undefined {
 		return this.viewContainers.get(id);
+	}
+
+	getViewPaneContainer(): IViewPaneContainer {
+		throw new Error('Method dot implemented');
 	}
 }
 

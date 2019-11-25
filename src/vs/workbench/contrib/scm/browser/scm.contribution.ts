@@ -24,6 +24,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
+import { Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
 
 class OpenSCMViewletAction extends ShowViewletAction {
 
@@ -38,8 +39,9 @@ class OpenSCMViewletAction extends ShowViewletAction {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
+export const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer(SCMViewlet, VIEWLET_ID);
+
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
-	SCMViewlet,
 	VIEWLET_ID,
 	localize('source control', "Source Control"),
 	'codicon-source-control',

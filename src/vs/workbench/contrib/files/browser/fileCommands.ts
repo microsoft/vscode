@@ -292,7 +292,7 @@ CommandsRegistry.registerCommand({
 		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
-		const viewlet = await viewletService.openViewlet(VIEWLET_ID, false) as ExplorerViewlet;
+		const viewlet = (await viewletService.openViewlet(VIEWLET_ID, false))?.getViewPaneContainer() as ExplorerViewlet;
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
 			const explorerView = viewlet.getExplorerView();
@@ -512,7 +512,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		const explorer = viewlet as ExplorerViewlet;
+		const explorer = viewlet.getViewPaneContainer() as ExplorerViewlet;
 		const view = explorer.getExplorerView();
 		view.previousCompressedStat();
 	}
@@ -531,7 +531,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		const explorer = viewlet as ExplorerViewlet;
+		const explorer = viewlet.getViewPaneContainer() as ExplorerViewlet;
 		const view = explorer.getExplorerView();
 		view.nextCompressedStat();
 	}
@@ -550,7 +550,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		const explorer = viewlet as ExplorerViewlet;
+		const explorer = viewlet.getViewPaneContainer() as ExplorerViewlet;
 		const view = explorer.getExplorerView();
 		view.firstCompressedStat();
 	}
@@ -569,7 +569,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		const explorer = viewlet as ExplorerViewlet;
+		const explorer = viewlet.getViewPaneContainer() as ExplorerViewlet;
 		const view = explorer.getExplorerView();
 		view.lastCompressedStat();
 	}

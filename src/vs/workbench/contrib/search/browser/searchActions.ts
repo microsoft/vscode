@@ -54,13 +54,13 @@ export function openSearchView(viewletService: IViewletService, panelService: IP
 		return Promise.resolve((panelService.openPanel(PANEL_ID, focus) as SearchPanel).getSearchView());
 	}
 
-	return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet as SearchViewlet).getSearchView());
+	return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet?.getViewPaneContainer() as SearchViewlet).getSearchView() as SearchView);
 }
 
 export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView | undefined {
 	const activeViewlet = viewletService.getActiveViewlet();
 	if (activeViewlet && activeViewlet.getId() === VIEWLET_ID) {
-		return (activeViewlet as SearchViewlet).getSearchView();
+		return (activeViewlet.getViewPaneContainer() as SearchViewlet).getSearchView();
 	}
 
 	const activePanel = panelService.getActivePanel();

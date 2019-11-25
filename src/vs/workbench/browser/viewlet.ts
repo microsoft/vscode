@@ -9,34 +9,41 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IConstructorSignature0, BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
+import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleSidebarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
 import { assertIsDefined } from 'vs/base/common/types';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { PaneComposite } from 'vs/workbench/browser/panecomposite';
+import { Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
 
-export abstract class Viewlet extends Composite implements IViewlet {
+export abstract class Viewlet extends PaneComposite implements IViewlet {
 
 	constructor(id: string,
-		protected configurationService: IConfigurationService,
-		private layoutService: IWorkbenchLayoutService,
-		telemetryService: ITelemetryService,
-		themeService: IThemeService,
-		storageService: IStorageService
+		viewPaneContainer: ViewPaneContainer,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService protected storageService: IStorageService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IExtensionService protected extensionService: IExtensionService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
+		@IConfigurationService protected configurationService: IConfigurationService
 	) {
-		super(id, telemetryService, themeService, storageService);
-	}
-
-	getOptimalWidth(): number | undefined {
-		return undefined;
+		super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 	}
 
 	getContextMenuActions(): IAction[] {
@@ -56,15 +63,32 @@ export abstract class Viewlet extends Composite implements IViewlet {
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
-	public static create<Services extends BrandedService[]>(
-		ctor: { new(...services: Services): Viewlet },
+	public static create(
 		id: string,
 		name: string,
 		cssClass?: string,
 		order?: number,
 		iconUrl?: URI
 	): ViewletDescriptor {
-		return new ViewletDescriptor(ctor as IConstructorSignature0<Viewlet>, id, name, cssClass, order, iconUrl);
+
+		class CustomViewlet extends Viewlet {
+			constructor(
+				@IConfigurationService configurationService: IConfigurationService,
+				@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+				@ITelemetryService telemetryService: ITelemetryService,
+				@IWorkspaceContextService contextService: IWorkspaceContextService,
+				@IStorageService storageService: IStorageService,
+				@IInstantiationService instantiationService: IInstantiationService,
+				@IThemeService themeService: IThemeService,
+				@IContextMenuService contextMenuService: IContextMenuService,
+				@IExtensionService extensionService: IExtensionService
+			) {
+				const viewPaneContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).getViewPaneContainer(id)!;
+				super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
+			}
+		}
+
+		return new ViewletDescriptor(CustomViewlet, id, name, cssClass, order, iconUrl);
 	}
 
 	private constructor(

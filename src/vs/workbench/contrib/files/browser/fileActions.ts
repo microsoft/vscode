@@ -652,7 +652,7 @@ export class CollapseExplorerView extends Action {
 	}
 
 	async run(): Promise<any> {
-		const explorerViewlet = await this.viewletService.openViewlet(VIEWLET_ID) as ExplorerViewlet;
+		const explorerViewlet = (await this.viewletService.openViewlet(VIEWLET_ID))?.getViewPaneContainer() as ExplorerViewlet;
 		const explorerView = explorerViewlet.getExplorerView();
 		if (explorerView) {
 			explorerView.collapseAll();

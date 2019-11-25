@@ -44,6 +44,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { RemoteExtensionsInstaller } from 'vs/workbench/contrib/extensions/browser/remoteExtensionsInstaller';
 import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
+import { Extensions as ViewExtensions, IViewContainersRegistry, ViewContainer } from 'vs/workbench/common/views';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -76,8 +77,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]);
 
 // Viewlet
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer(ExtensionsViewlet, VIEWLET_ID);
+
 const viewletDescriptor = ViewletDescriptor.create(
-	ExtensionsViewlet,
 	VIEWLET_ID,
 	localize('extensions', "Extensions"),
 	'codicon-extensions',

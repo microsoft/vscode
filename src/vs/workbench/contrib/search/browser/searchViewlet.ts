@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -17,8 +16,9 @@ import { VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search'
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletRegistry, Extensions } from 'vs/workbench/browser/viewlet';
+import { ViewPaneContainer, IViewPaneContainerOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
-export class SearchViewlet extends ViewContainerViewlet {
+export class SearchViewlet extends ViewPaneContainer {
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -29,9 +29,9 @@ export class SearchViewlet extends ViewContainerViewlet {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, {} as IViewPaneContainerOptions, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 	}
 
 	getTitle(): string {

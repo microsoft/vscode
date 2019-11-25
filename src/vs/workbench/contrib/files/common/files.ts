@@ -16,8 +16,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
@@ -29,11 +27,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
-
-/**
- * Explorer viewlet container.
- */
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
 export interface IEditableData {
 	validationMessage: (value: string) => string | null;
