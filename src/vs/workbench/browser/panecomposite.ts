@@ -15,6 +15,7 @@ import { Composite } from 'vs/workbench/browser/composite';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IAction } from 'vs/base/common/actions';
 
 export class PaneComposite extends Composite implements IPaneComposite {
 	constructor(id: string,
@@ -34,14 +35,6 @@ export class PaneComposite extends Composite implements IPaneComposite {
 		@IWorkspaceContextService
 		protected contextService: IWorkspaceContextService) {
 		super(id, telemetryService, themeService, storageService);
-		// this.viewPaneContainer = this.instantiationService.createInstance(ViewPaneContainer, id, viewletStateStorageId,
-		// 	{
-		// 		showHeaderInTitleWhenSingleView,
-		// 		mementoObject: this.getMemento(StorageScope.WORKSPACE),
-		// 		contextMenuActionsProvider: () => { return this.getContextMenuActions(); },
-		// 		actionRunnerProvider: () => { return this.getActionRunner(); }
-		// 	}
-		// );
 	}
 	create(parent: HTMLElement): void {
 		this.viewPaneContainer.create(parent);
@@ -62,6 +55,10 @@ export class PaneComposite extends Composite implements IPaneComposite {
 
 	getViewPaneContainer(): ViewPaneContainer {
 		return this.viewPaneContainer;
+	}
+
+	getContextMenuActions(): ReadonlyArray<IAction> {
+		return this.viewPaneContainer.getContextMenuActions();
 	}
 
 	saveState(): void {

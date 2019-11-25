@@ -90,7 +90,6 @@
 			"command": "yarn web -- --no-launch",
 			"label": "Run web",
 			"isBackground": true,
-			// This section to make error go away when launching the debug config
 			"problemMatcher": {
 				"pattern": {
 					"regexp": ""
@@ -104,5 +103,15 @@
 				"reveal": "never"
 			}
 		},
+		{
+			"type": "npm",
+			"script": "watch",
+			"path": "build/",
+			"group": "build",
+			"problemMatcher": {
+				"base": "$tsc-watch",
+				"applyTo": "allDocuments"
+			}
+		}
 	]
 }

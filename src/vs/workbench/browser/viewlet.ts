@@ -47,13 +47,13 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 	}
 
 	getContextMenuActions(): IAction[] {
-		const containerActions = this.viewPaneContainer.getContextMenuActions();
-		if (containerActions.length) {
-			containerActions.push(new Separator());
+		const parentActions = [...super.getContextMenuActions()];
+		if (parentActions.length) {
+			parentActions.push(new Separator());
 		}
 
 		const toggleSidebarPositionAction = new ToggleSidebarPositionAction(ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.getLabel(this.layoutService), this.layoutService, this.configurationService);
-		return [...containerActions, toggleSidebarPositionAction,
+		return [...parentActions, toggleSidebarPositionAction,
 		<IAction>{
 			id: ToggleSidebarVisibilityAction.ID,
 			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
