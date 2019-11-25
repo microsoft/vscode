@@ -28,6 +28,8 @@ import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IRemoteExplorerService, TunnelModel } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { URI } from 'vs/workbench/workbench.web.api';
 
 class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 	getHeight(element: ITunnelItem): number {
@@ -115,10 +117,6 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			iterator = values.next();
 		}
 		return candidates;
-	}
-
-	copy(tunnelItem: ITunnelItem) {
-		// TODO: implement
 	}
 
 	dispose() {
@@ -481,7 +479,7 @@ namespace ForwardPortAction {
 			if (name === undefined) {
 				return;
 			}
-			remoteExplorerService.tunnelModel.forward(remote, (local !== '') ? local : remote, (name !== '') ? name : undefined);
+			remoteExplorerService.tunnelModel.forward(remote, undefined, (local !== '') ? local : remote, (name !== '') ? name : undefined);
 		};
 	}
 }
@@ -510,10 +508,29 @@ namespace OpenPortInBrowserAction {
 				const model = accessor.get(IRemoteExplorerService).tunnelModel;
 				const openerService = accessor.get(IOpenerService);
 				const tunnel = model.forwarded.has(arg.remote) ? model.forwarded.get(arg.remote) : model.published.get(arg.remote);
-				if (tunnel && tunnel.uri) {
-					return openerService.open(tunnel.uri);
+				let address: URI | undefined;
+				if (tunnel && tunnel.host && (address = model.address(tunnel.remote))) {
+					return openerService.open(address);
 				}
 				return Promise.resolve();
+			}
+		};
+	}
+}
+
+namespace CopyAddressAction {
+	export const ID = 'remote.tunnel.copyAddress';
+	export const LABEL = nls.localize('remote.tunnel.copyAddress', "Copy Address");
+
+	export function handler(): ICommandHandler {
+		return async (accessor, arg) => {
+			if (arg instanceof TunnelItem) {
+				const model = accessor.get(IRemoteExplorerService).tunnelModel;
+				const clipboard = accessor.get(IClipboardService);
+				const address = model.address(arg.remote);
+				if (address) {
+					await clipboard.writeText(address.toString());
+				}
 			}
 		};
 	}
@@ -523,10 +540,20 @@ CommandsRegistry.registerCommand(NameTunnelAction.ID, NameTunnelAction.handler()
 CommandsRegistry.registerCommand(ForwardPortAction.ID, ForwardPortAction.handler());
 CommandsRegistry.registerCommand(ClosePortAction.ID, ClosePortAction.handler());
 CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
+CommandsRegistry.registerCommand(CopyAddressAction.ID, CopyAddressAction.handler());
 
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
 	order: 0,
+	command: {
+		id: CopyAddressAction.ID,
+		title: CopyAddressAction.LABEL,
+	},
+	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
+	group: '0_manage',
+	order: 1,
 	command: {
 		id: OpenPortInBrowserAction.ID,
 		title: OpenPortInBrowserAction.LABEL,
@@ -535,7 +562,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
-	order: 1,
+	order: 2,
 	command: {
 		id: NameTunnelAction.ID,
 		title: NameTunnelAction.LABEL,
@@ -544,7 +571,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
-	order: 0,
+	order: 1,
 	command: {
 		id: ForwardPortAction.ID,
 		title: ForwardPortAction.LABEL,
@@ -553,7 +580,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
-	order: 2,
+	order: 3,
 	command: {
 		id: ClosePortAction.ID,
 		title: ClosePortAction.LABEL,

@@ -10,7 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { URI } from 'vs/workbench/workbench.web.api';
+import { URI } from 'vs/base/common/uri';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -18,11 +18,11 @@ export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
 
 export interface Tunnel {
 	remote: string;
+	host: URI;
 	local?: string;
 	name?: string;
 	description?: string;
 	closeable?: boolean;
-	uri?: URI;
 }
 
 export class TunnelModel {
@@ -42,14 +42,16 @@ export class TunnelModel {
 				description: 'one description',
 				local: '3000',
 				remote: '3000',
-				closeable: true
+				closeable: true,
+				host: URI.parse('http://fakeHost')
 			});
 		this.forwarded.set('4000',
 			{
 				local: '4001',
 				remote: '4000',
 				name: 'Process Port',
-				closeable: true
+				closeable: true,
+				host: URI.parse('http://fakeHost')
 			});
 
 		this.published = new Map();
@@ -59,32 +61,40 @@ export class TunnelModel {
 				local: '3500',
 				remote: '3500',
 				name: 'My App',
+				host: URI.parse('http://fakeHost')
 			});
 		this.published.set('4500',
 			{
 				description: 'two description',
 				local: '4501',
-				remote: '4500'
+				remote: '4500',
+				host: URI.parse('http://fakeHost')
 			});
 		this.candidates = new Map();
 		this.candidates.set('5000',
 			{
 				description: 'node.js /anArg',
 				remote: '5000',
+				host: URI.parse('http://fakeHost')
 			});
 		this.candidates.set('5500',
 			{
 				remote: '5500',
+				host: URI.parse('http://fakeHost')
 			});
 	}
 
-	forward(remote: string, local?: string, name?: string) {
+	forward(remote: string, host?: URI, local?: string, name?: string) {
+		if (!host) {
+			host = URI.parse('http://fakeHost');
+		}
 		if (!this.forwarded.has(remote)) {
 			const newForward: Tunnel = {
 				remote: remote,
 				local: local ?? remote,
 				name: name,
-				closeable: true
+				closeable: true,
+				host
 			};
 			this.forwarded.set(remote, newForward);
 			this._onForwardPort.fire(newForward);
@@ -103,6 +113,19 @@ export class TunnelModel {
 			this.forwarded.delete(remote);
 			this._onClosePort.fire(remote);
 		}
+	}
+
+	address(remote: string): URI | undefined {
+		let tunnel: Tunnel | undefined = undefined;
+		if (this.forwarded.has(remote)) {
+			tunnel = this.forwarded.get(remote)!;
+		} else if (this.published.has(remote)) {
+			tunnel = this.published.get(remote)!;
+		}
+		if (tunnel) {
+			return URI.parse('http://localhost:' + tunnel.local);
+		}
+		return undefined;
 	}
 }
 
