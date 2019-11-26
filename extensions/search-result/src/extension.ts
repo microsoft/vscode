@@ -8,7 +8,7 @@ import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
 const RESULT_LINE_REGEX = /^(\s+)(\d+):(\s+)(.*)$/;
-const LANGUAGE_SELECTOR = { language: 'search-result' };
+const SEARCH_RESULT_SELECTOR = { language: 'search-result' };
 
 let cachedLastParse: { version: number, parse: ParsedSearchResults } | undefined;
 
@@ -16,7 +16,23 @@ export function activate() {
 
 	vscode.commands.registerCommand('searchResult.rerunSearch', () => vscode.commands.executeCommand('search.action.rerunEditorSearch'));
 
-	vscode.languages.registerCompletionItemProvider(LANGUAGE_SELECTOR, {
+	vscode.languages.registerDocumentSymbolProvider(SEARCH_RESULT_SELECTOR, {
+		provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentSymbol[] {
+			const results = parseSearchResults(document, token)
+				.filter(isFileLine)
+				.map(line => new vscode.DocumentSymbol(
+					line.path,
+					'',
+					vscode.SymbolKind.File,
+					line.allLocations.map(({ originSelectionRange }) => originSelectionRange!).reduce((p, c) => p.union(c), line.location.originSelectionRange!),
+					line.location.originSelectionRange!,
+				));
+
+			return results;
+		}
+	});
+
+	vscode.languages.registerCompletionItemProvider(SEARCH_RESULT_SELECTOR, {
 		provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
 
 			const line = document.lineAt(position.line);
@@ -37,7 +53,7 @@ export function activate() {
 		}
 	}, '#');
 
-	vscode.languages.registerDefinitionProvider(LANGUAGE_SELECTOR, {
+	vscode.languages.registerDefinitionProvider(SEARCH_RESULT_SELECTOR, {
 		provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.DefinitionLink[] {
 			const lineResult = parseSearchResults(document, token)[position.line];
 			if (!lineResult) { return []; }
@@ -51,7 +67,7 @@ export function activate() {
 		}
 	});
 
-	vscode.languages.registerDocumentLinkProvider(LANGUAGE_SELECTOR, {
+	vscode.languages.registerDocumentLinkProvider(SEARCH_RESULT_SELECTOR, {
 		async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentLink[]> {
 			return parseSearchResults(document, token)
 				.filter(({ type }) => type === 'file')
@@ -100,10 +116,11 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 	return undefined;
 }
 
-type ParsedSearchResults = Array<
-	{ type: 'file', location: vscode.LocationLink, allLocations: vscode.LocationLink[] } |
-	{ type: 'result', location: vscode.LocationLink }
->;
+type ParsedSearchFileLine = { type: 'file', location: vscode.LocationLink, allLocations: vscode.LocationLink[], path: string };
+type ParsedSearchResultLine = { type: 'result', location: vscode.LocationLink };
+type ParsedSearchResults = Array<ParsedSearchFileLine | ParsedSearchResultLine>;
+const isFileLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line is ParsedSearchFileLine => line.type === 'file';
+
 
 function parseSearchResults(document: vscode.TextDocument, token: vscode.CancellationToken): ParsedSearchResults {
 
@@ -136,7 +153,7 @@ function parseSearchResults(document: vscode.TextDocument, token: vscode.Cancell
 			};
 
 
-			links[i] = { type: 'file', location, allLocations: currentTargetLocations };
+			links[i] = { type: 'file', location, allLocations: currentTargetLocations, path };
 		}
 
 		if (!currentTarget) { continue; }
