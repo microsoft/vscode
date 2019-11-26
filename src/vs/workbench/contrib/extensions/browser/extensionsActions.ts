@@ -1359,7 +1359,7 @@ export class SetColorThemeAction extends ExtensionAction {
 			return;
 		}
 		let extensionThemes = SetColorThemeAction.getColorThemes(this.colorThemes, this.extension!);
-		const currentTheme = this.colorThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0];
+		const currentTheme = this.colorThemes.filter(t => t.settingsId === this.configurationService.getValue(COLOR_THEME_SETTING))[0] || this.workbenchThemeService.getColorTheme();
 		showCurrentTheme = showCurrentTheme || extensionThemes.some(t => t.id === currentTheme.id);
 		if (showCurrentTheme) {
 			extensionThemes = extensionThemes.filter(t => t.id !== currentTheme.id);
