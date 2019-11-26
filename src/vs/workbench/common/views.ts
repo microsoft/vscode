@@ -17,7 +17,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
@@ -65,13 +64,6 @@ export interface IViewContainersRegistry {
 	 * @returns the view container with given id.
 	 */
 	get(id: string): ViewContainer | undefined;
-
-	/**
-	 * Returns the view pane container with given id.
-	 *
-	 * @returns the view pane container with given id.
-	 */
-	getViewPaneContainer(id: string): IViewPaneContainer | undefined;
 }
 
 interface ViewOrderDelegate {
@@ -107,7 +99,6 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 				super(id, !!hideIfEmpty, extensionId, viewOrderDelegate);
 			}
 		};
-
 		this.viewContainers.set(id, viewContainer);
 		this._onDidRegister.fire(viewContainer);
 		return viewContainer;
@@ -123,10 +114,6 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 
 	get(id: string): ViewContainer | undefined {
 		return this.viewContainers.get(id);
-	}
-
-	getViewPaneContainer(): IViewPaneContainer {
-		throw new Error('Method dot implemented');
 	}
 }
 
