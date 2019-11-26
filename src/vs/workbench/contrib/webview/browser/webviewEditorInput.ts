@@ -90,11 +90,11 @@ export class WebviewInput extends EditorInput {
 	}
 
 	dispose() {
-		super.dispose();
 		if (!this._didSomeoneTakeMyWebview) {
 			this._webview?.rawValue?.dispose();
 			this._onDisposeWebview.fire();
 		}
+		super.dispose();
 	}
 
 	public getTypeId(): string {
