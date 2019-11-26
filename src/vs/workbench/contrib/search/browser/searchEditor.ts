@@ -227,7 +227,7 @@ export const refreshActiveEditorSearch =
 
 export const createEditorFromSearchResult =
 	async (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, labelService: ILabelService, editorService: IEditorService) => {
-		const searchTerm = searchResult.query?.contentPattern.pattern.replace(/[^\w-_.]/g, '') || 'Search';
+		const searchTerm = searchResult.query?.contentPattern.pattern.replace(/[^\w-_. ]/g, '') || 'Search';
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
