@@ -280,8 +280,6 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 						this._proxy.$applyEdits(handle, editsToApply);
 					}
 				});
-				model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
-				model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
 
 				webviewInput.onDisposeWebview(() => {
 					this._customEditorService.models.disposeModel(model);
@@ -313,6 +311,20 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		provider.dispose();
 		this._editorProviders.delete(viewType);
+	}
+
+	public async $registerCapabilities(handle: extHostProtocol.WebviewPanelHandle, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]): Promise<void> {
+		const webviewInput = this.getWebviewInput(handle);
+		const model = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
+
+		const capabilitiesSet = new Set(capabilities);
+
+		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Save)) {
+			model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
+		}
+		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.SaveAs)) {
+			model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
+		}
 	}
 
 	public $onEdit(handle: extHostProtocol.WebviewPanelHandle, editData: any): void {
