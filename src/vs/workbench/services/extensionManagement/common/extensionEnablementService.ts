@@ -147,9 +147,20 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const extensionKind = getExtensionKind(extension.manifest, this.productService, this.configurationService);
-			const server = extensionKind[0] === 'ui' ? this.extensionManagementServerService.localExtensionManagementServer : this.extensionManagementServerService.remoteExtensionManagementServer;
-			return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
+			const server = this.extensionManagementServerService.getExtensionManagementServer(extension.location);
+			for (const extensionKind of getExtensionKind(extension.manifest, this.productService, this.configurationService)) {
+				if (extensionKind === 'ui') {
+					if (server === this.extensionManagementServerService.localExtensionManagementServer) {
+						return false;
+					}
+				}
+				if (extensionKind === 'workspace') {
+					if (server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+						return false;
+					}
+				}
+			}
+			return true;
 		}
 		return false;
 	}
