@@ -154,6 +154,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.variable:
 			case PConst.Kind.localVariable:
 			case PConst.Kind.alias:
+			case PConst.Kind.parameter:
 				return vscode.CompletionItemKind.Variable;
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
