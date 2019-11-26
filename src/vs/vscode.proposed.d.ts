@@ -33,41 +33,33 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export interface Tunnel extends Port, Disposable {
-		localPort: number;
+	export interface Tunnel extends TunnelDescriptor, Disposable {
 		localAddress: Uri;
-		forwardMechanism?: string;
-		closeable: boolean;
+		remoteAddress: Uri;
 	}
 
-	export interface Port {
+	export interface TunnelDescriptor {
 		remotePort: number;
 		localPort?: number;
-		remoteAddress: Uri;
-		localAddress?: Uri;
 		name?: string;
-		description?: string;
+		closeable?: boolean;
 	}
 
 	/**
 	 * Used as part of the ResolverResult if the extension has any candidate, published, or forwarded ports.
 	 */
-	export interface PortInformation {
+	export interface TunnelInformation {
 		/**
 		 * Ports that are already immutably published. This is not the same as forwarding.
 		 */
-		published?: Port[];
-	}
-
-	export namespace workspace {
+		published?: TunnelDescriptor[];
 		/**
-		 * Forwards a port.
-		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 *  Tunnels that should be established.
 		 */
-		export function forwardPort(forward: (Port & { closeable: boolean })): Thenable<Tunnel>;
+		forward?: TunnelDescriptor[];
 	}
 
-	export type ResolverResult = ResolvedAuthority & ResolvedOptions & PortInformation;
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
@@ -79,11 +71,16 @@ declare module 'vscode' {
 	export interface RemoteAuthorityResolver {
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
 		/**
+		 * An optional event for the resolver to signal that the tunnel information has changed.
+		 * (ex. there are new ports that have been published or that should be forwarded.)
+		 */
+		onTunnelInformationChanged?: Event<TunnelInformation>;
+		/**
 		 * Can be optionally implemented if the extension can forward ports better than the core.
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		forwardPort?(remotePort: number, localPort?: number): Thenable<Port | undefined>;
+		forwardPort?(tunnelDescriptor: TunnelDescriptor): Thenable<Tunnel | undefined>;
 	}
 
 	export interface ResourceLabelFormatter {
