@@ -631,6 +631,12 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			this._setSelections(matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn)));
 		}
 	}
+
+	public selectAllUsingSelections(selections: Selection[]): void {
+		if (selections.length > 0) {
+			this._setSelections(selections);
+		}
+	}
 }
 
 export abstract class MultiCursorSelectionControllerAction extends EditorAction {
