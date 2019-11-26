@@ -317,7 +317,7 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPane[] {
 		// Call to super MUST be first, since registering the additional view will cause this to be called again.
 		const panels: ViewletPane[] = super.onDidAddViews(added);
-		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor) {
+		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && this.configurationService.getValue<boolean>('remote.forwardedPortsView.visible')) {
 			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			viewsRegistry.registerViews([this.tunnelPanelDescriptor!], VIEW_CONTAINER);

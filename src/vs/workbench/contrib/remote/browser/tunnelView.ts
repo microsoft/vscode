@@ -20,9 +20,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
-import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -30,6 +30,7 @@ import { createAndFillInContextMenuActions, createAndFillInActionBarActions, Con
 import { IRemoteExplorerService, TunnelModel } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/workbench/workbench.web.api';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 	getHeight(element: ITunnelItem): number {
@@ -305,6 +306,9 @@ export class TunnelPanel extends ViewletPane {
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
 
+	private titleActions: IAction[] = [];
+	private readonly titleActionsDisposable = this._register(new MutableDisposable());
+
 	constructor(
 		protected viewModel: ITunnelViewModel,
 		options: IViewletPaneOptions,
@@ -317,10 +321,29 @@ export class TunnelPanel extends ViewletPane {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
+
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
+		scopedContextKeyService.createKey('view', TunnelPanel.ID);
+
+		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, scopedContextKeyService));
+		const updateActions = () => {
+			this.titleActions = [];
+			this.titleActionsDisposable.value = createAndFillInActionBarActions(titleMenu, undefined, this.titleActions);
+			this.updateActions();
+		};
+
+		this._register(titleMenu.onDidChange(updateActions));
+		updateActions();
+
+		this._register(toDisposable(() => {
+			this.titleActions = [];
+		}));
+
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -374,6 +397,10 @@ export class TunnelPanel extends ViewletPane {
 		return contributedContextMenu;
 	}
 
+	getActions(): IAction[] {
+		return this.titleActions;
+	}
+
 	private onContextMenu(treeEvent: ITreeContextMenuEvent<ITunnelItem | ITunnelGroup>, actionRunner: ActionRunner): void {
 		if (!(treeEvent.element instanceof TunnelItem)) {
 			return;
@@ -413,6 +440,10 @@ export class TunnelPanel extends ViewletPane {
 
 	protected layoutBody(height: number, width: number): void {
 		this.tree.layout(height, width);
+	}
+
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
+		return action instanceof MenuItemAction ? new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : undefined;
 	}
 }
 
@@ -542,6 +573,19 @@ CommandsRegistry.registerCommand(ClosePortAction.ID, ClosePortAction.handler());
 CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
 CommandsRegistry.registerCommand(CopyAddressAction.ID, CopyAddressAction.handler());
 
+MenuRegistry.appendMenuItem(MenuId.TunnelTitle, ({
+	group: 'navigation',
+	order: 0,
+	command: {
+		id: ForwardPortAction.ID,
+		title: ForwardPortAction.LABEL,
+		iconClassName: 'codicon-plus',
+		iconLocation: {
+			dark: undefined,
+			light: undefined
+		}
+	}
+}));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
 	order: 0,

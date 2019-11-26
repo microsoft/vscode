@@ -11,6 +11,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { URI } from 'vs/base/common/uri';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -35,7 +36,9 @@ export class TunnelModel {
 	public onClosePort: Event<string> = this._onClosePort.event;
 	private _onPortName: Emitter<string> = new Emitter();
 	public onPortName: Event<string> = this._onPortName.event;
-	constructor() {
+	constructor(
+		@ITunnelService private readonly tunnelService: ITunnelService
+	) {
 		this.forwarded = new Map();
 		this.forwarded.set('3000',
 			{
@@ -178,9 +181,12 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	private _onDidChangeTargetType: Emitter<string> = new Emitter<string>();
 	public onDidChangeTargetType: Event<string> = this._onDidChangeTargetType.event;
 	private _helpInformation: HelpInformation[] = [];
-	private _tunnelModel: TunnelModel = new TunnelModel();
+	private _tunnelModel: TunnelModel;
 
-	constructor(@IStorageService private readonly storageService: IStorageService) {
+	constructor(
+		@IStorageService private readonly storageService: IStorageService,
+		@ITunnelService tunnelService: ITunnelService) {
+		this._tunnelModel = new TunnelModel(tunnelService);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			let helpInformation: HelpInformation[] = [];
 			for (let extension of extensions) {
