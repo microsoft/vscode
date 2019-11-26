@@ -1253,6 +1253,10 @@ export class ReloadAction extends ExtensionAction {
 								this.label = localize('reloadRequired', "Reload Required");
 								this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
 							}
+						} else {
+							this.enabled = true;
+							this.label = localize('reloadRequired', "Reload Required");
+							this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
 						}
 					}
 				} else {

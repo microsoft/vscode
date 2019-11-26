@@ -27,7 +27,7 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor
 import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -215,8 +215,8 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
 		this.editorGroupService.groups.forEach(group => {
 			group.editors.forEach(editor => {
-				if (editor instanceof FileEditorInput) {
-					const resource = editor.getResource();
+				const resource = editor.getResource();
+				if (resource && (editor instanceof FileEditorInput || editor.handleMove)) {
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
 					if (resources.isEqualOrParent(resource, oldResource)) {
@@ -228,15 +228,27 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 							reopenFileResource = resources.joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 
+						const options: ITextEditorOptions = {
+							preserveFocus: true,
+							pinned: group.isPinned(editor),
+							index: group.getIndexOfEditor(editor),
+							inactive: !group.isActive(editor),
+						};
+
+						if (editor.handleMove) {
+							const replacement = editor.handleMove(group.id, reopenFileResource, options);
+							if (replacement) {
+								this.editorService.replaceEditors([{ editor, replacement }], group);
+								return;
+							}
+						}
+
 						this.editorService.replaceEditors([{
 							editor: { resource },
 							replacement: {
 								resource: reopenFileResource,
 								options: {
-									preserveFocus: true,
-									pinned: group.isPinned(editor),
-									index: group.getIndexOfEditor(editor),
-									inactive: !group.isActive(editor),
+									...options,
 									viewState: this.getViewStateFor(oldResource, group)
 								}
 							},

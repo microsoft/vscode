@@ -141,7 +141,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.$el = dom.$('div.debug-toolbar');
 		this.$el.style.top = `${layoutService.getTitleBarOffset()}px`;
 
-		this.dragArea = dom.append(this.$el, dom.$('div.drag-area'));
+		this.dragArea = dom.append(this.$el, dom.$('div.drag-area.codicon.codicon-gripper'));
 
 		const actionBarContainer = dom.append(this.$el, dom.$('div.action-bar-container'));
 		this.debugToolBarMenu = menuService.createMenu(MenuId.DebugToolBar, contextKeyService);

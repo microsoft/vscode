@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ICustomEditorModel, CustomEditorEdit } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { ICustomEditorModel, CustomEditorEdit, CustomEditorSaveAsEvent, CustomEditorSaveEvent } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 
@@ -14,7 +14,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
-	private _edits: Array<CustomEditorEdit> = [];
+	private _edits: Array<any> = [];
 
 	constructor(
 		private readonly _resource: URI,
@@ -44,16 +44,24 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	protected readonly _onUndo = this._register(new Emitter<readonly CustomEditorEdit[]>());
 	readonly onUndo = this._onUndo.event;
 
-	protected readonly _onRedo = this._register(new Emitter<readonly CustomEditorEdit[]>());
-	readonly onRedo = this._onRedo.event;
+	protected readonly _onApplyEdit = this._register(new Emitter<readonly CustomEditorEdit[]>());
+	readonly onApplyEdit = this._onApplyEdit.event;
 
-	protected readonly _onWillSave = this._register(new Emitter<{ waitUntil: (until: Promise<any>) => void }>());
+	protected readonly _onWillSave = this._register(new Emitter<CustomEditorSaveEvent>());
 	readonly onWillSave = this._onWillSave.event;
 
-	public makeEdit(data: string): void {
-		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex, data);
+	protected readonly _onWillSaveAs = this._register(new Emitter<CustomEditorSaveAsEvent>());
+	readonly onWillSaveAs = this._onWillSaveAs.event;
+
+	get currentEdits(): readonly CustomEditorEdit[] {
+		return this._edits.slice(0, Math.max(0, this._currentEditIndex + 1));
+	}
+
+	public makeEdit(edit: CustomEditorEdit): void {
+		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex, edit.data);
 		this._currentEditIndex = this._edits.length - 1;
 		this.updateDirty();
+		this._onApplyEdit.fire([edit]);
 	}
 
 	private updateDirty() {
@@ -62,10 +70,34 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 	public async save(_options?: ISaveOptions): Promise<boolean> {
 		const untils: Promise<any>[] = [];
-		const handler = { waitUntil: (until: Promise<any>) => untils.push(until) };
+		const handler: CustomEditorSaveEvent = {
+			resource: this._resource,
+			waitUntil: (until: Promise<any>) => untils.push(until)
+		};
 
 		try {
 			this._onWillSave.fire(handler);
+			await Promise.all(untils);
+		} catch {
+			return false;
+		}
+
+		this._savePoint = this._currentEditIndex;
+		this.updateDirty();
+
+		return true;
+	}
+
+	public async saveAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {
+		const untils: Promise<any>[] = [];
+		const handler: CustomEditorSaveAsEvent = {
+			resource,
+			targetResource,
+			waitUntil: (until: Promise<any>) => untils.push(until)
+		};
+
+		try {
+			this._onWillSaveAs.fire(handler);
 			await Promise.all(untils);
 		} catch {
 			return false;
@@ -87,7 +119,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 			this._onUndo.fire(editsToUndo.reverse());
 		} else if (this._currentEditIndex < this._savePoint) {
 			const editsToRedo = this._edits.slice(this._currentEditIndex, this._savePoint);
-			this._onRedo.fire(editsToRedo);
+			this._onApplyEdit.fire(editsToRedo);
 		}
 
 		this._currentEditIndex = this._savePoint;
@@ -104,7 +136,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		const undoneEdit = this._edits[this._currentEditIndex];
 		--this._currentEditIndex;
-		this._onUndo.fire([undoneEdit]);
+		this._onUndo.fire([{ data: undoneEdit }]);
 
 		this.updateDirty();
 	}
@@ -117,7 +149,8 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 
 		++this._currentEditIndex;
 		const redoneEdit = this._edits[this._currentEditIndex];
-		this._onRedo.fire([redoneEdit]);
+
+		this._onApplyEdit.fire([{ data: redoneEdit }]);
 
 		this.updateDirty();
 	}
