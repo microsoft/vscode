@@ -13,7 +13,7 @@ import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
 import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
-import { Askpass } from './askpass/askpass';
+import { Askpass } from './askpass';
 import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { GitExtension } from './api/git';
