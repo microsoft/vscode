@@ -7,7 +7,9 @@ import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
 import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorModel, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,7 +20,6 @@ import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/c
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { assertIsDefined } from 'vs/base/common/types';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
@@ -163,7 +164,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this.instantiationService.createInstance(CustomFileEditorInput,
 			uri,
 			this.viewType,
-			this.id,
+			generateUuid(),
 			new Lazy(() => webview));
 	}
 }

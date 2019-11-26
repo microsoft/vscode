@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
@@ -330,14 +330,20 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
-		input.webview.onDidClickLink((uri: URI) => this.onDidClickLink(handle, uri));
-		input.webview.onMessage((message: any) => this._proxy.$onMessage(handle, message));
-		input.onDisposeWebview(() => {
+		const disposables = new DisposableStore();
+
+		disposables.add(input.webview.onDidClickLink((uri: URI) => this.onDidClickLink(handle, uri)));
+		disposables.add(input.webview.onMessage((message: any) => { this._proxy.$onMessage(handle, message); }));
+		disposables.add(input.onDisposeWebview(() => {
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
 				this._webviewInputs.delete(handle);
 			});
+		}));
+		disposables.add(input.webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value)));
+
+		input.onDispose(() => {
+			disposables.dispose();
 		});
-		input.webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value));
 	}
 
 	private updateWebviewViewStates() {
