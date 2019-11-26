@@ -318,11 +318,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		const model = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
 
 		const capabilitiesSet = new Set(capabilities);
-
-		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Save)) {
+		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable)) {
 			model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
-		}
-		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.SaveAs)) {
 			model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
 		}
 	}

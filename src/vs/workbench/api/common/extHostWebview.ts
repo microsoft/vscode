@@ -483,11 +483,8 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	private registerCapabilites(handle: WebviewPanelHandle, capabilities: vscode.WebviewEditorCapabilities) {
 		const declaredCapabilites: WebviewEditorCapabilities[] = [];
-		if (capabilities.editingCapability?.save) {
-			declaredCapabilites.push(WebviewEditorCapabilities.Save);
-		}
-		if (capabilities.editingCapability?.saveAs) {
-			declaredCapabilites.push(WebviewEditorCapabilities.SaveAs);
+		if (capabilities.editingCapability) {
+			declaredCapabilites.push(WebviewEditorCapabilities.Editable);
 		}
 		this._proxy.$registerCapabilities(handle, declaredCapabilites);
 	}

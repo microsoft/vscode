@@ -557,8 +557,7 @@ export interface WebviewExtensionDescription {
 }
 
 export enum WebviewEditorCapabilities {
-	Save,
-	SaveAs,
+	Editable,
 }
 
 export interface MainThreadWebviewsShape extends IDisposable {
