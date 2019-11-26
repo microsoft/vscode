@@ -20,6 +20,7 @@ import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
 import { getDataProviders } from './customData';
+import { getSelectionRanges } from './modes/selectionRanges';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -461,13 +462,8 @@ connection.onFoldingRanges((params, token) => {
 connection.onSelectionRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
-		const positions: Position[] = params.positions;
-
 		if (document) {
-			const htmlMode = languageModes.getMode('html');
-			if (htmlMode && htmlMode.getSelectionRanges) {
-				return htmlMode.getSelectionRanges(document, positions);
-			}
+			return getSelectionRanges(languageModes, document, params.positions);
 		}
 		return [];
 	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);

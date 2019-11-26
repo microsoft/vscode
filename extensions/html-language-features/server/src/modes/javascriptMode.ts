@@ -7,7 +7,7 @@ import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache
 import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString,
-	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind
+	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange
 } from 'vscode-html-languageservice';
 import { LanguageMode, Settings } from './languageModes';
 import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
@@ -246,6 +246,15 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				});
 			}
 			return [];
+		},
+		getSelectionRange(document: TextDocument, position: Position): SelectionRange {
+			updateCurrentTextDocument(document);
+			function convertSelectionRange(selectionRange: ts.SelectionRange): SelectionRange {
+				const parent = selectionRange.parent ? convertSelectionRange(selectionRange.parent) : undefined;
+				return SelectionRange.create(convertRange(currentTextDocument, selectionRange.textSpan), parent);
+			}
+			const range = jsLanguageService.getSmartSelectionRange(FILE_NAME, currentTextDocument.offsetAt(position));
+			return convertSelectionRange(range);
 		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings): TextEdit[] {
 			currentTextDocument = documentRegions.get(document).getEmbeddedDocument('javascript', true);
