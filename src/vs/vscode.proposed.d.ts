@@ -1251,6 +1251,13 @@ declare module 'vscode' {
 		save(): Thenable<void>;
 
 		/**
+		 *
+		 * @param resource Resource being saved.
+		 * @param targetResource Location to save to.
+		 */
+		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
+
+		/**
 		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 *
 		 * The edit must be a json serializable object.
@@ -1265,7 +1272,7 @@ declare module 'vscode' {
 		 *
 		 * @param edit Array of edits. Sorted from oldest to most recent.
 		 */
-		applyEdits(edits: any[]): Thenable<void>;
+		applyEdits(edits: readonly any[]): Thenable<void>;
 
 		/**
 		 * Undo a set of edits.
@@ -1274,7 +1281,7 @@ declare module 'vscode' {
 		 *
 		 * @param edit Array of edits. Sorted from most recent to oldest.
 		 */
-		undoEdits(edits: any[]): Thenable<void>;
+		undoEdits(edits: readonly any[]): Thenable<void>;
 	}
 
 	export interface WebviewEditorProvider {

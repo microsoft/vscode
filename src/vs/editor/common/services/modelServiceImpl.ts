@@ -441,12 +441,14 @@ export interface ILineSequence {
 
 class SemanticColoringFeature extends Disposable {
 	private _watchers: Record<string, ModelSemanticColoring>;
+	private _semanticStyling: SemanticStyling;
 
 	constructor(modelService: IModelService, themeService: IThemeService) {
 		super();
 		this._watchers = Object.create(null);
+		this._semanticStyling = this._register(new SemanticStyling(themeService));
 		this._register(modelService.onModelAdded((model) => {
-			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService);
+			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, this._semanticStyling);
 		}));
 		this._register(modelService.onModelRemoved((model) => {
 			this._watchers[model.uri.toString()].dispose();
@@ -455,28 +457,189 @@ class SemanticColoringFeature extends Disposable {
 	}
 }
 
+class SemanticStyling extends Disposable {
+
+	private _caches: WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>;
+
+	constructor(
+		private readonly _themeService: IThemeService
+	) {
+		super();
+		this._caches = new WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>();
+		if (this._themeService) {
+			// workaround for tests which use undefined... :/
+			this._register(this._themeService.onThemeChange(() => {
+				this._caches = new WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>();
+			}));
+		}
+	}
+
+	public get(provider: SemanticColoringProvider): SemanticColoringProviderStyling {
+		if (!this._caches.has(provider)) {
+			this._caches.set(provider, new SemanticColoringProviderStyling(provider.getLegend(), this._themeService));
+		}
+		return this._caches.get(provider)!;
+	}
+}
+
+const enum Constants {
+	NO_STYLING = 0b01111111111111111111111111111111
+}
+
+class HashTableEntry {
+	public readonly tokenTypeIndex: number;
+	public readonly tokenModifierSet: number;
+	public readonly metadata: number;
+	public next: HashTableEntry | null;
+
+	constructor(tokenTypeIndex: number, tokenModifierSet: number, metadata: number) {
+		this.tokenTypeIndex = tokenTypeIndex;
+		this.tokenModifierSet = tokenModifierSet;
+		this.metadata = metadata;
+		this.next = null;
+	}
+}
+
+class HashTable {
+
+	private static _SIZES = [3, 7, 13, 31, 61, 127, 251, 509, 1021, 2039, 4093, 8191, 16381, 32749, 65521, 131071, 262139, 524287, 1048573, 2097143];
+
+	private _elementsCount: number;
+	private _currentLengthIndex: number;
+	private _currentLength: number;
+	private _growCount: number;
+	private _elements: (HashTableEntry | null)[];
+
+	constructor() {
+		this._elementsCount = 0;
+		this._currentLengthIndex = 0;
+		this._currentLength = HashTable._SIZES[this._currentLengthIndex];
+		this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
+		this._elements = [];
+		HashTable._nullOutEntries(this._elements, this._currentLength);
+	}
+
+	private static _nullOutEntries(entries: (HashTableEntry | null)[], length: number): void {
+		for (let i = 0; i < length; i++) {
+			entries[i] = null;
+		}
+	}
+
+	private _hashFunc(tokenTypeIndex: number, tokenModifierSet: number): number {
+		return ((((tokenTypeIndex << 5) - tokenTypeIndex) + tokenModifierSet) | 0) % this._currentLength;  // tokenTypeIndex * 31 + tokenModifierSet, keep as int32
+	}
+
+	public get(tokenTypeIndex: number, tokenModifierSet: number): HashTableEntry | null {
+		const hash = this._hashFunc(tokenTypeIndex, tokenModifierSet);
+
+		let p = this._elements[hash];
+		while (p) {
+			if (p.tokenTypeIndex === tokenTypeIndex && p.tokenModifierSet === tokenModifierSet) {
+				return p;
+			}
+			p = p.next;
+		}
+
+		return null;
+	}
+
+	public add(tokenTypeIndex: number, tokenModifierSet: number, metadata: number): void {
+		this._elementsCount++;
+		if (this._growCount !== 0 && this._elementsCount >= this._growCount) {
+			// expand!
+			const oldElements = this._elements;
+
+			this._currentLengthIndex++;
+			this._currentLength = HashTable._SIZES[this._currentLengthIndex];
+			this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
+			this._elements = [];
+			HashTable._nullOutEntries(this._elements, this._currentLength);
+
+			for (const first of oldElements) {
+				let p = first;
+				while (p) {
+					const oldNext = p.next;
+					p.next = null;
+					this._add(p);
+					p = oldNext;
+				}
+			}
+		}
+		this._add(new HashTableEntry(tokenTypeIndex, tokenModifierSet, metadata));
+	}
+
+	private _add(element: HashTableEntry): void {
+		const hash = this._hashFunc(element.tokenTypeIndex, element.tokenModifierSet);
+		element.next = this._elements[hash];
+		this._elements[hash] = element;
+	}
+}
+
+class SemanticColoringProviderStyling {
+
+	private readonly _hashTable: HashTable;
+
+	constructor(
+		private readonly _legend: SemanticColoringLegend,
+		private readonly _themeService: IThemeService
+	) {
+		this._hashTable = new HashTable();
+	}
+
+	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number): number {
+		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet);
+		if (entry) {
+			return entry.metadata;
+		}
+
+		const tokenType = this._legend.tokenTypes[tokenTypeIndex];
+		const tokenModifiers: string[] = [];
+		for (let modifierIndex = 0; tokenModifierSet !== 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
+			if (tokenModifierSet & 1) {
+				tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
+			}
+			tokenModifierSet = tokenModifierSet >> 1;
+		}
+
+		let metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+		if (typeof metadata === 'undefined') {
+			metadata = Constants.NO_STYLING;
+		}
+
+		this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
+		return metadata;
+	}
+}
+
 class ModelSemanticColoring extends Disposable {
 
 	private _isDisposed: boolean;
 	private readonly _model: ITextModel;
+	private readonly _semanticStyling: SemanticStyling;
 	private readonly _fetchSemanticTokens: RunOnceScheduler;
 	private _currentResponse: SemanticColoring | null;
 	private _currentRequestCancellationTokenSource: CancellationTokenSource | null;
-	private _themeService: IThemeService;
 
-	constructor(model: ITextModel, themeService: IThemeService) {
+	constructor(model: ITextModel, themeService: IThemeService, stylingProvider: SemanticStyling) {
 		super();
 
 		this._isDisposed = false;
 		this._model = model;
+		this._semanticStyling = stylingProvider;
 		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 500));
 		this._currentResponse = null;
 		this._currentRequestCancellationTokenSource = null;
-		this._themeService = themeService;
 
 		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
 		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
-		this._register(themeService.onThemeChange(_ => this._fetchSemanticTokens.schedule()));
+		if (themeService) {
+			// workaround for tests which use undefined... :/
+			this._register(themeService.onThemeChange(_ => {
+				// clear out existing tokens
+				this._setSemanticTokens(null, null, []);
+				this._fetchSemanticTokens.schedule();
+			}));
+		}
 		this._fetchSemanticTokens.schedule(0);
 	}
 
@@ -509,21 +672,22 @@ class ModelSemanticColoring extends Disposable {
 			pendingChanges.push(e);
 		});
 
+		const styling = this._semanticStyling.get(provider);
 		const request = Promise.resolve(provider.provideSemanticColoring(this._model, this._currentRequestCancellationTokenSource.token));
 
 		request.then((res) => {
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(res || null, provider.getLegend(), pendingChanges);
+			this._setSemanticTokens(res || null, styling, pendingChanges);
 		}, (err) => {
 			errors.onUnexpectedError(err);
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(null, provider.getLegend(), pendingChanges);
+			this._setSemanticTokens(null, styling, pendingChanges);
 		});
 	}
 
-	private _setSemanticTokens(tokens: SemanticColoring | null, legend: SemanticColoringLegend, pendingChanges: IModelContentChangedEvent[]): void {
+	private _setSemanticTokens(tokens: SemanticColoring | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
 			this._currentResponse = null;
@@ -536,7 +700,7 @@ class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		this._currentResponse = tokens;
-		if (!this._currentResponse) {
+		if (!this._currentResponse || !styling) {
 			this._model.setSemanticTokens(null);
 			return;
 		}
@@ -553,19 +717,9 @@ class ModelSemanticColoring extends Disposable {
 				const startCharacter = srcTokens[srcOffset + 1];
 				const endCharacter = srcTokens[srcOffset + 2];
 				const tokenTypeIndex = srcTokens[srcOffset + 3];
-				const tokenType = legend.tokenTypes[tokenTypeIndex];
-
-				let tokenModifierSet = srcTokens[srcOffset + 4];
-				let tokenModifiers: string[] = [];
-				for (let modifierIndex = 0; tokenModifierSet !== 0 && modifierIndex < legend.tokenModifiers.length; modifierIndex++) {
-					if (tokenModifierSet & 1) {
-						tokenModifiers.push(legend.tokenModifiers[modifierIndex]);
-					}
-					tokenModifierSet = tokenModifierSet >> 1;
-				}
-
-				const metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
-				if (metadata !== undefined) {
+				const tokenModifierSet = srcTokens[srcOffset + 4];
+				const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet);
+				if (metadata !== Constants.NO_STYLING) {
 					destTokens[destOffset] = deltaLine;
 					destTokens[destOffset + 1] = startCharacter;
 					destTokens[destOffset + 2] = endCharacter;

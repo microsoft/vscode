@@ -42,7 +42,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
 	submenu: MenuId.EditorContextPeek,
 	title: nls.localize('peek.submenu', "Peek"),
 	group: 'navigation',
-	order: 1000
+	order: 100
 });
 
 export interface SymbolNavigationActionConfig {

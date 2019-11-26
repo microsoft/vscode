@@ -43,7 +43,7 @@ class MarkerModel {
 		this._markers = [];
 		this._nextIdx = -1;
 		this._ignoreSelectionChange = false;
-		this._onCurrentMarkerChanged = new Emitter<IMarker>();
+		this._onCurrentMarkerChanged = new Emitter<IMarker | undefined>();
 		this._onMarkerSetChanged = new Emitter<MarkerModel>();
 		this.setMarkers(markers);
 

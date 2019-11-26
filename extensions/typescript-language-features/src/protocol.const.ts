@@ -12,6 +12,7 @@ export class Kind {
 	public static readonly constructSignature = 'construct';
 	public static readonly directory = 'directory';
 	public static readonly enum = 'enum';
+	public static readonly enumMember = 'enum member';
 	public static readonly externalModuleName = 'external module name';
 	public static readonly function = 'function';
 	public static readonly indexSignature = 'index';
