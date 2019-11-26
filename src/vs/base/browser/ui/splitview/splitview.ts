@@ -912,7 +912,6 @@ export class SplitView extends Disposable {
 			} else {
 				sash.state = SashState.Enabled;
 			}
-			// }
 		});
 	}
 
