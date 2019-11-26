@@ -555,7 +555,11 @@ export class SettingsEditor2 extends BaseEditor {
 				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
 					if (this.settingsTree.scrollTop > 0) {
 						const firstElement = this.settingsTree.firstVisibleElement;
-						this.settingsTree.reveal(firstElement, 0.1);
+
+						if (typeof firstElement !== 'undefined') {
+							this.settingsTree.reveal(firstElement, 0.1);
+						}
+
 						return true;
 					}
 				} else {
