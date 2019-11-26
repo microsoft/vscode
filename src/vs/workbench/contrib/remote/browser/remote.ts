@@ -16,9 +16,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { VIEWLET_ID } from 'vs/workbench/contrib/remote/common/remote.contribution';
+import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptor, IViewsRegistry, Extensions, IViewContainersRegistry } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -289,32 +289,6 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer {
 		return title;
 	}
 }
-
-const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
-	VIEWLET_ID,
-	true,
-	undefined,
-	{
-		getOrder: (group?: string) => {
-			if (!group) {
-				return;
-			}
-
-			let matches = /^targets@(\d+)$/.exec(group);
-			if (matches) {
-				return -1000;
-			}
-
-			matches = /^details(@(\d+))?$/.exec(group);
-
-			if (matches) {
-				return -500;
-			}
-
-			return;
-		}
-	}
-);
 
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	RemoteViewlet,

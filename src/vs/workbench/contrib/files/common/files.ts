@@ -35,7 +35,6 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
-
 export interface IEditableData {
 	validationMessage: (value: string) => string | null;
 	onFinish: (value: string, success: boolean) => void;
