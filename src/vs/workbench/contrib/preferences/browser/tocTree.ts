@@ -10,7 +10,7 @@ import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTr
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterator } from 'vs/base/common/iterator';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, transparent, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
@@ -215,8 +215,8 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: settingsHeaderForeground,
 			listFocusBackground: editorBackground,
-			listFocusForeground: settingsHeaderForeground,
-			listHoverForeground: settingsHeaderForeground,
+			listFocusForeground: transparent(foreground, 0.9),
+			listHoverForeground: transparent(foreground, 0.9),
 			listHoverBackground: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: settingsHeaderForeground,
