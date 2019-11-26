@@ -254,8 +254,8 @@ interface ITunnelGroup {
 
 interface ITunnelItem {
 	tunnelType: TunnelType;
-	remote: string;
-	local?: string;
+	remote: number;
+	local?: number;
 	name?: string;
 	closeable?: boolean;
 	readonly description?: string;
@@ -265,11 +265,11 @@ interface ITunnelItem {
 class TunnelItem implements ITunnelItem {
 	constructor(
 		public tunnelType: TunnelType,
-		public remote: string,
+		public remote: number,
 		public closeable?: boolean,
 		public name?: string,
 		private _description?: string,
-		public local?: string,
+		public local?: number,
 	) { }
 	get label(): string {
 		if (this.name && this.local) {
@@ -491,11 +491,14 @@ namespace ForwardPortAction {
 		return async (accessor, arg) => {
 			const quickInputService = accessor.get(IQuickInputService);
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-			let remote: string | undefined = undefined;
+			let remote: number | undefined = undefined;
 			if (arg instanceof TunnelItem) {
 				remote = arg.remote;
 			} else {
-				remote = await quickInputService.input({ placeHolder: nls.localize('remote.tunnelView.pickRemote', 'Remote port to forward') });
+				const input = parseInt(await quickInputService.input({ placeHolder: nls.localize('remote.tunnelView.pickRemote', 'Remote port to forward') }));
+				if (typeof input === 'number') {
+					remote = input;
+				}
 			}
 
 			if (!remote) {
@@ -510,7 +513,7 @@ namespace ForwardPortAction {
 			if (name === undefined) {
 				return;
 			}
-			remoteExplorerService.tunnelModel.forward(remote, undefined, (local !== '') ? local : remote, (name !== '') ? name : undefined);
+			await remoteExplorerService.tunnelModel.forward(remote, (local !== '') ? parseInt(local) : remote, (name !== '') ? name : undefined);
 		};
 	}
 }
@@ -523,7 +526,7 @@ namespace ClosePortAction {
 		return async (accessor, arg) => {
 			if (arg instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				remoteExplorerService.tunnelModel.close(arg.remote);
+				await remoteExplorerService.tunnelModel.close(arg.remote);
 			}
 		};
 	}
@@ -540,7 +543,7 @@ namespace OpenPortInBrowserAction {
 				const openerService = accessor.get(IOpenerService);
 				const tunnel = model.forwarded.has(arg.remote) ? model.forwarded.get(arg.remote) : model.published.get(arg.remote);
 				let address: URI | undefined;
-				if (tunnel && tunnel.host && (address = model.address(tunnel.remote))) {
+				if (tunnel && tunnel.localUri && (address = model.address(tunnel.remote))) {
 					return openerService.open(address);
 				}
 				return Promise.resolve();

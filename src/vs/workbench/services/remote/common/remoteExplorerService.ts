@@ -12,113 +12,99 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { URI } from 'vs/base/common/uri';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
 
-
 export interface Tunnel {
-	remote: string;
-	host: URI;
-	local?: string;
+	remote: number;
+	localUri: URI;
+	local?: number;
 	name?: string;
 	description?: string;
 	closeable?: boolean;
 }
 
-export class TunnelModel {
-	forwarded: Map<string, Tunnel>;
-	published: Map<string, Tunnel>;
-	candidates: Map<string, Tunnel>;
+export class TunnelModel extends Disposable {
+	forwarded: Map<number, Tunnel>;
+	published: Map<number, Tunnel>;
+	candidates: Map<number, Tunnel>;
 	private _onForwardPort: Emitter<Tunnel> = new Emitter();
 	public onForwardPort: Event<Tunnel> = this._onForwardPort.event;
-	private _onClosePort: Emitter<string> = new Emitter();
-	public onClosePort: Event<string> = this._onClosePort.event;
-	private _onPortName: Emitter<string> = new Emitter();
-	public onPortName: Event<string> = this._onPortName.event;
+	private _onClosePort: Emitter<number> = new Emitter();
+	public onClosePort: Event<number> = this._onClosePort.event;
+	private _onPortName: Emitter<number> = new Emitter();
+	public onPortName: Event<number> = this._onPortName.event;
 	constructor(
 		@ITunnelService private readonly tunnelService: ITunnelService
 	) {
+		super();
 		this.forwarded = new Map();
-		this.forwarded.set('3000',
-			{
-				description: 'one description',
-				local: '3000',
-				remote: '3000',
-				closeable: true,
-				host: URI.parse('http://fakeHost')
+		this.tunnelService.tunnels.then(tunnels => {
+			tunnels.forEach(tunnel => {
+				if (tunnel.localAddress) {
+					this.forwarded.set(tunnel.tunnelRemotePort, {
+						remote: tunnel.tunnelRemotePort,
+						localUri: tunnel.localAddress,
+						local: tunnel.tunnelLocalPort
+					});
+				}
 			});
-		this.forwarded.set('4000',
-			{
-				local: '4001',
-				remote: '4000',
-				name: 'Process Port',
-				closeable: true,
-				host: URI.parse('http://fakeHost')
-			});
+		});
 
 		this.published = new Map();
-		this.published.set('3500',
-			{
-				description: 'one description',
-				local: '3500',
-				remote: '3500',
-				name: 'My App',
-				host: URI.parse('http://fakeHost')
-			});
-		this.published.set('4500',
-			{
-				description: 'two description',
-				local: '4501',
-				remote: '4500',
-				host: URI.parse('http://fakeHost')
-			});
 		this.candidates = new Map();
-		this.candidates.set('5000',
-			{
-				description: 'node.js /anArg',
-				remote: '5000',
-				host: URI.parse('http://fakeHost')
-			});
-		this.candidates.set('5500',
-			{
-				remote: '5500',
-				host: URI.parse('http://fakeHost')
-			});
+		this._register(this.tunnelService.onTunnelOpened(tunnel => {
+			if (this.candidates.has(tunnel.tunnelRemotePort)) {
+				this.candidates.delete(tunnel.tunnelRemotePort);
+			}
+			if (!this.forwarded.has(tunnel.tunnelRemotePort) && tunnel.localAddress) {
+				this.forwarded.set(tunnel.tunnelRemotePort, {
+					remote: tunnel.tunnelRemotePort,
+					localUri: tunnel.localAddress,
+					local: tunnel.tunnelLocalPort
+				});
+			}
+			this._onForwardPort.fire(this.forwarded.get(tunnel.tunnelRemotePort)!);
+		}));
+		this._register(this.tunnelService.onTunnelClosed(remotePort => {
+			if (this.forwarded.has(remotePort)) {
+				this.forwarded.delete(remotePort);
+				this._onClosePort.fire(remotePort);
+			}
+		}));
 	}
 
-	forward(remote: string, host?: URI, local?: string, name?: string) {
-		if (!host) {
-			host = URI.parse('http://fakeHost');
-		}
+	async forward(remote: number, local?: number, name?: string): Promise<void> {
 		if (!this.forwarded.has(remote)) {
-			const newForward: Tunnel = {
-				remote: remote,
-				local: local ?? remote,
-				name: name,
-				closeable: true,
-				host
-			};
-			this.forwarded.set(remote, newForward);
-			this._onForwardPort.fire(newForward);
+			const tunnel = await this.tunnelService.openTunnel(remote, local);
+			if (tunnel && tunnel.localAddress) {
+				const newForward: Tunnel = {
+					remote: tunnel.tunnelRemotePort,
+					local: tunnel.tunnelLocalPort,
+					name: name,
+					closeable: true,
+					localUri: tunnel.localAddress
+				};
+				this.forwarded.set(remote, newForward);
+				this._onForwardPort.fire(newForward);
+			}
 		}
 	}
 
-	name(remote: string, name: string) {
+	name(remote: number, name: string) {
 		if (this.forwarded.has(remote)) {
 			this.forwarded.get(remote)!.name = name;
 			this._onPortName.fire(remote);
 		}
 	}
 
-	close(remote: string) {
-		if (this.forwarded.has(remote)) {
-			this.forwarded.delete(remote);
-			this._onClosePort.fire(remote);
-		}
+	async close(remote: number): Promise<void> {
+		return this.tunnelService.closeTunnel(remote);
 	}
 
-	address(remote: string): URI | undefined {
+	address(remote: number): URI | undefined {
 		let tunnel: Tunnel | undefined = undefined;
 		if (this.forwarded.has(remote)) {
 			tunnel = this.forwarded.get(remote)!;
@@ -126,7 +112,7 @@ export class TunnelModel {
 			tunnel = this.published.get(remote)!;
 		}
 		if (tunnel) {
-			return URI.parse('http://localhost:' + tunnel.local);
+			return tunnel.localUri;
 		}
 		return undefined;
 	}
