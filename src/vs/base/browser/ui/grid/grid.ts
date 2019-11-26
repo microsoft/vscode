@@ -605,7 +605,7 @@ export type GridNodeDescriptor = { size?: number, groups?: GridNodeDescriptor[] 
 export type GridDescriptor = { orientation: Orientation, groups?: GridNodeDescriptor[] };
 
 export function sanitizeGridNodeDescriptor(nodeDescriptor: GridNodeDescriptor): void {
-	if (nodeDescriptor.groups && nodeDescriptor.groups.length === 0) {
+	if (nodeDescriptor.groups && nodeDescriptor.groups.length <= 1) {
 		nodeDescriptor.groups = undefined;
 	}
 
