@@ -18,14 +18,24 @@ export function activate() {
 
 	vscode.languages.registerCompletionItemProvider(LANGUAGE_SELECTOR, {
 		provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
+
 			const line = document.lineAt(position.line);
+			if (position.line > 3) { return []; }
+			if (position.character === 0 || (position.character === 1 && line.text === '#')) {
+				const header = Array.from({ length: 4 }).map((_, i) => document.lineAt(i).text);
+
+				return ['# Query:', '# Flags:', '# Including:', '# Excluding:']
+					.filter(suggestion => header.every(line => line.indexOf(suggestion) === -1))
+					.map(flag => ({ label: flag, insertText: (flag.slice(position.character)) + ' ' }));
+			}
+
 			if (line.text.indexOf('# Flags:') === -1) { return []; }
 
 			return ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch']
 				.filter(flag => line.text.indexOf(flag) === -1)
 				.map(flag => ({ label: flag, insertText: flag + ' ' }));
 		}
-	});
+	}, '#');
 
 	vscode.languages.registerDefinitionProvider(LANGUAGE_SELECTOR, {
 		provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.DefinitionLink[] {
