@@ -169,6 +169,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 				return vscode.CompletionItemKind.Method;
 			case PConst.Kind.enum:
 				return vscode.CompletionItemKind.Enum;
+			case PConst.Kind.enumMember:
+				return vscode.CompletionItemKind.EnumMember;
 			case PConst.Kind.module:
 			case PConst.Kind.externalModuleName:
 				return vscode.CompletionItemKind.Module;
