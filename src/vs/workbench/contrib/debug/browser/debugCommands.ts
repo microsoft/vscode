@@ -58,15 +58,24 @@ export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
 export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
 
-async function getThreadAndRun(accessor: ServicesAccessor, threadId: number | any, run: (thread: IThread) => Promise<void>): Promise<void> {
+interface CallStackContext {
+	sessionId: string;
+	threadId: string;
+	frameId: string;
+}
+
+function isThreadContext(obj: any): obj is CallStackContext {
+	return obj && typeof obj.sessionId === 'string' && typeof obj.threadId === 'string';
+}
+
+async function getThreadAndRun(accessor: ServicesAccessor, sessionAndThreadId: CallStackContext | unknown, run: (thread: IThread) => Promise<void>): Promise<void> {
 	const debugService = accessor.get(IDebugService);
 	let thread: IThread | undefined;
-	if (typeof threadId === 'number') {
-		debugService.getModel().getSessions().forEach(s => {
-			if (!thread) {
-				thread = s.getThread(threadId);
-			}
-		});
+	if (isThreadContext(sessionAndThreadId)) {
+		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
+		if (session) {
+			thread = session.getAllThreads().filter(t => t.getId() === sessionAndThreadId.threadId).pop();
+		}
 	} else {
 		thread = debugService.getViewModel().focusedThread;
 		if (!thread) {
@@ -81,23 +90,26 @@ async function getThreadAndRun(accessor: ServicesAccessor, threadId: number | an
 	}
 }
 
-function getFrame(debugService: IDebugService, frameId: string | undefined): IStackFrame | undefined {
-	if (!frameId) {
-		return undefined;
-	}
+function isStackFrameContext(obj: any): obj is CallStackContext {
+	return obj && typeof obj.sessionId === 'string' && typeof obj.threadId === 'string' && typeof obj.frameId === 'string';
+}
 
-	const sessions = debugService.getModel().getSessions();
-	for (let s of sessions) {
-		for (let t of s.getAllThreads()) {
-			for (let sf of t.getCallStack()) {
-				if (sf.getId() === frameId) {
-					return sf;
-				}
+function getFrame(debugService: IDebugService, context: CallStackContext | unknown): IStackFrame | undefined {
+	if (isStackFrameContext(context)) {
+		const session = debugService.getModel().getSession(context.sessionId);
+		if (session) {
+			const thread = session.getAllThreads().filter(t => t.getId() === context.threadId).pop();
+			if (thread) {
+				return thread.getCallStack().filter(sf => sf.getId() === context.frameId).pop();
 			}
 		}
 	}
 
 	return undefined;
+}
+
+function isSessionContext(obj: any): obj is CallStackContext {
+	return obj && typeof obj.sessionId === 'string';
 }
 
 export function registerCommands(): void {
@@ -108,10 +120,10 @@ export function registerCommands(): void {
 	// Same for stackFrame commands and session commands.
 	CommandsRegistry.registerCommand({
 		id: COPY_STACK_TRACE_ID,
-		handler: async (accessor: ServicesAccessor, _: string, frameId: string | undefined) => {
+		handler: async (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
 			const textResourcePropertiesService = accessor.get(ITextResourcePropertiesService);
 			const clipboardService = accessor.get(IClipboardService);
-			let frame = getFrame(accessor.get(IDebugService), frameId);
+			let frame = getFrame(accessor.get(IDebugService), context);
 			if (frame) {
 				const eol = textResourcePropertiesService.getEOL(frame.source.uri);
 				await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
@@ -121,22 +133,22 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: REVERSE_CONTINUE_ID,
-		handler: (accessor: ServicesAccessor, threadId: number | any) => {
-			getThreadAndRun(accessor, threadId, thread => thread.reverseContinue());
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+			getThreadAndRun(accessor, context, thread => thread.reverseContinue());
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: STEP_BACK_ID,
-		handler: (accessor: ServicesAccessor, threadId: number | any) => {
-			getThreadAndRun(accessor, threadId, thread => thread.stepBack());
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+			getThreadAndRun(accessor, context, thread => thread.stepBack());
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: TERMINATE_THREAD_ID,
-		handler: (accessor: ServicesAccessor, threadId: number | any) => {
-			getThreadAndRun(accessor, threadId, thread => thread.terminate());
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+			getThreadAndRun(accessor, context, thread => thread.terminate());
 		}
 	});
 
@@ -194,9 +206,12 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, _: string, session: IDebugSession | undefined) => {
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			if (!session || !session.getId) {
+			let session: IDebugSession | undefined;
+			if (isSessionContext(context)) {
+				session = debugService.getModel().getSession(context.sessionId);
+			} else {
 				session = debugService.getViewModel().focusedSession;
 			}
 
@@ -215,8 +230,8 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F10,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-		handler: (accessor: ServicesAccessor, threadId: number | any) => {
-			getThreadAndRun(accessor, threadId, (thread: IThread) => thread.next());
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.next());
 		}
 	});
 
@@ -225,8 +240,8 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
 		primary: KeyCode.F11,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, threadId: number | any) => {
-			getThreadAndRun(accessor, threadId, (thread: IThread) => thread.stepIn());
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
 		}
 	});
 
@@ -235,8 +250,8 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F11,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-		handler: (accessor: ServicesAccessor, threadId: number | any) => {
-			getThreadAndRun(accessor, threadId, (thread: IThread) => thread.stepOut());
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut());
 		}
 	});
 
@@ -245,8 +260,8 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F6,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
-		handler: (accessor: ServicesAccessor, threadId: number | any) => {
-			getThreadAndRun(accessor, threadId, thread => thread.pause());
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+			getThreadAndRun(accessor, context, thread => thread.pause());
 		}
 	});
 
@@ -264,9 +279,15 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, sessionId: string | undefined) => {
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			let session = debugService.getModel().getSession(sessionId) || debugService.getViewModel().focusedSession;
+			let session: IDebugSession | undefined;
+			if (isSessionContext(context)) {
+				session = debugService.getModel().getSession(context.sessionId);
+			} else {
+				session = debugService.getViewModel().focusedSession;
+			}
+
 			const configurationService = accessor.get(IConfigurationService);
 			const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 			// Stop should be sent to the root parent session
@@ -280,9 +301,9 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: RESTART_FRAME_ID,
-		handler: async (accessor: ServicesAccessor, _: string, frameId: string | undefined) => {
+		handler: async (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			let frame = getFrame(debugService, frameId);
+			let frame = getFrame(debugService, context);
 			if (frame) {
 				await frame.restart();
 			}
@@ -294,8 +315,8 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, threadId: number | any) => {
-			getThreadAndRun(accessor, threadId, thread => thread.continue());
+		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+			getThreadAndRun(accessor, context, thread => thread.continue());
 		}
 	});
 
