@@ -18,6 +18,8 @@ import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/sea
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
@@ -221,7 +223,7 @@ export const refreshActiveEditorSearch =
 		const results = serializeSearchResultForEditor(searchModel.searchResult, '', '', labelFormatter);
 
 		textModel.setValue(results.text.join(lineDelimiter));
-		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'findMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	};
 
 
@@ -250,5 +252,15 @@ export const createEditorFromSearchResult =
 
 		const model = control.getModel() as ITextModel;
 
-		model.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'findMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
+		model.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	};
+
+// theming
+registerThemingParticipant((theme, collector) => {
+	collector.addRule(`.monaco-editor .searchEditorFindMatch { background-color: ${theme.getColor(searchEditorFindMatch)}; }`);
+
+	const findMatchHighlightBorder = theme.getColor(searchEditorFindMatchBorder);
+	if (findMatchHighlightBorder) {
+		collector.addRule(`.monaco-editor .searchEditorFindMatch { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
+	}
+});
