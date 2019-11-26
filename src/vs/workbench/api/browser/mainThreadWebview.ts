@@ -273,17 +273,23 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 				const model = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
 
-				model.onUndo(edit => { this._proxy.$undoEdits(handle, [edit]); });
-				model.onRedo(edit => { this._proxy.$redoEdits(handle, [edit]); });
+				model.onUndo(edits => { this._proxy.$undoEdits(handle, edits.map(x => x.data)); });
+				model.onApplyEdit(edits => {
+					const editsToApply = edits.filter(x => x.source !== webviewInput).map(x => x.data);
+					if (editsToApply.length) {
+						this._proxy.$applyEdits(handle, editsToApply);
+					}
+				});
 				model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
+				model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
 
-				webviewInput.onDispose(() => {
+				webviewInput.onDisposeWebview(() => {
 					this._customEditorService.models.disposeModel(model);
 				});
 
 				try {
 					await this._proxy.$resolveWebviewEditor(
-						webviewInput.getResource(),
+						{ resource: webviewInput.getResource(), edits: model.currentEdits },
 						handle,
 						viewType,
 						webviewInput.getTitle(),
@@ -293,6 +299,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
+					return;
 				}
 			}
 		}));
@@ -308,7 +315,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._editorProviders.delete(viewType);
 	}
 
-	public $onEdit(handle: extHostProtocol.WebviewPanelHandle, editData: string): void {
+	public $onEdit(handle: extHostProtocol.WebviewPanelHandle, editData: any): void {
 		const webview = this.getWebviewInput(handle);
 		if (!(webview instanceof CustomFileEditorInput)) {
 			throw new Error('Webview is not a webview editor');
@@ -319,13 +326,13 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			throw new Error('Could not find model for webview editor');
 		}
 
-		model.makeEdit(editData);
+		model.makeEdit({ source: webview, data: editData });
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
 		input.webview.onDidClickLink((uri: URI) => this.onDidClickLink(handle, uri));
 		input.webview.onMessage((message: any) => this._proxy.$onMessage(handle, message));
-		input.onDispose(() => {
+		input.onDisposeWebview(() => {
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
 				this._webviewInputs.delete(handle);
 			});

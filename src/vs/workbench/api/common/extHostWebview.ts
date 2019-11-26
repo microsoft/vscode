@@ -243,21 +243,26 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 		this._capabilities = capabilities;
 		if (capabilities.editingCapability) {
 			this._register(capabilities.editingCapability.onEdit(edit => {
-				this._proxy.$onEdit(this._handle, JSON.stringify(edit));
+				this._proxy.$onEdit(this._handle, edit);
 			}));
 		}
 	}
 
-	_undoEdits(edits: string[]): void {
+	_undoEdits(edits: readonly any[]): void {
 		assertIsDefined(this._capabilities).editingCapability?.undoEdits(edits);
 	}
 
-	_redoEdits(edits: string[]): void {
+	_redoEdits(edits: readonly any[]): void {
 		assertIsDefined(this._capabilities).editingCapability?.applyEdits(edits);
 	}
 
 	async _onSave(): Promise<void> {
 		await assertIsDefined(this._capabilities).editingCapability?.save();
+	}
+
+
+	async _onSaveAs(resource: vscode.Uri, targetResource: vscode.Uri): Promise<void> {
+		await assertIsDefined(this._capabilities).editingCapability?.saveAs(resource, targetResource);
 	}
 
 	private assertNotDisposed() {
@@ -427,7 +432,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	async $resolveWebviewEditor(
-		resource: UriComponents,
+		input: { resource: UriComponents, edits: readonly any[] },
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
@@ -443,29 +448,33 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._logService);
 		const revivedPanel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(handle, revivedPanel);
-		const capabilities = await provider.resolveWebviewEditor({ resource: URI.revive(resource) }, revivedPanel);
+		const capabilities = await provider.resolveWebviewEditor({ resource: URI.revive(input.resource) }, revivedPanel);
 		revivedPanel._setCapabilities(capabilities);
+
+		// TODO: the first set of edits should likely be passed when resolving
+		if (input.edits.length) {
+			revivedPanel._redoEdits(input.edits);
+		}
 	}
 
-	$undoEdits(handle: WebviewPanelHandle, edits: string[]): void {
+	$undoEdits(handle: WebviewPanelHandle, edits: readonly any[]): void {
 		const panel = this.getWebviewPanel(handle);
-		if (!panel) {
-			return;
-		}
-		panel._undoEdits(edits);
+		panel?._undoEdits(edits);
 	}
 
-	$redoEdits(handle: WebviewPanelHandle, edits: string[]): void {
+	$applyEdits(handle: WebviewPanelHandle, edits: readonly any[]): void {
 		const panel = this.getWebviewPanel(handle);
-		if (!panel) {
-			return;
-		}
-		panel._redoEdits(edits);
+		panel?._redoEdits(edits);
 	}
 
 	async $onSave(handle: WebviewPanelHandle): Promise<void> {
 		const panel = this.getWebviewPanel(handle);
 		return panel?._onSave();
+	}
+
+	async $onSaveAs(handle: WebviewPanelHandle, resource: UriComponents, targetResource: UriComponents): Promise<void> {
+		const panel = this.getWebviewPanel(handle);
+		return panel?._onSaveAs(URI.revive(resource), URI.revive(targetResource));
 	}
 
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewEditor | undefined {

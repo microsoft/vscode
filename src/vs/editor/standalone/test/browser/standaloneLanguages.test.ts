@@ -54,7 +54,13 @@ suite('TokenizationSupport2Adapter', () => {
 
 				defines: (color: ColorIdentifier): boolean => {
 					throw new Error('Not implemented');
-				}
+				},
+
+				getTokenStyleMetadata: (type: string, modifiers: string[]): number | undefined => {
+					return undefined;
+				},
+
+				tokenColorMap: []
 			};
 		}
 

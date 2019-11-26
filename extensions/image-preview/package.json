@@ -44,11 +44,6 @@
         "command": "imagePreview.zoomOut",
         "title": "%command.zoomOut%",
         "category": "Image Preview"
-      },
-      {
-        "command": "imagePreview.testing.makeEdit",
-        "title": "Make test edit",
-        "category": "Image Preview"
       }
     ],
     "menus": {
@@ -61,11 +56,6 @@
         {
           "command": "imagePreview.zoomOut",
           "when": "imagePreviewFocus",
-          "group": "1_imagePreview"
-        },
-        {
-          "command": "imagePreview.testing.makeEdit",
-          "when": "imagePreviewTestMode",
           "group": "1_imagePreview"
         }
       ]

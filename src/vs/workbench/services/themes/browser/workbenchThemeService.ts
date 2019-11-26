@@ -364,10 +364,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					this.currentColorTheme = themeData;
 					themeData.setCustomColors(this.colorCustomizations);
 					themeData.setCustomTokenColors(this.tokenColorCustomizations);
+					themeData.setCustomTokenStyleRules(this.tokenStylesCustomizations);
 					return Promise.resolve(themeData);
 				}
 				themeData.setCustomColors(this.colorCustomizations);
 				themeData.setCustomTokenColors(this.tokenColorCustomizations);
+				themeData.setCustomTokenStyleRules(this.tokenStylesCustomizations);
 				this.updateDynamicCSSRules(themeData);
 				return this.applyTheme(themeData, settingsTarget);
 			}, error => {
@@ -380,6 +382,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		await this.currentColorTheme.reload(this.extensionResourceLoaderService);
 		this.currentColorTheme.setCustomColors(this.colorCustomizations);
 		this.currentColorTheme.setCustomTokenColors(this.tokenColorCustomizations);
+		this.currentColorTheme.setCustomTokenStyleRules(this.tokenStylesCustomizations);
 		this.updateDynamicCSSRules(this.currentColorTheme);
 		this.applyTheme(this.currentColorTheme, undefined, false);
 	}

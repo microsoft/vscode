@@ -106,7 +106,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 						}
 					}
 				}
-			}, contextMenuService, keybindingService))
+			}, this._instantiationService))
 		);
 	}
 

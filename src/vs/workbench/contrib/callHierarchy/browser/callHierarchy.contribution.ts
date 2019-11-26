@@ -162,7 +162,7 @@ registerEditorAction(class extends EditorAction {
 			alias: 'Peek Call Hierarchy',
 			contextMenuOpts: {
 				group: 'navigation',
-				order: 1.48
+				order: 1000
 			},
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

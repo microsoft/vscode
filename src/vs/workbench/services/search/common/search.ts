@@ -331,6 +331,8 @@ export interface ISearchConfigurationProperties {
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
 	searchOnTypeDebouncePeriod: number;
+	enableSearchEditorPreview: boolean;
+	searchEditorPreviewForceAbsolutePaths: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

@@ -3066,15 +3066,17 @@ declare namespace monaco.editor {
 	 * Configuration options for go to location
 	 */
 	export interface IGotoLocationOptions {
-		/**
-		 * Control how goto-command work when having multiple results.
-		 */
 		multiple?: GoToLocationValues;
 		multipleDefinitions?: GoToLocationValues;
 		multipleTypeDefinitions?: GoToLocationValues;
 		multipleDeclarations?: GoToLocationValues;
 		multipleImplementations?: GoToLocationValues;
 		multipleReferences?: GoToLocationValues;
+		alternativeDefinitionCommand?: string;
+		alternativeTypeDefinitionCommand?: string;
+		alternativeDeclarationCommand?: string;
+		alternativeImplementationCommand?: string;
+		alternativeReferenceCommand?: string;
 	}
 
 	export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
@@ -3397,6 +3399,10 @@ declare namespace monaco.editor {
 		 * Overwrite word ends on accept. Default to false.
 		 */
 		insertMode?: 'insert' | 'replace';
+		/**
+		 * Show a highlight when suggestion replaces or keep text after the cursor. Defaults to false.
+		 */
+		insertHighlight?: boolean;
 		/**
 		 * Enable graceful matching. Defaults to true.
 		 */

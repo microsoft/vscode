@@ -621,10 +621,10 @@ vscode-css-languageservice@^4.0.3-next.20:
     vscode-nls "^4.1.1"
     vscode-uri "^2.1.1"
 
-vscode-html-languageservice@^3.0.4-next.9:
-  version "3.0.4-next.9"
-  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-3.0.4-next.9.tgz#b27f26c29f3af64fa32eabb7425749f95f64036a"
-  integrity sha512-9V9G7508ybFcn9gQpuucEZIGv8kKlBMEVD8lFFWwWS1yEonKchsxIGJZFbmSGr/n//2anfya8F8yL5ybKuWIRA==
+vscode-html-languageservice@^3.0.4-next.10:
+  version "3.0.4-next.10"
+  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-3.0.4-next.10.tgz#da426326833770c51712abb2c7473b9b30bf1cbc"
+  integrity sha512-8P0QBtMPJ9nDMhW8MF/z+5JGg6rK6UOa9po18KIleNuV0rDHU9CAqDyUjxW0CEfLrHYz6dQdkW12ZTClvQnNHw==
   dependencies:
     vscode-languageserver-textdocument "^1.0.0-next.4"
     vscode-languageserver-types "^3.15.0-next.6"

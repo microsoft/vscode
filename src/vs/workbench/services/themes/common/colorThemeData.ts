@@ -189,7 +189,8 @@ export class ColorThemeData implements IColorTheme {
 		if (tokenStyleValue === null) {
 			return undefined;
 		} else if (typeof tokenStyleValue === 'string') {
-			const classification = tokenClassificationRegistry.getTokenClassificationFromString(tokenStyleValue);
+			const [type, ...modifiers] = tokenStyleValue.split('.');
+			const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
 			if (classification) {
 				return this.getTokenStyle(classification);
 			}
@@ -229,7 +230,11 @@ export class ColorThemeData implements IColorTheme {
 		return this.getTokenColorIndex().asArray();
 	}
 
-	public getTokenStyleMetadata(classification: TokenClassification, useDefault?: boolean): number {
+	public getTokenStyleMetadata(type: string, modifiers: string[], useDefault?: boolean): number | undefined {
+		const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
+		if (!classification) {
+			return undefined;
+		}
 		const style = this.getTokenStyle(classification, useDefault);
 		let fontStyle = FontStyle.None;
 		let foreground = 0;
@@ -335,12 +340,12 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	public setCustomTokenStyleRules(tokenStylingRules: IExperimentalTokenStyleCustomizations) {
-		this.tokenStylingRules = [];
-		readCustomTokenStyleRules(tokenStylingRules, this.tokenStylingRules);
+		this.customTokenStylingRules = [];
+		readCustomTokenStyleRules(tokenStylingRules, this.customTokenStylingRules);
 
 		const themeSpecificColors = tokenStylingRules[`[${this.settingsId}]`] as IExperimentalTokenStyleCustomizations;
 		if (types.isObject(themeSpecificColors)) {
-			readCustomTokenStyleRules(themeSpecificColors, this.tokenStylingRules);
+			readCustomTokenStyleRules(themeSpecificColors, this.customTokenStylingRules);
 		}
 
 		this.tokenColorIndex = undefined;
@@ -709,7 +714,8 @@ function getTokenStyle(foreground: string | undefined, fontStyle: string | undef
 function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenStyleCustomizations, result: TokenStylingRule[] = []) {
 	for (let key in tokenStylingRuleSection) {
 		if (key[0] !== '[') {
-			const classification = tokenClassificationRegistry.getTokenClassificationFromString(key);
+			const [type, ...modifiers] = key.split('.');
+			const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
 			if (classification) {
 				const settings = tokenStylingRuleSection[key];
 				let style: TokenStyle | undefined;

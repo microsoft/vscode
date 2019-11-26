@@ -1516,6 +1516,8 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			}
 		}));
 
+		this.getHTMLElement().classList.add('settings-editor-tree');
+
 		this.disposables.add(attachStyler(themeService, {
 			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
