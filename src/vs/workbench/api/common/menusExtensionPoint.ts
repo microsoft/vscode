@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { escape, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
@@ -347,10 +347,16 @@ commandsExtensionPoint.setHandler(extensions => {
 
 		const { icon, enablement, category, title, command } = userFriendlyCommand;
 
+		let iconClassName: string | undefined;
 		let absoluteIcon: { dark: URI; light?: URI; } | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				if (icon.indexOf('icon://vscode.codicons/') === 0) {
+					iconClassName = escape(`codicon-${URI.parse(icon).path.substr(1)}`);
+				}
+				else {
+					absoluteIcon = { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				}
 			} else {
 				absoluteIcon = {
 					dark: resources.joinPath(extension.description.extensionLocation, icon.dark),
@@ -367,7 +373,8 @@ commandsExtensionPoint.setHandler(extensions => {
 			title,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
-			iconLocation: absoluteIcon
+			iconLocation: absoluteIcon,
+			iconClassName: iconClassName
 		});
 		_commandRegistrations.add(registration);
 	}
