@@ -639,7 +639,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(ClearSearchResultsA
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
-		{ primary: KeyMod.CtrlCmd | KeyCode.Enter },
+		{ mac: { primary: KeyMod.CtrlCmd | KeyCode.Enter } },
 		ContextKeyExpr.and(Constants.HasSearchResults, Constants.SearchViewFocusedKey, Constants.EnableSearchEditorPreview)),
 	'Search: Open Results in Editor', category,
 	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
