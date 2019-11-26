@@ -965,6 +965,12 @@ export class SearchModel extends Disposable {
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch();
 
+		// Exclude Search Editor results unless explicity included
+		const searchEditorFilenameGlob = `**/*.code-search`;
+		if (!query.includePattern || !query.includePattern[searchEditorFilenameGlob]) {
+			query.excludePattern = { ...(query.excludePattern ?? {}), [searchEditorFilenameGlob]: true };
+		}
+
 		this._searchQuery = query;
 		if (!this.searchConfig.searchOnType) {
 			this.searchResult.clear();

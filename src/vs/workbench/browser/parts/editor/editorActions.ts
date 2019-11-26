@@ -418,7 +418,7 @@ export class OpenToSideFromQuickOpenAction extends Action {
 	updateClass(): void {
 		const preferredDirection = preferredSideBySideGroupDirection(this.configurationService);
 
-		this.class = (preferredDirection === GroupDirection.RIGHT) ? 'quick-open-sidebyside-vertical' : 'quick-open-sidebyside-horizontal';
+		this.class = (preferredDirection === GroupDirection.RIGHT) ? 'codicon-split-horizontal' : 'codicon-split-vertical';
 	}
 
 	run(context: any): Promise<any> {

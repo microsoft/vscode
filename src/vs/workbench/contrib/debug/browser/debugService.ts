@@ -47,6 +47,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -807,7 +808,7 @@ export class DebugService implements IDebugService {
 				return inactivePromise;
 			}
 
-			return taskPromise;
+			return taskPromise.then(withUndefinedAsNull);
 		});
 
 		return new Promise((c, e) => {

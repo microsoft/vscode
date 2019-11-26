@@ -135,7 +135,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- input
 
-	showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Promise<string> {
+	showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
 
 		// global validate fn used in callback below
 		this._validateInput = options ? options.validateInput : undefined;

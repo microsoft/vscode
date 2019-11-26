@@ -155,11 +155,11 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			if (!isPromiseCanceledError(err)) {
 				return Promise.reject(err);
 			}
-			return undefined;
+			return null;
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete> {
+	$startTextSearch(pattern: IPatternInfo, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | undefined> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
@@ -198,14 +198,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		return this._searchService.fileSearch(query, token).then(
 			result => {
-				return result.limitHit;
+				return !!result.limitHit;
 			},
 			err => {
 				if (!isPromiseCanceledError(err)) {
 					return Promise.reject(err);
 				}
 
-				return undefined;
+				return false;
 			});
 	}
 
