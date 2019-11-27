@@ -58,7 +58,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						},
 						'filenamePattern': {
 							type: 'string',
-							description: nls.localize('editor.editorAssociations.filenamePattern', "Glob pattern the the editor should be used for."),
+							description: nls.localize('editor.editorAssociations.filenamePattern', "Glob pattern the editor should be used for."),
 						}
 					}
 				}
