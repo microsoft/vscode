@@ -120,7 +120,7 @@ steps:
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
-    ConnectedServiceName: 'ESRP CodeSign rpm'
+    ConnectedServiceName: 'ESRP CodeSign'
     FolderPath: '.build/linux/rpm/x86_64'
     Pattern: '*.rpm'
     signConfigType: inlineSignParams
@@ -135,7 +135,7 @@ steps:
         }
       ]
     SessionTimeout: 120
-  displayName: Codesign
+  displayName: Codesign rpm
 
 - script: |
     set -e
