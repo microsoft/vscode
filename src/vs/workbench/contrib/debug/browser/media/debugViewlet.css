@@ -17,7 +17,8 @@
 	padding: 0 20px 0 20px;
 }
 
-.debug-viewlet .debug-start-view .monaco-button {
+.debug-viewlet .debug-start-view .monaco-button,
+.debug-viewlet .debug-start-view .section {
 	margin-top: 20px;
 }
 

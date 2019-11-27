@@ -40,33 +40,31 @@ export class StartView extends ViewletPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
-
-		const messageContainer = $('.section');
-		container.appendChild(messageContainer);
-		const messageElement = $('span');
-		messageContainer.appendChild(messageElement);
-		messageElement.textContent = localize('noLaunchConfiguration', "You have not yet configured launching. For a more complete debug and run experience");
-		const clickElement = $('span.configure');
-		clickElement.textContent = localize('configure', " create a `launch.json`");
-		clickElement.onclick = () => this.commandService.executeCommand(ConfigureAction.ID);
-		messageContainer.appendChild(clickElement);
-
-
 		this.debugButton = new Button(container);
-		this.debugButton.label = localize('debug', "Debug Code");
+		this.debugButton.label = localize('debug', "Debug");
 		this._register(this.debugButton.onDidClick(() => {
 			this.commandService.executeCommand(StartAction.ID);
 		}));
 		attachButtonStyler(this.debugButton, this.themeService);
 
 		this.runButton = new Button(container);
-		this.runButton.label = localize('run', "Run Code");
+		this.runButton.label = localize('run', "Run");
 
 		dom.addClass(container, 'debug-start-view');
 		this._register(this.runButton.onDidClick(() => {
 			this.commandService.executeCommand(RunAction.ID);
 		}));
 		attachButtonStyler(this.runButton, this.themeService);
+
+		const messageContainer = $('.section');
+		container.appendChild(messageContainer);
+		const messageElement = $('span');
+		messageContainer.appendChild(messageElement);
+		messageElement.textContent = localize('noLaunchConfiguration', "To specify how to run and debug your code, ");
+		const clickElement = $('span.configure');
+		clickElement.textContent = localize('configure', " create a launch.json file.");
+		clickElement.onclick = () => this.commandService.executeCommand(ConfigureAction.ID);
+		messageContainer.appendChild(clickElement);
 	}
 
 	protected layoutBody(_: number, __: number): void {
