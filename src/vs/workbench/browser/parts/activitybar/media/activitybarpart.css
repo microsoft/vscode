@@ -20,6 +20,7 @@
 	 */
 	transform: translate3d(0px, 0px, 0px);
 	overflow: visible; /* when a new layer is created, we need to set overflow visible to avoid clipping the menubar */
+	z-index: 10; /* make sure context menu created from activity bar has higher z index then other grid views */
 }
 
 .monaco-workbench .activitybar > .content {
