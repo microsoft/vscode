@@ -269,6 +269,10 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private _startSnappingEnabled = true;
 	get startSnappingEnabled(): boolean { return this._startSnappingEnabled; }
 	set startSnappingEnabled(startSnappingEnabled: boolean) {
+		if (this._startSnappingEnabled === startSnappingEnabled) {
+			return;
+		}
+
 		this._startSnappingEnabled = startSnappingEnabled;
 		this.updateSashEnablement();
 	}
@@ -276,6 +280,10 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private _endSnappingEnabled = true;
 	get endSnappingEnabled(): boolean { return this._endSnappingEnabled; }
 	set endSnappingEnabled(endSnappingEnabled: boolean) {
+		if (this._endSnappingEnabled === endSnappingEnabled) {
+			return;
+		}
+
 		this._endSnappingEnabled = endSnappingEnabled;
 		this.updateSashEnablement();
 	}
