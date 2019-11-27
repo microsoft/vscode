@@ -73,7 +73,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
-		if (href && href.indexOf('vscode-icon://vscode.codicons/') === 0) {
+		if (href && href.indexOf('vscode-icon://codicon/') === 0) {
 			return renderCodicons(`$(${URI.parse(href).path.substr(1)})`);
 		}
 
