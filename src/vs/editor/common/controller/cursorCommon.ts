@@ -523,12 +523,15 @@ export class CursorColumns {
 			if (codePoint === CharCode.Tab) {
 				result = CursorColumns.nextRenderTabStop(result, tabSize);
 			} else {
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
 				while (i < endOffset) {
 					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-					if (!strings.isUnicodeMark(nextCodePoint)) {
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
 						break;
 					}
 					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+					graphemeBreakType = nextGraphemeBreakType;
 				}
 				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
 					result = result + 2;
@@ -582,12 +585,15 @@ export class CursorColumns {
 			if (codePoint === CharCode.Tab) {
 				afterVisibleColumn = CursorColumns.nextRenderTabStop(beforeVisibleColumn, tabSize);
 			} else {
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
 				while (i < lineLength) {
 					const nextCodePoint = strings.getNextCodePoint(lineContent, lineLength, i);
-					if (!strings.isUnicodeMark(nextCodePoint)) {
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
 						break;
 					}
 					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+					graphemeBreakType = nextGraphemeBreakType;
 				}
 				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
 					afterVisibleColumn = beforeVisibleColumn + 2;
