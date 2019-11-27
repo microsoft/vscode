@@ -2775,7 +2775,7 @@ declare namespace monaco.editor {
 		 * Enable auto indentation adjustment.
 		 * Defaults to false.
 		 */
-		autoIndent?: boolean;
+		autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 		/**
 		 * Enable format on type.
 		 * Defaults to false.
