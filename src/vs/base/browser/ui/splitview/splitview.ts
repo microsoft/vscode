@@ -266,6 +266,20 @@ export class SplitView extends Disposable {
 		return this.sashItems.map(s => s.sash);
 	}
 
+	private _startSnappingEnabled = true;
+	get startSnappingEnabled(): boolean { return this._startSnappingEnabled; }
+	set startSnappingEnabled(startSnappingEnabled: boolean) {
+		this._startSnappingEnabled = startSnappingEnabled;
+		this.updateSashEnablement();
+	}
+
+	private _endSnappingEnabled = true;
+	get endSnappingEnabled(): boolean { return this._endSnappingEnabled; }
+	set endSnappingEnabled(endSnappingEnabled: boolean) {
+		this._endSnappingEnabled = endSnappingEnabled;
+		this.updateSashEnablement();
+	}
+
 	constructor(container: HTMLElement, options: ISplitViewOptions = {}) {
 		super();
 
@@ -870,8 +884,10 @@ export class SplitView extends Disposable {
 
 		// Layout sashes
 		this.sashItems.forEach(item => item.sash.layout());
+		this.updateSashEnablement();
+	}
 
-		// Update sashes enablement
+	private updateSashEnablement(): void {
 		let previous = false;
 		const collapsesDown = this.viewItems.map(i => previous = (i.size - i.minimumSize > 0) || previous);
 
@@ -885,7 +901,12 @@ export class SplitView extends Disposable {
 		previous = false;
 		const expandsUp = reverseViews.map(i => previous = (i.maximumSize - i.size > 0) || previous).reverse();
 
-		this.sashItems.forEach(({ sash }, index) => {
+		let position = 0;
+		for (let index = 0; index < this.sashItems.length; index++) {
+			const { sash } = this.sashItems[index];
+			const viewItem = this.viewItems[index];
+			position += viewItem.size;
+
 			const min = !(collapsesDown[index] && expandsUp[index + 1]);
 			const max = !(expandsDown[index] && collapsesUp[index + 1]);
 
@@ -898,9 +919,9 @@ export class SplitView extends Disposable {
 				const snappedBefore = typeof snapBeforeIndex === 'number' && !this.viewItems[snapBeforeIndex].visible;
 				const snappedAfter = typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible;
 
-				if (snappedBefore && collapsesUp[index]) {
+				if (snappedBefore && collapsesUp[index] && (position > 0 || this.startSnappingEnabled)) {
 					sash.state = SashState.Minimum;
-				} else if (snappedAfter && collapsesDown[index]) {
+				} else if (snappedAfter && collapsesDown[index] && (position < this.contentSize || this.endSnappingEnabled)) {
 					sash.state = SashState.Maximum;
 				} else {
 					sash.state = SashState.Disabled;
@@ -912,7 +933,7 @@ export class SplitView extends Disposable {
 			} else {
 				sash.state = SashState.Enabled;
 			}
-		});
+		}
 	}
 
 	private getSashPosition(sash: Sash): number {
