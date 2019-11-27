@@ -74,6 +74,8 @@ function sendFile(res: http.ServerResponse, filepath: string, contentType: strin
 	fs.readFile(filepath, (err, body) => {
 		if (err) {
 			console.error(err);
+			res.writeHead(404);
+			res.end();
 		} else {
 			res.writeHead(200, {
 				'Content-Length': body.length,

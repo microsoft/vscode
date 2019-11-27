@@ -726,7 +726,7 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('combining marks', () => {
+	test('grapheme breaking', () => {
 		withTestCodeEditor([
 			'abcabc',
 			'ãããããã',

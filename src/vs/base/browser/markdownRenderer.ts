@@ -22,8 +22,6 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderCallback?: () => void;
 }
 
-const codiconsRegex = /^icon:\/\/vscode\.codicons\/(.*)$/;
-
 /**
  * Create html nodes for the given content element.
  */
@@ -75,11 +73,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
-		if (href) {
-			const match = codiconsRegex.exec(href);
-			if (match !== null) {
-				return renderCodicons(`$(${match[1]})`);
-			}
+		if (href && href.indexOf('vscode-icon://codicon/') === 0) {
+			return renderCodicons(`$(${URI.parse(href).path.substr(1)})`);
 		}
 
 		let dimensions: string[] = [];

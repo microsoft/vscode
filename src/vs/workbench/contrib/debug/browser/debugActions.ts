@@ -143,7 +143,7 @@ export class StartAction extends AbstractDebugAction {
 
 export class RunAction extends StartAction {
 	static readonly ID = 'workbench.action.debug.run';
-	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
+	static LABEL = nls.localize('startWithoutDebugging', "Run (Start Without Debugging)");
 
 	protected isNoDebug(): boolean {
 		return true;

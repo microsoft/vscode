@@ -40,7 +40,7 @@ import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list
 import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { escape, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class CustomTreeViewPane extends ViewletPane {
@@ -796,9 +796,26 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.resourceLabel.setResource({ name: label, description }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: matches ? matches : createMatches(element.filterData) });
 		}
 
-		templateData.icon.style.backgroundImage = iconUrl ? DOM.asCSSUrl(iconUrl) : '';
 		templateData.icon.title = title ? title : '';
 		DOM.toggleClass(templateData.icon, 'custom-view-tree-node-item-icon', !!iconUrl);
+
+		let codicon: string | undefined;
+		if (iconUrl?.scheme === 'vscode-icon' && iconUrl?.authority === 'codicon') {
+			codicon = `codicon-${escape(iconUrl.path.substr(1))}`;
+		}
+
+		DOM.toggleClass(templateData.icon, 'codicon', !!codicon);
+		templateData.icon.classList.forEach((cls, i, list) => {
+			if (cls !== codicon && cls.indexOf('codicon-') === 0) {
+				list.remove(cls);
+			}
+		});
+		if (codicon) {
+			DOM.addClass(templateData.icon, codicon);
+		}
+
+		templateData.icon.style.backgroundImage = iconUrl && !codicon ? DOM.asCSSUrl(iconUrl) : '';
+
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
 		if (this._actionRunner) {
