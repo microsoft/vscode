@@ -16,6 +16,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StartAction, RunAction, ConfigureAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { equals } from 'vs/base/common/arrays';
 const $ = dom.$;
 
 
@@ -26,6 +31,9 @@ export class StartView extends ViewletPane {
 
 	private debugButton!: Button;
 	private runButton!: Button;
+	private firstMessageContainer!: HTMLElement;
+	private secondMessageContainer!: HTMLElement;
+	private debuggerLabels: string[] | undefined = undefined;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -34,14 +42,84 @@ export class StartView extends ViewletPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
 		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		this._register(editorService.onDidActiveEditorChange(() => this.updateView()));
+		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(() => this.updateView()));
+	}
+
+	private updateView(): void {
+		const activeEditor = this.editorService.activeTextEditorWidget;
+		const debuggerLabels = this.debugService.getConfigurationManager().getDebuggerLabelsForEditor(activeEditor);
+		if (!equals(this.debuggerLabels, debuggerLabels)) {
+			this.debuggerLabels = debuggerLabels;
+			const enabled = this.debuggerLabels.length > 0;
+
+			this.debugButton.enabled = enabled;
+			this.runButton.enabled = enabled;
+			this.debugButton.label = this.debuggerLabels.length !== 1 ? localize('debug', "Debug") : localize('debugWith', "Debug with {0}", this.debuggerLabels[0]);
+			this.runButton.label = this.debuggerLabels.length !== 1 ? localize('run', "Run") : localize('runWith', "Run with {0}", this.debuggerLabels[0]);
+
+			const emptyWorkbench = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
+			this.firstMessageContainer.innerHTML = '';
+			this.secondMessageContainer.innerHTML = '';
+			const secondMessageElement = $('span');
+			this.secondMessageContainer.appendChild(secondMessageElement);
+
+			const setFirstMessage = () => {
+				const firstMessageElement = $('span');
+				this.firstMessageContainer.appendChild(firstMessageElement);
+				firstMessageElement.textContent = localize('simplyDebugAndRun', "Open a file which can be debugged or run.");
+			};
+			const setSecondMessage = () => {
+				secondMessageElement.textContent = localize('specifyHowToRun', "To futher configure the Debug and Run experience");
+				const clickElement = $('span.configure');
+				clickElement.textContent = localize('configure', " create a launch.json file.");
+				clickElement.onclick = () => this.commandService.executeCommand(ConfigureAction.ID);
+				this.secondMessageContainer.appendChild(clickElement);
+			};
+			const setSecondMessageWithFolder = () => {
+				secondMessageElement.textContent = localize('noLaunchConfiguration', "To futher configure the Debug and Run experience, ");
+				const clickElement = $('span.configure');
+				clickElement.textContent = localize('openFolder', " open a folder");
+				clickElement.onclick = () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false });
+				this.secondMessageContainer.appendChild(clickElement);
+
+				const moreText = $('span.moreText');
+				moreText.textContent = localize('andconfigure', " and create a launch.json file.");
+				this.secondMessageContainer.appendChild(moreText);
+			};
+
+			if (enabled && !emptyWorkbench) {
+				setSecondMessage();
+			}
+
+			if (enabled && emptyWorkbench) {
+				setSecondMessageWithFolder();
+			}
+
+			if (!enabled && !emptyWorkbench) {
+				setFirstMessage();
+				setSecondMessage();
+			}
+
+			if (!enabled && emptyWorkbench) {
+				setFirstMessage();
+				setSecondMessageWithFolder();
+			}
+		}
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		this.firstMessageContainer = $('.top-section');
+		container.appendChild(this.firstMessageContainer);
+
 		this.debugButton = new Button(container);
-		this.debugButton.label = localize('debug', "Debug");
 		this._register(this.debugButton.onDidClick(() => {
 			this.commandService.executeCommand(StartAction.ID);
 		}));
@@ -56,15 +134,10 @@ export class StartView extends ViewletPane {
 		}));
 		attachButtonStyler(this.runButton, this.themeService);
 
-		const messageContainer = $('.section');
-		container.appendChild(messageContainer);
-		const messageElement = $('span');
-		messageContainer.appendChild(messageElement);
-		messageElement.textContent = localize('noLaunchConfiguration', "To specify how to run and debug your code, ");
-		const clickElement = $('span.configure');
-		clickElement.textContent = localize('configure', " create a launch.json file.");
-		clickElement.onclick = () => this.commandService.executeCommand(ConfigureAction.ID);
-		messageContainer.appendChild(clickElement);
+		this.secondMessageContainer = $('.section');
+		container.appendChild(this.secondMessageContainer);
+
+		this.updateView();
 	}
 
 	protected layoutBody(_: number, __: number): void {
