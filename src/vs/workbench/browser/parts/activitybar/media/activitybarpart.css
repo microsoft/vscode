@@ -20,6 +20,14 @@
 	 */
 	transform: translate3d(0px, 0px, 0px);
 	overflow: visible; /* when a new layer is created, we need to set overflow visible to avoid clipping the menubar */
+	/*
+	 * Since monaco-workbench has explicit z-index.
+	 * If position is not set (then it's static),
+	 * z-index won't work and menubar will be overlap with sibling part.
+	 *
+	 */
+	position: relative;
+	z-index: 10;
 }
 
 .monaco-workbench .activitybar > .content {
