@@ -30,7 +30,7 @@ export interface IView {
 	readonly onDidChange: Event<IViewSize | undefined>;
 	readonly priority?: LayoutPriority;
 	readonly snap?: boolean;
-	layout(width: number, height: number, orientation: Orientation): void;
+	layout(width: number, height: number): void;
 	setVisible?(visible: boolean): void;
 }
 
@@ -628,7 +628,7 @@ class LeafNode implements ISplitView, IDisposable {
 
 		this._size = size;
 		this._orthogonalSize = orthogonalSize;
-		this.view.layout(this.width, this.height, orthogonal(this.orientation));
+		this.view.layout(this.width, this.height);
 	}
 
 	setVisible(visible: boolean): void {
