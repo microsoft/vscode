@@ -15,7 +15,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { canExecuteOnUI } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 
@@ -147,11 +147,20 @@ export class ExtensionEnablementService extends Disposable implements IExtension
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			if (!canExecuteOnUI(extension.manifest, this.productService, this.configurationService)) {
-				// workspace extensions must run on the remote, but UI extensions can run on either side
-				const server = this.extensionManagementServerService.remoteExtensionManagementServer;
-				return this.extensionManagementServerService.getExtensionManagementServer(extension.location) !== server;
+			const server = this.extensionManagementServerService.getExtensionManagementServer(extension.location);
+			for (const extensionKind of getExtensionKind(extension.manifest, this.productService, this.configurationService)) {
+				if (extensionKind === 'ui') {
+					if (server === this.extensionManagementServerService.localExtensionManagementServer) {
+						return false;
+					}
+				}
+				if (extensionKind === 'workspace') {
+					if (server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+						return false;
+					}
+				}
 			}
+			return true;
 		}
 		return false;
 	}

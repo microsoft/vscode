@@ -422,10 +422,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.renderHeight;
 	}
 
-	get firstVisibleElement(): T {
-		return this.tree.firstVisibleElement!.element as T;
-	}
-
 	get lastVisibleElement(): T {
 		return this.tree.lastVisibleElement!.element as T;
 	}

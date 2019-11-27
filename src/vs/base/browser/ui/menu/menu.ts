@@ -6,7 +6,7 @@
 import 'vs/css!./menu';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
+import { IActionRunner, IAction, Action, IActionViewItem } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider, ActionsOrientation, Separator, ActionViewItem, IActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses } from 'vs/base/browser/dom';
@@ -205,8 +205,8 @@ export class Menu extends ActionBar {
 		container.appendChild(this.scrollableElement.getDomNode());
 		this.scrollableElement.scanDomNode();
 
-		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item: BaseMenuActionViewItem, index: number, array: any[]) => {
-			item.updatePositionInSet(index + 1, array.length);
+		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item: IActionViewItem, index: number, array: any[]) => {
+			(item as BaseMenuActionViewItem).updatePositionInSet(index + 1, array.length);
 		});
 	}
 
@@ -661,7 +661,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		if (this.item) {
 			addClass(this.item, 'monaco-submenu-item');
 			this.item.setAttribute('aria-haspopup', 'true');
-
+			this.updateAriaExpanded('false');
 			this.submenuIndicator = append(this.item, $('span.submenu-indicator'));
 			this.submenuIndicator.setAttribute('aria-hidden', 'true');
 		}
@@ -726,7 +726,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		if (this.parentData.submenu && (force || (this.parentData.submenu !== this.mysubmenu))) {
 			this.parentData.submenu.dispose();
 			this.parentData.submenu = undefined;
-
+			this.updateAriaExpanded('false');
 			if (this.submenuContainer) {
 				this.submenuDisposables.clear();
 				this.submenuContainer = undefined;
@@ -740,6 +740,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		if (!this.parentData.submenu) {
+			this.updateAriaExpanded('true');
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
 
@@ -778,13 +779,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 					this.parentData.parent.focus();
 
-					if (this.parentData.submenu) {
-						this.parentData.submenu.dispose();
-						this.parentData.submenu = undefined;
-					}
-
-					this.submenuDisposables.clear();
-					this.submenuContainer = undefined;
+					this.cleanupExistingSubmenu(true);
 				}
 			}));
 
@@ -799,13 +794,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuDisposables.add(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
 
-				if (this.parentData.submenu) {
-					this.parentData.submenu.dispose();
-					this.parentData.submenu = undefined;
-				}
-
-				this.submenuDisposables.clear();
-				this.submenuContainer = undefined;
+				this.cleanupExistingSubmenu(true);
 			}));
 
 			this.parentData.submenu.focus(selectFirstItem);
@@ -813,6 +802,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.mysubmenu = this.parentData.submenu;
 		} else {
 			this.parentData.submenu.focus(false);
+		}
+	}
+
+	private updateAriaExpanded(value: string): void {
+		if (this.item) {
+			this.item?.setAttribute('aria-expanded', value);
 		}
 	}
 

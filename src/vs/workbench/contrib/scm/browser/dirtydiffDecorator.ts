@@ -1215,9 +1215,15 @@ class DirtyDiffItem {
 	}
 }
 
+interface IViewState {
+	readonly width: number;
+	readonly visibility: 'always' | 'hover';
+}
+
 export class DirtyDiffWorkbenchController extends Disposable implements ext.IWorkbenchContribution, IModelRegistry {
 
 	private enabled = false;
+	private viewState: IViewState = { width: 3, visibility: 'always' };
 	private models: ITextModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
 	private readonly transientDisposables = this._register(new DisposableStore());
@@ -1262,15 +1268,20 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			width = 3;
 		}
 
-		this.stylesheet.innerHTML = `.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${width}px;}`;
+		this.setViewState({ ...this.viewState, width });
 	}
 
 	private onDidChangeDiffVisibiltiyConfiguration(): void {
-		const visibility = this.configurationService.getValue<string>('scm.diffDecorationsGutterVisibility');
+		const visibility = this.configurationService.getValue<'always' | 'hover'>('scm.diffDecorationsGutterVisibility');
+		this.setViewState({ ...this.viewState, visibility });
+	}
 
+	private setViewState(state: IViewState): void {
+		this.viewState = state;
 		this.stylesheet.innerHTML = `
+			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
 			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
-				opacity: ${visibility === 'always' ? 1 : 0};
+				opacity: ${state.visibility === 'always' ? 1 : 0};
 			}
 		`;
 	}

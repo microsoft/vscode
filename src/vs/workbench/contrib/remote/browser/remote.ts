@@ -42,6 +42,8 @@ import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/r
 import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService, HelpInformation } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { startsWith } from 'vs/base/common/strings';
 
 class HelpModel {
 	items: IHelpItem[] | undefined;
@@ -51,6 +53,7 @@ class HelpModel {
 		quickInputService: IQuickInputService,
 		commandService: ICommandService,
 		remoteExplorerService: IRemoteExplorerService,
+		environmentService: IWorkbenchEnvironmentService
 	) {
 		let helpItems: IHelpItem[] = [];
 		const getStarted = remoteExplorerService.helpInformation.filter(info => info.getStarted);
@@ -61,10 +64,12 @@ class HelpModel {
 				nls.localize('remote.help.getStarted', "$(star) Get Started"),
 				getStarted.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
-					url: info.getStarted!
+					url: info.getStarted!,
+					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
 				})),
-				openerService,
-				quickInputService
+				quickInputService,
+				environmentService,
+				openerService
 			));
 		}
 
@@ -76,10 +81,12 @@ class HelpModel {
 				nls.localize('remote.help.documentation', "$(book) Read Documentation"),
 				documentation.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
-					url: info.documentation!
+					url: info.documentation!,
+					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
 				})),
-				openerService,
-				quickInputService
+				quickInputService,
+				environmentService,
+				openerService
 			));
 		}
 
@@ -91,10 +98,12 @@ class HelpModel {
 				nls.localize('remote.help.feedback', "$(twitter) Provide Feedback"),
 				feedback.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
-					url: info.feedback!
+					url: info.feedback!,
+					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
 				})),
-				openerService,
-				quickInputService
+				quickInputService,
+				environmentService,
+				openerService
 			));
 		}
 
@@ -106,10 +115,12 @@ class HelpModel {
 				nls.localize('remote.help.issues', "$(issues) Review Issues"),
 				issues.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
-					url: info.issues!
+					url: info.issues!,
+					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
 				})),
-				openerService,
-				quickInputService
+				quickInputService,
+				environmentService,
+				openerService
 			));
 		}
 
@@ -117,8 +128,12 @@ class HelpModel {
 			helpItems.push(new IssueReporterItem(
 				['issueReporter'],
 				nls.localize('remote.help.report', "$(comment) Report Issue"),
-				remoteExplorerService.helpInformation.map(info => info.extensionDescription),
+				remoteExplorerService.helpInformation.map(info => ({
+					extensionDescription: info.extensionDescription,
+					remoteAuthority: (typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
+				})),
 				quickInputService,
+				environmentService,
 				commandService
 			));
 		}
@@ -134,65 +149,85 @@ interface IHelpItem extends IQuickPickItem {
 	handleClick(): Promise<void>;
 }
 
-class HelpItem implements IHelpItem {
+abstract class HelpItemBase implements IHelpItem {
 	constructor(
 		public iconClasses: string[],
 		public label: string,
-		public values: { extensionDescription: IExtensionDescription; url: string }[],
-		private openerService: IOpenerService,
-		private quickInputService: IQuickInputService
+		public values: { extensionDescription: IExtensionDescription, url?: string, remoteAuthority: string[] | undefined }[],
+		private quickInputService: IQuickInputService,
+		private environmentService: IWorkbenchEnvironmentService
 	) {
 		iconClasses.push('remote-help-tree-node-item-icon');
 	}
 
 	async handleClick() {
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		if (remoteAuthority) {
+			for (let value of this.values) {
+				if (value.remoteAuthority) {
+					for (let authority of value.remoteAuthority) {
+						if (startsWith(remoteAuthority, authority)) {
+							await this.takeAction(value.extensionDescription, value.url);
+							return;
+						}
+					}
+				}
+			}
+		}
+
 		if (this.values.length > 1) {
 			let actions = this.values.map(value => {
 				return {
 					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
-					description: value.url
+					description: value.url,
+					extensionDescription: value.extensionDescription
 				};
 			});
 
 			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
 
 			if (action) {
-				await this.openerService.open(URI.parse(action.description));
+				await this.takeAction(action.extensionDescription, action.description);
 			}
 		} else {
-			await this.openerService.open(URI.parse(this.values[0].url));
+			await this.takeAction(this.values[0].extensionDescription, this.values[0].url);
 		}
+	}
+
+	protected abstract takeAction(extensionDescription: IExtensionDescription, url?: string): Promise<void>;
+}
+
+class HelpItem extends HelpItemBase {
+	constructor(
+		iconClasses: string[],
+		label: string,
+		values: { extensionDescription: IExtensionDescription; url: string, remoteAuthority: string[] | undefined }[],
+		quickInputService: IQuickInputService,
+		environmentService: IWorkbenchEnvironmentService,
+		private openerService: IOpenerService
+	) {
+		super(iconClasses, label, values, quickInputService, environmentService);
+	}
+
+	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
+		await this.openerService.open(URI.parse(url));
 	}
 }
 
-class IssueReporterItem implements IHelpItem {
+class IssueReporterItem extends HelpItemBase {
 	constructor(
-		public iconClasses: string[],
-		public label: string,
-		public extensionDescriptions: IExtensionDescription[],
-		private quickInputService: IQuickInputService,
-		private commandService: ICommandService
+		iconClasses: string[],
+		label: string,
+		values: { extensionDescription: IExtensionDescription; remoteAuthority: string[] | undefined }[],
+		quickInputService: IQuickInputService,
+		environmentService: IWorkbenchEnvironmentService,
+		private commandService: ICommandService,
 	) {
-		iconClasses.push('remote-help-tree-node-item-icon');
+		super(iconClasses, label, values, quickInputService, environmentService);
 	}
 
-	async handleClick() {
-		if (this.extensionDescriptions.length > 1) {
-			let actions = this.extensionDescriptions.map(extension => {
-				return {
-					label: extension.displayName || extension.identifier.value,
-					identifier: extension.identifier
-				};
-			});
-
-			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtensionToReportIssue', "Select an extension to report issue") });
-
-			if (action) {
-				await this.commandService.executeCommand('workbench.action.openIssueReporter', [action.identifier.value]);
-			}
-		} else {
-			await this.commandService.executeCommand('workbench.action.openIssueReporter', [this.extensionDescriptions[0].identifier.value]);
-		}
+	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
+		await this.commandService.executeCommand('workbench.action.openIssueReporter', [extensionDescription.identifier.value]);
 	}
 }
 
@@ -206,15 +241,16 @@ class HelpAction extends Action {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super(id, label, 'codicon codicon-question');
-		this.helpModel = new HelpModel(openerService, quickInputService, commandService, remoteExplorerService);
+		this.helpModel = new HelpModel(openerService, quickInputService, commandService, remoteExplorerService, environmentService);
 	}
 
 	async run(event?: any): Promise<any> {
 		if (!this.helpModel.items) {
-			this.helpModel = new HelpModel(this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService);
+			this.helpModel = new HelpModel(this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService);
 		}
 		if (this.helpModel.items) {
 			const selection = await this.quickInputService.pick(this.helpModel.items, { placeHolder: nls.localize('remote.explorer.helpPlaceholder', "Help and Feedback") });

@@ -378,7 +378,7 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 	public async $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): Promise<IConfig> {
 		if (!this._variableResolver) {
 			const [workspaceFolders, configProvider] = await Promise.all([this._workspaceService.getWorkspaceFolders2(), this._configurationService.getConfigProvider()]);
-			this._variableResolver = this.createVariableResolver(workspaceFolders || [], this._editorsService, configProvider);
+			this._variableResolver = this.createVariableResolver(workspaceFolders || [], this._editorsService, configProvider!);
 		}
 		let ws: IWorkspaceFolder | undefined;
 		const folder = await this.getFolder(folderUri);

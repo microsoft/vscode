@@ -553,7 +553,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			}
 		});
 
-		const handler: IHandler = (res: IRawEventFireResponse) => emitter.fire(res.data);
+		const handler: IHandler = (res: IRawResponse) => emitter.fire((res as IRawEventFireResponse).data);
 		this.handlers.set(id, handler);
 
 		return emitter.event;

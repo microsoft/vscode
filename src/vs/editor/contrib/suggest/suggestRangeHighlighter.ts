@@ -74,7 +74,7 @@ export class SuggestRangeHighlighter {
 				// wants inserts but got replace-mode -> highlight AFTER range
 				newDeco = [{
 					range: new Range(position.lineNumber, position.column, position.lineNumber, position.column + info.overwriteAfter),
-					options: { inlineClassName: 'suggest-insertMode-goes' }
+					options: { inlineClassName: 'suggest-insert-unexpected' }
 				}];
 
 			} else if (opts.insertMode === 'replace' && info.overwriteAfter === 0) {
@@ -83,7 +83,7 @@ export class SuggestRangeHighlighter {
 				if (wordInfo && wordInfo.endColumn > position.column) {
 					newDeco = [{
 						range: new Range(position.lineNumber, position.column, position.lineNumber, wordInfo.endColumn),
-						options: { inlineClassName: 'suggest-insertMode-stays' }
+						options: { inlineClassName: 'suggest-insert-unexpected' }
 					}];
 				}
 			}

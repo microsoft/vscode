@@ -172,7 +172,7 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 				_models.delete(key);
 			}
 		});
-		return model.root;
+		return [model.root];
 
 	} finally {
 		dispose(textModelReference);
