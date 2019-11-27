@@ -30,7 +30,7 @@ export interface IView {
 	readonly onDidChange: Event<IViewSize | undefined>;
 	readonly priority?: LayoutPriority;
 	readonly snap?: boolean;
-	layout(width: number, height: number): void;
+	layout(width: number, height: number, top: number, left: number): void;
 	setVisible?(visible: boolean): void;
 }
 
@@ -117,17 +117,28 @@ export interface IGridViewOptions {
 	readonly layoutController?: ILayoutController;
 }
 
-class BranchNode implements ISplitView, IDisposable {
+interface ILayoutContext {
+	readonly orthogonalSize: number;
+	readonly orthogonalOffset: number;
+}
+
+class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	readonly element: HTMLElement;
 	readonly children: Node[] = [];
-	private splitview: SplitView;
+	private splitview: SplitView<ILayoutContext>;
 
 	private _size: number;
 	get size(): number { return this._size; }
 
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
+
+	private _offset: number = 0;
+	get offset(): number { return this._offset; }
+
+	private _orthogonalOffset: number = 0;
+	get orthogonalOffset(): number { return this._orthogonalOffset; }
 
 	private _styles: IGridViewStyles;
 	get styles(): IGridViewStyles { return this._styles; }
@@ -221,7 +232,7 @@ class BranchNode implements ISplitView, IDisposable {
 		if (!childDescriptors) {
 			// Normal behavior, we have no children yet, just set up the splitview
 			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout });
-			this.splitview.layout(size, orthogonalSize);
+			this.splitview.layout(size, { orthogonalSize, orthogonalOffset: 0 });
 		} else {
 			// Reconstruction behavior, we want to reconstruct a splitview
 			const descriptor = {
@@ -268,20 +279,23 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 	}
 
-	layout(size: number, orthogonalSize: number | undefined): void {
+	layout(size: number, offset: number, ctx: ILayoutContext | undefined): void {
 		if (!this.layoutController.isLayoutEnabled) {
 			return;
 		}
 
-		if (typeof orthogonalSize !== 'number') {
+		if (typeof ctx === 'undefined') {
 			throw new Error('Invalid state');
 		}
 
 		// branch nodes should flip the normal/orthogonal directions
-		this._size = orthogonalSize;
+		this._size = ctx.orthogonalSize;
 		this._orthogonalSize = size;
 
-		this.splitview.layout(orthogonalSize, size);
+		this.splitview.layout(ctx.orthogonalSize, {
+			orthogonalSize: size,
+			orthogonalOffset: offset
+		});
 	}
 
 	setVisible(visible: boolean): void {
@@ -511,13 +525,19 @@ class BranchNode implements ISplitView, IDisposable {
 	}
 }
 
-class LeafNode implements ISplitView, IDisposable {
+class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	private _size: number = 0;
 	get size(): number { return this._size; }
 
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
+
+	private _offset: number = 0;
+	get offset(): number { return this._offset; }
+
+	private _orthogonalOffset: number = 0;
+	get orthogonalOffset(): number { return this._orthogonalOffset; }
 
 	readonly onDidSashReset: Event<number[]> = Event.None;
 
@@ -563,6 +583,14 @@ class LeafNode implements ISplitView, IDisposable {
 
 	get height(): number {
 		return this.orientation === Orientation.HORIZONTAL ? this.size : this.orthogonalSize;
+	}
+
+	get top(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.offset : this.orthogonalOffset;
+	}
+
+	get left(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.orthogonalOffset : this.offset;
 	}
 
 	get element(): HTMLElement {
@@ -617,18 +645,20 @@ class LeafNode implements ISplitView, IDisposable {
 		// noop
 	}
 
-	layout(size: number, orthogonalSize: number | undefined): void {
+	layout(size: number, offset: number, ctx: ILayoutContext | undefined): void {
 		if (!this.layoutController.isLayoutEnabled) {
 			return;
 		}
 
-		if (typeof orthogonalSize !== 'number') {
+		if (typeof ctx === 'undefined') {
 			throw new Error('Invalid state');
 		}
 
 		this._size = size;
-		this._orthogonalSize = orthogonalSize;
-		this.view.layout(this.width, this.height);
+		this._offset = offset;
+		this._orthogonalSize = ctx.orthogonalSize;
+		this._orthogonalOffset = ctx.orthogonalOffset;
+		this.view.layout(this.width, this.height, this.top, this.left);
 	}
 
 	setVisible(visible: boolean): void {
@@ -715,7 +745,7 @@ export class GridView implements IDisposable {
 
 		const { size, orthogonalSize } = this._root;
 		this.root = flipNode(this._root, orthogonalSize, size);
-		this.root.layout(size, orthogonalSize);
+		this.root.layout(size, 0, { orthogonalSize, orthogonalOffset: 0 });
 	}
 
 	get width(): number { return this.root.width; }
@@ -771,7 +801,7 @@ export class GridView implements IDisposable {
 		this.firstLayoutController.isLayoutEnabled = true;
 
 		const [size, orthogonalSize] = this.root.orientation === Orientation.HORIZONTAL ? [height, width] : [width, height];
-		this.root.layout(size, orthogonalSize);
+		this.root.layout(size, 0, { orthogonalSize, orthogonalOffset: 0 });
 	}
 
 	addView(view: IView, size: number | Sizing, location: number[]): void {
