@@ -126,7 +126,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
 		const editorOptions: IEditorOptions = mixin(
-			getSimpleEditorOptions(),
+			getSimpleEditorOptions(false),
 			getSuggestEnabledInputOptions(ariaLabel));
 
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
