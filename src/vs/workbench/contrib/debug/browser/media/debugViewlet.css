@@ -13,6 +13,19 @@
 	height: 100%;
 }
 
+.debug-viewlet .debug-start-view {
+	padding: 0 20px 0 20px;
+}
+
+.debug-viewlet .debug-start-view .monaco-button {
+	margin-top: 20px;
+}
+
+.debug-viewlet .debug-start-view .configure {
+	cursor: pointer;
+	color: #007ACC;
+}
+
 .monaco-workbench .debug-action.notification:after {
 	content: '';
 	width: 6px;
