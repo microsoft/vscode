@@ -28,6 +28,10 @@
 					},
 					"description": "Remote environment variables."
 				},
+				"remoteUser": {
+					"type": "string",
+					"description": "The user VS Code Server will be started with. The default is the same user as the container."
+				},
 				"extensions": {
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
