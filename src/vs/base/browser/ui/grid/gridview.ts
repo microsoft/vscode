@@ -119,7 +119,8 @@ export interface IGridViewOptions {
 
 interface ILayoutContext {
 	readonly orthogonalSize: number;
-	readonly orthogonalOffset: number;
+	readonly absoluteOffset: number;
+	readonly absoluteOrthogonalOffset: number;
 }
 
 class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
@@ -134,11 +135,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
 
-	private _offset: number = 0;
-	get offset(): number { return this._offset; }
-
-	private _orthogonalOffset: number = 0;
-	get orthogonalOffset(): number { return this._orthogonalOffset; }
+	private absoluteOffset: number = 0;
+	private absoluteOrthogonalOffset: number = 0;
 
 	private _styles: IGridViewStyles;
 	get styles(): IGridViewStyles { return this._styles; }
@@ -149,6 +147,14 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	get height(): number {
 		return this.orientation === Orientation.HORIZONTAL ? this.orthogonalSize : this.size;
+	}
+
+	get top(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.absoluteOffset : this.absoluteOrthogonalOffset;
+	}
+
+	get left(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.absoluteOrthogonalOffset : this.absoluteOffset;
 	}
 
 	get minimumSize(): number {
@@ -232,7 +238,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		if (!childDescriptors) {
 			// Normal behavior, we have no children yet, just set up the splitview
 			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout });
-			this.splitview.layout(size, { orthogonalSize, orthogonalOffset: 0 });
+			this.splitview.layout(size, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0 });
 		} else {
 			// Reconstruction behavior, we want to reconstruct a splitview
 			const descriptor = {
@@ -291,10 +297,13 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		// branch nodes should flip the normal/orthogonal directions
 		this._size = ctx.orthogonalSize;
 		this._orthogonalSize = size;
+		this.absoluteOffset = ctx.absoluteOffset + offset;
+		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
 
 		this.splitview.layout(ctx.orthogonalSize, {
 			orthogonalSize: size,
-			orthogonalOffset: offset
+			absoluteOffset: this.absoluteOrthogonalOffset,
+			absoluteOrthogonalOffset: this.absoluteOffset
 		});
 	}
 
@@ -533,11 +542,8 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
 
-	private _offset: number = 0;
-	get offset(): number { return this._offset; }
-
-	private _orthogonalOffset: number = 0;
-	get orthogonalOffset(): number { return this._orthogonalOffset; }
+	private absoluteOffset: number = 0;
+	private absoluteOrthogonalOffset: number = 0;
 
 	readonly onDidSashReset: Event<number[]> = Event.None;
 
@@ -586,11 +592,11 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	get top(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.offset : this.orthogonalOffset;
+		return this.orientation === Orientation.HORIZONTAL ? this.absoluteOffset : this.absoluteOrthogonalOffset;
 	}
 
 	get left(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.orthogonalOffset : this.offset;
+		return this.orientation === Orientation.HORIZONTAL ? this.absoluteOrthogonalOffset : this.absoluteOffset;
 	}
 
 	get element(): HTMLElement {
@@ -655,9 +661,9 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		}
 
 		this._size = size;
-		this._offset = offset;
 		this._orthogonalSize = ctx.orthogonalSize;
-		this._orthogonalOffset = ctx.orthogonalOffset;
+		this.absoluteOffset = ctx.absoluteOffset + offset;
+		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
 		this.view.layout(this.width, this.height, this.top, this.left);
 	}
 
@@ -745,7 +751,7 @@ export class GridView implements IDisposable {
 
 		const { size, orthogonalSize } = this._root;
 		this.root = flipNode(this._root, orthogonalSize, size);
-		this.root.layout(size, 0, { orthogonalSize, orthogonalOffset: 0 });
+		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0 });
 	}
 
 	get width(): number { return this.root.width; }
@@ -801,7 +807,7 @@ export class GridView implements IDisposable {
 		this.firstLayoutController.isLayoutEnabled = true;
 
 		const [size, orthogonalSize] = this.root.orientation === Orientation.HORIZONTAL ? [height, width] : [width, height];
-		this.root.layout(size, 0, { orthogonalSize, orthogonalOffset: 0 });
+		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0 });
 	}
 
 	addView(view: IView, size: number | Sizing, location: number[]): void {
