@@ -107,32 +107,35 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 	const session = debugService.getViewModel().focusedSession;
 	if (session && session.capabilities.supportsBreakpointLocationsRequest) {
 		await Promise.all(lineNumbers.map(async lineNumber => {
-			const positions = await session.breakpointsLocations(model.uri, lineNumber);
-			if (positions.length > 1) {
-				// Do not render candidates if there is only one, since it is already covered by the line breakpoint
-				positions.forEach(p => {
-					const range = new Range(p.lineNumber, p.column, p.lineNumber, p.column + 1);
-					const breakpointAtPosition = breakpointDecorations.filter(bpd => bpd.range.equalsRange(range)).pop();
-					if (breakpointAtPosition && breakpointAtPosition.inlineWidget) {
-						// Space already occupied, do not render candidate.
-						return;
-					}
-					result.push({
-						range,
-						options: {
-							stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-							beforeContentClassName: `debug-breakpoint-placeholder`
-						},
-						breakpoint: breakpointAtPosition ? breakpointAtPosition.breakpoint : undefined
+			try {
+				const positions = await session.breakpointsLocations(model.uri, lineNumber);
+				if (positions.length > 1) {
+					// Do not render candidates if there is only one, since it is already covered by the line breakpoint
+					positions.forEach(p => {
+						const range = new Range(p.lineNumber, p.column, p.lineNumber, p.column + 1);
+						const breakpointAtPosition = breakpointDecorations.filter(bpd => bpd.range.equalsRange(range)).pop();
+						if (breakpointAtPosition && breakpointAtPosition.inlineWidget) {
+							// Space already occupied, do not render candidate.
+							return;
+						}
+						result.push({
+							range,
+							options: {
+								stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+								beforeContentClassName: `debug-breakpoint-placeholder`
+							},
+							breakpoint: breakpointAtPosition ? breakpointAtPosition.breakpoint : undefined
+						});
 					});
-				});
+				}
+			} catch (e) {
+				// If there is an error when fetching breakpoint locations just do not render them
 			}
 		}));
 	}
 
 	return result;
 }
-
 
 class BreakpointEditorContribution implements IBreakpointEditorContribution {
 
