@@ -83,7 +83,7 @@ class OpenDebugPanelAction extends TogglePanelAction {
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	DebugViewlet,
 	VIEWLET_ID,
-	nls.localize('debug', "Debug"),
+	nls.localize('debugAndRun', "Debug And Run"),
 	'codicon-debug-alt',
 	3
 ));
