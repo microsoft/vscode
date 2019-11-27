@@ -575,9 +575,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return undefined;
 		}
 
-		const result = resource.fsPath;
+		let result = resource.fsPath;
 		if (!result) {
 			return undefined;
+		}
+
+		if (resource.scheme === fileSchemes.file) {
+			result = path.normalize(result);
 		}
 
 		// Both \ and / must be escaped in regular expressions

@@ -18,8 +18,8 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		getId() {
 			return 'html';
 		},
-		getSelectionRanges(document: TextDocument, positions: Position[]): SelectionRange[] {
-			return htmlLanguageService.getSelectionRanges(document, positions);
+		getSelectionRange(document: TextDocument, position: Position): SelectionRange {
+			return htmlLanguageService.getSelectionRanges(document, [position])[0];
 		},
 		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;

@@ -6,7 +6,7 @@
 import { coalesce, distinct, find, mergeSort } from 'vs/base/common/arrays';
 import * as glob from 'vs/base/common/glob';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, UnownedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -201,7 +201,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	): CustomFileEditorInput {
 		const id = generateUuid();
 		const webview = new Lazy(() => {
-			return new UnownedDisposable(this.webviewService.createWebviewEditorOverlay(id, { customClasses: options?.customClasses }, {}));
+			return this.webviewService.createWebviewEditorOverlay(id, { customClasses: options?.customClasses }, {});
 		});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, webview);
 		if (group) {

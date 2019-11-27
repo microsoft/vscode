@@ -8,6 +8,7 @@ import * as url from 'url';
 import * as fs from 'fs';
 import * as net from 'net';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { assertIsDefined } from 'vs/base/common/types';
 
 interface Deferred<T> {
 	resolve: (result: T | Promise<T>) => void;
@@ -25,7 +26,7 @@ export function createTerminateServer(server: http.Server) {
 		});
 	});
 	return async () => {
-		const result = new Promise<void>(resolve => server.close(resolve));
+		const result = new Promise<Error | undefined>(resolve => server.close(resolve));
 		for (const id in sockets) {
 			sockets[id].destroy();
 		}
@@ -50,7 +51,7 @@ export async function startServer(server: http.Server): Promise<string> {
 			if (typeof address === 'string') {
 				resolve(address);
 			} else {
-				resolve(address.port.toString());
+				resolve(assertIsDefined(address).port.toString());
 			}
 		});
 

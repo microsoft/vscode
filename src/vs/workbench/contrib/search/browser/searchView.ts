@@ -20,7 +20,7 @@ import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchview';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -61,6 +61,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
+import { Selection } from 'vs/editor/common/core/selection';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -1599,6 +1601,38 @@ export class SearchView extends ViewletPane {
 			} else {
 				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			}
+		}, errors.onUnexpectedError);
+	}
+
+	openEditorWithMultiCursor(element: FileMatchOrMatch): Promise<void> {
+		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
+		return this.editorService.openEditor({
+			resource: resource,
+			options: {
+				preserveFocus: false,
+				pinned: true,
+				revealIfVisible: true
+			}
+		}).then(editor => {
+			if (editor) {
+				let fileMatch = null;
+				if (element instanceof FileMatch) {
+					fileMatch = element;
+				}
+				else if (element instanceof Match) {
+					fileMatch = element.parent();
+				}
+
+				if (fileMatch) {
+					const selections = fileMatch.matches().map(m => new Selection(m.range().startLineNumber, m.range().startColumn, m.range().endLineNumber, m.range().endColumn));
+					const codeEditor = getCodeEditor(editor.getControl());
+					if (codeEditor) {
+						let multiCursorController = MultiCursorSelectionController.get(codeEditor);
+						multiCursorController.selectAllUsingSelections(selections);
+					}
+				}
+			}
+			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 		}, errors.onUnexpectedError);
 	}
 

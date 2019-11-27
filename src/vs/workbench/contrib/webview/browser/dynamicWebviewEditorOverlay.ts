@@ -99,7 +99,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 			if (this._options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
-			this._webview.value.mountTo(this.container);
+			webview.mountTo(this.container);
 
 			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();
