@@ -239,7 +239,7 @@ export function registerCommands(): void {
 		id: STEP_INTO_ID,
 		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
 		primary: KeyCode.F11,
-		when: CONTEXT_IN_DEBUG_MODE,
+		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
 		}
