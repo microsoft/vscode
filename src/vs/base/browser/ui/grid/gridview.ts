@@ -69,10 +69,10 @@ export function orthogonal(orientation: Orientation): Orientation {
 }
 
 export interface Box {
-	top: number;
-	left: number;
-	width: number;
-	height: number;
+	readonly top: number;
+	readonly left: number;
+	readonly width: number;
+	readonly height: number;
 }
 
 export interface GridLeafNode {
@@ -1068,7 +1068,7 @@ export class GridView implements IDisposable {
 	getView(location?: number[]): GridNode;
 	getView(location?: number[]): GridNode {
 		const node = location ? this.getNode(location)[1] : this._root;
-		return this._getViews(node, this.orientation, { top: 0, left: 0, width: this.width, height: this.height });
+		return this._getViews(node, this.orientation);
 	}
 
 	static deserialize<T extends ISerializableView>(json: ISerializedGridView, deserializer: IViewDeserializer<T>, options: IGridViewOptions = {}): GridView {
@@ -1112,24 +1112,20 @@ export class GridView implements IDisposable {
 		return result;
 	}
 
-	private _getViews(node: Node, orientation: Orientation, box: Box, cachedVisibleSize?: number): GridNode {
+	private _getViews(node: Node, orientation: Orientation, cachedVisibleSize?: number): GridNode {
+		const box = { top: node.top, left: node.left, width: node.width, height: node.height };
+
 		if (node instanceof LeafNode) {
 			return { view: node.view, box, cachedVisibleSize };
 		}
 
 		const children: GridNode[] = [];
-		let i = 0;
-		let offset = 0;
 
-		for (const child of node.children) {
-			const childOrientation = orthogonal(orientation);
-			const childBox: Box = orientation === Orientation.HORIZONTAL
-				? { top: box.top, left: box.left + offset, width: child.width, height: box.height }
-				: { top: box.top + offset, left: box.left, width: box.width, height: child.height };
-			const cachedVisibleSize = node.getChildCachedVisibleSize(i++);
+		for (let i = 0; i < node.children.length; i++) {
+			const child = node.children[i];
+			const cachedVisibleSize = node.getChildCachedVisibleSize(i);
 
-			children.push(this._getViews(child, childOrientation, childBox, cachedVisibleSize));
-			offset += orientation === Orientation.HORIZONTAL ? child.width : child.height;
+			children.push(this._getViews(child, orthogonal(orientation), cachedVisibleSize));
 		}
 
 		return { children, box };
