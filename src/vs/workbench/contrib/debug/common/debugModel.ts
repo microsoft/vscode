@@ -1074,7 +1074,7 @@ export class DebugModel implements IDebugModel {
 				if (first.column && second.column) {
 					return first.column - second.column;
 				}
-				return -1;
+				return 1;
 			}
 
 			return first.lineNumber - second.lineNumber;
