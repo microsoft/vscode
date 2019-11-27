@@ -130,7 +130,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// #region Joh - code insets
+	// #region Joh - code insets, https://github.com/microsoft/vscode/issues/85682
 
 	export interface WebviewEditorInset {
 		readonly editor: TextEditor;
@@ -147,7 +147,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh - read/write in chunks
+	//#region Joh - read/write in chunks, https://github.com/microsoft/vscode/issues/84515
 
 	export interface FileSystemProvider {
 		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
@@ -528,7 +528,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: diff command
+	//#region Joao: diff command, https://github.com/microsoft/vscode/issues/84899
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -561,7 +561,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: decorations
+	//#region Joh: decorations, https://github.com/microsoft/vscode/issues/54938
 
 	export class Decoration {
 		letter?: string;
@@ -1206,7 +1206,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Custom editors, mjbvz
+	//#region Custom editors, mjbvz, https://github.com/microsoft/vscode/issues/77131
 
 	/**
 	 * Defines how a webview editor interacts with VS Code.
