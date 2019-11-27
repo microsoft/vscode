@@ -22,7 +22,7 @@ import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export function getReindentEditOperations(model: ITextModel, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): IIdentifiedSingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
@@ -442,7 +442,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		this.callOnModel.clear();
 
 		// we are disabled
-		if (!this.editor.getOption(EditorOption.autoIndent) || this.editor.getOption(EditorOption.formatOnPaste)) {
+		if (this.editor.getOption(EditorOption.autoIndent) < EditorAutoIndentStrategy.Full || this.editor.getOption(EditorOption.formatOnPaste)) {
 			return;
 		}
 

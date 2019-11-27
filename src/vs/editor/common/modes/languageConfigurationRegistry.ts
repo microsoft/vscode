@@ -19,6 +19,7 @@ import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/comm
 import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/modes/supports/indentRules';
 import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -539,12 +540,12 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
-	public getIndentForEnter(model: ITextModel, range: Range, indentConverter: IIndentConverter, autoIndent: boolean): { beforeEnter: string, afterEnter: string } | null {
+	public getIndentForEnter(autoIndent2: EditorAutoIndentStrategy, model: ITextModel, range: Range, indentConverter: IIndentConverter): { beforeEnter: string, afterEnter: string } | null {
 		model.forceTokenization(range.startLineNumber);
 		let lineTokens = model.getLineTokens(range.startLineNumber);
 
-		let beforeEnterText;
-		let afterEnterText;
+		let beforeEnterText: string;
+		let afterEnterText: string;
 		let scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
 		let scopedLineText = scopedLineTokens.getLineContent();
 
@@ -709,20 +710,19 @@ export class LanguageConfigurationRegistryImpl {
 		return r ? r.enterAction : null;
 	}
 
-	public getEnterAction(model: ITextModel, range: Range): { enterAction: EnterAction; indentation: string; } | null {
+	public getEnterAction(autoIndent: EditorAutoIndentStrategy.Brackets | EditorAutoIndentStrategy.Advanced | EditorAutoIndentStrategy.Full, model: ITextModel, range: Range): { enterAction: EnterAction; indentation: string; } | null {
 		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
-
-		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
+		const scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+		const onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
 		if (!onEnterSupport) {
 			return null;
 		}
 
-		let scopedLineText = scopedLineTokens.getLineContent();
-		let beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
-		let afterEnterText;
+		const scopedLineText = scopedLineTokens.getLineContent();
+		const beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 
 		// selection support
+		let afterEnterText: string;
 		if (range.isEmpty()) {
 			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
@@ -730,12 +730,10 @@ export class LanguageConfigurationRegistryImpl {
 			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
-		let lineNumber = range.startLineNumber;
 		let oneLineAboveText = '';
-
-		if (lineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
+		if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
 			// This is not the first line and the entire line belongs to this mode
-			let oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, lineNumber - 1);
+			const oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber - 1);
 			if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
 				// The line above ends with text belonging to the same mode
 				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
@@ -744,7 +742,7 @@ export class LanguageConfigurationRegistryImpl {
 
 		let enterResult: EnterAction | null = null;
 		try {
-			enterResult = onEnterSupport.onEnter(oneLineAboveText, beforeEnterText, afterEnterText);
+			enterResult = onEnterSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
 		} catch (e) {
 			onUnexpectedError(e);
 		}
