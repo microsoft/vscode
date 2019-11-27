@@ -13,18 +13,19 @@ import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { IIndentConverter, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export class MoveLinesCommand implements ICommand {
 
 	private readonly _selection: Selection;
 	private readonly _isMovingDown: boolean;
-	private readonly _autoIndent: boolean;
+	private readonly _autoIndent: EditorAutoIndentStrategy;
 
 	private _selectionId: string | null;
 	private _moveEndPositionDown?: boolean;
 	private _moveEndLineSelectionShrink: boolean;
 
-	constructor(selection: Selection, isMovingDown: boolean, autoIndent: boolean) {
+	constructor(selection: Selection, isMovingDown: boolean, autoIndent: EditorAutoIndentStrategy) {
 		this._selection = selection;
 		this._isMovingDown = isMovingDown;
 		this._autoIndent = autoIndent;
@@ -288,7 +289,7 @@ export class MoveLinesCommand implements ICommand {
 	}
 
 	private shouldAutoIndent(model: ITextModel, selection: Selection) {
-		if (!this._autoIndent) {
+		if (this._autoIndent < EditorAutoIndentStrategy.Full) {
 			return false;
 		}
 		// if it's not easy to tokenize, we stop auto indent.

@@ -19,6 +19,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export class TypeOperations {
 
@@ -289,11 +290,16 @@ export class TypeOperations {
 	}
 
 	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
-		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
+		if (config.autoIndent2 === EditorAutoIndentStrategy.None) {
+			return TypeOperations._typeCommand(range, '\n', keepPosition);
+		}
+		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent2 === EditorAutoIndentStrategy.Keep) {
 			let lineText = model.getLineContent(range.startLineNumber);
 			let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
+
+		const autoIndent = config.autoIndent2;
 
 		let r = LanguageConfigurationRegistry.getEnterAction(model, range);
 		if (r) {
