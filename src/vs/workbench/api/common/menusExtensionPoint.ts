@@ -351,7 +351,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		let absoluteIcon: { dark: URI; light?: URI; } | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				if (icon.indexOf('vscode-icon://vscode.codicons/') === 0) {
+				if (icon.indexOf('vscode-icon://codicon/') === 0) {
 					iconClassName = escape(`codicon-${URI.parse(icon).path.substr(1)}`);
 				}
 				else {
