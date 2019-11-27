@@ -118,26 +118,9 @@ steps:
   displayName: Run integration tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-- script: |
-    set -e
-    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
-    ./build/azure-pipelines/linux/publish.sh
-  displayName: Publish
-
-- script: |
-    pwd
-    echo '******* .build'
-    ls -lR .build
-    echo '******* ..'
-    ls -lR ..
-  displayName: Debug log 1
-
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
-    ConnectedServiceName: 'ESRP CodeSign'
+    ConnectedServiceName: 'ESRP CodeSign rpm'
     FolderPath: '.build/linux/rpm/x86_64'
     Pattern: '*.rpm'
     signConfigType: inlineSignParams
@@ -153,6 +136,15 @@ steps:
       ]
     SessionTimeout: 120
   displayName: Codesign
+
+- script: |
+    set -e
+    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
+    ./build/azure-pipelines/linux/publish.sh
+  displayName: Publish
 
 - task: PublishPipelineArtifact@0
   displayName: 'Publish Pipeline Artifact'
