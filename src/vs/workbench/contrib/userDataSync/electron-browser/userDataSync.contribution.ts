@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ISettingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
+import { ISettingsMergeService, IKeybindingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { SettingsMergeChannel } from 'vs/platform/userDataSync/common/settingsSyncIpc';
+import { KeybindingsMergeChannel } from 'vs/platform/userDataSync/common/keybindingsSyncIpc';
 
 class UserDataSyncServicesContribution implements IWorkbenchContribution {
 
 	constructor(
 		@ISettingsMergeService settingsMergeService: ISettingsMergeService,
+		@IKeybindingsMergeService keybindingsMergeService: IKeybindingsMergeService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
 		sharedProcessService.registerChannel('settingsMerge', new SettingsMergeChannel(settingsMergeService));
+		sharedProcessService.registerChannel('keybindingsMerge', new KeybindingsMergeChannel(keybindingsMergeService));
 	}
 }
 

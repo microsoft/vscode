@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IKeybindingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -16,7 +16,6 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { mergeKeybindings } from 'vs/platform/userDataSync/common/keybindingsMerge';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -49,6 +48,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IKeybindingsMergeService private readonly keybindingsMergeService: IKeybindingsMergeService,
 	) {
 		super();
 		this.lastSyncKeybindingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncKeybindings.json');
@@ -220,7 +220,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 				|| lastSyncData.content !== remoteContent // Remote has forwarded
 			) {
 				this.logService.trace('Keybindings: Merging remote keybindings with local keybindings...');
-				const result = mergeKeybindings(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
+				const result = await this.keybindingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
 				// Sync only if there are changes
 				if (result.hasChanges) {
 					hasLocalChanged = result.mergeContent !== localContent;
