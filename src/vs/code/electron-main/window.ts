@@ -575,6 +575,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			this._win.setTitle(product.nameLong);
+
+			if (isLinux) {
+				this._win.setIcon(nativeImage.createFromPath(path.join(this.environmentService.appRoot, 'resources/linux/code.png')));
+			}
+		}
+
+		// Custom Icons per project
+		if (isLinux && config.folderUri) {
+			const projectIconPath = path.join(config.folderUri.path, '.vscode', 'code.png');
+
+			if (this.fileService.exists(URI.parse(projectIconPath))) {
+				this._win.setIcon(nativeImage.createFromPath(projectIconPath));
+			}
 		}
 
 		// Load URL
