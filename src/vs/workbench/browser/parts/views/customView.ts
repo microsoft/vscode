@@ -800,7 +800,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		DOM.toggleClass(templateData.icon, 'custom-view-tree-node-item-icon', !!iconUrl);
 
 		let codicon: string | undefined;
-		if (iconUrl?.scheme === 'vscode-icon' && iconUrl?.authority === 'vscode.codicons') {
+		if (iconUrl?.scheme === 'vscode-icon' && iconUrl?.authority === 'codicon') {
 			codicon = `codicon-${escape(iconUrl.path.substr(1))}`;
 		}
 
