@@ -103,7 +103,7 @@ export class CursorConfiguration {
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
-	public readonly autoIndent2: EditorAutoIndentStrategy;
+	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairsOpen2: Map<string, StandardAutoClosingPairConditional[]>;
 	public readonly autoClosingPairsClose2: Map<string, StandardAutoClosingPairConditional[]>;
 	public readonly surroundingPairs: CharacterMap;
@@ -155,7 +155,7 @@ export class CursorConfiguration {
 		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
 		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
 		this.autoSurround = options.get(EditorOption.autoSurround);
-		this.autoIndent2 = options.get(EditorOption.autoIndent);
+		this.autoIndent = options.get(EditorOption.autoIndent);
 
 		this.autoClosingPairsOpen2 = new Map<string, StandardAutoClosingPairConditional[]>();
 		this.autoClosingPairsClose2 = new Map<string, StandardAutoClosingPairConditional[]>();
