@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 
@@ -133,7 +133,7 @@ class Menu implements IMenu {
 		}
 	}
 
-	private static _compareMenuItems(a: IMenuItem, b: IMenuItem): number {
+	private static _compareMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): number {
 
 		let aGroup = a.group;
 		let bGroup = b.group;
@@ -171,8 +171,15 @@ class Menu implements IMenu {
 		}
 
 		// sort on titles
-		const aTitle = typeof a.command.title === 'string' ? a.command.title : a.command.title.value;
-		const bTitle = typeof b.command.title === 'string' ? b.command.title : b.command.title.value;
-		return aTitle.localeCompare(bTitle);
+		return Menu._compareTitles(
+			isIMenuItem(a) ? a.command.title : a.title,
+			isIMenuItem(b) ? b.command.title : b.title
+		);
+	}
+
+	private static _compareTitles(a: string | ILocalizedString, b: string | ILocalizedString) {
+		const aStr = typeof a === 'string' ? a : a.value;
+		const bStr = typeof b === 'string' ? b : b.value;
+		return aStr.localeCompare(bStr);
 	}
 }
