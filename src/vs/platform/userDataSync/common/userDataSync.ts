@@ -15,6 +15,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -180,13 +181,13 @@ export interface ISettingsMergeService {
 
 }
 
-export const IKeybindingsMergeService = createDecorator<IKeybindingsMergeService>('IKeybindingsMergeService');
+export const IUserKeybindingsResolverService = createDecorator<IUserKeybindingsResolverService>('IUserKeybindingsResolverService');
 
-export interface IKeybindingsMergeService {
+export interface IUserKeybindingsResolverService {
 
 	_serviceBrand: undefined;
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
+	resolveUserKeybindings(localContent: string, remoteContent: string, baseContent: string | null): Promise<IStringDictionary<string>>;
 
 }
 

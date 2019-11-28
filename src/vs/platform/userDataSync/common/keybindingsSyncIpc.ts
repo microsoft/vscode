@@ -5,11 +5,12 @@
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IKeybindingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserKeybindingsResolverService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IStringDictionary } from 'vs/base/common/collections';
 
-export class KeybindingsMergeChannel implements IServerChannel {
+export class UserKeybindingsResolverServiceChannel implements IServerChannel {
 
-	constructor(private readonly service: IKeybindingsMergeService) { }
+	constructor(private readonly service: IUserKeybindingsResolverService) { }
 
 	listen(_: unknown, event: string): Event<any> {
 		throw new Error(`Event not found: ${event}`);
@@ -17,21 +18,21 @@ export class KeybindingsMergeChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'merge': return this.service.merge(args[0], args[1], args[2]);
+			case 'resolveUserKeybindings': return this.service.resolveUserKeybindings(args[0], args[1], args[2]);
 		}
 		throw new Error('Invalid call');
 	}
 }
 
-export class KeybindingsMergeChannelClient implements IKeybindingsMergeService {
+export class UserKeybindingsResolverServiceClient implements IUserKeybindingsResolverService {
 
 	_serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) {
 	}
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
-		return this.channel.call('merge', [localContent, remoteContent, baseContent]);
+	async resolveUserKeybindings(localContent: string, remoteContent: string, baseContent: string | null): Promise<IStringDictionary<string>> {
+		return this.channel.call('resolveUserKeybindings', [localContent, remoteContent, baseContent]);
 	}
 
 }
