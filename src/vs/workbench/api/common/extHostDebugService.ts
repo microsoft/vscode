@@ -11,12 +11,12 @@ import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
 	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode, DebugAdapterInlineImplementation } from 'vs/workbench/api/common/extHostTypes';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor, IDebugAdapterImplementation } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor, IDebugAdapterImpl } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
@@ -697,15 +697,6 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 	private convertToDto(x: vscode.DebugAdapterDescriptor | undefined): IAdapterDescriptor {
 
 		if (x instanceof DebugAdapterExecutable) {
-
-			const a = <any>x;
-			if (a['implementation']) {
-				return <IDebugAdapterImplementation>{
-					type: 'implementation',
-					implementation: a['implementation']
-				};
-			}
-
 			return <IDebugAdapterExecutable>{
 				type: 'executable',
 				command: x.command,
@@ -718,12 +709,12 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 				port: x.port,
 				host: x.host
 			};
-		} else /* if (x instanceof DebugAdapterImplementation) {
-			return <IDebugAdapterImplementation>{
+		} else if (x instanceof DebugAdapterInlineImplementation) {
+			return <IDebugAdapterImpl>{
 				type: 'implementation',
 				implementation: x.implementation
 			};
-		} else */ {
+		} else {
 			throw new Error('convertToDto unexpected type');
 		}
 	}
@@ -1050,57 +1041,39 @@ class MultiTracker implements vscode.DebugAdapterTracker {
 	}
 }
 
-interface IDapTransport {
-	start(cb: (msg: DebugProtocol.ProtocolMessage) => void, errorcb: (event: DebugProtocol.Event) => void): void;
-	send(message: DebugProtocol.ProtocolMessage): void;
-	stop(): void;
-}
-
 /*
- * experimental: call directly into a debug adapter implementation
+ * Call directly into a debug adapter implementation
  */
-class DirectDebugAdapter extends AbstractDebugAdapter implements IDapTransport {
+class DirectDebugAdapter extends AbstractDebugAdapter {
 
-	private _sendUp!: (msg: DebugProtocol.ProtocolMessage) => void;
-
-	constructor(implementation: any) {
+	constructor(private implementation: vscode.DebugAdapter) {
 		super();
-		if (implementation.__setTransport) {
-			implementation.__setTransport(this);
+
+		if (this.implementation.onSendMessage) {
+			implementation.onSendMessage((message: DebugProtocol.ProtocolMessage) => {
+				this.acceptMessage(message);
+			});
+		}
+
+		if (this.implementation.onError) {
+			implementation.onError((error: Error) => {
+				this._onError.fire(error);
+			});
 		}
 	}
 
-	// IDapTransport
-	start(cb: (msg: DebugProtocol.ProtocolMessage) => void, errorcb: (event: DebugProtocol.Event) => void) {
-		this._sendUp = cb;
-	}
-
-	// AbstractDebugAdapter
 	startSession(): Promise<void> {
 		return Promise.resolve(undefined);
 	}
 
-	// AbstractDebugAdapter
-	// VSCode -> DA
 	sendMessage(message: DebugProtocol.ProtocolMessage): void {
-		this._sendUp(message);
+		if (this.implementation.handleMessage) {
+			this.implementation.handleMessage(message);
+		}
 	}
 
-	// AbstractDebugAdapter
 	stopSession(): Promise<void> {
-		this.stop();
 		return Promise.resolve(undefined);
-	}
-
-	// IDapTransport
-	// DA -> VSCode
-	send(message: DebugProtocol.ProtocolMessage) {
-		this.acceptMessage(message);
-	}
-
-	// IDapTransport
-	stop(): void {
-		throw new Error('Method not implemented.');
 	}
 }
 
@@ -1117,4 +1090,3 @@ export class WorkerExtHostDebugService extends ExtHostDebugServiceBase {
 		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, commandService);
 	}
 }
-

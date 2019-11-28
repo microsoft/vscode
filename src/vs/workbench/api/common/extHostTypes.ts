@@ -2250,16 +2250,14 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	}
 }
 
-/*
 @es5ClassCompat
-export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
-	readonly implementation: any;
+export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInlineImplementation {
+	readonly implementation: vscode.DebugAdapter;
 
-	constructor(transport: any) {
-		this.implementation = transport;
+	constructor(impl: vscode.DebugAdapter) {
+		this.implementation = impl;
 	}
 }
-*/
 
 export enum LogLevel {
 	Trace = 1,
