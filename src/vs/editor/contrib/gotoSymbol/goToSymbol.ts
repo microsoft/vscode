@@ -58,10 +58,10 @@ export function getTypeDefinitionsAtPosition(model: ITextModel, position: Positi
 	});
 }
 
-export function getReferencesAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
+export function getReferencesAtPosition(model: ITextModel, position: Position, compact: boolean, token: CancellationToken): Promise<LocationLink[]> {
 	return getLocationLinks(model, position, ReferenceProviderRegistry, async (provider, model, position) => {
 		const result = await provider.provideReferences(model, position, { includeDeclaration: true }, token);
-		if (!result || result.length !== 2) {
+		if (!compact || !result || result.length !== 2) {
 			return result;
 		}
 		const resultWithoutDeclaration = await provider.provideReferences(model, position, { includeDeclaration: false }, token);
@@ -76,4 +76,4 @@ registerDefaultLanguageCommand('_executeDefinitionProvider', (model, position) =
 registerDefaultLanguageCommand('_executeDeclarationProvider', (model, position) => getDeclarationsAtPosition(model, position, CancellationToken.None));
 registerDefaultLanguageCommand('_executeImplementationProvider', (model, position) => getImplementationsAtPosition(model, position, CancellationToken.None));
 registerDefaultLanguageCommand('_executeTypeDefinitionProvider', (model, position) => getTypeDefinitionsAtPosition(model, position, CancellationToken.None));
-registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => getReferencesAtPosition(model, position, CancellationToken.None));
+registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => getReferencesAtPosition(model, position, false, CancellationToken.None));
