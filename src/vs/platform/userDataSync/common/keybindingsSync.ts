@@ -210,7 +210,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		let previewContent = null;
 
 		if (remoteContent) {
-			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
+			const localContent: string = fileContent ? fileContent.value.toString() : '[]';
 			if (this.hasErrors(localContent)) {
 				this.logService.error('Keybindings: Unable to sync keybindings as there are errors/warning in keybindings file.');
 				return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
