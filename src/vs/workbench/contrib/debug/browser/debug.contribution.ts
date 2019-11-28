@@ -84,7 +84,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(Viewlet
 	DebugViewlet,
 	VIEWLET_ID,
 	nls.localize('debugAndRun', "Debug And Run"),
-	'codicon-debug-alt',
+	'codicon-debug',
 	3
 ));
 
