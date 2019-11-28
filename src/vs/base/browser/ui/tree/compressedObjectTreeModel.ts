@@ -138,7 +138,6 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		element: T | null,
 		children: ISequence<ICompressedTreeElement<T>> | undefined
 	): void {
-
 		if (element === null) {
 			const compressedChildren = Iterator.map(Iterator.from(children), this.enabled ? compress : noCompress);
 			this._setChildren(null, compressedChildren);
