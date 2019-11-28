@@ -614,16 +614,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		const tree = this.tree;
 		if (tree && this.visible) {
 			this.refreshing = true;
-			await Promise.all(elements.map(element => tree.updateChildren(element, true)));
-
-			elements.map(element => {
-				try {
-					tree.rerender(element);
-				} catch {
-					// noop
-				}
-			});
-
+			await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
 			this.refreshing = false;
 			this.updateContentAreas();
 			if (this.focused) {
