@@ -2810,39 +2810,28 @@ export class Event extends Message implements DebugProtocol.Event {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-export interface IDaTransport {
-	start(cb: (msg: DebugProtocol.ProtocolMessage) => void, errorcb: (event: DebugProtocol.Event) => void): void;
-	send(message: DebugProtocol.ProtocolMessage): void;
-	stop(): void;
-}
-
-export class ProtocolServer {
+export class ProtocolServer implements vscode.DebugAdapter {
 
 	private close = new vscode.EventEmitter<void>();
 	onClose: vscode.Event<void> = this.close.event;
 
-	private error = new vscode.EventEmitter<Event>();
-	onError: vscode.Event<Event> = this.error.event;
+	private error = new vscode.EventEmitter<Error>();
+	onError: vscode.Event<Error> = this.error.event;
 
+	private sendMessage = new vscode.EventEmitter<DebugProtocol.ProtocolMessage>();
+	readonly onSendMessage: vscode.Event<DebugProtocol.ProtocolMessage> = this.sendMessage.event;
 
 	private _sequence: number = 1;
 	private _pendingRequests = new Map<number, (response: DebugProtocol.Response) => void>();
 
-	private _transport?: IDaTransport;
-
 	constructor() {
 	}
 
-	public __setTransport(transport: IDaTransport): void {
-		this._sequence = 1;
-		this._transport = transport;
-		this._transport.start(msg => { this.dispatch(msg); }, event => { this.error.fire(event); });
+	public handleMessage(message: DebugProtocol.ProtocolMessage): void {
+		this.dispatch(message);
 	}
 
 	public stop(): void {
-		if (this._transport) {
-			this._transport.stop();
-		}
 	}
 
 	public sendEvent(event: DebugProtocol.Event): void {
@@ -2864,11 +2853,6 @@ export class ProtocolServer {
 		};
 		if (args && Object.keys(args).length > 0) {
 			request.arguments = args;
-		}
-
-		if (!this._transport) {
-			this.error.fire(new Event('error', 'sendRequest: no transport'));
-			return;
 		}
 
 		this._send('request', request);
@@ -2912,9 +2896,7 @@ export class ProtocolServer {
 		message.type = typ;
 		message.seq = this._sequence++;
 
-		if (this._transport) {
-			this._transport.send(message);
-		}
+		this.sendMessage.fire(message);
 	}
 }
 
@@ -3835,11 +3817,7 @@ export class MockDebugAdapterDescriptorFactory implements vscode.DebugAdapterDes
 	}
 
 	createDebugAdapterDescriptor(_session: vscode.DebugSession, _executable: vscode.DebugAdapterExecutable | undefined): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-		// TODO@AW: we need some extension API for connecting a DA implementation with a vscode.DebugAdapterDescriptor
-		const descriptor = new vscode.DebugAdapterExecutable('dummy');
-		const a = <any>descriptor;
-		a['implementation'] = new MockDebugSession(this.memfs);
-		return descriptor;
+		return new vscode.DebugAdapterInlineImplementation(new MockDebugSession(this.memfs));
 	}
 }
 
