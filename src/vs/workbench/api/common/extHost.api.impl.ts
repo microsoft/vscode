@@ -789,8 +789,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			removeBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.removeBreakpoints(breakpoints);
 			},
-			asDebugSourceUri(source: vscode.DebugSource, session?: vscode.DebugSession): vscode.Uri {
-				checkProposedApiEnabled(extension);
+			asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri {
 				return extHostDebugService.asDebugSourceUri(source, session);
 			}
 		};
