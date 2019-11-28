@@ -46,7 +46,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly conflictsWarningDisposable = this._register(new MutableDisposable());
 	private readonly signInNotificationDisposable = this._register(new MutableDisposable());
-	private previousAuthStatus: AuthTokenStatus | undefined;
 
 	constructor(
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -87,13 +86,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.authTokenContext.set(status);
 		if (status === AuthTokenStatus.SignedIn) {
 			this.signInNotificationDisposable.clear();
-
-			if (this.previousAuthStatus === AuthTokenStatus.SigningIn) {
-				this.notificationService.info(localize('signedIn', "Successfully signed in."));
-			}
 		}
 		this.updateBadge();
-		this.previousAuthStatus = status;
 	}
 
 	private onDidChangeSyncStatus(status: SyncStatus) {
