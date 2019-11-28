@@ -367,7 +367,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',
 	command: {
 		id: RunAction.ID,
-		title: nls.localize({ key: 'miRun', comment: ['&& denotes a mnemonic'] }, "R&&un")
+		title: nls.localize({ key: 'miRun', comment: ['&& denotes a mnemonic'] }, "Run &&Without Debugging")
 	},
 	order: 2
 });
