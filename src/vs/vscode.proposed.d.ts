@@ -33,16 +33,16 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export interface Tunnel extends TunnelDescriptor, Disposable {
-		localAddress: Uri;
-		remoteAddress: Uri;
-	}
-
 	export interface TunnelDescriptor {
 		remotePort: number;
 		localPort?: number;
 		name?: string;
 		closeable?: boolean;
+	}
+
+	export interface Tunnel extends TunnelDescriptor, Disposable {
+		localHost: string;
+		remoteHost: string;
 	}
 
 	/**
