@@ -166,8 +166,7 @@
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file,
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .stack-frame.has-actions .file {
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file {
 	display: none;
 }
 
@@ -175,7 +174,6 @@
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .monaco-action-bar,
 .debug-viewlet .debug-call-stack .monaco-list-row:hover .monaco-action-bar {
 	display: initial;
 }
