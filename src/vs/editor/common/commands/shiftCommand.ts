@@ -139,7 +139,7 @@ export class ShiftCommand implements ICommand {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
 						if (model.isCheapToTokenize(lineNumber - 1)) {
-							let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(this._opts.autoIndent, model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+							let enterAction = LanguageConfigurationRegistry.getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)));
 							if (enterAction) {
 								extraSpaces = previousLineExtraSpaces;
 								if (enterAction.appendText) {
