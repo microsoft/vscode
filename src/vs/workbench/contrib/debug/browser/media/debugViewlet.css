@@ -26,6 +26,13 @@
 	margin-top: 10px;
 }
 
+.debug-viewlet .debug-start-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
 .debug-viewlet .debug-start-view .click {
 	cursor: pointer;
 	color: #007ACC;
