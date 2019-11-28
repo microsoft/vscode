@@ -59,7 +59,6 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 	const commandsMergeResult = computeMergeResult(localToRemoteByCommand, baseToLocalByCommand, baseToRemoteByCommand);
 	const eol = contentUtil.getEol(localContent);
 	let mergeContent = localContent;
-	let mergeContentChanged = false;
 
 	// Removed commands in Remote
 	for (const command of values(commandsMergeResult.removed)) {
@@ -67,13 +66,8 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 			continue;
 		}
 		mergeContent = removeKeybindings(mergeContent, eol, command);
-		mergeContentChanged = true;
 	}
 
-	if (mergeContentChanged) {
-		keybindingsMergeResult = computeMergeResultByKeybinding(local, remote, parse(mergeContent), normalizedKeys);
-	}
-	mergeContentChanged = false;
 	// Added commands in remote
 	for (const command of values(commandsMergeResult.added)) {
 		if (commandsMergeResult.conflicts.has(command)) {
@@ -86,12 +80,8 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 			continue;
 		}
 		mergeContent = addKeybindings(mergeContent, eol, keybindings);
-		mergeContentChanged = true;
 	}
 
-	if (mergeContentChanged) {
-		keybindingsMergeResult = computeMergeResultByKeybinding(local, remote, parse(mergeContent), normalizedKeys);
-	}
 	// Updated commands in Remote
 	for (const command of values(commandsMergeResult.updated)) {
 		if (commandsMergeResult.conflicts.has(command)) {
