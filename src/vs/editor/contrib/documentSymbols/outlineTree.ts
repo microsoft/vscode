@@ -297,7 +297,7 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 			return true;
 		}
 
-		const configName = (OutlineFilter.kindToConfigName as any)[element.symbol.kind] as string;
+		const configName = OutlineFilter.kindToConfigName[element.symbol.kind];
 		const configKey = `${this._prefix}.${configName}`;
 		return this._textResourceConfigService.getValue(uri, configKey);
 	}
