@@ -6,7 +6,7 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -241,10 +241,12 @@ export class Model {
 			}
 
 			const config = workspace.getConfiguration('git');
-			const ignoredRepos = new Set(config.get<Array<string>>('ignoredRepositories'));
+			const ignoredRepos = config.get<string[]>('ignoredRepositories') || [];
 
-			if (ignoredRepos.has(rawRoot)) {
-				return;
+			for (const ignoredRepo of ignoredRepos) {
+				if (pathEquals(ignoredRepo, rawRoot)) {
+					return;
+				}
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
