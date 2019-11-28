@@ -329,7 +329,7 @@ function hygiene(some) {
 	if (Array.isArray(some) || typeof some === 'string' || !some) {
 		const options = { base: '.', follow: true, allowEmpty: true };
 		if (some) {
-			input = vfs.src(some, options).pipe(filter(all)) // split this up to not unnecessarily filter all a second time
+			input = vfs.src(some, options).pipe(filter(all)); // split this up to not unnecessarily filter all a second time
 		} else {
 			input = vfs.src(all, options);
 		}
