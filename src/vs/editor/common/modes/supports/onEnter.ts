@@ -10,7 +10,7 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 
 export interface IOnEnterSupportOptions {
 	brackets?: CharacterPair[];
-	regExpRules?: OnEnterRule[];
+	onEnterRules?: OnEnterRule[];
 }
 
 interface IProcessedBracketPair {
@@ -25,7 +25,7 @@ export class OnEnterSupport {
 	private readonly _brackets: IProcessedBracketPair[];
 	private readonly _regExpRules: OnEnterRule[];
 
-	constructor(opts?: IOnEnterSupportOptions) {
+	constructor(opts: IOnEnterSupportOptions) {
 		opts = opts || {};
 		opts.brackets = opts.brackets || [
 			['(', ')'],
@@ -46,7 +46,7 @@ export class OnEnterSupport {
 				});
 			}
 		});
-		this._regExpRules = opts.regExpRules || [];
+		this._regExpRules = opts.onEnterRules || [];
 	}
 
 	public onEnter(autoIndent: EditorAutoIndentStrategy, oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
