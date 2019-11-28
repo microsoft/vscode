@@ -23,7 +23,6 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/arrays';
 const $ = dom.$;
 
-
 export class StartView extends ViewletPane {
 
 	static ID = 'workbench.debug.startView';
@@ -71,21 +70,16 @@ export class StartView extends ViewletPane {
 			const secondMessageElement = $('span');
 			this.secondMessageContainer.appendChild(secondMessageElement);
 
-			const setFirstMessage = () => {
-				const firstMessageElement = $('span');
-				this.firstMessageContainer.appendChild(firstMessageElement);
-				firstMessageElement.textContent = localize('simplyDebugAndRun', "Open a file which can be debugged or run.");
-			};
 			const setSecondMessage = () => {
-				secondMessageElement.textContent = localize('specifyHowToRun', "To futher configure the Debug and Run experience");
-				const clickElement = $('span.configure');
+				secondMessageElement.textContent = localize('specifyHowToRun', "To futher configure Debug and Run");
+				const clickElement = $('span.click');
 				clickElement.textContent = localize('configure', " create a launch.json file.");
 				clickElement.onclick = () => this.commandService.executeCommand(ConfigureAction.ID);
 				this.secondMessageContainer.appendChild(clickElement);
 			};
 			const setSecondMessageWithFolder = () => {
-				secondMessageElement.textContent = localize('noLaunchConfiguration', "To futher configure the Debug and Run experience, ");
-				const clickElement = $('span.configure');
+				secondMessageElement.textContent = localize('noLaunchConfiguration', "To futher configure Debug and Run, ");
+				const clickElement = $('span.click');
 				clickElement.textContent = localize('openFolder', " open a folder");
 				clickElement.onclick = () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false });
 				this.secondMessageContainer.appendChild(clickElement);
@@ -104,12 +98,24 @@ export class StartView extends ViewletPane {
 			}
 
 			if (!enabled && !emptyWorkbench) {
-				setFirstMessage();
+				const firstMessageElement = $('span');
+				this.firstMessageContainer.appendChild(firstMessageElement);
+				firstMessageElement.textContent = localize('simplyDebugAndRun', "Open a file which can be debugged or run.");
+
 				setSecondMessage();
 			}
 
 			if (!enabled && emptyWorkbench) {
-				setFirstMessage();
+				const clickElement = $('span.click');
+				clickElement.textContent = localize('openFile', "Open a file");
+				clickElement.onclick = () => this.dialogService.pickFileAndOpen({ forceNewWindow: false });
+
+				this.firstMessageContainer.appendChild(clickElement);
+				const firstMessageElement = $('span');
+				this.firstMessageContainer.appendChild(firstMessageElement);
+				firstMessageElement.textContent = localize('canBeDebuggedOrRun', " which can be debugged or run.");
+
+
 				setSecondMessageWithFolder();
 			}
 		}

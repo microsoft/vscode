@@ -26,7 +26,7 @@
 	margin-top: 10px;
 }
 
-.debug-viewlet .debug-start-view .configure {
+.debug-viewlet .debug-start-view .click {
 	cursor: pointer;
 	color: #007ACC;
 }
