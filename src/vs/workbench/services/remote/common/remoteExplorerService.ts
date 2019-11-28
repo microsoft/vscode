@@ -27,9 +27,9 @@ export interface Tunnel {
 }
 
 export class TunnelModel extends Disposable {
-	forwarded: Map<number, Tunnel>;
-	published: Map<number, Tunnel>;
-	candidates: Map<number, Tunnel>;
+	readonly forwarded: Map<number, Tunnel>;
+	readonly published: Map<number, Tunnel>;
+	readonly candidates: Map<number, Tunnel>;
 	private _onForwardPort: Emitter<Tunnel> = new Emitter();
 	public onForwardPort: Event<Tunnel> = this._onForwardPort.event;
 	private _onClosePort: Emitter<number> = new Emitter();
@@ -105,16 +105,7 @@ export class TunnelModel extends Disposable {
 	}
 
 	address(remote: number): URI | undefined {
-		let tunnel: Tunnel | undefined = undefined;
-		if (this.forwarded.has(remote)) {
-			tunnel = this.forwarded.get(remote)!;
-		} else if (this.published.has(remote)) {
-			tunnel = this.published.get(remote)!;
-		}
-		if (tunnel) {
-			return tunnel.localUri;
-		}
-		return undefined;
+		return (this.forwarded.get(remote) || this.published.get(remote))?.localUri;
 	}
 }
 

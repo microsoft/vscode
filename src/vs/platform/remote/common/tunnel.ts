@@ -20,8 +20,8 @@ export interface ITunnelService {
 	_serviceBrand: undefined;
 
 	readonly tunnels: Promise<readonly RemoteTunnel[]>;
-	onTunnelOpened: Event<RemoteTunnel>;
-	onTunnelClosed: Event<number>;
+	readonly onTunnelOpened: Event<RemoteTunnel>;
+	readonly onTunnelClosed: Event<number>;
 
 	openTunnel(remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
 	closeTunnel(remotePort: number): Promise<void>;

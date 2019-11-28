@@ -164,8 +164,8 @@ export class TunnelService implements ITunnelService {
 	async closeTunnel(remotePort: number): Promise<void> {
 		if (this._tunnels.has(remotePort)) {
 			const value = this._tunnels.get(remotePort)!;
-			value.refcount = 0;
 			(await value.value).dispose();
+			value.refcount = 0;
 		}
 	}
 
