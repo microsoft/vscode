@@ -31,7 +31,7 @@ import { IRemoteExplorerService, TunnelModel } from 'vs/workbench/services/remot
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/workbench/workbench.web.api';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -231,6 +231,20 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		const value = editableData.startingValue || '';
 		const inputBox = new InputBox(container, this.contextViewService, {
 			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
+			validationOptions: {
+				validation: (value) => {
+					const content = editableData.validationMessage(value);
+					if (!content) {
+						return null;
+					}
+
+					return {
+						content,
+						formatContent: true,
+						type: MessageType.ERROR
+					};
+				}
+			},
 			placeholder: editableData.placeholder || ''
 		});
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
@@ -561,7 +575,7 @@ namespace NameTunnelAction {
 						}
 						remoteExplorerService.setEditable(arg.remote, null);
 					},
-					validationMessage: () => 'message',
+					validationMessage: () => null,
 					placeholder: nls.localize('remote.tunnelsView.namePlaceholder', "Name port"),
 					startingValue: arg.name
 				});
