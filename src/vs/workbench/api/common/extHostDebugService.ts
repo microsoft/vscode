@@ -54,7 +54,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable;
 	registerDebugAdapterDescriptorFactory(extension: IExtensionDescription, type: string, factory: vscode.DebugAdapterDescriptorFactory): vscode.Disposable;
 	registerDebugAdapterTrackerFactory(type: string, factory: vscode.DebugAdapterTrackerFactory): vscode.Disposable;
-	asDebugSourceUri(source: vscode.DebugSource, session?: vscode.DebugSession): vscode.Uri;
+	asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri;
 }
 
 export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDebugServiceShape {
@@ -152,7 +152,7 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 		});
 	}
 
-	public asDebugSourceUri(src: vscode.DebugSource, session?: vscode.DebugSession): URI {
+	public asDebugSourceUri(src: vscode.DebugProtocolSource, session?: vscode.DebugSession): URI {
 
 		const source = <any>src;
 
