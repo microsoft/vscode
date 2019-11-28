@@ -5,7 +5,8 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IKeybindingsMergeService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserKeybindingsResolverService } from 'vs/platform/userDataSync/common/userDataSync';
+import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -48,7 +49,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IKeybindingsMergeService private readonly keybindingsMergeService: IKeybindingsMergeService,
+		@IUserKeybindingsResolverService private readonly userKeybindingsResolverService: IUserKeybindingsResolverService,
 	) {
 		super();
 		this.lastSyncKeybindingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncKeybindings.json');
@@ -220,7 +221,8 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 				|| lastSyncData.content !== remoteContent // Remote has forwarded
 			) {
 				this.logService.trace('Keybindings: Merging remote keybindings with local keybindings...');
-				const result = await this.keybindingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
+				const keys = await this.userKeybindingsResolverService.resolveUserKeybindings(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
+				const result = merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, keys);
 				// Sync only if there are changes
 				if (result.hasChanges) {
 					hasLocalChanged = result.mergeContent !== localContent;

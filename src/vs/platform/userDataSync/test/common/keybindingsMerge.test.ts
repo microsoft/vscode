@@ -4,30 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { OS } from 'vs/base/common/platform';
-import { KeybindingsMergeService } from 'vs/workbench/services/keybinding/common/keybindingsMerge';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ResolvedKeybinding, ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-
-let testObject: KeybindingsMergeService;
-
-suiteSetup(() => {
-	testObject = new KeybindingsMergeService(new class extends MockKeybindingService {
-		resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
-			const parts = <SimpleKeybinding[]>KeybindingParser.parseUserBinding(userBinding);
-			return [new USLayoutResolvedKeybinding(new ChordKeybinding(parts), OS)];
-		}
-	});
-});
+import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { parse } from 'vs/base/common/json';
 
 suite('KeybindingsMerge - No Conflicts', () => {
 
 	test('merge when local and remote are same with one entry', async () => {
 		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(!actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -36,7 +23,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 	test('merge when local and remote are same with similar when contexts', async () => {
 		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: '!editorReadonly && editorTextFocus' }]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(!actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -51,7 +38,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+a', command: 'a', when: 'editorTextFocus' },
 			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(!actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -68,7 +55,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+d', command: '-a' },
 			{ key: 'cmd+c', command: 'b', args: { text: '`' } }
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(!actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -89,7 +76,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+d', command: '-a' },
 			{ key: 'cmd+c', command: 'b', args: { text: '`' } }
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, baseContent);
+		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
 		assert.ok(!actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -106,7 +93,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+d', command: '-a' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(!actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -123,7 +110,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(!actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -139,7 +126,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+d', command: '-a' },
 			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, remoteContent);
@@ -156,7 +143,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
 			{ key: 'cmd+d', command: 'c' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, remoteContent);
@@ -173,7 +160,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
 			{ key: 'cmd+d', command: 'c' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, localContent);
+		const actual = mergeKeybindings(localContent, remoteContent, localContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, remoteContent);
@@ -189,7 +176,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+d', command: '-a' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, localContent);
+		const actual = mergeKeybindings(localContent, remoteContent, localContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, remoteContent);
@@ -203,7 +190,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 		const remoteContent = stringify([
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, localContent);
+		const actual = mergeKeybindings(localContent, remoteContent, localContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, remoteContent);
@@ -216,7 +203,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 		const remoteContent = stringify([
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, localContent);
+		const actual = mergeKeybindings(localContent, remoteContent, localContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, remoteContent);
@@ -235,7 +222,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+d', command: 'b' },
 			{ key: 'cmd+d', command: 'a' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, localContent);
+		const actual = mergeKeybindings(localContent, remoteContent, localContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, remoteContent);
@@ -258,7 +245,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 			{ key: 'cmd+c', command: '-c' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, localContent);
+		const actual = mergeKeybindings(localContent, remoteContent, localContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, remoteContent);
@@ -274,7 +261,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+d', command: '-a' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -291,7 +278,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+d', command: '-a' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -308,7 +295,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+d', command: '-a' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, remoteContent);
+		const actual = mergeKeybindings(localContent, remoteContent, remoteContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -324,7 +311,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+d', command: '-a' },
 			{ key: 'cmd+c', command: 'b', args: { text: '`' } },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, remoteContent);
+		const actual = mergeKeybindings(localContent, remoteContent, remoteContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -338,7 +325,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+d', command: '-a' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, remoteContent);
+		const actual = mergeKeybindings(localContent, remoteContent, remoteContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -351,7 +338,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 		const remoteContent = stringify([
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, remoteContent);
+		const actual = mergeKeybindings(localContent, remoteContent, remoteContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -370,7 +357,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'alt+d', command: 'b' },
 			{ key: 'cmd+d', command: 'a' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, remoteContent);
+		const actual = mergeKeybindings(localContent, remoteContent, remoteContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, localContent);
@@ -402,7 +389,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 			{ key: 'cmd+d', command: 'c', when: 'context1' },
 			{ key: 'cmd+c', command: '-c' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, remoteContent);
+		const actual = mergeKeybindings(localContent, remoteContent, remoteContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, expected);
@@ -445,7 +432,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 		]);
 		//'[\n\t{\n\t\t"key": "alt+d",\n\t\t"command": "-f"\n\t},\n\t{\n\t\t"key": "cmd+d",\n\t\t"command": "d"\n\t},\n\t{\n\t\t"key": "cmd+c",\n\t\t"command": "-c"\n\t},\n\t{\n\t\t"key": "cmd+d",\n\t\t"command": "c",\n\t\t"when": "context1"\n\t},\n\t{\n\t\t"key": "alt+a",\n\t\t"command": "f"\n\t},\n\t{\n\t\t"key": "alt+e",\n\t\t"command": "e"\n\t},\n\t{\n\t\t"key": "alt+g",\n\t\t"command": "g",\n\t\t"when": "context2"\n\t}\n]'
 		//'[\n\t{\n\t\t"key": "alt+d",\n\t\t"command": "-f"\n\t},\n\t{\n\t\t"key": "cmd+d",\n\t\t"command": "d"\n\t},\n\t{\n\t\t"key": "cmd+c",\n\t\t"command": "-c"\n\t},\n\t{\n\t\t"key": "alt+c",\n\t\t"command": "c",\n\t\t"when": "context1"\n\t},\n\t{\n\t\t"key": "alt+a",\n\t\t"command": "f"\n\t},\n\t{\n\t\t"key": "alt+e",\n\t\t"command": "e"\n\t},\n\t{\n\t\t"key": "alt+g",\n\t\t"command": "g",\n\t\t"when": "context2"\n\t}\n]'
-		const actual = await testObject.merge(localContent, remoteContent, baseContent);
+		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(!actual.hasConflicts);
 		assert.equal(actual.mergeContent, expected);
@@ -458,7 +445,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 	test('merge when local and remote with one entry but different value', async () => {
 		const localContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
@@ -490,7 +477,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+a', command: '-a', when: 'editorTextFocus && !editorReadonly' }
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, null);
+		const actual = mergeKeybindings(localContent, remoteContent, null);
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
@@ -527,7 +514,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const localContent = stringify([]);
 		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const actual = await testObject.merge(localContent, remoteContent, baseContent);
+		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
@@ -548,7 +535,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const localContent = stringify([{ key: 'alt+b', command: 'b' }]);
 		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-		const actual = await testObject.merge(localContent, remoteContent, baseContent);
+		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
@@ -574,7 +561,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const remoteContent = stringify([]);
-		const actual = await testObject.merge(localContent, remoteContent, baseContent);
+		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
@@ -595,7 +582,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const remoteContent = stringify([{ key: 'alt+b', command: 'b' }]);
-		const actual = await testObject.merge(localContent, remoteContent, baseContent);
+		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
@@ -647,7 +634,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 			{ key: 'alt+c', command: 'c', when: 'context1' },
 			{ key: 'alt+g', command: 'g', when: 'context2' },
 		]);
-		const actual = await testObject.merge(localContent, remoteContent, baseContent);
+		const actual = mergeKeybindings(localContent, remoteContent, baseContent);
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
@@ -717,6 +704,17 @@ suite('KeybindingsMerge - Conflicts', () => {
 	});
 
 });
+
+function mergeKeybindings(localContent: string, remoteContent: string, baseContent: string | null) {
+	const local = <IUserFriendlyKeybinding[]>parse(localContent);
+	const remote = <IUserFriendlyKeybinding[]>parse(remoteContent);
+	const base = baseContent ? <IUserFriendlyKeybinding[]>parse(baseContent) : null;
+	const keys: IStringDictionary<string> = {};
+	for (const keybinding of [...local, ...remote, ...(base || [])]) {
+		keys[keybinding.key] = keybinding.key;
+	}
+	return merge(localContent, remoteContent, baseContent, keys);
+}
 
 function stringify(value: any): any {
 	return JSON.stringify(value, null, '\t');
