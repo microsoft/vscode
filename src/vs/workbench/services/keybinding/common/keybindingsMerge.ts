@@ -124,7 +124,9 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 				continue;
 			}
 			const keybindings = remoteByCommand.get(command)!;
-			if (keybindings.some(({ normalized }) => keybindingsMergeResult.conflicts.has(normalized.key))) {
+			// Ignore negated commands
+			if (keybindings.some(({ normalized }) => normalized.command !== `-${command}` && keybindingsMergeResult.conflicts.has(normalized.key))) {
+				commandsMergeResult.conflicts.add(command);
 				continue;
 			}
 			mergeContent = this.addKeybindings(mergeContent, eol, keybindings.map(({ keybinding }) => keybinding));
@@ -136,13 +138,15 @@ export class KeybindingsMergeService implements IKeybindingsMergeService {
 				continue;
 			}
 			const keybindings = remoteByCommand.get(command)!;
-			if (keybindings.some(({ normalized }) => keybindingsMergeResult.conflicts.has(normalized.key))) {
+			// Ignore negated commands
+			if (keybindings.some(({ normalized }) => normalized.command !== `-${command}` && keybindingsMergeResult.conflicts.has(normalized.key))) {
+				commandsMergeResult.conflicts.add(command);
 				continue;
 			}
 			mergeContent = this.updateKeybindings(mergeContent, eol, command, keybindings.map(({ keybinding }) => keybinding));
 		}
 
-		const hasConflicts = commandsMergeResult.conflicts.size > 0 || keybindingsMergeResult.conflicts.size > 0;
+		const hasConflicts = commandsMergeResult.conflicts.size > 0;
 		if (hasConflicts) {
 			mergeContent = `<<<<<<< local${eol}`
 				+ mergeContent

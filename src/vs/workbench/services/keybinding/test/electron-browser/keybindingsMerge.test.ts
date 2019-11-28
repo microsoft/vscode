@@ -408,6 +408,49 @@ suite('KeybindingsMerge - No Conflicts', () => {
 		assert.equal(actual.mergeContent, expected);
 	});
 
+	test('merge when local and remote has moved forwareded with conflicts', async () => {
+		const baseContent = stringify([
+			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+			{ key: 'ctrl+c', command: '-a' },
+			{ key: 'cmd+e', command: 'd' },
+			{ key: 'alt+a', command: 'f' },
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+d', command: 'c', when: 'context1' },
+			{ key: 'cmd+c', command: '-c' },
+		]);
+		const localContent = stringify([
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+e', command: 'd' },
+			{ key: 'cmd+c', command: '-c' },
+			{ key: 'cmd+d', command: 'c', when: 'context1' },
+			{ key: 'alt+a', command: 'f' },
+			{ key: 'alt+e', command: 'e' },
+		]);
+		const remoteContent = stringify([
+			{ key: 'alt+a', command: 'f' },
+			{ key: 'cmd+c', command: '-c' },
+			{ key: 'cmd+d', command: 'd' },
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'alt+c', command: 'c', when: 'context1' },
+			{ key: 'alt+g', command: 'g', when: 'context2' },
+		]);
+		const expected = stringify([
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+d', command: 'd' },
+			{ key: 'cmd+c', command: '-c' },
+			{ key: 'alt+c', command: 'c', when: 'context1' },
+			{ key: 'alt+a', command: 'f' },
+			{ key: 'alt+e', command: 'e' },
+			{ key: 'alt+g', command: 'g', when: 'context2' },
+		]);
+		//'[\n\t{\n\t\t"key": "alt+d",\n\t\t"command": "-f"\n\t},\n\t{\n\t\t"key": "cmd+d",\n\t\t"command": "d"\n\t},\n\t{\n\t\t"key": "cmd+c",\n\t\t"command": "-c"\n\t},\n\t{\n\t\t"key": "cmd+d",\n\t\t"command": "c",\n\t\t"when": "context1"\n\t},\n\t{\n\t\t"key": "alt+a",\n\t\t"command": "f"\n\t},\n\t{\n\t\t"key": "alt+e",\n\t\t"command": "e"\n\t},\n\t{\n\t\t"key": "alt+g",\n\t\t"command": "g",\n\t\t"when": "context2"\n\t}\n]'
+		//'[\n\t{\n\t\t"key": "alt+d",\n\t\t"command": "-f"\n\t},\n\t{\n\t\t"key": "cmd+d",\n\t\t"command": "d"\n\t},\n\t{\n\t\t"key": "cmd+c",\n\t\t"command": "-c"\n\t},\n\t{\n\t\t"key": "alt+c",\n\t\t"command": "c",\n\t\t"when": "context1"\n\t},\n\t{\n\t\t"key": "alt+a",\n\t\t"command": "f"\n\t},\n\t{\n\t\t"key": "alt+e",\n\t\t"command": "e"\n\t},\n\t{\n\t\t"key": "alt+g",\n\t\t"command": "g",\n\t\t"when": "context2"\n\t}\n]'
+		const actual = await testObject.merge(localContent, remoteContent, baseContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(!actual.hasConflicts);
+		assert.equal(actual.mergeContent, expected);
+	});
+
 });
 
 suite('KeybindingsMerge - Conflicts', () => {
