@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService
+	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, INSTALL_ERROR_NOT_SUPPORTED
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -209,7 +209,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				return Promise.reject(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
 			}
 			if (!isLanguagePackExtension(manifest) && !canExecuteOnWorkspace(manifest, this.productService, this.configurationService)) {
-				// add a dialog
+				const error = new Error(localize('cannot be installed', "Cannot install '{0}' extension since it cannot be enabled in the remote server.", gallery.displayName || gallery.name));
+				error.name = INSTALL_ERROR_NOT_SUPPORTED;
+				return Promise.reject(error);
 			}
 			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
 		}
