@@ -546,12 +546,19 @@ export interface IDebugAdapterServer {
 	readonly host?: string;
 }
 
-export interface IDebugAdapterImplementation {
-	readonly type: 'implementation';
-	readonly implementation: any;
+export interface IDebugAdapterInlineImpl {
+	readonly onSendMessage: Event<DebugProtocol.Message>;
+	readonly onError: Event<Error>;
+
+	handleMessage(message: DebugProtocol.Message): void;
 }
 
-export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImplementation;
+export interface IDebugAdapterImpl {
+	readonly type: 'implementation';
+	readonly implementation: IDebugAdapterInlineImpl;
+}
+
+export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImpl;
 
 export interface IPlatformSpecificAdapterContribution {
 	program?: string;

@@ -607,6 +607,35 @@ declare module 'vscode' {
 		export function asDebugSourceUri(source: DebugSource, session?: DebugSession): Uri;
 	}
 
+	/**
+	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
+	 */
+	interface DebugProtocolMessage {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
+	}
+
+	/**
+	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements this interface.
+	 */
+	interface DebugAdapter {
+
+		readonly onSendMessage: Event<DebugProtocolMessage>;
+		readonly onError: Event<Error>;
+
+		handleMessage(message: DebugProtocolMessage): void;
+	}
+
+	/**
+	 * A debug adapter descriptor for an inline implementation.
+	 */
+	export class DebugAdapterInlineImplementation {
+
+		/**
+		 * Create a descriptor for an inline implementation of a debug adapter.
+		 */
+		constructor(implementation: DebugAdapter);
+	}
+
 	// deprecated
 
 	export interface DebugConfigurationProvider {
