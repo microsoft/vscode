@@ -53,10 +53,6 @@ declare module 'vscode' {
 		 * Ports that are already immutably published. This is not the same as forwarding.
 		 */
 		published?: TunnelDescriptor[];
-		/**
-		 *  Tunnels that should be established.
-		 */
-		forward?: TunnelDescriptor[];
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -71,16 +67,19 @@ declare module 'vscode' {
 	export interface RemoteAuthorityResolver {
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
 		/**
-		 * An optional event for the resolver to signal that the tunnel information has changed.
-		 * (ex. there are new ports that have been published or that should be forwarded.)
-		 */
-		onTunnelInformationChanged?: Event<TunnelInformation>;
-		/**
 		 * Can be optionally implemented if the extension can forward ports better than the core.
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
 		forwardPort?(tunnelDescriptor: TunnelDescriptor): Thenable<Tunnel | undefined>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Forwards a port.
+		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		export function makeTunnel(forward: TunnelDescriptor): Thenable<Tunnel>;
 	}
 
 	export interface ResourceLabelFormatter {
