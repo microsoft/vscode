@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -697,12 +697,7 @@ export class LanguageConfigurationRegistryImpl {
 		return value.onEnter || null;
 	}
 
-	public getRawEnterActionAtPosition(autoIndent: EditorAutoIndentStrategy, model: ITextModel, lineNumber: number, column: number): EnterAction | null {
-		const r = this.getEnterAction(autoIndent, model, new Range(lineNumber, column, lineNumber, column));
-		return r ? r.enterAction : null;
-	}
-
-	public getEnterAction(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range): { enterAction: EnterAction; indentation: string; } | null {
+	public getEnterAction(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range): CompleteEnterAction | null {
 		const scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		const onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
 		if (!onEnterSupport) {
@@ -740,28 +735,34 @@ export class LanguageConfigurationRegistryImpl {
 
 		if (!enterResult) {
 			return null;
-		} else {
-			// Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
-			if (!enterResult.appendText) {
-				if (
-					(enterResult.indentAction === IndentAction.Indent) ||
-					(enterResult.indentAction === IndentAction.IndentOutdent)
-				) {
-					enterResult.appendText = '\t';
-				} else {
-					enterResult.appendText = '';
-				}
+		}
+
+		const indentAction = enterResult.indentAction;
+		let appendText = enterResult.appendText;
+		const removeText = enterResult.removeText || 0;
+
+		// Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
+		if (!appendText) {
+			if (
+				(indentAction === IndentAction.Indent) ||
+				(indentAction === IndentAction.IndentOutdent)
+			) {
+				appendText = '\t';
+			} else {
+				appendText = '';
 			}
 		}
 
 		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
-		if (enterResult.removeText) {
-			indentation = indentation.substring(0, indentation.length - enterResult.removeText);
+		if (removeText) {
+			indentation = indentation.substring(0, indentation.length - removeText);
 		}
 
 		return {
-			enterAction: enterResult,
-			indentation: indentation,
+			indentAction: indentAction,
+			appendText: appendText,
+			removeText: removeText,
+			indentation: indentation
 		};
 	}
 

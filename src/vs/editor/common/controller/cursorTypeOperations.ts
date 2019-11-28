@@ -174,11 +174,7 @@ export class TypeOperations {
 			const maxColumn = model.getLineMaxColumn(lastLineNumber);
 			const expectedEnterAction = LanguageConfigurationRegistry.getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn));
 			if (expectedEnterAction) {
-				indentation = expectedEnterAction.indentation;
-				action = expectedEnterAction.enterAction;
-				if (action) {
-					indentation += action.appendText;
-				}
+				indentation = expectedEnterAction.indentation + expectedEnterAction.appendText;
 			}
 		}
 
@@ -304,21 +300,18 @@ export class TypeOperations {
 
 		const r = LanguageConfigurationRegistry.getEnterAction(config.autoIndent, model, range);
 		if (r) {
-			const enterAction = r.enterAction;
-			const indentation = r.indentation;
-
-			if (enterAction.indentAction === IndentAction.None) {
+			if (r.indentAction === IndentAction.None) {
 				// Nothing special
-				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
+				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
 
-			} else if (enterAction.indentAction === IndentAction.Indent) {
+			} else if (r.indentAction === IndentAction.Indent) {
 				// Indent once
-				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation + enterAction.appendText), keepPosition);
+				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
 
-			} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
+			} else if (r.indentAction === IndentAction.IndentOutdent) {
 				// Ultra special
-				const normalIndent = config.normalizeIndentation(indentation);
-				const increasedIndent = config.normalizeIndentation(indentation + enterAction.appendText);
+				const normalIndent = config.normalizeIndentation(r.indentation);
+				const increasedIndent = config.normalizeIndentation(r.indentation + r.appendText);
 
 				const typeText = '\n' + increasedIndent + '\n' + normalIndent;
 
@@ -327,9 +320,9 @@ export class TypeOperations {
 				} else {
 					return new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length, true);
 				}
-			} else if (enterAction.indentAction === IndentAction.Outdent) {
-				const actualIndentation = TypeOperations.unshiftIndent(config, indentation);
-				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + enterAction.appendText), keepPosition);
+			} else if (r.indentAction === IndentAction.Outdent) {
+				const actualIndentation = TypeOperations.unshiftIndent(config, r.indentation);
+				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + r.appendText), keepPosition);
 			}
 		}
 

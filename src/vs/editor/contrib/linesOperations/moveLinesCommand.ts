@@ -256,16 +256,15 @@ export class MoveLinesCommand implements ICommand {
 
 		if (enter) {
 			let enterPrefix = enter.indentation;
-			let enterAction = enter.enterAction;
 
-			if (enterAction.indentAction === IndentAction.None) {
-				enterPrefix = enter.indentation + enterAction.appendText;
-			} else if (enterAction.indentAction === IndentAction.Indent) {
-				enterPrefix = enter.indentation + enterAction.appendText;
-			} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
+			if (enter.indentAction === IndentAction.None) {
+				enterPrefix = enter.indentation + enter.appendText;
+			} else if (enter.indentAction === IndentAction.Indent) {
+				enterPrefix = enter.indentation + enter.appendText;
+			} else if (enter.indentAction === IndentAction.IndentOutdent) {
 				enterPrefix = enter.indentation;
-			} else if (enterAction.indentAction === IndentAction.Outdent) {
-				enterPrefix = indentConverter.unshiftIndent(enter.indentation) + enterAction.appendText;
+			} else if (enter.indentAction === IndentAction.Outdent) {
+				enterPrefix = indentConverter.unshiftIndent(enter.indentation) + enter.appendText;
 			}
 			let movingLineText = model.getLineContent(line);
 			if (this.trimLeft(movingLineText).indexOf(this.trimLeft(enterPrefix)) >= 0) {
