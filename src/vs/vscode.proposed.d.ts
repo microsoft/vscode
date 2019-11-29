@@ -33,16 +33,16 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export interface TunnelDescriptor {
-		remotePort: number;
+	export interface TunnelOptions {
+		remote: { port: number, host: string };
 		localPort?: number;
 		name?: string;
 		closeable?: boolean;
 	}
 
-	export interface Tunnel extends TunnelDescriptor, Disposable {
-		localHost: string;
-		remoteHost: string;
+	export interface Tunnel extends Disposable {
+		remote: { port: number, host: string };
+		local: { port: number, host: string };
 	}
 
 	/**
@@ -50,9 +50,11 @@ declare module 'vscode' {
 	 */
 	export interface TunnelInformation {
 		/**
-		 * Ports that are already immutably published. This is not the same as forwarding.
+		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
+		 * The localAddress should be the complete local address for connecting to the port. Tunnels provided through
+		 * detected are read-only from the forwarded ports UI.
 		 */
-		published?: TunnelDescriptor[];
+		detected?: { remotePort: number, localAddress: string }[];
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -71,7 +73,7 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		forwardPort?(tunnelDescriptor: TunnelDescriptor): Thenable<Tunnel | undefined>;
+		forwardPort?(tunnelDescriptor: TunnelOptions): Thenable<Tunnel | undefined>;
 	}
 
 	export namespace workspace {
@@ -79,7 +81,7 @@ declare module 'vscode' {
 		 * Forwards a port.
 		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
-		export function makeTunnel(forward: TunnelDescriptor): Thenable<Tunnel>;
+		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;
 	}
 
 	export interface ResourceLabelFormatter {
