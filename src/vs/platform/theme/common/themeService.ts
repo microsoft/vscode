@@ -31,10 +31,10 @@ export namespace ThemeIcon {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
 	}
 
-	const _regex = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
+	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
 
 	export function fromString(str: string): ThemeIcon | undefined {
-		const match = _regex.exec(str);
+		const match = _regexFromString.exec(str);
 		if (!match) {
 			return undefined;
 		}
@@ -43,6 +43,22 @@ export namespace ThemeIcon {
 			owner = `codicon/`;
 		}
 		return { id: owner + name };
+	}
+
+	const _regexAsClassName = /^codicon\/([a-z-]+)(~[a-z]+)?$/i;
+
+	export function asClassName(icon: ThemeIcon): string | undefined {
+		// todo@martin,joh -> this should go into the ThemeService
+		const match = _regexAsClassName.exec(icon.id);
+		if (!match) {
+			return undefined;
+		}
+		const [, name, modifier] = match;
+		let className = `codicon codicon-${name}`;
+		if (modifier) {
+			className += ` ${modifier.substr(1)}`;
+		}
+		return className;
 	}
 }
 

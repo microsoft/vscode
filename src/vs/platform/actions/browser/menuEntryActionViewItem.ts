@@ -238,20 +238,13 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		this._itemClassDispose.value = undefined;
 
 		if (ThemeIcon.isThemeIcon(item.icon)) {
-			// theme icons ~ support codicon only...
-
-			const match = /codicon\/([a-z-]+)(~[a-z]+)?/i.exec(item.icon.id);
-			const name = match && match[1];
-			const modifier = match && match[2];
-			if (this.label && name) {
-				let iconClass = `codicon-${name}`;
-				if (modifier) {
-					iconClass += ` ${modifier.substr(1)}`;
-				}
-				addClasses(this.label, 'codicon', iconClass);
+			// theme icons
+			const iconClass = ThemeIcon.asClassName(item.icon);
+			if (this.label && iconClass) {
+				addClasses(this.label, iconClass);
 				this._itemClassDispose.value = toDisposable(() => {
 					if (this.label) {
-						removeClasses(this.label, 'codicon', iconClass);
+						removeClasses(this.label, iconClass);
 					}
 				});
 			}
