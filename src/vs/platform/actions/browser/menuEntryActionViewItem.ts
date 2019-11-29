@@ -148,7 +148,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation || _action.item.iconClassName), label: !_action.class && !_action.item.iconLocation && !_action.item.iconClassName });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon || _action.item.iconClassName), label: !_action.class && !_action.item.icon && !_action.item.iconClassName });
 		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 
@@ -249,10 +249,10 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 					}
 				});
 			}
-		} else if (ThemeIcon.isThemeIcon(item.iconLocation)) {
+		} else if (ThemeIcon.isThemeIcon(item.icon)) {
 			// theme icons ~ support codicon only...
 
-			const match = /codicon\.([a-zA-Z~]+)/.exec(item.iconLocation.id);
+			const match = /codicon\.([a-zA-Z~]+)/.exec(item.icon.id);
 			const iconClass = match && match[1];
 			if (this.label && iconClass) {
 				addClasses(this.label, 'codicon', iconClass);
@@ -263,20 +263,20 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				});
 			}
 
-		} else if (item.iconLocation) {
+		} else if (item.icon) {
 			// icon path
 			let iconClass: string;
 
-			if (item.iconLocation?.dark?.scheme) {
+			if (item.icon?.dark?.scheme) {
 
-				const iconPathMapKey = item.iconLocation.dark.toString();
+				const iconPathMapKey = item.icon.dark.toString();
 
 				if (MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
 					iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 				} else {
 					iconClass = ids.nextId();
-					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.light || item.iconLocation.dark)}`);
-					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.dark)}`);
+					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.icon.light || item.icon.dark)}`);
+					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.icon.dark)}`);
 					MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 				}
 

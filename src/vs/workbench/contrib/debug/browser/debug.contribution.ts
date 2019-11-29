@@ -288,7 +288,7 @@ const registerDebugToolBarItem = (id: string, title: string, order: number, icon
 			id,
 			title,
 			iconClassName,
-			iconLocation: {
+			icon: {
 				light: iconLightUri,
 				dark: iconDarkUri
 			},
@@ -551,7 +551,7 @@ if (isMacintosh) {
 			command: {
 				id,
 				title,
-				iconLocation: { dark: iconUri }
+				icon: { dark: iconUri }
 			},
 			when,
 			group: '9_debug',

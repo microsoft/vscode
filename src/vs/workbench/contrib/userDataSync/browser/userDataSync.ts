@@ -371,7 +371,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			command: {
 				id: continueSyncCommandId,
 				title: localize('continue sync', "Sync: Continue"),
-				iconLocation: {
+				icon: {
 					light: SYNC_PUSH_LIGHT_ICON_URI,
 					dark: SYNC_PUSH_DARK_ICON_URI
 				}

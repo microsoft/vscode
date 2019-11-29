@@ -367,7 +367,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			title,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
-			iconLocation: absoluteIcon
+			icon: absoluteIcon
 		});
 		_commandRegistrations.add(registration);
 	}

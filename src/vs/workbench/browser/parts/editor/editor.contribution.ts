@@ -420,12 +420,12 @@ editorCommands.setup();
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
 		group: 'navigation'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
 		group: 'navigation'
 	});
 }
@@ -463,7 +463,7 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | u
 			id: primary.id,
 			title: primary.title,
 			iconClassName: primary.iconClassName,
-			iconLocation: {
+			icon: {
 				dark: primary.iconDark,
 				light: primary.iconLight
 			}
@@ -478,7 +478,7 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | u
 			id: alternative.id,
 			title: alternative.title,
 			iconClassName: alternative.iconClassName,
-			iconLocation: {
+			icon: {
 				dark: alternative.iconDark,
 				light: alternative.iconLight
 			}

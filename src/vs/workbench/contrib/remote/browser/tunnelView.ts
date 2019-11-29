@@ -583,7 +583,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelTitle, ({
 		id: ForwardPortAction.ID,
 		title: ForwardPortAction.LABEL,
 		iconClassName: 'codicon-plus',
-		iconLocation: {
+		icon: {
 			dark: undefined,
 			light: undefined
 		}
@@ -641,7 +641,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 		id: OpenPortInBrowserAction.ID,
 		title: OpenPortInBrowserAction.LABEL,
 		iconClassName: 'codicon-globe',
-		iconLocation: {
+		icon: {
 			dark: undefined,
 			light: undefined
 		}
@@ -654,7 +654,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 		id: ForwardPortAction.ID,
 		title: ForwardPortAction.LABEL,
 		iconClassName: 'codicon-plus',
-		iconLocation: {
+		icon: {
 			dark: undefined,
 			light: undefined
 		}
@@ -667,7 +667,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 		id: ClosePortAction.ID,
 		title: ClosePortAction.LABEL,
 		iconClassName: 'codicon-x',
-		iconLocation: {
+		icon: {
 			dark: undefined,
 			light: undefined
 		}

@@ -1090,8 +1090,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: NativeImage | undefined;
-			if (item.iconLocation && !ThemeIcon.isThemeIcon(item.iconLocation) && item.iconLocation?.dark?.scheme === 'file') {
-				icon = nativeImage.createFromPath(URI.revive(item.iconLocation.dark).fsPath);
+			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === 'file') {
+				icon = nativeImage.createFromPath(URI.revive(item.icon.dark).fsPath);
 				if (icon.isEmpty()) {
 					icon = undefined;
 				}

@@ -24,7 +24,7 @@ export interface ICommandAction {
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
 	iconClassName?: string;
-	iconLocation?: { dark?: URI; light?: URI; } | ThemeIcon;
+	icon?: { dark?: URI; light?: URI; } | ThemeIcon;
 	precondition?: ContextKeyExpr;
 	toggled?: ContextKeyExpr;
 }
