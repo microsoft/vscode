@@ -239,11 +239,13 @@ export class MarkdownEngine {
 
 					// Relative paths should be resolved correctly inside the preview but we need to
 					// handle absolute paths specially (for images) to resolve them relative to the workspace root
+					// using relative path to replace absolute path to fix https://github.com/microsoft/vscode/issues/84728
 					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument!);
-						if (root) {
+						const currentDir = path.dirname(this.currentDocument!.fsPath || '');
+						if (root && currentDir) {
 							uri = uri.with({
-								path: path.join(root.uri.fsPath, uri.path),
+								path: path.relative(currentDir, path.join(root.uri.fsPath, uri.path)),
 							});
 						}
 					}
