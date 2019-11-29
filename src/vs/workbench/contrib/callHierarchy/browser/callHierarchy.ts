@@ -162,7 +162,7 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 	try {
 		const model = await CallHierarchyModel.create(textModel, position, CancellationToken.None);
 		if (!model) {
-			return undefined;
+			return [];
 		}
 		//
 		_models.set(model.id, model);
@@ -172,7 +172,7 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 				_models.delete(key);
 			}
 		});
-		return model.root;
+		return [model.root];
 
 	} finally {
 		dispose(textModelReference);

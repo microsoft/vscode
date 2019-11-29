@@ -158,7 +158,7 @@ export class ConfigurationEditingService {
 	writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
 		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
-			.then(() => null,
+			.then(() => { },
 				error => {
 					if (!options.donotNotifyError) {
 						this.onError(error, operation, options.scopes);

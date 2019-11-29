@@ -19,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSou
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService, IEditableData } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, isEqualOrParent, basename, hasToIgnoreCase, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -54,6 +54,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
+import { IEditableData } from 'vs/workbench/common/views';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -908,7 +909,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					}
 
 					const copyTarget = joinPath(target.resource, basename(sourceFile));
-					const stat = await this.fileService.copy(sourceFile, copyTarget, true);
+					const stat = await this.textFileService.copy(sourceFile, copyTarget, true);
 					// if we only add one file, just open it directly
 					if (resources.length === 1 && !stat.isDirectory) {
 						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
@@ -991,7 +992,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const stat = await this.fileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
+			const stat = await this.textFileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
 			if (!stat.isDirectory) {
 				await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
@@ -1094,6 +1095,10 @@ function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Ele
 	}
 
 	return null;
+}
+
+export function isCompressedFolderName(target: HTMLElement | EventTarget | Element | null): boolean {
+	return !!getIconLabelNameFromHTMLElement(target);
 }
 
 export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {

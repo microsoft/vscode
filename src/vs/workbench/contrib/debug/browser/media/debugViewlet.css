@@ -13,6 +13,31 @@
 	height: 100%;
 }
 
+.debug-viewlet .debug-start-view {
+	padding: 0 20px 0 20px;
+}
+
+.debug-viewlet .debug-start-view .monaco-button,
+.debug-viewlet .debug-start-view .section {
+	margin-top: 20px;
+}
+
+.debug-viewlet .debug-start-view .top-section {
+	margin-top: 10px;
+}
+
+.debug-viewlet .debug-start-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
+.debug-viewlet .debug-start-view .click {
+	cursor: pointer;
+	color: #007ACC;
+}
+
 .monaco-workbench .debug-action.notification:after {
 	content: '';
 	width: 6px;
@@ -148,11 +173,14 @@
 	display: none;
 }
 
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file {
+	display: none;
+}
+
 .debug-viewlet .debug-call-stack .monaco-list-row .monaco-action-bar {
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .monaco-action-bar,
 .debug-viewlet .debug-call-stack .monaco-list-row:hover .monaco-action-bar {
 	display: initial;
 }

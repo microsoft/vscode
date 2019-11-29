@@ -98,6 +98,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private headerContainer!: HTMLElement;
 	private searchWidget!: SuggestEnabledInput;
 	private countElement!: HTMLElement;
+	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
 
 	private settingsTreeContainer!: HTMLElement;
@@ -301,7 +302,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.layoutTrees(dimension);
 
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
-		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - 12; // minus padding inside inputbox, countElement width, extra padding before countElement
+		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
+		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
@@ -375,6 +377,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	clearSearchResults(): void {
 		this.searchWidget.setValue('');
+		this.focusSearch();
 	}
 
 	clearSearchFilters(): void {
@@ -387,17 +390,12 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.setValue(query.trim());
 	}
 
-	clearSearch(): void {
-		this.clearSearchResults();
-		this.focusSearch();
-	}
-
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
-		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), 'codicon-clear-all', false, () => { this.clearSearch(); return Promise.resolve(null); });
+		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), 'codicon-clear-all', false, () => { this.clearSearchResults(); return Promise.resolve(null); });
 
 		const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
@@ -446,9 +444,9 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 
-		const actionsContainer = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
+		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
 
-		const actionBar = this._register(new ActionBar(actionsContainer, {
+		const actionBar = this._register(new ActionBar(this.controlsElement, {
 			animated: false,
 			actionViewItemProvider: (action: Action) => { return undefined; }
 		}));
@@ -541,7 +539,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, false);
 			this.clearSearchResults();
-			this.focusSearch();
 		}));
 
 		DOM.append(this.noResultsMessage, clearSearchContainer);
@@ -555,10 +552,14 @@ export class SettingsEditor2 extends BaseEditor {
 		this.createFocusSink(
 			bodyContainer,
 			e => {
-				if (DOM.findParentWithClass(e.relatedTarget, 'monaco-list')) {
+				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
 					if (this.settingsTree.scrollTop > 0) {
 						const firstElement = this.settingsTree.firstVisibleElement;
-						this.settingsTree.reveal(firstElement, 0.1);
+
+						if (typeof firstElement !== 'undefined') {
+							this.settingsTree.reveal(firstElement, 0.1);
+						}
+
 						return true;
 					}
 				} else {
@@ -577,7 +578,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.createFocusSink(
 			bodyContainer,
 			e => {
-				if (DOM.findParentWithClass(e.relatedTarget, 'monaco-list')) {
+				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
 					if (this.settingsTree.scrollTop < this.settingsTree.scrollHeight) {
 						const lastElement = this.settingsTree.lastVisibleElement;
 						this.settingsTree.reveal(lastElement, 0.9);

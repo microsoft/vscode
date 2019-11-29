@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService, IEditableData, IFilesConfiguration, SortOrder, SortOrderConfiguration, IContextProvider } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, IFilesConfiguration, SortOrder, SortOrderConfiguration, IContextProvider } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
@@ -18,6 +18,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IExpression } from 'vs/base/common/glob';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditableData } from 'vs/workbench/common/views';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
 	const scope = root ? { resource: root } : undefined;
@@ -186,7 +187,7 @@ export class ExplorerService implements IExplorerService {
 			const stat = await this.fileService.resolve(rootUri, options);
 
 			// Convert to model
-			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
+			const modelStat = ExplorerItem.create(this.fileService, stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 			const item = root.find(resource);
@@ -230,11 +231,11 @@ export class ExplorerService implements IExplorerService {
 					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolve(p.resource, { resolveMetadata });
 					thenable.then(stat => {
 						if (stat) {
-							const modelStat = ExplorerItem.create(stat, p.parent);
+							const modelStat = ExplorerItem.create(this.fileService, stat, p.parent);
 							ExplorerItem.mergeLocalWithDisk(modelStat, p);
 						}
 
-						const childElement = ExplorerItem.create(addedElement, p.parent);
+						const childElement = ExplorerItem.create(this.fileService, addedElement, p.parent);
 						// Make sure to remove any previous version of the file if any
 						p.removeChild(childElement);
 						p.addChild(childElement);

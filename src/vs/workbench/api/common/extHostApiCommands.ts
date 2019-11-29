@@ -86,7 +86,7 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.prepareCallHierarchy', '_executePrepareCallHierarchy', 'Prepare call hierarchy at a position inside a document',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<ICallHierarchyItemDto, types.CallHierarchyItem>('A CallHierarchyItem or undefined', v => typeConverters.CallHierarchyItem.to(v))
+		new ApiCommandResult<ICallHierarchyItemDto[], types.CallHierarchyItem[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyItem.to))
 	),
 	new ApiCommand(
 		'vscode.provideIncomingCalls', '_executeProvideIncomingCalls', 'Compute incoming calls for an item',

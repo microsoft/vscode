@@ -382,7 +382,7 @@ export class BreadcrumbsControl {
 						editorViewState = withNullAsUndefined(editor.saveViewState());
 					}
 					const { symbol } = data.target;
-					editor.revealRangeInCenter(symbol.range, ScrollType.Smooth);
+					editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
 					editorDecorations = editor.deltaDecorations(editorDecorations, [{
 						range: symbol.range,
 						options: {

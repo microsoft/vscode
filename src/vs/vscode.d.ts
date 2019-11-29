@@ -3015,6 +3015,9 @@ declare module 'vscode' {
 		 * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol
 		 * which is being renamed - when omitted the text in the returned range is used.
 		 *
+		 * *Note: * This function should throw an error or return a rejected thenable when the provided location
+		 * doesn't allow for a rename.
+		 *
 		 * @param document The document in which rename will be invoked.
 		 * @param position The position at which rename will be invoked.
 		 * @param token A cancellation token.
@@ -4779,7 +4782,7 @@ declare module 'vscode' {
 		 *
 		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
 		 *
-		 * Where the icon-name is taken from the [octicon](https://octicons.github.com) icon set, e.g.
+		 * Where the icon-name is taken from the [codicon](https://microsoft.github.io/vscode-codicons/dist/codicon.html) icon set, e.g.
 		 * `light-bulb`, `thumbsup`, `zap` etc.
 		 */
 		text: string;
@@ -4843,7 +4846,7 @@ declare module 'vscode' {
 		/**
 		 * The process ID of the shell process.
 		 */
-		readonly processId: Thenable<number>;
+		readonly processId: Thenable<number | undefined>;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
@@ -4922,7 +4925,7 @@ declare module 'vscode' {
 		 * The extension kind describes if an extension runs where the UI runs
 		 * or if an extension runs where the remote extension host runs. The extension kind
 		 * is defined in the `package.json`-file of extensions but can also be refined
-		 * via the the `remote.extensionKind`-setting. When no remote extension host exists,
+		 * via the `remote.extensionKind`-setting. When no remote extension host exists,
 		 * the value is [`ExtensionKind.UI`](#ExtensionKind.UI).
 		 */
 		extensionKind: ExtensionKind;
@@ -7285,6 +7288,12 @@ declare module 'vscode' {
 		message?: string;
 
 		/**
+		 * The tree view title is initially taken from the extension package.json
+		 * Changes to the title property will be properly reflected in the UI in the title of the view.
+		 */
+		title?: string;
+
+		/**
 		 * Reveals the given element in the tree view.
 		 * If the tree view is not visible then the tree view is shown and element is revealed.
 		 *
@@ -9332,7 +9341,7 @@ declare module 'vscode' {
 		constructor(port: number, host?: string);
 	}
 
-	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer;
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterInlineImplementation;
 
 	export interface DebugAdapterDescriptorFactory {
 		/**
@@ -9530,6 +9539,13 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolSource {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+	}
+
+	/**
 	 * Namespace for debug functionality.
 	 */
 	export namespace debug {
@@ -9635,6 +9651,19 @@ declare module 'vscode' {
 		 * @param breakpoints The breakpoints to remove.
 		 */
 		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
+
+		/**
+		 * Converts a "Source" descriptor object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
+		 * If the source descriptor is based on a path, a file Uri is returned.
+		 * If the source descriptor uses a reference number, a specific debug Uri (scheme 'debug') is constructed that requires a corresponding VS Code ContentProvider and a running debug session
+		 *
+		 * If the "Source" descriptor has insufficient information for creating the Uri, an error is thrown.
+		 *
+		 * @param source An object conforming to the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+		 * @param session An optional debug session that will be used when the source descriptor uses a reference number to load the contents from an active debug session.
+		 * @return A uri that can be used to load the contents of the source.
+		 */
+		export function asDebugSourceUri(source: DebugProtocolSource, session?: DebugSession): Uri;
 	}
 
 	/**

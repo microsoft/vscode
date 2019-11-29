@@ -9,7 +9,7 @@ import * as encoding from 'vs/base/node/encoding';
 import { Readable } from 'stream';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-export async function detectEncodingByBOM(file: string): Promise<string | null> {
+export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
 		const { buffer, bytesRead } = await readExactlyByFile(file, 3);
 
@@ -86,7 +86,7 @@ suite('Encoding', () => {
 		const file = getPathFromAmdModule(require, './fixtures/some_utf8.css');
 
 		const detectedEncoding = await detectEncodingByBOM(file);
-		assert.equal(detectedEncoding, 'utf8');
+		assert.equal(detectedEncoding, 'utf8bom');
 	});
 
 	test('detectBOM UTF-16 LE', async () => {

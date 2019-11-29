@@ -17,8 +17,7 @@ import { IModeService, ILanguageSelection } from 'vs/editor/common/services/mode
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer } from 'vs/workbench/common/views';
-import { Schemas } from 'vs/base/common/network';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, IEditableData } from 'vs/workbench/common/views';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
@@ -35,11 +34,6 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  * Explorer viewlet container.
  */
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
-
-export interface IEditableData {
-	validationMessage: (value: string) => string | null;
-	onFinish: (value: string, success: boolean) => void;
-}
 
 export interface IExplorerService {
 	_serviceBrand: undefined;
@@ -254,10 +248,6 @@ export class OpenEditor implements IEditorIdentifier {
 
 	isPreview(): boolean {
 		return this._group.previewEditor === this.editor;
-	}
-
-	isUntitled(): boolean {
-		return !!toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER, filterByScheme: Schemas.untitled });
 	}
 
 	isDirty(): boolean {

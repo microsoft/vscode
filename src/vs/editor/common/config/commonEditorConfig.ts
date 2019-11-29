@@ -256,6 +256,13 @@ function migrateOptions(options: IEditorOptions): void {
 			enabled: false
 		};
 	}
+
+	const autoIndent = options.autoIndent;
+	if (<any>autoIndent === true) {
+		options.autoIndent = 'full';
+	} else if (<any>autoIndent === false) {
+		options.autoIndent = 'advanced';
+	}
 }
 
 function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {

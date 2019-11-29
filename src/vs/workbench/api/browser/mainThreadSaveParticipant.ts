@@ -307,7 +307,7 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		for (const codeActionKind of codeActionsOnSave) {
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, token);
 			try {
-				await this.applyCodeActions(actionsToRun.actions);
+				await this.applyCodeActions(actionsToRun.validActions);
 			} catch {
 				// Failure to apply a code action should not block other on save actions
 			} finally {

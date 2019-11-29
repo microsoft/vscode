@@ -143,7 +143,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 }
 
-async function deleteFiles(textFileService: ITextFileService, dialogService: IDialogService, configurationService: IConfigurationService, fileService: IFileService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
+async function deleteFiles(textFileService: ITextFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
 		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
@@ -239,7 +239,7 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 			}
 
 			// Call function
-			const servicePromise = Promise.all(distinctElements.map(e => fileService.del(e.resource, { useTrash: useTrash, recursive: true })))
+			const servicePromise = Promise.all(distinctElements.map(e => textFileService.delete(e.resource, { useTrash: useTrash, recursive: true })))
 				.then(undefined, (error: any) => {
 					// Handle error to delete file(s) from a modal confirmation dialog
 					let errorMessage: string;
@@ -268,14 +268,14 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 
 							skipConfirm = true;
 
-							return deleteFiles(textFileService, dialogService, configurationService, fileService, elements, useTrash, skipConfirm);
+							return deleteFiles(textFileService, dialogService, configurationService, elements, useTrash, skipConfirm);
 						}
 
 						return Promise.resolve();
 					});
 				});
 
-			return servicePromise;
+			return servicePromise.then(undefined);
 		});
 	});
 }
@@ -937,17 +937,21 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 	});
 };
 
-export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
+export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
-	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, true);
+	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+	if (stats.length) {
+		await deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
+	}
 };
 
-export const deleteFileHandler = (accessor: ServicesAccessor) => {
+export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 
-	return deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), accessor.get(IFileService), stats, false);
+	if (stats.length) {
+		await deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
+	}
 };
 
 let pasteShouldMove = false;
@@ -971,7 +975,7 @@ export const cutFileHandler = (accessor: ServicesAccessor) => {
 
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
 const downloadFileHandler = (accessor: ServicesAccessor) => {
-	const fileService = accessor.get(IFileService);
+	const textFileService = accessor.get(ITextFileService);
 	const fileDialogService = accessor.get(IFileDialogService);
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true);
@@ -994,7 +998,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				defaultUri
 			});
 			if (destination) {
-				await fileService.copy(s.resource, destination);
+				await textFileService.copy(s.resource, destination);
 			}
 		}
 	});
@@ -1043,10 +1047,10 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			if (pasteShouldMove) {
 				return await textFileService.move(fileToPaste, targetFile);
 			} else {
-				return await fileService.copy(fileToPaste, targetFile);
+				return await textFileService.copy(fileToPaste, targetFile);
 			}
 		} catch (e) {
-			onError(notificationService, new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile. {0}", getErrorMessage(e))));
+			onError(notificationService, new Error(nls.localize('fileDeleted', "The file to paste has been deleted or moved since you copied it. {0}", getErrorMessage(e))));
 			return undefined;
 		}
 	}));

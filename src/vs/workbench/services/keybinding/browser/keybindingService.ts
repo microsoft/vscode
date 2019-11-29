@@ -193,13 +193,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 		});
 		this._register(this.userKeybindings.onDidChange(() => {
-			type CustomKeybindingsChangedClassification = {
-				keyCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true }
-			};
-
-			this._telemetryService.publicLog2<{ keyCount: number }, CustomKeybindingsChangedClassification>('customKeybindingsChanged', {
-				keyCount: this.userKeybindings.keybindings.length
-			});
 			this.updateResolver({
 				source: KeybindingSource.User,
 				keybindings: this.userKeybindings.keybindings
@@ -229,6 +222,28 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}));
 
 		let data = this.keymapService.getCurrentKeyboardLayout();
+		/* __GDPR__FRAGMENT__
+			"IKeyboardLayoutInfo" : {
+				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		/* __GDPR__FRAGMENT__
+			"IKeyboardLayoutInfo" : {
+				"model" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"layout": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"variant": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"options": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"rules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		/* __GDPR__FRAGMENT__
+			"IKeyboardLayoutInfo" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		/* __GDPR__
 			"keyboardLayout" : {
 				"currentKeyboardLayout": { "${inline}": [ "${IKeyboardLayoutInfo}" ] }

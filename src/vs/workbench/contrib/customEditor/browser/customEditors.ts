@@ -6,9 +6,8 @@
 import { coalesce, distinct, find, mergeSort } from 'vs/base/common/arrays';
 import * as glob from 'vs/base/common/glob';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, UnownedDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename, DataUri, isEqual } from 'vs/base/common/resources';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
@@ -31,7 +30,6 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CustomFileEditorInput } from './customEditorInput';
-
 const defaultEditorId = 'default';
 
 const defaultEditorInfo: CustomEditorInfo = {
@@ -203,7 +201,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	): CustomFileEditorInput {
 		const id = generateUuid();
 		const webview = new Lazy(() => {
-			return new UnownedDisposable(this.webviewService.createWebviewEditorOverlay(id, { customClasses: options?.customClasses }, {}));
+			return this.webviewService.createWebviewEditorOverlay(id, { customClasses: options?.customClasses }, {});
 		});
 		const input = this.instantiationService.createInstance(CustomFileEditorInput, resource, viewType, id, webview);
 		if (group) {
@@ -408,18 +406,6 @@ function priorityToRank(priority: CustomEditorPriority): number {
 }
 
 function matches(selector: CustomEditorSelector, resource: URI): boolean {
-	if (resource.scheme === Schemas.data) {
-		if (!selector.mime) {
-			return false;
-		}
-		const metadata = DataUri.parseMetaData(resource);
-		const mime = metadata.get(DataUri.META_DATA_MIME);
-		if (!mime) {
-			return false;
-		}
-		return glob.match(selector.mime, mime.toLowerCase());
-	}
-
 	if (selector.filenamePattern) {
 		if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
 			return true;

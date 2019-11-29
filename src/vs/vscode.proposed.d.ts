@@ -130,7 +130,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// #region Joh - code insets
+	//#region editor insets: https://github.com/microsoft/vscode/issues/85682
 
 	export interface WebviewEditorInset {
 		readonly editor: TextEditor;
@@ -147,7 +147,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh - read/write in chunks
+	//#region read/write in chunks: https://github.com/microsoft/vscode/issues/84515
 
 	export interface FileSystemProvider {
 		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
@@ -528,7 +528,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: diff command
+	//#region diff command: https://github.com/microsoft/vscode/issues/84899
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -561,7 +561,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: decorations
+	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
 	export class Decoration {
 		letter?: string;
@@ -585,26 +585,32 @@ declare module 'vscode' {
 	//#region André: debug
 
 	/**
-	 * A DebugSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
 	 */
-	export interface DebugSource {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+	export interface DebugProtocolMessage {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
 	}
 
-	export namespace debug {
+	/**
+	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements this interface.
+	 */
+	export interface DebugAdapter {
+
+		readonly onSendMessage: Event<DebugProtocolMessage>;
+		readonly onError: Event<Error>;
+
+		handleMessage(message: DebugProtocolMessage): void;
+	}
+
+	/**
+	 * A debug adapter descriptor for an inline implementation.
+	 */
+	export class DebugAdapterInlineImplementation {
 
 		/**
-		 * Converts a "Source" descriptor object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
-		 * If the source descriptor is based on a path, a file Uri is returned.
-		 * If the source descriptor uses a reference number, a specific debug Uri (scheme 'debug') is constructed that requires a corresponding VS Code ContentProvider and a running debug session
-		 *
-		 * If the "Source" descriptor has insufficient information for creating the Uri, an error is thrown.
-		 *
-		 * @param source An object conforming to the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
-		 * @param session An optional debug session that will be used when the source descriptor uses a reference number to load the contents from an active debug session.
-		 * @return A uri that can be used to load the contents of the source.
+		 * Create a descriptor for an inline implementation of a debug adapter.
 		 */
-		export function asDebugSourceUri(source: DebugSource, session?: DebugSession): Uri;
+		constructor(implementation: DebugAdapter);
 	}
 
 	// deprecated
@@ -730,22 +736,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-	//#region Terminal
-
-	/**
-	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
-	 */
-	export interface TerminalDimensionsChangeEvent {
-		/**
-		 * The [terminal](#Terminal) for which the dimensions have changed.
-		 */
-		readonly terminal: Terminal;
-		/**
-		 * The new value for the [terminal's dimensions](#Terminal.dimensions).
-		 */
-		readonly dimensions: TerminalDimensions;
-	}
+	//#region Terminal data write event https://github.com/microsoft/vscode/issues/78502
 
 	export interface TerminalDataWriteEvent {
 		/**
@@ -758,6 +749,19 @@ declare module 'vscode' {
 		readonly data: string;
 	}
 
+	namespace window {
+		/**
+		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
+		 * words, this provides access to the raw data stream from the process running within the
+		 * terminal, including VT sequences.
+		 */
+		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
+	}
+
+	//#endregion
+
+	//#region Terminal exit status https://github.com/microsoft/vscode/issues/62103
+
 	export interface TerminalExitStatus {
 		/**
 		 * The exit code that a terminal exited with, it can have the following values:
@@ -769,35 +773,7 @@ declare module 'vscode' {
 		readonly code: number | undefined;
 	}
 
-	namespace window {
-		/**
-		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
-		 */
-		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
-
-		/**
-		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
-		 * words, this provides access to the raw data stream from the process running within the
-		 * terminal, including VT sequences.
-		 */
-		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
-	}
-
 	export interface Terminal {
-		/**
-		 * The object used to initialize the terminal, this is useful for things like detecting the
-		 * shell type of shells not launched by the extension or detecting what folder the shell was
-		 * launched in.
-		 */
-		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
-
-		/**
-		 * The current dimensions of the terminal. This will be `undefined` immediately after the
-		 * terminal is created as the dimensions are not known until shortly after the terminal is
-		 * created.
-		 */
-		readonly dimensions: TerminalDimensions | undefined;
-
 		/**
 		 * The exit status of the terminal, this will be undefined while the terminal is active.
 		 *
@@ -816,6 +792,53 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal creation options https://github.com/microsoft/vscode/issues/63052
+
+	export interface Terminal {
+		/**
+		 * The object used to initialize the terminal, this is useful for things like detecting the
+		 * shell type of shells not launched by the extension or detecting what folder the shell was
+		 * launched in.
+		 */
+		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+	}
+
+	//#endregionn
+
+	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
+
+	/**
+	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
+	 */
+	export interface TerminalDimensionsChangeEvent {
+		/**
+		 * The [terminal](#Terminal) for which the dimensions have changed.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The new value for the [terminal's dimensions](#Terminal.dimensions).
+		 */
+		readonly dimensions: TerminalDimensions;
+	}
+
+	namespace window {
+		/**
+		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
+		 */
+		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
+	}
+
+	export interface Terminal {
+		/**
+		 * The current dimensions of the terminal. This will be `undefined` immediately after the
+		 * terminal is created as the dimensions are not known until shortly after the terminal is
+		 * created.
+		 */
+		readonly dimensions: TerminalDimensions | undefined;
+	}
+
+	//#endregion
+
 	//#region Joh -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -826,6 +849,53 @@ declare module 'vscode' {
 
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
 
+	/**
+	 * An event that is fired when files are going to be created.
+	 *
+	 * To make modifications to the workspace before the files are created,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillCreateEvent {
+
+		/**
+		 * The files that are going to be created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	/**
+	 * An event that is fired after files are created.
+	 */
 	export interface FileCreateEvent {
 
 		/**
@@ -834,17 +904,53 @@ declare module 'vscode' {
 		readonly files: ReadonlyArray<Uri>;
 	}
 
-	export interface FileWillCreateEvent {
+	/**
+	 * An event that is fired when files are going to be deleted.
+	 *
+	 * To make modifications to the workspace before the files are deleted,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillDeleteEvent {
 
 		/**
-		 * The files that are going to be created.
+		 * The files that are going to be deleted.
 		 */
 		readonly files: ReadonlyArray<Uri>;
 
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
 		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
 		waitUntil(thenable: Thenable<any>): void;
 	}
 
+	/**
+	 * An event that is fired after files are deleted.
+	 */
 	export interface FileDeleteEvent {
 
 		/**
@@ -853,17 +959,53 @@ declare module 'vscode' {
 		readonly files: ReadonlyArray<Uri>;
 	}
 
-	export interface FileWillDeleteEvent {
+	/**
+	 * An event that is fired when files are going to be renamed.
+	 *
+	 * To make modifications to the workspace before the files are renamed,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillRenameEvent {
 
 		/**
-		 * The files that are going to be deleted.
+		 * The files that are going to be renamed.
 		 */
-		readonly files: ReadonlyArray<Uri>;
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
 		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
 		waitUntil(thenable: Thenable<any>): void;
 	}
 
+	/**
+	 * An event that is fired after files are renamed.
+	 */
 	export interface FileRenameEvent {
 
 		/**
@@ -872,51 +1014,76 @@ declare module 'vscode' {
 		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
-	export interface FileWillRenameEvent {
-
-		/**
-		 * The files that are going to be renamed.
-		 */
-		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
-		waitUntil(thenable: Thenable<any>): void;
-	}
-
 	export namespace workspace {
 
 		/**
 		 * An event that is emitted when files are being created.
 		 *
-		 * *Note* that this event is triggered by user gestures, like creating a file from the
+		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
 		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When this event is fired, edits to files thare are being created cannot be applied.
 		 */
 		export const onWillCreateFiles: Event<FileWillCreateEvent>;
 
 		/**
-		 * An event that is emitted when files are being deleted.
+		 * An event that is emitted when files have been created.
 		 *
-		 * *Note* that this event is triggered by user gestures, like deleting a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
+		 * *Note:* This event is triggered by user gestures, like creating a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * [`workspace.fs`](#FileSystem)-api.
+		 */
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+
+		/**
+		 * An event that is emitted when files are being deleted.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When deleting a folder with children only one event is fired.
 		 */
 		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
 
 		/**
-		 * An event that is emitted when files are being renamed.
+		 * An event that is emitted when files have been deleted.
 		 *
-		 * *Note* that this event is triggered by user gestures, like renaming a file from the
-		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
+		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When deleting a folder with children only one event is fired.
+		 */
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+
+		/**
+		 * An event that is emitted when files are being renamed.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
+		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When renaming a folder with children only one event is fired.
 		 */
 		export const onWillRenameFiles: Event<FileWillRenameEvent>;
 
-		export const onDidCreateFiles: Event<FileCreateEvent>;
-		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+		/**
+		 * An event that is emitted when files have been renamed.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
+		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When renaming a folder with children only one event is fired.
+		 */
 		export const onDidRenameFiles: Event<FileRenameEvent>;
 	}
 	//#endregion
@@ -930,16 +1097,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree View
-
-	export interface TreeView<T> {
-		/**
-		 * The tree view title is initially taken from the extension package.json
-		 * Changes to the title property will be properly reflected in the UI in the title of the view.
-		 */
-		title?: string;
-	}
-
+	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
@@ -972,9 +1130,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region CustomExecution
-
-
+	//#region CustomExecution: https://github.com/microsoft/vscode/issues/81007
 	/**
 	 * A task to execute
 	 */
@@ -993,7 +1149,9 @@ declare module 'vscode' {
 		 */
 		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
+	//#endregion
 
+	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
@@ -1002,7 +1160,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	// #region Ben - status bar item with ID and Name
+	//#region Ben - status bar item with ID and Name
 
 	export namespace window {
 
@@ -1050,7 +1208,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// #region Ben - extension auth flow (desktop+web)
+	//#region Ben - extension auth flow (desktop+web)
 
 	export interface AppUriOptions {
 		payload?: {
@@ -1070,10 +1228,10 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Custom editors, mjbvz
+	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	/**
-	 *
+	 * Defines how a webview editor interacts with VS Code.
 	 */
 	interface WebviewEditorCapabilities {
 		/**
@@ -1088,26 +1246,43 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable that signals the save is complete.
 		 */
-		rename?(newResource: Uri): Thenable<void>;
+		// rename?(newResource: Uri): Thenable<void>;
 
+		/**
+		 * Controls the editing functionality of a webview editor. This allows the webview editor to hook into standard
+		 * editor events such as `undo` or `save`.
+		 *
+		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
+		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
+		 */
 		readonly editingCapability?: WebviewEditorEditingCapability;
 	}
 
+	/**
+	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
+	 * editor events such as `undo` or `save`.
+	 */
 	interface WebviewEditorEditingCapability {
 		/**
 		 * Persist the resource.
+		 *
+		 * Extensions should persist the resource
+		 *
+		 * @return Thenable signaling that the save has completed.
 		 */
 		save(): Thenable<void>;
 
 		/**
-		 * Called when the editor exits.
+		 *
+		 * @param resource Resource being saved.
+		 * @param targetResource Location to save to.
 		 */
-		hotExit(hotExitPath: Uri): Thenable<void>;
+		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
 
 		/**
-		 * Signal to VS Code that an edit has occurred.
+		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 *
-		 * Edits must be a json serilizable object.
+		 * The edit must be a json serializable object.
 		 */
 		readonly onEdit: Event<any>;
 
@@ -1119,7 +1294,7 @@ declare module 'vscode' {
 		 *
 		 * @param edit Array of edits. Sorted from oldest to most recent.
 		 */
-		applyEdits(edits: any[]): Thenable<void>;
+		applyEdits(edits: readonly any[]): Thenable<void>;
 
 		/**
 		 * Undo a set of edits.
@@ -1128,19 +1303,21 @@ declare module 'vscode' {
 		 *
 		 * @param edit Array of edits. Sorted from most recent to oldest.
 		 */
-		undoEdits(edits: any[]): Thenable<void>;
+		undoEdits(edits: readonly any[]): Thenable<void>;
 	}
 
 	export interface WebviewEditorProvider {
 		/**
-		 * Fills out a `WebviewEditor` for a given resource.
+		 * Resolve a webview editor for a given resource.
+		 *
+		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
+		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
 		 *
 		 * @param input Information about the resource being resolved.
 		 * @param webview Webview being resolved. The provider should take ownership of this webview.
 		 *
 		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
 		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
-		 *   **❗️Note**: `WebviewEditorCapabilities` is not actually implemented... yet!
 		 */
 		resolveWebviewEditor(
 			input: {
@@ -1151,6 +1328,15 @@ declare module 'vscode' {
 	}
 
 	namespace window {
+		/**
+		 * Register a new provider for webview editors of a given type.
+		 *
+		 * @param viewType  Type of the webview editor provider.
+		 * @param provider Resolves webview editors.
+		 * @param options Content settings for a webview panels the provider is given.
+		 *
+		 * @return Disposable that unregisters the `WebviewEditorProvider`.
+		 */
 		export function registerWebviewEditorProvider(
 			viewType: string,
 			provider: WebviewEditorProvider,
@@ -1160,7 +1346,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region joh, insert/replace completions: https://github.com/microsoft/vscode/issues/10266
+	//#region insert/replace completions: https://github.com/microsoft/vscode/issues/10266
 
 	export interface CompletionItem {
 
@@ -1180,13 +1366,27 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region chrmarti, pelmers - allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
+	//#region allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
 
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 		/**
 		* An optional flag to sort the final results by index of first query match in label. Defaults to true.
 		*/
 		sortByLabel: boolean;
+	}
+
+	//#endregion
+
+	//#region Surfacing reasons why a code action cannot be applied to users: https://github.com/microsoft/vscode/issues/85160
+
+	export interface CodeAction {
+		/**
+		 * Marks that the code action cannot currently be applied.
+		 *
+		 * This should be a human readable description of why the code action is currently disabled. Disabled code actions
+		 * will be surfaced in the refactor UI but cannot be applied.
+		 */
+		disabled?: string;
 	}
 
 	//#endregion

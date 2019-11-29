@@ -216,7 +216,7 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}
 
-		if (model?.isReadonly()) {
+		if (this.isReadonly()) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
 

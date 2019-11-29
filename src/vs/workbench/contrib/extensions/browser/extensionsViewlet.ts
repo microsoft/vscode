@@ -46,7 +46,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
-import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -526,13 +526,13 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 		this.defaultViewsContextKey.set(!value);
 
-		return this.progress(Promise.all(this.panels.map(view =>
+		return this.progress(Promise.all(this.panes.map(view =>
 			(<ExtensionsListView>view).show(this.normalizedQuery())
 				.then(model => this.alertSearchResult(model.length, view.id))
 		))).then(() => undefined);
 	}
 
-	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
+	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPane[] {
 		const addedViews = super.onDidAddViews(added);
 		this.progress(Promise.all(addedViews.map(addedView =>
 			(<ExtensionsListView>addedView).show(this.normalizedQuery())
@@ -563,12 +563,12 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private count(): number {
-		return this.panels.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
+		return this.panes.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
 	}
 
 	private focusListView(): void {
 		if (this.count() > 0) {
-			this.panels[0].focus();
+			this.panes[0].focus();
 		}
 	}
 

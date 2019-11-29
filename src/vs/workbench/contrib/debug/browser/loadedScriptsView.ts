@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { normalize, isAbsolute, posix } from 'vs/base/common/path';
-import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IViewletPaneOptions, ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -388,7 +388,7 @@ class SessionTreeItem extends BaseTreeItem {
 	}
 }
 
-export class LoadedScriptsView extends ViewletPanel {
+export class LoadedScriptsView extends ViewletPane {
 
 	private treeContainer!: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
@@ -411,7 +411,7 @@ export class LoadedScriptsView extends ViewletPanel {
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 

@@ -276,3 +276,11 @@
 	border-radius: 3px;
 	padding: 0 0.4em;
 }
+
+
+/* replace/insert decorations */
+
+.monaco-editor .suggest-insert-unexpected {
+	font-style: italic;
+}
+

@@ -10,7 +10,7 @@ import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTI
 import { SyncActionDescriptor, MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { openWindowCommand, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, DirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, newWindowCommand, SaveableEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { openWindowCommand, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, DirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, newWindowCommand, ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -21,14 +21,13 @@ import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOS
 import { AutoSaveAfterShortDelayContext } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
-import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { WorkspaceFolderCountContext, IsWebContext } from 'vs/workbench/browser/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ActiveEditorIsSaveableContext, DirtyWorkingCopiesContext, ActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorIsReadonlyContext, DirtyWorkingCopiesContext, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
-import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // Contribute Global Actions
 const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
@@ -77,7 +76,7 @@ const MOVE_FILE_TO_TRASH_ID = 'moveFileToTrash';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: MOVE_FILE_TO_TRASH_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext, ExplorerResourceMoveableToTrash),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, ExplorerResourceMoveableToTrash),
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
@@ -89,7 +88,7 @@ const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
@@ -100,7 +99,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext, ExplorerResourceMoveableToTrash.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, ExplorerResourceMoveableToTrash.toNegated()),
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
@@ -181,23 +180,17 @@ export function appendEditorTitleContextMenuItem(id: string, title: string, when
 }
 
 // Editor Title Menu for Conflict Resolution
-appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), {
-	light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/files/browser/media/check-light.svg`)),
-	dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/files/browser/media/check-dark.svg`))
-}, -10, acceptLocalChangesCommand);
-appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), {
-	light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/files/browser/media/undo-light.svg`)),
-	dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/files/browser/media/undo-dark.svg`))
-}, -9, revertLocalChangesCommand);
+appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), { id: 'codicon/check' }, -10, acceptLocalChangesCommand);
+appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), { id: 'codicon/discard' }, -9, revertLocalChangesCommand);
 
-function appendSaveConflictEditorTitleAction(id: string, title: string, iconLocation: { dark: URI; light?: URI; }, order: number, command: ICommandHandler): void {
+function appendSaveConflictEditorTitleAction(id: string, title: string, icon: ThemeIcon, order: number, command: ICommandHandler): void {
 
 	// Command
 	CommandsRegistry.registerCommand(id, command);
 
 	// Action
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-		command: { id, title, iconLocation },
+		command: { id, title, icon },
 		when: ContextKeyExpr.equals(CONFLICT_RESOLUTION_CONTEXT, true),
 		group: 'navigation',
 		order
@@ -274,7 +267,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 			// Not: editor groups
 			OpenEditorsGroupContext.toNegated(),
 			// Not: readonly editors
-			SaveableEditorContext,
+			ReadonlyEditorContext.toNegated(),
 			// Not: auto save after short delay
 			AutoSaveAfterShortDelayContext.toNegated()
 		)
@@ -293,7 +286,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		// Not: editor groups
 		OpenEditorsGroupContext.toNegated(),
 		// Not: readonly editors
-		SaveableEditorContext,
+		ReadonlyEditorContext.toNegated(),
 		// Not: untitled editors (revert closes them)
 		ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled),
 		// Not: auto save after short delay
@@ -580,7 +573,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
 		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-		precondition: ContextKeyExpr.or(ActiveEditorIsSaveableContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(ActiveEditorIsReadonlyContext.toNegated(), ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
 	},
 	order: 1
 });
@@ -659,7 +652,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: REVERT_FILE_COMMAND_ID,
 		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"),
-		precondition: ContextKeyExpr.or(ActiveEditorIsSaveableContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(ActiveEditorIsReadonlyContext.toNegated(), ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
 	},
 	order: 1
 });

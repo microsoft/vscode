@@ -47,7 +47,7 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 
 	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
 	if (!services.has(ITextModelService)) {
-		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
+		simpleEditorModelResolverService = new SimpleEditorModelResolverService(StaticServices.modelService.get());
 		services.set(ITextModelService, simpleEditorModelResolverService);
 	}
 

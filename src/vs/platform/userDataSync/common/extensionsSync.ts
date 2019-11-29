@@ -69,11 +69,14 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	}
 
 	async sync(): Promise<boolean> {
-		if (!this.configurationService.getValue<boolean>('configurationSync.enableExtensions')) {
+		if (!this.configurationService.getValue<boolean>('sync.enableExtensions')) {
 			this.logService.trace('Extensions: Skipping synchronizing extensions as it is disabled.');
 			return false;
 		}
-
+		if (!this.extensionGalleryService.isEnabled()) {
+			this.logService.trace('Extensions: Skipping synchronizing extensions as gallery is disabled.');
+			return false;
+		}
 		if (this.status !== SyncStatus.Idle) {
 			this.logService.trace('Extensions: Skipping synchronizing extensions as it is running already.');
 			return false;
@@ -105,7 +108,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		return this.replaceQueue.queue(async () => {
 			const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, null);
 			const remoteExtensions: ISyncExtension[] = remoteData.content ? JSON.parse(remoteData.content) : [];
-			const ignoredExtensions = this.configurationService.getValue<string[]>('configurationSync.extensionsToIgnore') || [];
+			const ignoredExtensions = this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
 			const removedExtensions = remoteExtensions.filter(e => !ignoredExtensions.some(id => areSameExtensions({ id }, e.identifier)) && areSameExtensions(e.identifier, identifier));
 			if (removedExtensions.length) {
 				for (const removedExtension of removedExtensions) {
@@ -159,7 +162,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 	 * - Update remote with those local extension which are newly added or updated or removed and untouched in remote.
 	 */
 	private merge(localExtensions: ISyncExtension[], remoteExtensions: ISyncExtension[] | null, lastSyncExtensions: ISyncExtension[] | null): { added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], remote: ISyncExtension[] | null } {
-		const ignoredExtensions = this.configurationService.getValue<string[]>('configurationSync.extensionsToIgnore') || [];
+		const ignoredExtensions = this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
 		// First time sync
 		if (!remoteExtensions) {
 			this.logService.info('Extensions: Remote extensions does not exist. Synchronizing extensions for the first time.');

@@ -46,15 +46,6 @@
 }
 
 
-.monaco-workbench .dialog-box .dialog-close-action {
-	background: url('close-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-close-action,
-.hc-black .monaco-workbench .dialog-box .dialog-close-action {
-	background: url('close-dark.svg') center center no-repeat;
-}
-
 /** Dialog: Message Row */
 .monaco-workbench .dialog-box .dialog-message-row {
 	display: flex;
@@ -63,56 +54,11 @@
 	padding: 0 10px;
 }
 
-.monaco-workbench .dialog-box .dialog-message-row .dialog-icon {
+.monaco-workbench .dialog-box .dialog-message-row > .codicon {
 	flex: 0 0 48px;
 	height: 48px;
 	align-self: baseline;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 48px;
-}
-
-.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
-	background-image: url('pending.svg');
-}
-
-.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info {
-	background-image: url('info-light.svg');
-}
-
-.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning {
-	background-image: url('warning-light.svg');
-}
-
-.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error {
-	background-image: url('error-light.svg');
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
-	background-image: url('pending-dark.svg');
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info,
-.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info {
-	background-image: url('info-dark.svg');
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning,
-.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning {
-	background-image: url('warning-dark.svg');
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error,
-.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error {
-	background-image: url('error-dark.svg');
-}
-
-.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
-	background-image: url('pending-hc.svg');
-}
-
-.monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
-	background-size: 30px;
+	font-size: 48px;
 }
 
 /** Dialog: Message Container */
@@ -136,6 +82,10 @@
 	flex: 1; /* let the message always grow */
 	white-space: normal;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
+	min-height: 48px; /* matches icon height */
+	margin-bottom: 8px;
+	display: flex;
+	align-items: center;
 }
 
 /** Dialog: Details */
@@ -143,7 +93,6 @@
 	line-height: 22px;
 	flex: 1; /* let the message always grow */
 	opacity: .9;
-	margin-top: 8px;
 }
 
 .monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {

@@ -20,9 +20,13 @@ import { formatError, runSafe, runSafeAsync } from './utils/runner';
 
 import { getFoldingRanges } from './modes/htmlFolding';
 import { getDataProviders } from './customData';
+import { getSelectionRanges } from './modes/selectionRanges';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
+}
+namespace MatchingTagPositionRequest {
+	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
 }
 
 // Create a connection for the server
@@ -136,6 +140,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		colorProvider: {},
 		foldingRangeProvider: true,
 		selectionRangeProvider: true,
+		renameProvider: true
 	};
 	return { capabilities };
 });
@@ -457,18 +462,43 @@ connection.onFoldingRanges((params, token) => {
 connection.onSelectionRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
-		const positions: Position[] = params.positions;
-
 		if (document) {
-			const htmlMode = languageModes.getMode('html');
-			if (htmlMode && htmlMode.getSelectionRanges) {
-				return htmlMode.getSelectionRanges(document, positions);
-			}
+			return getSelectionRanges(languageModes, document, params.positions);
 		}
 		return [];
 	}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 });
 
+connection.onRenameRequest((params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		const position: Position = params.position;
+
+		if (document) {
+			const htmlMode = languageModes.getMode('html');
+			if (htmlMode && htmlMode.doRename) {
+				return htmlMode.doRename(document, position, params.newName);
+			}
+		}
+		return null;
+	}, null, `Error while computing rename for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest(MatchingTagPositionRequest.type, (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			const pos = params.position;
+			if (pos.character > 0) {
+				const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+				if (mode && mode.findMatchingTagPosition) {
+					return mode.findMatchingTagPosition(document, pos);
+				}
+			}
+		}
+		return null;
+	}, null, `Error while computing matching tag position for ${params.textDocument.uri}`, token);
+});
 
 // Listen on the connection
 connection.listen();

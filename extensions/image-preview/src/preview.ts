@@ -13,7 +13,7 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 const localize = nls.loadMessageBundle();
 
 
-export class PreviewManager {
+export class PreviewManager implements vscode.WebviewEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
@@ -27,11 +27,11 @@ export class PreviewManager {
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) { }
 
-	public resolve(
-		resource: vscode.Uri,
+	public async resolveWebviewEditor(
+		input: { readonly resource: vscode.Uri, },
 		webviewEditor: vscode.WebviewPanel,
-	): vscode.WebviewEditorCapabilities {
-		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
+	): Promise<vscode.WebviewEditorCapabilities> {
+		const preview = new Preview(this.extensionRoot, input.resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 
@@ -45,9 +45,7 @@ export class PreviewManager {
 			}
 		});
 
-		return {
-			editingCapability: preview
-		};
+		return {};
 	}
 
 	public get activePreview() { return this._activePreview; }
@@ -68,7 +66,7 @@ const enum PreviewState {
 	Active,
 }
 
-class Preview extends Disposable implements vscode.WebviewEditorEditingCapability {
+class Preview extends Disposable {
 
 	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
 
@@ -240,9 +238,9 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 			default:
 				// Avoid adding cache busting if there is already a query string
 				if (resource.query) {
-					return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString());
+					return webviewEditor.webview.asWebviewUri(resource).toString(true);
 				}
-				return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString() + `?version=${version}`);
+				return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString(true);
 		}
 	}
 
@@ -250,24 +248,6 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 		return this.webviewEditor.webview.asWebviewUri(this.extensionRoot.with({
 			path: this.extensionRoot.path + path
 		}));
-	}
-
-	//#region WebviewEditorCapabilities
-	private readonly _onEdit = this._register(new vscode.EventEmitter<{ now: number }>());
-	public readonly onEdit = this._onEdit.event;
-
-	async save() { console.log('save'); }
-
-	async hotExit() { }
-
-	async undoEdits(edits: any[]) { console.log('undo', edits); }
-
-	async applyEdits(edits: any[]) { console.log('apply', edits); }
-
-	//#endregion
-
-	public test_makeEdit() {
-		this._onEdit.fire({ now: Date.now() });
 	}
 }
 

@@ -117,7 +117,7 @@ export class LabelService implements ILabelService {
 					return;
 				}
 
-				if (match(formatter.authority, resource.authority) && (!bestResult || !bestResult.authority || formatter.authority.length > bestResult.authority.length || ((formatter.authority.length === bestResult.authority.length) && formatter.priority))) {
+				if (match(formatter.authority.toLowerCase(), resource.authority.toLowerCase()) && (!bestResult || !bestResult.authority || formatter.authority.length > bestResult.authority.length || ((formatter.authority.length === bestResult.authority.length) && formatter.priority))) {
 					bestResult = formatter;
 				}
 			}

@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -103,7 +103,7 @@ export class CursorConfiguration {
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
-	public readonly autoIndent: boolean;
+	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairsOpen2: Map<string, StandardAutoClosingPairConditional[]>;
 	public readonly autoClosingPairsClose2: Map<string, StandardAutoClosingPairConditional[]>;
 	public readonly surroundingPairs: CharacterMap;
@@ -523,12 +523,15 @@ export class CursorColumns {
 			if (codePoint === CharCode.Tab) {
 				result = CursorColumns.nextRenderTabStop(result, tabSize);
 			} else {
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
 				while (i < endOffset) {
 					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-					if (!strings.isUnicodeMark(nextCodePoint)) {
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
 						break;
 					}
 					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+					graphemeBreakType = nextGraphemeBreakType;
 				}
 				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
 					result = result + 2;
@@ -582,12 +585,15 @@ export class CursorColumns {
 			if (codePoint === CharCode.Tab) {
 				afterVisibleColumn = CursorColumns.nextRenderTabStop(beforeVisibleColumn, tabSize);
 			} else {
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
 				while (i < lineLength) {
 					const nextCodePoint = strings.getNextCodePoint(lineContent, lineLength, i);
-					if (!strings.isUnicodeMark(nextCodePoint)) {
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
 						break;
 					}
 					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+					graphemeBreakType = nextGraphemeBreakType;
 				}
 				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
 					afterVisibleColumn = beforeVisibleColumn + 2;

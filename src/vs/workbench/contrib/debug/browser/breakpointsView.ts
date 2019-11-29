@@ -28,10 +28,11 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { Gesture } from 'vs/base/browser/touch';
 
 const $ = dom.$;
 
@@ -39,11 +40,12 @@ function createCheckbox(): HTMLInputElement {
 	const checkbox = <HTMLInputElement>$('input');
 	checkbox.type = 'checkbox';
 	checkbox.tabIndex = -1;
+	Gesture.ignoreTarget(checkbox);
 
 	return checkbox;
 }
 
-export class BreakpointsView extends ViewletPanel {
+export class BreakpointsView extends ViewletPane {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
 	private list!: WorkbenchList<IEnablement>;
@@ -61,7 +63,7 @@ export class BreakpointsView extends ViewletPanel {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));

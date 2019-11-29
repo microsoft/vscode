@@ -116,7 +116,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol, extHostLogService));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
-	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostDocumentsAndEditors));
+	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostLogService, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
@@ -789,8 +789,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			removeBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.removeBreakpoints(breakpoints);
 			},
-			asDebugSourceUri(source: vscode.DebugSource, session?: vscode.DebugSession): vscode.Uri {
-				checkProposedApiEnabled(extension);
+			asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri {
 				return extHostDebugService.asDebugSourceUri(source, session);
 			}
 		};
@@ -857,6 +856,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			DebugAdapterServer: extHostTypes.DebugAdapterServer,
+			DebugAdapterInlineImplementation: extHostTypes.DebugAdapterInlineImplementation,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,

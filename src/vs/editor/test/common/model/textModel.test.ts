@@ -755,7 +755,7 @@ suite('Editor Model - TextModel', () => {
 		assert.deepEqual(actual, expected, `validateRange for ${input}, got ${actual}, expected ${expected}`);
 	}
 
-	test('combining marks', () => {
+	test('grapheme breaking', () => {
 		const m = TextModel.createFromString([
 			'abcabc',
 			'ãããããã',

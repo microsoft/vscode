@@ -8,7 +8,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { join } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions, IRevertOptions } from 'vs/workbench/common/editor';
@@ -57,7 +57,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverrideHandler, IVisibleEditor, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverrideHandler, IVisibleEditor, ISaveEditorsOptions, IRevertAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
@@ -444,7 +444,7 @@ export class TestFileDialogService implements IFileDialogService {
 	public setConfirmResult(result: ConfirmResult): void {
 		this.confirmResult = result;
 	}
-	public showSaveConfirm(resources: string | URI[]): Promise<ConfirmResult> {
+	public showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		return Promise.resolve(this.confirmResult);
 	}
 }
@@ -930,7 +930,11 @@ export class TestEditorService implements EditorServiceImpl {
 		throw new Error('Method not implemented.');
 	}
 
-	revertAll(options?: IRevertOptions): Promise<boolean> {
+	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
+		throw new Error('Method not implemented.');
+	}
+
+	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 }
@@ -1387,7 +1391,7 @@ export class TestElectronService implements IElectronService {
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }
-	async updateTouchBar(items: { id: string; title: string | { value: string; original: string; }; category?: string | { value: string; original: string; } | undefined; iconLocation?: { dark?: UriComponents; light?: { readonly scheme: string; readonly authority: string; readonly path: string; readonly query: string; readonly fragment: string; readonly fsPath: string; with: {}; toString: {}; toJSON: {}; } | undefined; } | undefined; precondition?: { getType: {}; equals: {}; evaluate: {}; serialize: {}; keys: {}; map: {}; negate: {}; } | undefined; toggled?: { getType: {}; equals: {}; evaluate: {}; serialize: {}; keys: {}; map: {}; negate: {}; } | undefined; }[][]): Promise<void> { }
+	async updateTouchBar(): Promise<void> { }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }

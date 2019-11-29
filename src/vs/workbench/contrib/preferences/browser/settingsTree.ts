@@ -36,7 +36,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -1481,6 +1481,8 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 				// applying an opacity to the link color.
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
+
+				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
 			}
 
 			const errorColor = theme.getColor(errorForeground);
@@ -1516,21 +1518,24 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			}
 		}));
 
+		this.getHTMLElement().classList.add('settings-editor-tree');
+
 		this.disposables.add(attachStyler(themeService, {
-			listActiveSelectionBackground: transparent(Color.white, 0),
+			listBackground: editorBackground,
+			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: foreground,
-			listFocusAndSelectionBackground: transparent(Color.white, 0),
+			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: foreground,
-			listFocusBackground: transparent(Color.white, 0),
+			listFocusBackground: editorBackground,
 			listFocusForeground: foreground,
 			listHoverForeground: foreground,
-			listHoverBackground: transparent(Color.white, 0),
-			listHoverOutline: transparent(Color.white, 0),
-			listFocusOutline: transparent(Color.white, 0),
-			listInactiveSelectionBackground: transparent(Color.white, 0),
+			listHoverBackground: editorBackground,
+			listHoverOutline: editorBackground,
+			listFocusOutline: editorBackground,
+			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: foreground,
-			listInactiveFocusBackground: transparent(Color.white, 0),
-			listInactiveFocusOutline: transparent(Color.white, 0)
+			listInactiveFocusBackground: editorBackground,
+			listInactiveFocusOutline: editorBackground
 		}, colors => {
 			this.style(colors);
 		}));

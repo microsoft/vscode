@@ -422,10 +422,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.renderHeight;
 	}
 
-	get firstVisibleElement(): T {
-		return this.tree.firstVisibleElement!.element as T;
-	}
-
 	get lastVisibleElement(): T {
 		return this.tree.lastVisibleElement!.element as T;
 	}
@@ -456,7 +452,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const viewStateContext = viewState && { viewState, focus: [], selection: [] } as IAsyncDataTreeViewStateContext<TInput, T>;
 
-		await this._updateChildren(input, true, viewStateContext);
+		await this._updateChildren(input, true, false, viewStateContext);
 
 		if (viewStateContext) {
 			this.tree.setFocus(viewStateContext.focus);
@@ -468,11 +464,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	async updateChildren(element: TInput | T = this.root.element, recursive = true): Promise<void> {
-		await this._updateChildren(element, recursive);
+	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false): Promise<void> {
+		await this._updateChildren(element, recursive, rerender);
 	}
 
-	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
+	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
 		if (typeof this.root.element === 'undefined') {
 			throw new TreeError(this.user, 'Tree input not set');
 		}
@@ -482,7 +478,17 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			await Event.toPromise(this._onDidRender.event);
 		}
 
-		await this.refreshAndRenderNode(this.getDataNode(element), recursive, viewStateContext);
+		const node = this.getDataNode(element);
+		await this.refreshAndRenderNode(node, recursive, viewStateContext);
+
+		if (rerender) {
+			try {
+				this.tree.rerender(node);
+			} catch {
+				// missing nodes are fine, this could've resulted from
+				// parallel refresh calls, removing `node` altogether
+			}
+		}
 	}
 
 	resort(element: TInput | T = this.root.element, recursive = true): void {

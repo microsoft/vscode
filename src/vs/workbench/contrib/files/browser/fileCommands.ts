@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { toResource, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
+import { toResource, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +23,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getResourceForCommand, getMultiSelectedResources, getMultiSelectedEditors } from 'vs/workbench/contrib/files/browser/files';
+import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection } from 'vs/workbench/contrib/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
@@ -37,6 +37,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 // Commands
 
@@ -67,7 +70,7 @@ export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 export const DirtyEditorContext = new RawContextKey<boolean>('dirtyEditor', false);
-export const SaveableEditorContext = new RawContextKey<boolean>('saveableEditor', false);
+export const ReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditor', false);
 export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
 
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
@@ -310,24 +313,68 @@ CommandsRegistry.registerCommand({
 
 // Save / Save As / Save All / Revert
 
-function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
+async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
 	const listService = accessor.get(IListService);
-	const editorGroupsService = accessor.get(IEditorGroupsService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const textFileService = accessor.get(ITextFileService);
 
-	return doSaveEditors(accessor, getMultiSelectedEditors(listService, editorGroupsService), options);
-}
+	// Retrieve selected or active editor
+	let editors = getOpenEditorsViewMultiSelection(listService, editorGroupService);
+	if (!editors) {
+		const activeGroup = editorGroupService.activeGroup;
+		if (activeGroup.activeEditor) {
+			editors = [];
 
-function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyArray<IEditorGroup>, options?: ISaveEditorsOptions): Promise<void> {
-	const saveableEditors: IEditorIdentifier[] = [];
-	for (const group of groups) {
-		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (editor.isDirty()) {
-				saveableEditors.push({ groupId: group.id, editor });
+			// Special treatment for side by side editors: if the active editor
+			// has 2 sides, we consider both, to support saving both sides.
+			// We only allow this when saving, not for "Save As".
+			// See also https://github.com/microsoft/vscode/issues/4180
+			if (activeGroup.activeEditor instanceof SideBySideEditorInput && !options?.saveAs) {
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.master });
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.details });
+			} else {
+				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor });
 			}
 		}
 	}
 
-	return doSaveEditors(accessor, saveableEditors, options);
+	if (!editors || editors.length === 0) {
+		return; // nothing to save
+	}
+
+	// Save editors
+	await doSaveEditors(accessor, editors, options);
+
+	// Special treatment for embedded editors: if we detect that focus is
+	// inside an embedded code editor, we save that model as well if we
+	// find it in our text file models. Currently, only textual editors
+	// support embedded editors.
+	const focusedCodeEditor = codeEditorService.getFocusedCodeEditor();
+	if (focusedCodeEditor instanceof EmbeddedCodeEditorWidget) {
+		const resource = focusedCodeEditor.getModel()?.uri;
+
+		// Check that the resource of the model was not saved already
+		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }), resource))) {
+			const model = textFileService.models.get(resource);
+			if (!model?.isReadonly()) {
+				await textFileService.save(resource, options);
+			}
+		}
+	}
+}
+
+function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyArray<IEditorGroup>, options?: ISaveEditorsOptions): Promise<void> {
+	const dirtyEditors: IEditorIdentifier[] = [];
+	for (const group of groups) {
+		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (editor.isDirty()) {
+				dirtyEditors.push({ groupId: group.id, editor });
+			}
+		}
+	}
+
+	return doSaveEditors(accessor, dirtyEditors, options);
 }
 
 async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
@@ -411,24 +458,26 @@ CommandsRegistry.registerCommand({
 	handler: async accessor => {
 		const notificationService = accessor.get(INotificationService);
 		const listService = accessor.get(IListService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
 
-		const editors = getMultiSelectedEditors(listService, editorGroupsService);
-		if (editors.length) {
-			try {
-				await Promise.all(editors.map(async ({ groupId, editor }) => {
-					if (editor.isUntitled()) {
-						return; // we do not allow to revert untitled editors
-					}
-
-					// Use revert as a hint to pin the editor
-					editorGroupsService.getGroup(groupId)?.pinEditor(editor);
-
-					return editor.revert({ force: true });
-				}));
-			} catch (error) {
-				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+		// Retrieve selected or active editor
+		let editors = getOpenEditorsViewMultiSelection(listService, editorGroupService);
+		if (!editors) {
+			const activeGroup = editorGroupService.activeGroup;
+			if (activeGroup.activeEditor) {
+				editors = [{ groupId: activeGroup.id, editor: activeGroup.activeEditor }];
 			}
+		}
+
+		if (!editors || editors.length === 0) {
+			return; // nothing to revert
+		}
+
+		try {
+			await editorService.revert(editors.filter(({ editor }) => !editor.isUntitled() /* all except untitled */), { force: true });
+		} catch (error) {
+			notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 		}
 	}
 });
