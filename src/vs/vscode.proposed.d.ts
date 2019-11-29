@@ -1079,8 +1079,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree View
-
+	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
@@ -1113,9 +1112,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region CustomExecution
-
-
+	//#region CustomExecution: https://github.com/microsoft/vscode/issues/81007
 	/**
 	 * A task to execute
 	 */
@@ -1134,7 +1131,9 @@ declare module 'vscode' {
 		 */
 		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
+	//#endregion
 
+	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
