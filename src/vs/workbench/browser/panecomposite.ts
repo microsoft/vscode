@@ -35,6 +35,8 @@ export class PaneComposite extends Composite implements IPaneComposite {
 		@IWorkspaceContextService
 		protected contextService: IWorkspaceContextService) {
 		super(id, telemetryService, themeService, storageService);
+
+		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 	}
 	create(parent: HTMLElement): void {
 		this.viewPaneContainer.create(parent);
@@ -59,6 +61,10 @@ export class PaneComposite extends Composite implements IPaneComposite {
 
 	getContextMenuActions(): ReadonlyArray<IAction> {
 		return this.viewPaneContainer.getContextMenuActions();
+	}
+
+	getTitle(): string {
+		return this.viewPaneContainer.getTitle();
 	}
 
 	saveState(): void {

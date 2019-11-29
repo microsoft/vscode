@@ -21,7 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PaneView as PanesView, IPaneViewOptions, IPaneOptions, Pane } from 'vs/base/browser/ui/splitview/paneview';
+import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndController } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -36,6 +36,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 import { Component } from 'vs/workbench/common/component';
+import { Extensions, ViewletRegistry } from 'vs/workbench/browser/viewlet';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -244,7 +245,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	private lastFocusedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
-	private paneview?: PanesView;
+	private paneview?: PaneView;
 
 	private visible: boolean = false;
 
@@ -301,6 +302,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			throw new Error('Could not find container');
 		}
 
+		// Use default pane dnd controller if not specified
+		if (!this.options.dnd) {
+			this.options.dnd = new DefaultPaneDndController();
+		}
+
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
 		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
@@ -309,7 +315,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	create(parent: HTMLElement): void {
 		// super.create(parent);
-		this.paneview = this._register(new PanesView(parent, this.options));
+		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 
@@ -335,6 +341,17 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 
 		this.focus();
+	}
+
+	getTitle(): string {
+		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
+
+		if (this.isSingleView()) {
+			const paneItemTitle = this.paneItems[0].pane.title;
+			title = paneItemTitle ? `${title}: ${paneItemTitle}` : title;
+		}
+
+		return title;
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
