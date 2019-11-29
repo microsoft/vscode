@@ -111,6 +111,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/notebook",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/quickopen",
 			"project": "vscode-workbench"
 		},
