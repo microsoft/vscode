@@ -13,7 +13,11 @@ export class FilterOptions {
 
 	static readonly _filter: IFilter = matchesFuzzy2;
 	static readonly _messageFilter: IInvertibleFilter = (word, wordToMatchAgainst, invertResult) => {
-		return matchesFuzzy(word, wordToMatchAgainst, false, invertResult);
+		let match = matchesFuzzy(word, wordToMatchAgainst);
+		if (invertResult) {
+			return [{ start: 0, end: wordToMatchAgainst.length }];
+		}
+		return match;
 	}
 
 	readonly showWarnings: boolean = false;
