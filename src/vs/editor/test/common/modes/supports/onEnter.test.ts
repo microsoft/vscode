@@ -49,7 +49,7 @@ suite('OnEnter', () => {
 
 	test('uses regExpRules', () => {
 		let support = new OnEnterSupport({
-			regExpRules: javascriptOnEnterRules
+			onEnterRules: javascriptOnEnterRules
 		});
 		let testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
 			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, oneLineAboveText, beforeText, afterText);

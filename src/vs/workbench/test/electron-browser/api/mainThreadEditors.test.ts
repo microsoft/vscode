@@ -37,6 +37,7 @@ suite('MainThreadEditors', () => {
 	let editors: MainThreadTextEditors;
 
 	const movedResources = new Map<URI, URI>();
+	const copiedResources = new Map<URI, URI>();
 	const createdResources = new Set<URI>();
 	const deletedResources = new Set<URI>();
 
@@ -46,6 +47,7 @@ suite('MainThreadEditors', () => {
 		const codeEditorService = new TestCodeEditorService();
 
 		movedResources.clear();
+		copiedResources.clear();
 		createdResources.clear();
 		deletedResources.clear();
 
@@ -63,6 +65,10 @@ suite('MainThreadEditors', () => {
 			}
 			move(source: URI, target: URI) {
 				movedResources.set(source, target);
+				return Promise.resolve(Object.create(null));
+			}
+			copy(source: URI, target: URI) {
+				copiedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
 			models = <any>{

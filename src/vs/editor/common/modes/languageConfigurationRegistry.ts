@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -12,12 +11,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/modes/supports/indentRules';
-import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
+import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
@@ -49,11 +48,11 @@ export class RichEditSupport {
 	private readonly _languageIdentifier: LanguageIdentifier;
 	private _brackets: RichEditBrackets | null;
 	private _electricCharacter: BracketElectricCharacterSupport | null;
+	private readonly _onEnterSupport: OnEnterSupport | null;
 
 	public readonly comments: ICommentsConfiguration | null;
 	public readonly characterPair: CharacterPairSupport;
 	public readonly wordDefinition: RegExp;
-	public readonly onEnter: OnEnterSupport | null;
 	public readonly indentRulesSupport: IndentRulesSupport | null;
 	public readonly indentationRules: IndentationRule | undefined;
 	public readonly foldingRules: FoldingRules;
@@ -71,8 +70,7 @@ export class RichEditSupport {
 
 		this._conf = RichEditSupport._mergeConf(prev, rawConf);
 
-		this.onEnter = RichEditSupport._handleOnEnter(this._conf);
-
+		this._onEnterSupport = (this._conf.brackets || this._conf.indentationRules || this._conf.onEnterRules ? new OnEnterSupport(this._conf) : null);
 		this.comments = RichEditSupport._handleComments(this._conf);
 
 		this.characterPair = new CharacterPairSupport(this._conf);
@@ -103,6 +101,13 @@ export class RichEditSupport {
 		return this._electricCharacter;
 	}
 
+	public onEnter(autoIndent: EditorAutoIndentStrategy, oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
+		if (!this._onEnterSupport) {
+			return null;
+		}
+		return this._onEnterSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
+	}
+
 	private static _mergeConf(prev: LanguageConfiguration | null, current: LanguageConfiguration): LanguageConfiguration {
 		return {
 			comments: (prev ? current.comments || prev.comments : current.comments),
@@ -116,29 +121,6 @@ export class RichEditSupport {
 			folding: (prev ? current.folding || prev.folding : current.folding),
 			__electricCharacterSupport: (prev ? current.__electricCharacterSupport || prev.__electricCharacterSupport : current.__electricCharacterSupport),
 		};
-	}
-
-	private static _handleOnEnter(conf: LanguageConfiguration): OnEnterSupport | null {
-		// on enter
-		let onEnter: IOnEnterSupportOptions = {};
-		let empty = true;
-
-		if (conf.brackets) {
-			empty = false;
-			onEnter.brackets = conf.brackets;
-		}
-		if (conf.indentationRules) {
-			empty = false;
-		}
-		if (conf.onEnterRules) {
-			empty = false;
-			onEnter.regExpRules = conf.onEnterRules;
-		}
-
-		if (!empty) {
-			return new OnEnterSupport(onEnter);
-		}
-		return null;
 	}
 
 	private static _handleComments(conf: LanguageConfiguration): ICommentsConfiguration | null {
@@ -481,6 +463,11 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 
+		const richEditSupport = this._getRichEditSupport(languageId);
+		if (!richEditSupport) {
+			return null;
+		}
+
 		const indentRulesSupport = this.getIndentRulesSupport(languageId);
 		if (!indentRulesSupport) {
 			return null;
@@ -492,15 +479,7 @@ export class LanguageConfigurationRegistryImpl {
 		if (indent) {
 			const inheritLine = indent.line;
 			if (inheritLine !== undefined) {
-				const onEnterSupport = this._getOnEnterSupport(languageId);
-				let enterResult: EnterAction | null = null;
-				try {
-					if (onEnterSupport) {
-						enterResult = onEnterSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
-					}
-				} catch (e) {
-					onUnexpectedError(e);
-				}
+				const enterResult = richEditSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
 
 				if (enterResult) {
 					let indentation = strings.getLeadingWhitespace(virtualModel.getLineContent(inheritLine));
@@ -689,23 +668,10 @@ export class LanguageConfigurationRegistryImpl {
 
 	// begin onEnter
 
-	private _getOnEnterSupport(languageId: LanguageId): OnEnterSupport | null {
-		const value = this._getRichEditSupport(languageId);
-		if (!value) {
-			return null;
-		}
-		return value.onEnter || null;
-	}
-
-	public getRawEnterActionAtPosition(autoIndent: EditorAutoIndentStrategy, model: ITextModel, lineNumber: number, column: number): EnterAction | null {
-		const r = this.getEnterAction(autoIndent, model, new Range(lineNumber, column, lineNumber, column));
-		return r ? r.enterAction : null;
-	}
-
-	public getEnterAction(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range): { enterAction: EnterAction; indentation: string; } | null {
+	public getEnterAction(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range): CompleteEnterAction | null {
 		const scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-		const onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
-		if (!onEnterSupport) {
+		const richEditSupport = this._getRichEditSupport(scopedLineTokens.languageId);
+		if (!richEditSupport) {
 			return null;
 		}
 
@@ -731,37 +697,37 @@ export class LanguageConfigurationRegistryImpl {
 			}
 		}
 
-		let enterResult: EnterAction | null = null;
-		try {
-			enterResult = onEnterSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
-		} catch (e) {
-			onUnexpectedError(e);
-		}
-
+		const enterResult = richEditSupport.onEnter(autoIndent, oneLineAboveText, beforeEnterText, afterEnterText);
 		if (!enterResult) {
 			return null;
-		} else {
-			// Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
-			if (!enterResult.appendText) {
-				if (
-					(enterResult.indentAction === IndentAction.Indent) ||
-					(enterResult.indentAction === IndentAction.IndentOutdent)
-				) {
-					enterResult.appendText = '\t';
-				} else {
-					enterResult.appendText = '';
-				}
+		}
+
+		const indentAction = enterResult.indentAction;
+		let appendText = enterResult.appendText;
+		const removeText = enterResult.removeText || 0;
+
+		// Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
+		if (!appendText) {
+			if (
+				(indentAction === IndentAction.Indent) ||
+				(indentAction === IndentAction.IndentOutdent)
+			) {
+				appendText = '\t';
+			} else {
+				appendText = '';
 			}
 		}
 
 		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
-		if (enterResult.removeText) {
-			indentation = indentation.substring(0, indentation.length - enterResult.removeText);
+		if (removeText) {
+			indentation = indentation.substring(0, indentation.length - removeText);
 		}
 
 		return {
-			enterAction: enterResult,
-			indentation: indentation,
+			indentAction: indentAction,
+			appendText: appendText,
+			removeText: removeText,
+			indentation: indentation
 		};
 	}
 

@@ -22,6 +22,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false);
@@ -161,6 +162,7 @@ registerEditorAction(class extends EditorAction {
 			label: localize('title', "Peek Call Hierarchy"),
 			alias: 'Peek Call Hierarchy',
 			contextMenuOpts: {
+				menuId: MenuId.EditorContextPeek,
 				group: 'navigation',
 				order: 1000
 			},

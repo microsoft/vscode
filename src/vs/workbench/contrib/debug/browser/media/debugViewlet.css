@@ -26,7 +26,14 @@
 	margin-top: 10px;
 }
 
-.debug-viewlet .debug-start-view .configure {
+.debug-viewlet .debug-start-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
+.debug-viewlet .debug-start-view .click {
 	cursor: pointer;
 	color: #007ACC;
 }
@@ -166,8 +173,7 @@
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file,
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .stack-frame.has-actions .file {
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file {
 	display: none;
 }
 
@@ -175,7 +181,6 @@
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .monaco-action-bar,
 .debug-viewlet .debug-call-stack .monaco-list-row:hover .monaco-action-bar {
 	display: initial;
 }
