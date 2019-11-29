@@ -164,7 +164,7 @@ steps:
       [
         {
           "keyCode": "CP-401337-Apple",
-          "operationSetCode": " MacAppNotarize",
+          "operationSetCode": "MacAppNotarize",
           "parameters": [
             {
               "parameterName": "BundleId",
