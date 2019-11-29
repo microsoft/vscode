@@ -141,9 +141,12 @@ steps:
         {
           "keyCode": "CP-401337-Apple",
           "operationSetCode": "MacAppDeveloperSign",
-          "parameters": {
-            "Hardening": "--options=runtime"
-          },
+          "parameters": [
+            {
+              "parameterName": "Hardening",
+              "parameterValue": "--options=runtime"
+            }
+          ],
           "toolName": "sign",
           "toolVersion": "1.0"
         }
@@ -162,9 +165,12 @@ steps:
         {
           "keyCode": "CP-401337-Apple",
           "operationSetCode": " MacAppNotarize",
-          "parameters": {
-            "BundleId": "com.microsoft.VSCodeInsiders"
-          },
+          "parameters": [
+            {
+              "parameterName": "BundleId",
+              "parameterValue": "com.microsoft.VSCodeInsiders"
+            }
+          ],
           "toolName": "sign",
           "toolVersion": "1.0"
         }
