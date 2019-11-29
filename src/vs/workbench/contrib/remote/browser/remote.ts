@@ -46,7 +46,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { startsWith } from 'vs/base/common/strings';
 import { TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
-import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 class HelpModel {
 	items: IHelpItem[] | undefined;
@@ -330,9 +330,9 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer {
 		return title;
 	}
 
-	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPane[] {
+	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		// Call to super MUST be first, since registering the additional view will cause this to be called again.
-		const panels: ViewletPane[] = super.onDidAddViews(added);
+		const panels: ViewPane[] = super.onDidAddViews(added);
 		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && this.configurationService.getValue<boolean>('remote.forwardedPortsView.visible')) {
 			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
