@@ -71,7 +71,7 @@ export interface Webview extends IDisposable {
 	state: string | undefined;
 
 	readonly onDidFocus: Event<void>;
-	readonly onDidClickLink: Event<URI>;
+	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onMessage: Event<any>;
