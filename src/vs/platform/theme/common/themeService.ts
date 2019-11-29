@@ -45,7 +45,7 @@ export namespace ThemeIcon {
 		return { id: owner + name };
 	}
 
-	const _regexAsClassName = /^codicon\/([a-z-]+)(~[a-z]+)?$/i;
+	const _regexAsClassName = /^(codicon\/)?([a-z-]+)(~[a-z]+)?$/i;
 
 	export function asClassName(icon: ThemeIcon): string | undefined {
 		// todo@martin,joh -> this should go into the ThemeService
@@ -53,7 +53,7 @@ export namespace ThemeIcon {
 		if (!match) {
 			return undefined;
 		}
-		const [, name, modifier] = match;
+		let [, , name, modifier] = match;
 		let className = `codicon codicon-${name}`;
 		if (modifier) {
 			className += ` ${modifier.substr(1)}`;
