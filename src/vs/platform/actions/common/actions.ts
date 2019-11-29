@@ -12,6 +12,7 @@ import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface ILocalizedString {
 	value: string;
@@ -23,7 +24,7 @@ export interface ICommandAction {
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
 	iconClassName?: string;
-	iconLocation?: { dark?: URI; light?: URI; };
+	iconLocation?: { dark?: URI; light?: URI; } | ThemeIcon;
 	precondition?: ContextKeyExpr;
 	toggled?: ContextKeyExpr;
 }

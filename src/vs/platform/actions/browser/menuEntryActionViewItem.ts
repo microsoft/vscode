@@ -16,6 +16,7 @@ import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemA
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {
@@ -236,8 +237,8 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	_updateItemClass(item: ICommandAction): void {
 		this._itemClassDispose.value = undefined;
 
-		// icon class
 		if (item.iconClassName) {
+			// icon class
 			let iconClass = item.iconClassName;
 
 			if (this.label) {
@@ -248,11 +249,22 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 					}
 				});
 			}
+		} else if (ThemeIcon.isThemeIcon(item.iconLocation)) {
+			// theme icons ~ support codicon only...
 
-		}
+			const match = /codicon\.([a-zA-Z~]+)/.exec(item.iconLocation.id);
+			const iconClass = match && match[1];
+			if (this.label && iconClass) {
+				addClasses(this.label, 'codicon', iconClass);
+				this._itemClassDispose.value = toDisposable(() => {
+					if (this.label) {
+						removeClasses(this.label, 'codicon', iconClass);
+					}
+				});
+			}
 
-		// icon path
-		else if (item.iconLocation) {
+		} else if (item.iconLocation) {
+			// icon path
 			let iconClass: string;
 
 			if (item.iconLocation?.dark?.scheme) {
@@ -277,11 +289,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 						}
 					});
 				}
-
 			}
-
-
-
 		}
 	}
 }

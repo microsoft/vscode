@@ -26,6 +26,12 @@ export interface ThemeIcon {
 	readonly id: string;
 }
 
+export namespace ThemeIcon {
+	export function isThemeIcon(obj: any): obj is ThemeIcon {
+		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
+	}
+}
+
 export const FileThemeIcon = { id: 'file' };
 export const FolderThemeIcon = { id: 'folder' };
 
