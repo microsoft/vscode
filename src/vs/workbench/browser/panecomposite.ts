@@ -15,7 +15,7 @@ import { Composite } from 'vs/workbench/browser/composite';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 
 export class PaneComposite extends Composite implements IPaneComposite {
 	constructor(id: string,
@@ -61,6 +61,18 @@ export class PaneComposite extends Composite implements IPaneComposite {
 
 	getContextMenuActions(): ReadonlyArray<IAction> {
 		return this.viewPaneContainer.getContextMenuActions();
+	}
+
+	getActions(): ReadonlyArray<IAction> {
+		return this.viewPaneContainer.getActions();
+	}
+
+	getSecondaryActions(): ReadonlyArray<IAction> {
+		return this.viewPaneContainer.getSecondaryActions();
+	}
+
+	getActionViewItem(action: IAction): IActionViewItem | undefined {
+		return this.viewPaneContainer.getActionViewItem(action);
 	}
 
 	getTitle(): string {
