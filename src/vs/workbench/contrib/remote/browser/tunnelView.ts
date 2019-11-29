@@ -582,11 +582,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelTitle, ({
 	command: {
 		id: ForwardPortAction.ID,
 		title: ForwardPortAction.LABEL,
-		iconClassName: 'codicon-plus',
-		icon: {
-			dark: undefined,
-			light: undefined
-		}
+		icon: { id: 'codicon.plus' }
 	}
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
@@ -640,11 +636,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: OpenPortInBrowserAction.ID,
 		title: OpenPortInBrowserAction.LABEL,
-		iconClassName: 'codicon-globe',
-		icon: {
-			dark: undefined,
-			light: undefined
-		}
+		icon: { id: 'codicon.globe' }
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
 }));
@@ -653,11 +645,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: ForwardPortAction.ID,
 		title: ForwardPortAction.LABEL,
-		iconClassName: 'codicon-plus',
-		icon: {
-			dark: undefined,
-			light: undefined
-		}
+		icon: { id: 'codicon.plus' }
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Candidate), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
 }));
@@ -666,11 +654,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: ClosePortAction.ID,
 		title: ClosePortAction.LABEL,
-		iconClassName: 'codicon-x',
-		icon: {
-			dark: undefined,
-			light: undefined
-		}
+		icon: { id: 'codicon.x' }
 	},
 	when: TunnelCloseableContextKey
 }));

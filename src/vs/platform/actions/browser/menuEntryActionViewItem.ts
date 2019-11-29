@@ -148,7 +148,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.icon || _action.item.iconClassName), label: !_action.class && !_action.item.icon && !_action.item.iconClassName });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
 		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 
@@ -237,25 +237,17 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	_updateItemClass(item: ICommandAction): void {
 		this._itemClassDispose.value = undefined;
 
-		if (item.iconClassName) {
-			// icon class
-			let iconClass = item.iconClassName;
-
-			if (this.label) {
-				addClasses(this.label, 'codicon', iconClass);
-				this._itemClassDispose.value = toDisposable(() => {
-					if (this.label) {
-						removeClasses(this.label, 'codicon', iconClass);
-					}
-				});
-			}
-		} else if (ThemeIcon.isThemeIcon(item.icon)) {
+		if (ThemeIcon.isThemeIcon(item.icon)) {
 			// theme icons ~ support codicon only...
 
-			const match = /codicon\.([a-z~-]+)/i.exec(item.icon.id);
+			const match = /codicon\.([a-z-]+)(~[a-z]+)?/i.exec(item.icon.id);
 			const name = match && match[1];
+			const modifier = match && match[2];
 			if (this.label && name) {
-				const iconClass = `codicon-${name}`;
+				let iconClass = `codicon-${name}`;
+				if (modifier) {
+					iconClass += ` ${modifier.substr(1)}`;
+				}
 				addClasses(this.label, 'codicon', iconClass);
 				this._itemClassDispose.value = toDisposable(() => {
 					if (this.label) {

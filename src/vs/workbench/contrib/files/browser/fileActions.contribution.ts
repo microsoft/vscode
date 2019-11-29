@@ -27,6 +27,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ActiveEditorIsReadonlyContext, DirtyWorkingCopiesContext, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // Contribute Global Actions
 const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
@@ -179,17 +180,17 @@ export function appendEditorTitleContextMenuItem(id: string, title: string, when
 }
 
 // Editor Title Menu for Conflict Resolution
-appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), 'codicon-check', -10, acceptLocalChangesCommand);
-appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), 'codicon-discard', -9, revertLocalChangesCommand);
+appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), { id: 'codicon.check' }, -10, acceptLocalChangesCommand);
+appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), { id: 'codicon.discard' }, -9, revertLocalChangesCommand);
 
-function appendSaveConflictEditorTitleAction(id: string, title: string, iconClassName: string, order: number, command: ICommandHandler): void {
+function appendSaveConflictEditorTitleAction(id: string, title: string, icon: ThemeIcon, order: number, command: ICommandHandler): void {
 
 	// Command
 	CommandsRegistry.registerCommand(id, command);
 
 	// Action
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-		command: { id, title, iconClassName },
+		command: { id, title, icon },
 		when: ContextKeyExpr.equals(CONFLICT_RESOLUTION_CONTEXT, true),
 		group: 'navigation',
 		order
