@@ -13,7 +13,7 @@ const webviewId = 'myWebview';
 
 const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
 
-suite('Webview tests', () => {
+suite.skip('Webview tests', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
