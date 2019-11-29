@@ -101,6 +101,7 @@ jobs:
 
 - job: macOS
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
+  timeoutInMinutes: 180
   pool:
     vmImage: macOS 10.13
   dependsOn:
