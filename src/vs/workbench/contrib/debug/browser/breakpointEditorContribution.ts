@@ -273,7 +273,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		}));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.onModelDecorationsChanged()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(async (e) => {
-			if (e.affectsConfiguration('debug.showBreakpointsInOverviewRuler')) {
+			if (e.affectsConfiguration('debug.showBreakpointsInOverviewRuler') || e.affectsConfiguration('debug.inlineBreakpointCandidates')) {
 				await this.setDecorations();
 			}
 		}));
@@ -425,7 +425,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		}
 
 		// Set breakpoint candidate decorations
-		const desiredCandidateDecorations = await createCandidateDecorations(this.editor.getModel(), this.breakpointDecorations, this.debugService);
+		const desiredCandidateDecorations = debugSettings.inlineBreakpointCandidates ? await createCandidateDecorations(this.editor.getModel(), this.breakpointDecorations, this.debugService) : [];
 		const candidateDecorationIds = this.editor.deltaDecorations(this.candidateDecorations.map(c => c.decorationId), desiredCandidateDecorations);
 		this.candidateDecorations.forEach(candidate => {
 			candidate.inlineWidget.dispose();
