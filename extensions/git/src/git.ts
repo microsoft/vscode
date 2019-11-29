@@ -762,10 +762,8 @@ export class Repository {
 		const maxEntries = options && typeof options.maxEntries === 'number' && options.maxEntries > 0 ? options.maxEntries : 32;
 		const args = ['log', '-' + maxEntries, `--pretty=format:${COMMIT_FORMAT}%x00%x00`];
 
-		let gitResult: IExecutionResult<string>;
-		try {
-			gitResult = await this.run(args);
-		} catch (err) {
+		const gitResult = await this.run(args);
+		if (gitResult.exitCode) {
 			// An empty repo
 			return [];
 		}
@@ -1164,14 +1162,9 @@ export class Repository {
 			});
 		}
 
+		const treeish = await this.getCommit('HEAD').then(() => 'HEAD', () => '');
 		let mode: string;
 		let add: string = '';
-		let treeish: string = '';
-		const commits = await this.log({ maxEntries: 1 });
-
-		if (commits.length > 0) {
-			treeish = 'HEAD';
-		}
 
 		try {
 			const details = await this.getObjectDetails(treeish, path);
