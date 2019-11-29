@@ -582,7 +582,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region André: debug
+	//#region André: debug API for inline debug adapters https://github.com/microsoft/vscode/issues/85544
 
 	/**
 	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
@@ -592,13 +592,22 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements this interface.
+	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements the DebugAdapter interface.
 	 */
-	export interface DebugAdapter {
+	export interface DebugAdapter extends Disposable {
 
+		/**
+		 * An event which fires when the debug adapter sends a Debug Adapter Protocol message to VS Code.
+		 * Messages can be requests, responses, or events.
+		 */
 		readonly onSendMessage: Event<DebugProtocolMessage>;
-		readonly onError: Event<Error>;
 
+		/**
+		 * Handle a Debug Adapter Protocol message.
+		 * Messages can be requests, responses, or events.
+		 * Results or errors are returned via onSendMessage events.
+		 * @param message A Debug Adapter Protocol message
+		 */
 		handleMessage(message: DebugProtocolMessage): void;
 	}
 
