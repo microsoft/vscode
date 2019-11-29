@@ -1,7 +1,7 @@
 steps:
 - script: |
     mkdir -p .build
-    echo -n 7096c1fbebd4c10860c957ac20c4b209cf805bbb > .build/commit
+    echo -n $BUILD_SOURCEVERSION > .build/commit
     echo -n $VSCODE_QUALITY > .build/quality
   displayName: Prepare cache flag
 
