@@ -334,7 +334,7 @@ export interface IEditorOptions {
 	/**
 	 * Controls the number of lines in the editor that can be read out by a screen reader
 	 */
-	accessibilityLinesPerPage?: number;
+	accessibilityPageSize?: number;
 	/**
 	 * Suggest options.
 	 */
@@ -984,7 +984,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 	}
 }
 
-
+//#endregion
 
 //#region cursorBlinking
 
@@ -3005,7 +3005,7 @@ export const enum EditorOption {
 	acceptSuggestionOnCommitCharacter,
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
-	accessibilityLinesPerPage,
+	accessibilityPageSize,
 	ariaLabel,
 	autoClosingBrackets,
 	autoClosingOvertype,
@@ -3133,8 +3133,8 @@ export const EditorOptions = {
 		}
 	)),
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
-	accessibilityLinesPerPage: register(new EditorIntOption(EditorOption.accessibilityLinesPerPage, 'accessibilityLinesPerPage', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('accessibilityLinesPerPage', "Controls the number of lines in the editor that can be read out by a screen reader. Warning: this has a performance implication for numbers larger than the default.") })),
+	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
+		{ description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader. Warning: this has a performance implication for numbers larger than the default.") })),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),

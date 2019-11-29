@@ -2733,7 +2733,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls the number of lines in the editor that can be read out by a screen reader
 		 */
-		accessibilityLinesPerPage?: number;
+		accessibilityPageSize?: number;
 		/**
 		 * Suggest options.
 		 */
