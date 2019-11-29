@@ -6,10 +6,10 @@
 import 'vs/css!./media/tunnelView';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewDescriptor, IEditableData } from 'vs/workbench/common/views';
 import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,7 +20,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Disposable, IDisposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { ActionBar, ActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -31,6 +31,12 @@ import { IRemoteExplorerService, TunnelModel } from 'vs/workbench/services/remot
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/workbench/workbench.web.api';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { once } from 'vs/base/common/functional';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 	getHeight(element: ITunnelItem): number {
@@ -142,7 +148,10 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		private readonly viewId: string,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
 	) {
 		super();
 	}
@@ -181,28 +190,97 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	renderElement(element: ITreeNode<ITunnelGroup | ITunnelItem, ITunnelGroup | ITunnelItem>, index: number, templateData: ITunnelTemplateData): void {
 		templateData.elementDisposable.dispose();
 		const node = element.element;
+
 		// reset
 		templateData.actionBar.clear();
 		if (this.isTunnelItem(node)) {
-			templateData.iconLabel.setLabel(node.label, node.description, { title: node.label + ' - ' + node.description, extraClasses: ['tunnel-view-label'] });
-			templateData.actionBar.context = node;
-			const contextKeyService = this.contextKeyService.createScoped();
-			contextKeyService.createKey('view', this.viewId);
-			contextKeyService.createKey('tunnelType', node.tunnelType);
-			contextKeyService.createKey('tunnelCloseable', node.closeable);
-			const menu = this.menuService.createMenu(MenuId.TunnelInline, contextKeyService);
-			this._register(menu);
-			const actions: IAction[] = [];
-			this._register(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions));
-			if (actions) {
-				templateData.actionBar.push(actions, { icon: true, label: false });
-				if (this._actionRunner) {
-					templateData.actionBar.actionRunner = this._actionRunner;
-				}
+
+			const editableData = this.remoteExplorerService.getEditableData(node.remote);
+			if (editableData) {
+				templateData.iconLabel.element.style.display = 'none';
+				this.renderInputBox(templateData.container, node, editableData);
+			} else {
+				templateData.iconLabel.element.style.display = 'flex';
+				this.renderTunnel(node, templateData);
 			}
 		} else {
 			templateData.iconLabel.setLabel(node.label);
 		}
+	}
+
+	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
+		templateData.iconLabel.setLabel(node.label, node.description, { title: node.label + ' - ' + node.description, extraClasses: ['tunnel-view-label'] });
+		templateData.actionBar.context = node;
+		const contextKeyService = this.contextKeyService.createScoped();
+		contextKeyService.createKey('view', this.viewId);
+		contextKeyService.createKey('tunnelType', node.tunnelType);
+		contextKeyService.createKey('tunnelCloseable', node.closeable);
+		const menu = this.menuService.createMenu(MenuId.TunnelInline, contextKeyService);
+		this._register(menu);
+		const actions: IAction[] = [];
+		this._register(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions));
+		if (actions) {
+			templateData.actionBar.push(actions, { icon: true, label: false });
+			if (this._actionRunner) {
+				templateData.actionBar.actionRunner = this._actionRunner;
+			}
+		}
+	}
+
+	private renderInputBox(container: HTMLElement, item: ITunnelItem, editableData: IEditableData): IDisposable {
+		const value = editableData.startingValue || '';
+		const inputBox = new InputBox(container, this.contextViewService, {
+			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
+			validationOptions: {
+				validation: (value) => {
+					const content = editableData.validationMessage(value);
+					if (!content) {
+						return null;
+					}
+
+					return {
+						content,
+						formatContent: true,
+						type: MessageType.ERROR
+					};
+				}
+			},
+			placeholder: editableData.placeholder || ''
+		});
+		const styler = attachInputBoxStyler(inputBox, this.themeService);
+
+		inputBox.value = value;
+		inputBox.focus();
+
+		const done = once((success: boolean, finishEditing: boolean) => {
+			inputBox.element.style.display = 'none';
+			const value = inputBox.value;
+			dispose(toDispose);
+			if (finishEditing) {
+				editableData.onFinish(value, success);
+			}
+		});
+
+		const toDispose = [
+			inputBox,
+			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+				if (e.equals(KeyCode.Enter)) {
+					if (inputBox.validate()) {
+						done(true, true);
+					}
+				} else if (e.equals(KeyCode.Escape)) {
+					done(false, true);
+				}
+			}),
+			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
+				done(inputBox.isInputValid(), true);
+			}),
+			styler
+		];
+
+		return toDisposable(() => {
+			done(false, false);
+		});
 	}
 
 	disposeElement(resource: ITreeNode<ITunnelGroup | ITunnelItem, ITunnelGroup | ITunnelItem>, index: number, templateData: ITunnelTemplateData): void {
@@ -321,7 +399,10 @@ export class TunnelPanel extends ViewletPane {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
@@ -353,7 +434,7 @@ export class TunnelPanel extends ViewletPane {
 		dom.addClass(treeContainer, 'file-icon-themable-tree');
 		dom.addClass(treeContainer, 'show-file-icons');
 		container.appendChild(treeContainer);
-		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService);
+		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,
 			'RemoteTunnels',
 			treeContainer,
@@ -382,11 +463,27 @@ export class TunnelPanel extends ViewletPane {
 			this.tree.updateChildren(undefined, true);
 		}));
 
-		const helpItemNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: false, openOnSelection: false }));
+		const navigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: false, openOnSelection: false }));
 
-		this._register(Event.debounce(helpItemNavigator.onDidOpenResource, (last, event) => event, 75, true)(e => {
-			if (e.element.tunnelType === TunnelType.Add) {
+		this._register(Event.debounce(navigator.onDidOpenResource, (last, event) => event, 75, true)(e => {
+			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
 				this.commandService.executeCommand(ForwardPortAction.ID);
+			}
+		}));
+
+		this._register(this.remoteExplorerService.onDidChangeEditable(async e => {
+			const isEditing = !!this.remoteExplorerService.getEditableData(e);
+
+			if (!isEditing) {
+				dom.removeClass(treeContainer, 'highlight');
+			}
+
+			await this.tree.updateChildren(undefined, false);
+
+			if (isEditing) {
+				dom.addClass(treeContainer, 'highlight');
+			} else {
+				this.tree.domFocus();
 			}
 		}));
 	}
@@ -471,12 +568,17 @@ namespace NameTunnelAction {
 		return async (accessor, arg) => {
 			if (arg instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				const quickInputService = accessor.get(IQuickInputService);
-				const name = await quickInputService.input({ placeHolder: nls.localize('remote.tunnelView.pickName', 'Port name, or leave blank for no name') });
-				if (name === undefined) {
-					return;
-				}
-				remoteExplorerService.tunnelModel.name(arg.remote, name);
+				remoteExplorerService.setEditable(arg.remote, {
+					onFinish: (value, success) => {
+						if (success) {
+							remoteExplorerService.tunnelModel.name(arg.remote, value);
+						}
+						remoteExplorerService.setEditable(arg.remote, null);
+					},
+					validationMessage: () => null,
+					placeholder: nls.localize('remote.tunnelsView.namePlaceholder', "Name port"),
+					startingValue: arg.name
+				});
 			}
 			return;
 		};

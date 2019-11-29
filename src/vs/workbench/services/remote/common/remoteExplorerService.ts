@@ -13,6 +13,7 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { URI } from 'vs/base/common/uri';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IEditableData } from 'vs/workbench/common/views';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -115,6 +116,9 @@ export interface IRemoteExplorerService {
 	targetType: string;
 	readonly helpInformation: HelpInformation[];
 	readonly tunnelModel: TunnelModel;
+	onDidChangeEditable: Event<number>;
+	setEditable(remote: number, data: IEditableData | null): void;
+	getEditableData(remote: number): IEditableData | undefined;
 }
 
 export interface HelpInformation {
@@ -155,10 +159,13 @@ const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInforma
 class RemoteExplorerService implements IRemoteExplorerService {
 	public _serviceBrand: undefined;
 	private _targetType: string = '';
-	private _onDidChangeTargetType: Emitter<string> = new Emitter<string>();
-	public onDidChangeTargetType: Event<string> = this._onDidChangeTargetType.event;
+	private readonly _onDidChangeTargetType: Emitter<string> = new Emitter<string>();
+	public readonly onDidChangeTargetType: Event<string> = this._onDidChangeTargetType.event;
 	private _helpInformation: HelpInformation[] = [];
 	private _tunnelModel: TunnelModel;
+	private editable: { remote: number, data: IEditableData } | undefined;
+	private readonly _onDidChangeEditable: Emitter<number> = new Emitter<number>();
+	public readonly onDidChangeEditable: Event<number> = this._onDidChangeEditable.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -211,6 +218,19 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	get tunnelModel(): TunnelModel {
 		return this._tunnelModel;
+	}
+
+	setEditable(remote: number, data: IEditableData | null): void {
+		if (!data) {
+			this.editable = undefined;
+		} else {
+			this.editable = { remote, data };
+		}
+		this._onDidChangeEditable.fire(remote);
+	}
+
+	getEditableData(remote: number): IEditableData | undefined {
+		return this.editable && this.editable.remote === remote ? this.editable.data : undefined;
 	}
 }
 
