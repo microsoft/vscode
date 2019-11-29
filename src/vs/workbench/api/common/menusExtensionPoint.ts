@@ -13,6 +13,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, ILocalizedString, IMenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 namespace schema {
 
@@ -347,10 +348,10 @@ commandsExtensionPoint.setHandler(extensions => {
 
 		const { icon, enablement, category, title, command } = userFriendlyCommand;
 
-		let absoluteIcon: { dark: URI; light?: URI; } | undefined;
+		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				absoluteIcon = ThemeIcon.fromString(icon) || { dark: resources.joinPath(extension.description.extensionLocation, icon) };
 			} else {
 				absoluteIcon = {
 					dark: resources.joinPath(extension.description.extensionLocation, icon.dark),

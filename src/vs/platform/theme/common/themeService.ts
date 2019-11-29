@@ -30,6 +30,20 @@ export namespace ThemeIcon {
 	export function isThemeIcon(obj: any): obj is ThemeIcon {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
 	}
+
+	const _regex = /^\$\(([a-z.]+\.)?([a-z-~]+)\)$/i;
+
+	export function fromString(str: string): ThemeIcon | undefined {
+		const match = _regex.exec(str);
+		if (!match) {
+			return undefined;
+		}
+		let [, owner, name] = match;
+		if (!owner) {
+			owner = `codicon.`;
+		}
+		return { id: owner + name };
+	}
 }
 
 export const FileThemeIcon = { id: 'file' };
