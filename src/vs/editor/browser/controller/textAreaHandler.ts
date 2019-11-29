@@ -62,6 +62,7 @@ export class TextAreaHandler extends ViewPart {
 	private _scrollTop: number;
 
 	private _accessibilitySupport: AccessibilitySupport;
+	private _accessibilityLinesPerPage: number;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -92,6 +93,7 @@ export class TextAreaHandler extends ViewPart {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		this._accessibilityLinesPerPage = options.get(EditorOption.accessibilityLinesPerPage);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.contentHeight;
@@ -189,7 +191,7 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilitySupport === AccessibilitySupport.Unknown);
+				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilityLinesPerPage, this._accessibilitySupport === AccessibilitySupport.Unknown);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
