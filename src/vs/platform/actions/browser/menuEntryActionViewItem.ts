@@ -252,9 +252,10 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		} else if (ThemeIcon.isThemeIcon(item.icon)) {
 			// theme icons ~ support codicon only...
 
-			const match = /codicon\.([a-zA-Z~]+)/.exec(item.icon.id);
-			const iconClass = match && match[1];
-			if (this.label && iconClass) {
+			const match = /codicon\.([a-z~-]+)/i.exec(item.icon.id);
+			const name = match && match[1];
+			if (this.label && name) {
+				const iconClass = `codicon-${name}`;
 				addClasses(this.label, 'codicon', iconClass);
 				this._itemClassDispose.value = toDisposable(() => {
 					if (this.label) {
