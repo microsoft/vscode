@@ -248,10 +248,6 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 		return <OpenEditorsView>this.getView(OpenEditorsView.ID);
 	}
 
-	public getEmptyView(): EmptyView {
-		return <EmptyView>this.getView(EmptyView.ID);
-	}
-
 	public setVisible(visible: boolean): void {
 		this.viewletVisibleContextKey.set(visible);
 		super.setVisible(visible);

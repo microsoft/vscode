@@ -553,7 +553,7 @@ export class SimpleFileDialog {
 			} else if (this.endsWithSlash(value)) {
 				// The input box contains a path that doesn't exist on the system.
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.badPath', 'The path does not exist.');
-				// Save this bad path. It can take too long to to a stat on every user entered character, but once a user enters a bad path they are likely
+				// Save this bad path. It can take too long to a stat on every user entered character, but once a user enters a bad path they are likely
 				// to keep typing more bad path. We can compare against this bad path and see if the user entered path starts with it.
 				this.badPath = value;
 				return UpdateResult.InvalidPath;
@@ -661,7 +661,7 @@ export class SimpleFileDialog {
 
 	private addPostfix(uri: URI): URI {
 		let result = uri;
-		if (this.requiresTrailing && this.options.filters && this.options.filters.length > 0) {
+		if (this.requiresTrailing && this.options.filters && this.options.filters.length > 0 && !resources.hasTrailingPathSeparator(uri)) {
 			// Make sure that the suffix is added. If the user deleted it, we automatically add it here
 			let hasExt: boolean = false;
 			const currentExt = resources.extname(uri).substr(1);

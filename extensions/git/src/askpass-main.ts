@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
-import { IPCClient } from '../ipc/ipcClient';
+import { IPCClient } from './ipc/ipcClient';
 
 const localize = nls.loadMessageBundle();
 

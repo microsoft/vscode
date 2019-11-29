@@ -171,7 +171,7 @@ export class UserDataAutoSync extends Disposable {
 				this.logService.error(e);
 			}
 			if (loop) {
-				await timeout(1000 * 5); // Loop sync for every 5s.
+				await timeout(1000 * 30); // Loop sync for every 30s.
 				this.sync(loop);
 			}
 		}

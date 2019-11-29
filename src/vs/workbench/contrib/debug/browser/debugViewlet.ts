@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, REPL_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, REPL_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY } from 'vs/workbench/contrib/debug/common/debug';
 import { StartAction, ConfigureAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,6 +33,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { StartView } from 'vs/workbench/contrib/debug/browser/startView';
 
 // Register a lightweight viewlet responsible for making the container
 export class DebugViewlet extends Viewlet {
@@ -82,6 +83,12 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
 		this._register(this.debugService.onDidNewSession(() => this.updateToolBar()));
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(CONTEXT_DEBUG_UX_KEY))) {
+				this.updateTitleArea();
+			}
+		}));
+
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.toolBarLocation')) {
@@ -100,6 +107,8 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 
 		if (this.startDebugActionViewItem) {
 			this.startDebugActionViewItem.focus();
+		} else {
+			this.focusView(StartView.ID);
 		}
 	}
 
@@ -124,6 +133,9 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	}
 
 	getActions(): IAction[] {
+		if (CONTEXT_DEBUG_UX.getValue(this.contextKeyService) === 'simple') {
+			return [];
+		}
 		if (this.showInitialDebugActions) {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}

@@ -152,7 +152,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 	private async _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean, highlight: boolean): Promise<ICodeEditor | undefined> {
 		// range is the target-selection-range when we have one
-		// and the the fallback is the 'full' range
+		// and the fallback is the 'full' range
 		let range: IRange | undefined = undefined;
 		if (isLocationLink(reference)) {
 			range = reference.targetSelectionRange;

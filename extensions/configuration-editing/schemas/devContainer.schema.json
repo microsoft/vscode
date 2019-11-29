@@ -32,6 +32,10 @@
 					},
 					"description": "Remote environment variables."
 				},
+				"remoteUser": {
+					"type": "string",
+					"description": "The user VS Code Server will be started with. The default is the same user as the container."
+				},
 				"postCreateCommand": {
 					"type": [
 						"string",
@@ -71,6 +75,14 @@
 						"type": "string"
 					},
 					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"updateRemoteUserUID": {
+					"type": "boolean",
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
 				},
 				"runArgs": {
 					"type": "array",

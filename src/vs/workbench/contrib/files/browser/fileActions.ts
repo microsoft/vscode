@@ -275,7 +275,7 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 					});
 				});
 
-			return servicePromise;
+			return servicePromise.then(undefined);
 		});
 	});
 }

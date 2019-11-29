@@ -27,6 +27,7 @@ export interface HelpInformation {
 	documentation?: string;
 	feedback?: string;
 	issues?: string;
+	remoteName?: string[] | string;
 }
 
 const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInformation>({
@@ -99,7 +100,8 @@ class RemoteExplorerService implements IRemoteExplorerService {
 			getStarted: extension.value.getStarted,
 			documentation: extension.value.documentation,
 			feedback: extension.value.feedback,
-			issues: extension.value.issues
+			issues: extension.value.issues,
+			remoteName: extension.value.remoteName
 		});
 	}
 
