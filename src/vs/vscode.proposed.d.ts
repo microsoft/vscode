@@ -587,14 +587,14 @@ declare module 'vscode' {
 	/**
 	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
 	 */
-	interface DebugProtocolMessage {
+	export interface DebugProtocolMessage {
 		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
 	}
 
 	/**
 	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements this interface.
 	 */
-	interface DebugAdapter {
+	export interface DebugAdapter {
 
 		readonly onSendMessage: Event<DebugProtocolMessage>;
 		readonly onError: Event<Error>;
