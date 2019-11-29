@@ -482,7 +482,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		await this.refreshAndRenderNode(node, recursive, viewStateContext);
 
 		if (rerender) {
-			this.tree.rerender(node);
+			try {
+				this.tree.rerender(node);
+			} catch {
+				// missing nodes are fine, this could've resulted from
+				// parallel refresh calls, removing `node` altogether
+			}
 		}
 	}
 
