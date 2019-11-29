@@ -14,9 +14,17 @@ export class FilterOptions {
 	static readonly _filter: IFilter = matchesFuzzy2;
 	static readonly _messageFilter: IInvertibleFilter = (word, wordToMatchAgainst, invertResult) => {
 		let match = matchesFuzzy(word, wordToMatchAgainst);
-		if (invertResult) {
-			return [{ start: 0, end: wordToMatchAgainst.length }];
+		if (match) {
+			if (invertResult) {
+				return null;
+			}
 		}
+		else {
+			if (invertResult) {
+				return [{ start: 0, end: wordToMatchAgainst.length }];
+			}
+		}
+
 		return match;
 	}
 
