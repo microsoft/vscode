@@ -424,3 +424,10 @@ export interface ITreeViewDataProvider {
 	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
 
 }
+
+export interface IEditableData {
+	validationMessage: (value: string) => string | null;
+	placeholder?: string | null;
+	startingValue?: string | null;
+	onFinish: (value: string, success: boolean) => void;
+}

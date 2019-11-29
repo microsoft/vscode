@@ -19,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSou
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService, IEditableData } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, isEqualOrParent, basename, hasToIgnoreCase, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -54,6 +54,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
+import { IEditableData } from 'vs/workbench/common/views';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 

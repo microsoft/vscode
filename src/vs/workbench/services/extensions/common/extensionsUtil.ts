@@ -123,5 +123,5 @@ function toArray(extensionKind: ExtensionKind | ExtensionKind[]): ExtensionKind[
 	if (Array.isArray(extensionKind)) {
 		return extensionKind;
 	}
-	return [extensionKind];
+	return extensionKind === 'ui' ? ['ui', 'workspace'] : [extensionKind];
 }

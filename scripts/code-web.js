@@ -142,7 +142,7 @@ async function handleRoot(req, res) {
 				return; // seems to fail to JSON.parse()?!
 			}
 
-			packageJSON.extensionKind = 'web'; // enable for Web
+			packageJSON.extensionKind = ['web']; // enable for Web
 
 			mapExtensionFolderToExtensionPackageJSON.set(extensionFolder, packageJSON);
 		} catch (error) {

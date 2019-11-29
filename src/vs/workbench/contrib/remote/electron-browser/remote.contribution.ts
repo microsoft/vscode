@@ -390,11 +390,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
 						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
-						default: 'ui',
+						default: ['ui'],
 					},
 				},
 				default: {
-					'pub.name': 'ui'
+					'pub.name': ['ui']
 				}
 			},
 			'remote.downloadExtensionsLocally': {
