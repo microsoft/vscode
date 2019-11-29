@@ -12,6 +12,10 @@ export interface IFilter {
 	(word: string, wordToMatchAgainst: string): IMatch[] | null;
 }
 
+export interface IInvertibleFilter {
+	(word: string, wordToMatchAgainst: string, invertResult: boolean): IMatch[] | null;
+}
+
 export interface IMatch {
 	start: number;
 	end: number;
@@ -334,7 +338,7 @@ const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContigu
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
 const fuzzyRegExpCache = new LRUCache<string, RegExp>(10000); // bounded to 10000 elements
 
-export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] | null {
+export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false, invertResult = false): IMatch[] | null {
 	if (typeof word !== 'string' || typeof wordToMatchAgainst !== 'string') {
 		return null; // return early for invalid input
 	}
@@ -349,7 +353,15 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	// RegExp Filter
 	const match = regexp.exec(wordToMatchAgainst);
 	if (match) {
+		if (invertResult) {
+			// Default Filter
+			return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
+		}
+
 		return [{ start: match.index, end: match.index + match[0].length }];
+	}
+	else if (invertResult) {
+		return [{ start: 0, end: wordToMatchAgainst.length }];
 	}
 
 	// Default Filter
