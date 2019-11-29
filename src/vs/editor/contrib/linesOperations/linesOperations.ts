@@ -620,32 +620,32 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		let endLineNumber = selections[0].endLineNumber;
 		let linesContent = model.getLineContent(startLineNumber);
 
-		let whitespace_case = (endColumn === 0) || (/^\s*$/.test(linesContent[endColumn - 1]));
+		let whitespaceCase = (endColumn === 0) || (/^\s*$/.test(linesContent[endColumn - 1]));
 
 		// Case where user wants to delete all trailing whitespaces for multiple lines with single selection
-		if (whitespace_case && selections.length === 1 && startColumn === endColumn && startLineNumber === endLineNumber) {
-			let finish_search = false;
-			let result_start = endColumn;
+		if (whitespaceCase && selections.length === 1 && startColumn === endColumn && startLineNumber === endLineNumber) {
+			let finishSearch = false;
+			let resultStart = endColumn;
 
-			while (!finish_search && startLineNumber > 0) {
-				while (result_start > 0 && (/^\s*$/.test(linesContent[result_start - 1]))) {
-					--result_start;
+			while (!finishSearch && startLineNumber > 0) {
+				while (resultStart > 0 && (/^\s*$/.test(linesContent[resultStart - 1]))) {
+					--resultStart;
 				}
 
-				if (result_start === 0) {
+				if (resultStart === 0) {
 					--startLineNumber;
 					if (startLineNumber === 0) {
 						startLineNumber = 1;
 						break;
 					}
 					linesContent = model.getLineContent(startLineNumber);
-					result_start = linesContent.length;
+					resultStart = linesContent.length;
 				} else {
-					finish_search = true;
+					finishSearch = true;
 				}
 			}
 
-			startColumn = result_start;
+			startColumn = resultStart;
 			rangesToDelete.push(new Range(startLineNumber, startColumn + 1, endLineNumber, endColumn + 1));
 			return rangesToDelete;
 		}
