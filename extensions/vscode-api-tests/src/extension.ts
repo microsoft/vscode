@@ -3817,7 +3817,7 @@ export class MockDebugAdapterDescriptorFactory implements vscode.DebugAdapterDes
 	}
 
 	createDebugAdapterDescriptor(_session: vscode.DebugSession, _executable: vscode.DebugAdapterExecutable | undefined): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-		return new vscode.DebugAdapterInlineImplementation(new MockDebugSession(this.memfs));
+		return <any>new vscode.DebugAdapterInlineImplementation(new MockDebugSession(this.memfs));
 	}
 }
 

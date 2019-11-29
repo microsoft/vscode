@@ -405,15 +405,23 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test local workspace extension is disabled by kind', async () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
-		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.isEnabled(localWorkspaceExtension));
 		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.DisabledByExtensionKind);
 	});
 
+	test('test local workspace + ui extension is enabled by kind', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace', 'ui'] }, { location: URI.file(`pub.a`) });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.isEnabled(localWorkspaceExtension));
+		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
+	});
+
 	test('test local ui extension is not disabled by kind', async () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
-		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(localWorkspaceExtension));
 		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
@@ -421,29 +429,37 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test canChangeEnablement return false when the local workspace extension is disabled by kind', () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
-		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.equal(testObject.canChangeEnablement(localWorkspaceExtension), false);
 	});
 
 	test('test canChangeEnablement return true for local ui extension', () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
-		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`) });
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.equal(testObject.canChangeEnablement(localWorkspaceExtension), true);
 	});
 
 	test('test remote ui extension is disabled by kind', async () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
-		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.isEnabled(localWorkspaceExtension));
 		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.DisabledByExtensionKind);
 	});
 
+	test('test remote ui+workspace extension is disabled by kind', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui', 'workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.ok(testObject.isEnabled(localWorkspaceExtension));
+		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
+	});
+
 	test('test remote ui extension is disabled by kind when there is no local server', async () => {
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService)));
-		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.isEnabled(localWorkspaceExtension));
 		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.DisabledByExtensionKind);
@@ -451,7 +467,7 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test remote workspace extension is not disabled by kind', async () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
-		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(localWorkspaceExtension));
 		assert.deepEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
@@ -459,14 +475,14 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test canChangeEnablement return false when the remote ui extension is disabled by kind', () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
-		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: 'ui' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.equal(testObject.canChangeEnablement(localWorkspaceExtension), false);
 	});
 
 	test('test canChangeEnablement return true for remote workspace extension', () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
-		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: 'workspace' }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.equal(testObject.canChangeEnablement(localWorkspaceExtension), true);
 	});

@@ -332,7 +332,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
 		const disposables = new DisposableStore();
 
-		disposables.add(input.webview.onDidClickLink((uri: URI) => this.onDidClickLink(handle, uri)));
+		disposables.add(input.webview.onDidClickLink((uri) => this.onDidClickLink(handle, uri)));
 		disposables.add(input.webview.onMessage((message: any) => { this._proxy.$onMessage(handle, message); }));
 		disposables.add(input.webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value)));
 
@@ -387,9 +387,9 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		}
 	}
 
-	private onDidClickLink(handle: extHostProtocol.WebviewPanelHandle, link: URI): void {
+	private onDidClickLink(handle: extHostProtocol.WebviewPanelHandle, link: string): void {
 		const webview = this.getWebviewInput(handle);
-		if (this.isSupportedLink(webview, link)) {
+		if (this.isSupportedLink(webview, URI.parse(link))) {
 			this._openerService.open(link, { fromUserGesture: true });
 		}
 	}

@@ -26,6 +26,42 @@ export interface ThemeIcon {
 	readonly id: string;
 }
 
+export namespace ThemeIcon {
+	export function isThemeIcon(obj: any): obj is ThemeIcon {
+		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
+	}
+
+	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
+
+	export function fromString(str: string): ThemeIcon | undefined {
+		const match = _regexFromString.exec(str);
+		if (!match) {
+			return undefined;
+		}
+		let [, owner, name] = match;
+		if (!owner) {
+			owner = `codicon/`;
+		}
+		return { id: owner + name };
+	}
+
+	const _regexAsClassName = /^(codicon\/)?([a-z-]+)(~[a-z]+)?$/i;
+
+	export function asClassName(icon: ThemeIcon): string | undefined {
+		// todo@martin,joh -> this should go into the ThemeService
+		const match = _regexAsClassName.exec(icon.id);
+		if (!match) {
+			return undefined;
+		}
+		let [, , name, modifier] = match;
+		let className = `codicon codicon-${name}`;
+		if (modifier) {
+			className += ` ${modifier.substr(1)}`;
+		}
+		return className;
+	}
+}
+
 export const FileThemeIcon = { id: 'file' };
 export const FolderThemeIcon = { id: 'folder' };
 

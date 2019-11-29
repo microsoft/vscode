@@ -54,6 +54,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -420,12 +421,12 @@ editorCommands.setup();
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
 		group: 'navigation'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
 		group: 'navigation'
 	});
 }
@@ -455,18 +456,15 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 
-interface IEditorToolItem { id: string; title: string; iconDark?: URI; iconLight?: URI; iconClassName?: string; }
+interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI; } | ThemeIcon; }
 
-function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | undefined, order: number, alternative?: IEditorToolItem): void {
+function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | undefined, order: number, alternative?: IEditorToolItem, precondition?: ContextKeyExpr | undefined): void {
 	const item: IMenuItem = {
 		command: {
 			id: primary.id,
 			title: primary.title,
-			iconClassName: primary.iconClassName,
-			iconLocation: {
-				dark: primary.iconDark,
-				light: primary.iconLight
-			}
+			icon: primary.icon,
+			precondition
 		},
 		group: 'navigation',
 		when,
@@ -477,11 +475,7 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr | u
 		item.alt = {
 			id: alternative.id,
 			title: alternative.title,
-			iconClassName: alternative.iconClassName,
-			iconLocation: {
-				dark: alternative.iconDark,
-				light: alternative.iconLight
-			}
+			icon: alternative.icon
 		};
 	}
 
@@ -493,14 +487,14 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconClassName: 'codicon-split-horizontal'
+		icon: { id: 'codicon/split-horizontal' }
 	},
 	ContextKeyExpr.not('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_DOWN,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconClassName: 'codicon-split-vertical'
+		icon: { id: 'codicon/split-vertical' }
 	}
 );
 
@@ -508,14 +502,14 @@ appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconClassName: 'codicon-split-vertical'
+		icon: { id: 'codicon/split-vertical' }
 	},
 	ContextKeyExpr.has('splitEditorsVertically'),
 	100000, // towards the end
 	{
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconClassName: 'codicon-split-horizontal'
+		icon: { id: 'codicon/split-horizontal' }
 	}
 );
 
@@ -524,14 +518,14 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconClassName: 'codicon-close'
+		icon: { id: 'codicon/close' }
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconClassName: 'codicon-close-all'
+		icon: { id: 'codicon/close-all' }
 	}
 );
 
@@ -539,14 +533,14 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconClassName: 'codicon-close-dirty'
+		icon: { id: 'codicon/close-dirty' }
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconClassName: 'codicon-close-all'
+		icon: { id: 'codicon/close-all' }
 	}
 );
 
@@ -555,7 +549,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_PREVIOUS_CHANGE,
 		title: nls.localize('navigate.prev.label', "Previous Change"),
-		iconClassName: 'codicon-arrow-up'
+		icon: { id: 'codicon/arrow-up' }
 	},
 	TextCompareEditorActiveContext,
 	10
@@ -566,7 +560,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.GOTO_NEXT_CHANGE,
 		title: nls.localize('navigate.next.label', "Next Change"),
-		iconClassName: 'codicon-arrow-down'
+		icon: { id: 'codicon/arrow-down' }
 	},
 	TextCompareEditorActiveContext,
 	11
@@ -577,7 +571,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace Differences"),
-		iconClassName: 'codicon-whitespace'
+		icon: { id: 'codicon/whitespace' }
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
 	20
@@ -588,7 +582,7 @@ appendEditorToolItem(
 	{
 		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
 		title: nls.localize('showTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
-		iconClassName: 'codicon-whitespace disabled'
+		icon: { id: 'codicon/whitespace~disabled' }
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
 	20
