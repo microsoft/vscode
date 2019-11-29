@@ -240,7 +240,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		if (ThemeIcon.isThemeIcon(item.icon)) {
 			// theme icons ~ support codicon only...
 
-			const match = /codicon\.([a-z-]+)(~[a-z]+)?/i.exec(item.icon.id);
+			const match = /codicon\/([a-z-]+)(~[a-z]+)?/i.exec(item.icon.id);
 			const name = match && match[1];
 			const modifier = match && match[2];
 			if (this.label && name) {

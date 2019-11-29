@@ -31,7 +31,7 @@ export namespace ThemeIcon {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
 	}
 
-	const _regex = /^\$\(([a-z.]+\.)?([a-z-~]+)\)$/i;
+	const _regex = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
 
 	export function fromString(str: string): ThemeIcon | undefined {
 		const match = _regex.exec(str);
@@ -40,7 +40,7 @@ export namespace ThemeIcon {
 		}
 		let [, owner, name] = match;
 		if (!owner) {
-			owner = `codicon.`;
+			owner = `codicon/`;
 		}
 		return { id: owner + name };
 	}

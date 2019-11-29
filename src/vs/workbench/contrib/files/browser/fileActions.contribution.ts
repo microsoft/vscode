@@ -180,8 +180,8 @@ export function appendEditorTitleContextMenuItem(id: string, title: string, when
 }
 
 // Editor Title Menu for Conflict Resolution
-appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), { id: 'codicon.check' }, -10, acceptLocalChangesCommand);
-appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), { id: 'codicon.discard' }, -9, revertLocalChangesCommand);
+appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), { id: 'codicon/check' }, -10, acceptLocalChangesCommand);
+appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), { id: 'codicon/discard' }, -9, revertLocalChangesCommand);
 
 function appendSaveConflictEditorTitleAction(id: string, title: string, icon: ThemeIcon, order: number, command: ICommandHandler): void {
 

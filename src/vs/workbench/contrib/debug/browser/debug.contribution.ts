@@ -294,16 +294,16 @@ const registerDebugToolBarItem = (id: string, title: string, order: number, icon
 	});
 };
 
-registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, { id: 'codicon.debug-continue' }, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 10, { id: 'codicon.debug-pause' }, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
-registerDebugToolBarItem(STOP_ID, STOP_LABEL, 70, { id: 'codicon.debug-stop' }, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
-registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, 70, { id: 'codicon.debug-disconnect' }, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
-registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, 20, { id: 'codicon.debug-step-over' }, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 30, { id: 'codicon.debug-step-into' }, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, { id: 'codicon.debug-step-out' }, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, { id: 'codicon.debug-restart' });
-registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), 50, { id: 'codicon.debug-step-back' }, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 60, { id: 'codicon.debug-reverse-continue' }, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, { id: 'codicon/debug-continue' }, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 10, { id: 'codicon/debug-pause' }, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'));
+registerDebugToolBarItem(STOP_ID, STOP_LABEL, 70, { id: 'codicon/debug-stop' }, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
+registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, 70, { id: 'codicon/debug-disconnect' }, CONTEXT_FOCUSED_SESSION_IS_ATTACH);
+registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, 20, { id: 'codicon/debug-step-over' }, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_INTO_ID, STEP_INTO_LABEL, 30, { id: 'codicon/debug-step-into' }, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, { id: 'codicon/debug-step-out' }, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, { id: 'codicon/debug-restart' });
+registerDebugToolBarItem(STEP_BACK_ID, nls.localize('stepBackDebug', "Step Back"), 50, { id: 'codicon/debug-step-back' }, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
+registerDebugToolBarItem(REVERSE_CONTINUE_ID, nls.localize('reverseContinue', "Reverse"), 60, { id: 'codicon/debug-reverse-continue' }, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 
 // Debug callstack context menu
 const registerDebugCallstackItem = (id: string, title: string, order: number, when?: ContextKeyExpr, precondition?: ContextKeyExpr, group = 'navigation') => {

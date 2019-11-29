@@ -582,7 +582,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelTitle, ({
 	command: {
 		id: ForwardPortAction.ID,
 		title: ForwardPortAction.LABEL,
-		icon: { id: 'codicon.plus' }
+		icon: { id: 'codicon/plus' }
 	}
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
@@ -636,7 +636,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: OpenPortInBrowserAction.ID,
 		title: OpenPortInBrowserAction.LABEL,
-		icon: { id: 'codicon.globe' }
+		icon: { id: 'codicon/globe' }
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
 }));
@@ -645,7 +645,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: ForwardPortAction.ID,
 		title: ForwardPortAction.LABEL,
-		icon: { id: 'codicon.plus' }
+		icon: { id: 'codicon/plus' }
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Candidate), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
 }));
@@ -654,7 +654,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	command: {
 		id: ClosePortAction.ID,
 		title: ClosePortAction.LABEL,
-		icon: { id: 'codicon.x' }
+		icon: { id: 'codicon/x' }
 	},
 	when: TunnelCloseableContextKey
 }));
