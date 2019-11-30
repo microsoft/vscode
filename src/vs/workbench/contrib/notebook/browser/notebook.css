@@ -15,3 +15,6 @@
 	padding: 8px;
 }
 
+.cell {
+	transform: translate3d(0, 0, 0);
+}

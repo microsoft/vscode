@@ -14,18 +14,18 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import * as marked from 'vs/base/common/marked/marked';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { deepClone } from 'vs/base/common/objects';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isObject } from 'vs/base/common/types';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const $ = DOM.$;
 
@@ -99,6 +99,7 @@ export class MarkdownCellRenderer implements IListRenderer<Cell, CellRenderTempl
 export class CodeCellRenderer implements IListRenderer<Cell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private editorOptions: IEditorOptions;
+	private widgetOptions: ICodeEditorWidgetOptions;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -107,7 +108,24 @@ export class CodeCellRenderer implements IListRenderer<Cell, CellRenderTemplate>
 		@IModeService private readonly modeService: IModeService
 	) {
 		const language = 'python';
-		this.editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
+		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
+		this.editorOptions = {
+			...editorOptions,
+			scrollBeyondLastLine: false,
+			scrollbar: {
+				verticalScrollbarSize: 14,
+				horizontal: 'auto',
+				useShadows: true,
+				verticalHasArrows: false,
+				horizontalHasArrows: false
+			},
+			overviewRulerLanes: 3,
+			fixedOverflowWidgets: true,
+			lineNumbersMinChars: 1,
+			minimap: { enabled: false },
+		};
+
+		this.widgetOptions = getSimpleCodeEditorWidgetOptions();
 	}
 
 	get templateId() {
@@ -127,8 +145,7 @@ export class CodeCellRenderer implements IListRenderer<Cell, CellRenderTemplate>
 	}
 
 	renderElement(element: Cell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		const codeConfig = this.getEditorOptions('python');
-
+		const codeConfig = this.editorOptions;
 		const innerContent = templateData.cellContainer;
 		const width = innerContent.clientWidth;
 		const lineHeight = codeConfig.lineHeight!;
@@ -140,7 +157,7 @@ export class CodeCellRenderer implements IListRenderer<Cell, CellRenderTemplate>
 				width: width,
 				height: totalHeight
 			}
-		}, {});
+		}, this.widgetOptions);
 		const resource = URI.parse(`notebookcell-${index}-${Date.now()}.js`);
 		const model = this.modelService.createModel(element.value, this.modeService.createByFilepathOrFirstLine(resource), resource, false);
 		editor.setModel(model);
@@ -161,24 +178,6 @@ export class CodeCellRenderer implements IListRenderer<Cell, CellRenderTemplate>
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
 		// throw nerendererw Error('Method not implemented.');
-	}
-
-	private getEditorOptions(language: string): IEditorOptions {
-		return {
-			...this.editorOptions,
-			scrollBeyondLastLine: false,
-			scrollbar: {
-				verticalScrollbarSize: 14,
-				horizontal: 'auto',
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false
-			},
-			overviewRulerLanes: 3,
-			fixedOverflowWidgets: true,
-			lineNumbersMinChars: 1,
-			minimap: { enabled: false },
-		};
 	}
 }
 
