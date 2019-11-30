@@ -398,7 +398,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
-		const focus = <any[]>listService.lastFocusedList ?.getFocus();
+		const focus = <any[]>listService.lastFocusedList?.getFocus();
 		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
 			withController(accessor, controller => controller.openReference(focus[0], true));
 		}
