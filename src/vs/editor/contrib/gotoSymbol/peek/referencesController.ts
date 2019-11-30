@@ -173,6 +173,18 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		});
 	}
 
+	async changeFocusBetweenPreviewAndReferences() {
+		if (!this._widget) {
+			// can be called while still resolving...
+			return;
+		}
+		if (this._widget.isPreviewEditorFocused()) {
+			this._widget.focusOnReferenceTree();
+		} else {
+			this._widget.focusOnPreviewEditor();
+		}
+	}
+
 	async goToNextOrPreviousReference(fwd: boolean) {
 		if (!this._editor.hasModel() || !this._model || !this._widget) {
 			// can be called while still resolving...
@@ -229,7 +241,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			if (this._editor === openedEditor) {
 				//
 				this._widget.show(range);
-				this._widget.focus();
+				this._widget.focusOnReferenceTree();
 
 			} else {
 				// we opened a different editor instance which means a different controller instance.
@@ -277,6 +289,30 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 		fn(controller);
 	}
 }
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'changeFocus',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	primary: KeyCode.F2,
+	when: ctxReferenceSearchVisible,
+	handler(accessor) {
+		withController(accessor, controller => {
+			controller.changeFocusBetweenPreviewAndReferences();
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'changeFocusFromEmbeddedEditor',
+	weight: KeybindingWeight.EditorContrib + 50,
+	primary: KeyCode.F2,
+	when: PeekContext.inPeekEditor,
+	handler(accessor) {
+		withController(accessor, controller => {
+			controller.changeFocusBetweenPreviewAndReferences();
+		});
+	}
+});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReference',
@@ -362,7 +398,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
-		const focus = <any[]>listService.lastFocusedList?.getFocus();
+		const focus = <any[]>listService.lastFocusedList ?.getFocus();
 		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
 			withController(accessor, controller => controller.openReference(focus[0], true));
 		}
