@@ -11,7 +11,7 @@ import { IObjectTreeModelOptions, ObjectTreeModel, IObjectTreeModel } from 'vs/b
 
 // Exported only for test reasons, do not use directly
 export interface ICompressedTreeElement<T> extends ITreeElement<T> {
-	readonly children?: Iterator<ICompressedTreeElement<T>> | ICompressedTreeElement<T>[];
+	readonly children?: ISequence<ICompressedTreeElement<T>>;
 	readonly incompressible?: boolean;
 }
 
