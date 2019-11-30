@@ -23,9 +23,9 @@ import { deepClone } from 'vs/base/common/objects';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isObject } from 'vs/base/common/types';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
-import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 
 const $ = DOM.$;
 
@@ -34,20 +34,165 @@ interface Cell {
 	value: string;
 }
 
+interface CellRenderTemplate {
+	cellContainer: HTMLElement;
+	renderer: marked.Renderer; // TODO this can be cached
+}
+
+export class NotebookCellListDelegate implements IListVirtualDelegate<Cell> {
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+	}
+
+	getHeight(element: Cell): number {
+		if (element.type === 'markdown') {
+			return 100;
+		} else {
+			const options = this.configurationService.getValue<IEditorOptions>('editor');
+			return 5 * (options.lineHeight ?? 14);
+		}
+	}
+
+	hasDynamicHeight(element: Cell): boolean {
+		// return element.type === 'markdown';
+		return true;
+	}
+
+	getTemplateId(element: Cell): string {
+		if (element.type === 'markdown') {
+			return MarkdownCellRenderer.TEMPLATE_ID;
+		} else {
+			return CodeCellRenderer.TEMPLATE_ID;
+		}
+	}
+}
+
+export class MarkdownCellRenderer implements IListRenderer<Cell, CellRenderTemplate> {
+	static readonly TEMPLATE_ID = 'markdown_cell';
+
+	get templateId() {
+		return MarkdownCellRenderer.TEMPLATE_ID;
+	}
+
+	renderTemplate(container: HTMLElement): CellRenderTemplate {
+		const innerContent = document.createElement('div');
+		DOM.addClasses(innerContent, 'cell', 'markdown');
+		const renderer = new marked.Renderer();
+		container.appendChild(innerContent);
+
+		return {
+			cellContainer: innerContent,
+			renderer: renderer
+		};
+	}
+
+	renderElement(element: Cell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+		templateData.cellContainer.innerHTML = marked(element.value, { renderer: templateData.renderer });
+	}
+
+	disposeTemplate(templateData: CellRenderTemplate): void {
+		// throw nerendererw Error('Method not implemented.');
+	}
+}
+
+export class CodeCellRenderer implements IListRenderer<Cell, CellRenderTemplate> {
+	static readonly TEMPLATE_ID = 'code_cell';
+	private editorOptions: IEditorOptions;
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService
+	) {
+		const language = 'python';
+		this.editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
+	}
+
+	get templateId() {
+		return CodeCellRenderer.TEMPLATE_ID;
+	}
+
+	renderTemplate(container: HTMLElement): CellRenderTemplate {
+		const innerContent = document.createElement('div');
+		DOM.addClasses(innerContent, 'cell', 'code');
+		const renderer = new marked.Renderer();
+		container.appendChild(innerContent);
+
+		return {
+			cellContainer: innerContent,
+			renderer: renderer
+		};
+	}
+
+	renderElement(element: Cell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+		const codeConfig = this.getEditorOptions('python');
+
+		const innerContent = templateData.cellContainer;
+		const width = innerContent.clientWidth;
+		const lineHeight = codeConfig.lineHeight!;
+		const lineNum = element.value.split(/\r|\n|\r\n/g).length;
+		const totalHeight = lineNum * lineHeight;
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, innerContent, {
+			...codeConfig,
+			dimension: {
+				width: width,
+				height: totalHeight
+			}
+		}, {});
+		const resource = URI.parse(`notebookcell-${index}-${Date.now()}.js`);
+		const model = this.modelService.createModel(element.value, this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+		editor.setModel(model);
+		const updateHeight = () => {
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
+			if (innerContent.style.height !== height) {
+				innerContent.style.height = height;
+
+				editor.layout({
+					width: innerContent.clientWidth,
+					height: Math.max(model.getLineCount() + 1, 4) * lineHeight
+				});
+			}
+		};
+		updateHeight();
+	}
+
+	disposeTemplate(templateData: CellRenderTemplate): void {
+		// throw nerendererw Error('Method not implemented.');
+	}
+
+	private getEditorOptions(language: string): IEditorOptions {
+		return {
+			...this.editorOptions,
+			scrollBeyondLastLine: false,
+			scrollbar: {
+				verticalScrollbarSize: 14,
+				horizontal: 'auto',
+				useShadows: true,
+				verticalHasArrows: false,
+				horizontalHasArrows: false
+			},
+			overviewRulerLanes: 3,
+			fixedOverflowWidgets: true,
+			lineNumbersMinChars: 1,
+			minimap: { enabled: false },
+		};
+	}
+}
+
 export class NotebookEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
-	private scrollbar!: DomScrollableElement;
+	private list: WorkbenchList<Cell> | undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private modeService: IModeService
+		@IStorageService storageService: IStorageService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 	}
@@ -66,18 +211,48 @@ export class NotebookEditor extends BaseEditor {
 
 	private createBody(parent: HTMLElement): void {
 		this.body = document.createElement('div'); //DOM.append(parent, $('.notebook-body'));
-		this.scrollbar = new DomScrollableElement(this.body, {
-			horizontal: ScrollbarVisibility.Auto,
-			vertical: ScrollbarVisibility.Auto
-		});
-		DOM.append(parent, this.scrollbar.getDomNode());
+		DOM.addClass(this.body, 'cell-list-container');
+		this.createCellList();
+		DOM.append(parent, this.body);
+	}
+
+	private createCellList(): void {
+		DOM.addClass(this.body, 'cell-list-container');
+
+		const renders = [
+			this.instantiationService.createInstance(MarkdownCellRenderer),
+			this.instantiationService.createInstance(CodeCellRenderer)
+		];
+
+		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<Cell>>(
+			WorkbenchList,
+			'NotebookCellList',
+			this.body,
+			this.instantiationService.createInstance(NotebookCellListDelegate),
+			renders,
+			{
+				setRowLineHeight: false,
+				supportDynamicHeights: true,
+				horizontalScrolling: false,
+				keyboardSupport: false,
+				mouseSupport: false,
+				multipleSelectionSupport: false,
+				overrideStyles: {
+					listBackground: editorBackground,
+					listActiveSelectionBackground: editorBackground,
+					listActiveSelectionForeground: foreground,
+					listFocusAndSelectionBackground: editorBackground,
+					listFocusAndSelectionForeground: foreground,
+					listFocusBackground: editorBackground,
+					listFocusForeground: foreground,
+					listHoverForeground: foreground,
+					listHoverBackground: editorBackground,
+				}
+			}
+		);
 	}
 
 	setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		const codeConfig = this.getEditorOptions('javascript');
-
-		const renderer = new marked.Renderer();
-
 		return super.setInput(input, options, token).then(() => {
 			// 1292 markdown
 			// 545
@@ -121,70 +296,9 @@ export class NotebookEditor extends BaseEditor {
 				stressCells.push(...cells);
 			}
 
-			let i = 0;
-			const cellsContainer = document.createElement('div');
-			const updates: ((initial: boolean) => void)[] = [];
-
-			stressCells.forEach(cell => {
-				if (cell.type === 'markdown') {
-					const innerContent = document.createElement('div');
-					DOM.addClasses(innerContent, 'cell', 'markdown');
-					innerContent.innerHTML = marked(cell.value, { renderer });
-					cellsContainer.append(innerContent);
-				} else {
-					const innerContent = document.createElement('div');
-					DOM.addClasses(innerContent, 'cell', 'code');
-					const editor = this.instantiationService.createInstance(CodeEditorWidget, innerContent, codeConfig, {});
-					const resource = URI.parse(`notebookcell-${i}-${Date.now()}.js`);
-					const model = this.modelService.createModel(cell.value, this.modeService.createByFilepathOrFirstLine(resource), resource, false);
-					editor.setModel(model);
-					const updateHeight = (initial: boolean) => {
-						const lineHeight = editor.getOption(EditorOption.lineHeight);
-						const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
-						if (innerContent.style.height !== height) {
-							innerContent.style.height = height;
-
-							editor.layout({
-								width: innerContent.clientWidth,
-								height: Math.max(model.getLineCount() + 1, 4) * lineHeight
-							});
-
-							if (!initial) {
-								this.scrollbar.scanDomNode();
-							}
-						}
-					};
-					cellsContainer.append(innerContent);
-					updates.push(updateHeight);
-				}
-			});
-
-			this.body.append(cellsContainer);
-			for (let i = 0; i < updates.length; i++) {
-				updates[i](true);
-			}
-
-			this.scrollbar.scanDomNode();
+			this.list?.splice(0, 0, stressCells);
+			this.list?.layout();
 		});
-	}
-
-	private getEditorOptions(language: string): IEditorOptions {
-		const config = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
-		return {
-			...isObject(config) ? config : Object.create(null),
-			scrollBeyondLastLine: false,
-			scrollbar: {
-				verticalScrollbarSize: 14,
-				horizontal: 'auto',
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false
-			},
-			overviewRulerLanes: 3,
-			fixedOverflowWidgets: true,
-			lineNumbersMinChars: 1,
-			minimap: { enabled: false },
-		};
 	}
 
 	layout(dimension: DOM.Dimension): void {
