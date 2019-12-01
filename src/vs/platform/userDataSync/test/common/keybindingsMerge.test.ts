@@ -9,7 +9,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { parse } from 'vs/base/common/json';
 
-suite('KeybindingsMerge - No Conflicts', () => {
+suite.skip('KeybindingsMerge - No Conflicts', () => {
 
 	test('merge when local and remote are same with one entry', async () => {
 		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
