@@ -17,6 +17,15 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { isUndefined } from 'vs/base/common/types';
+
+interface ISyncContent {
+	mac?: string;
+	linux?: string;
+	windows?: string;
+	all?: string;
+}
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -54,6 +63,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		super();
 		this.lastSyncKeybindingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncKeybindings.json');
 		this.throttledDelayer = this._register(new ThrottledDelayer<void>(500));
+		this._register(this.fileService.watch(this.environmentService.keybindingsResource));
 		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.keybindingsResource))(() => this.throttledDelayer.trigger(() => this.onDidChangeKeybindings())));
 	}
 
@@ -166,12 +176,14 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 			}
 			if (hasRemoteChanged) {
 				this.logService.info('Keybindings: Updating remote keybindings');
-				const ref = await this.updateRemoteContent(content, remoteUserData.ref);
-				remoteUserData = { ref, content };
+				const remoteContents = this.updateSyncContent(content, remoteUserData.content);
+				const ref = await this.updateRemoteUserData(remoteContents, remoteUserData.ref);
+				remoteUserData = { ref, content: remoteContents };
 			}
 			if (remoteUserData.content) {
 				this.logService.info('Keybindings: Updating last synchronised keybindings');
-				await this.updateLastSyncUserData(remoteUserData);
+				const lastSyncContent = this.updateSyncContent(content, null);
+				await this.updateLastSyncUserData({ ref: remoteUserData.ref, content: lastSyncContent });
 			}
 
 			// Delete the preview
@@ -200,8 +212,9 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 
 	private async generatePreview(token: CancellationToken): Promise<ISyncPreviewResult> {
 		const lastSyncData = await this.getLastSyncUserData();
-		const remoteUserData = await this.getRemoteContent(lastSyncData);
-		const remoteContent: string | null = remoteUserData.content;
+		const lastSyncContent = lastSyncData && lastSyncData.content ? this.getKeybindingsContentFromSyncContent(lastSyncData.content) : null;
+		const remoteUserData = await this.getRemoteUserData(lastSyncData);
+		const remoteContent = remoteUserData.content ? this.getKeybindingsContentFromSyncContent(remoteUserData.content) : null;
 		// Get file content last to get the latest
 		const fileContent = await this.getLocalContent();
 		let hasLocalChanged: boolean = false;
@@ -216,13 +229,13 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 				return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
 			}
 
-			if (!lastSyncData // First time sync
-				|| lastSyncData.content !== localContent // Local has forwarded
-				|| lastSyncData.content !== remoteContent // Remote has forwarded
+			if (!lastSyncContent // First time sync
+				|| lastSyncContent !== localContent // Local has forwarded
+				|| lastSyncContent !== remoteContent // Remote has forwarded
 			) {
 				this.logService.trace('Keybindings: Merging remote keybindings with local keybindings...');
-				const keys = await this.userKeybindingsResolverService.resolveUserKeybindings(localContent, remoteContent, lastSyncData ? lastSyncData.content : null);
-				const result = merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, keys);
+				const keys = await this.userKeybindingsResolverService.resolveUserKeybindings(localContent, remoteContent, lastSyncContent);
+				const result = merge(localContent, remoteContent, lastSyncContent, keys);
 				// Sync only if there are changes
 				if (result.hasChanges) {
 					hasLocalChanged = result.mergeContent !== localContent;
@@ -278,11 +291,58 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		await this.fileService.writeFile(this.lastSyncKeybindingsResource, VSBuffer.fromString(JSON.stringify(remoteUserData)));
 	}
 
-	private async getRemoteContent(lastSyncData: IUserData | null): Promise<IUserData> {
+	private async getRemoteUserData(lastSyncData: IUserData | null): Promise<IUserData> {
 		return this.userDataSyncStoreService.read(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, lastSyncData);
 	}
 
-	private async updateRemoteContent(content: string, ref: string | null): Promise<string> {
+	private async updateRemoteUserData(content: string, ref: string | null): Promise<string> {
 		return this.userDataSyncStoreService.write(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, content, ref);
 	}
+
+	private getKeybindingsContentFromSyncContent(syncContent: string): string | null {
+		try {
+			const parsed = <ISyncContent>JSON.parse(syncContent);
+			if (!this.configurationService.getValue<boolean>('sync.keybindingsPerPlatform')) {
+				return isUndefined(parsed.all) ? null : parsed.all;
+			}
+			switch (OS) {
+				case OperatingSystem.Macintosh:
+					return isUndefined(parsed.mac) ? null : parsed.mac;
+				case OperatingSystem.Linux:
+					return isUndefined(parsed.linux) ? null : parsed.linux;
+				case OperatingSystem.Windows:
+					return isUndefined(parsed.windows) ? null : parsed.windows;
+			}
+		} catch (e) {
+			this.logService.error(e);
+			return null;
+		}
+	}
+
+	private updateSyncContent(keybindingsContent: string, syncContent: string | null): string {
+		let parsed: ISyncContent = {};
+		try {
+			parsed = JSON.parse(syncContent || '{}');
+		} catch (e) {
+			this.logService.error(e);
+		}
+		if (!this.configurationService.getValue<boolean>('sync.keybindingsPerPlatform')) {
+			parsed.all = keybindingsContent;
+		} else {
+			delete parsed.all;
+		}
+		switch (OS) {
+			case OperatingSystem.Macintosh:
+				parsed.mac = keybindingsContent;
+				break;
+			case OperatingSystem.Linux:
+				parsed.linux = keybindingsContent;
+				break;
+			case OperatingSystem.Windows:
+				parsed.windows = keybindingsContent;
+				break;
+		}
+		return JSON.stringify(parsed);
+	}
+
 }

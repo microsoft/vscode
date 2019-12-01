@@ -59,6 +59,12 @@ export function registerConfiguration(): IDisposable {
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
+			'sync.keybindingsPerPlatform': {
+				type: 'boolean',
+				description: localize('sync.keybindingsPerPlatform', "Synchronize keybindings per platform."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
 			'sync.ignoredExtensions': {
 				'type': 'array',
 				description: localize('sync.ignoredExtensions', "Configure extensions to be ignored while synchronizing."),
