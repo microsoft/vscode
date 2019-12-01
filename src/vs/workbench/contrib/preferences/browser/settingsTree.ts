@@ -467,7 +467,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}
 
 		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
-		template.deprecationWarningElement.innerText = element.setting.deprecationMessage || '';
+		const deprecationText = element.setting.deprecationMessage || '';
+		template.deprecationWarningElement.innerText = deprecationText;
+		DOM.toggleClass(template.containerElement, 'is-deprecated', !!deprecationText);
+
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
 	}
