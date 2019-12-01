@@ -15,6 +15,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -49,6 +50,18 @@ export function registerConfiguration(): IDisposable {
 			'sync.enableExtensions': {
 				type: 'boolean',
 				description: localize('sync.enableExtensions', "Enable synchronizing extensions."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'sync.enableKeybindings': {
+				type: 'boolean',
+				description: localize('sync.enableKeybindings', "Enable synchronizing keybindings."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'sync.keybindingsPerPlatform': {
+				type: 'boolean',
+				description: localize('sync.keybindingsPerPlatform', "Synchronize keybindings per platform."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
@@ -132,6 +145,7 @@ export interface ISyncExtension {
 
 export const enum SyncSource {
 	Settings = 1,
+	Keybindings,
 	Extensions
 }
 
@@ -170,6 +184,16 @@ export interface ISettingsMergeService {
 	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[]): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
 
 	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[]): Promise<string>;
+
+}
+
+export const IUserKeybindingsResolverService = createDecorator<IUserKeybindingsResolverService>('IUserKeybindingsResolverService');
+
+export interface IUserKeybindingsResolverService {
+
+	_serviceBrand: undefined;
+
+	resolveUserKeybindings(localContent: string, remoteContent: string, baseContent: string | null): Promise<IStringDictionary<string>>;
 
 }
 

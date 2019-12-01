@@ -13,6 +13,7 @@ import { timeout } from 'vs/base/common/async';
 import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
+import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -31,6 +32,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	get conflictsSource(): SyncSource | null { return this._conflictsSource; }
 
 	private readonly settingsSynchroniser: SettingsSynchroniser;
+	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
 	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
 
 	constructor(
@@ -40,8 +42,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	) {
 		super();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
+		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
 		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));
-		this.synchronisers = [this.settingsSynchroniser, this.extensionsSynchroniser];
+		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
 
 		if (this.userDataSyncStoreService.userDataSyncStore) {
@@ -110,6 +113,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (source) {
 			if (source instanceof SettingsSynchroniser) {
 				return SyncSource.Settings;
+			}
+			if (source instanceof KeybindingsSynchroniser) {
+				return SyncSource.Keybindings;
 			}
 		}
 		return null;
