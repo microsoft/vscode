@@ -9,7 +9,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { NotebookEditorInput, ICell } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -29,38 +29,32 @@ import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEdito
 
 const $ = DOM.$;
 
-interface Cell {
-	type: 'markdown' | 'code';
-	value: string;
-}
-
 interface CellRenderTemplate {
 	cellContainer: HTMLElement;
-	renderer: marked.Renderer; // TODO this can be cached
+	renderer?: marked.Renderer; // TODO this can be cached
 }
 
-export class NotebookCellListDelegate implements IListVirtualDelegate<Cell> {
+export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 	}
 
-	getHeight(element: Cell): number {
-		if (element.type === 'markdown') {
+	getHeight(element: ICell): number {
+		if (element.cell_type === 'markdown') {
 			return 100;
 		} else {
-			const options = this.configurationService.getValue<IEditorOptions>('editor');
-			return 5 * (options.lineHeight ?? 14);
+			return 5 * 14;
 		}
 	}
 
-	hasDynamicHeight(element: Cell): boolean {
+	hasDynamicHeight(element: ICell): boolean {
 		// return element.type === 'markdown';
 		return true;
 	}
 
-	getTemplateId(element: Cell): string {
-		if (element.type === 'markdown') {
+	getTemplateId(element: ICell): string {
+		if (element.cell_type === 'markdown') {
 			return MarkdownCellRenderer.TEMPLATE_ID;
 		} else {
 			return CodeCellRenderer.TEMPLATE_ID;
@@ -68,7 +62,7 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<Cell> {
 	}
 }
 
-export class MarkdownCellRenderer implements IListRenderer<Cell, CellRenderTemplate> {
+export class MarkdownCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 
 	get templateId() {
@@ -87,8 +81,8 @@ export class MarkdownCellRenderer implements IListRenderer<Cell, CellRenderTempl
 		};
 	}
 
-	renderElement(element: Cell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		templateData.cellContainer.innerHTML = marked(element.value, { renderer: templateData.renderer });
+	renderElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+		templateData.cellContainer.innerHTML = marked(element.source.join(''), { renderer: templateData.renderer });
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
@@ -96,7 +90,7 @@ export class MarkdownCellRenderer implements IListRenderer<Cell, CellRenderTempl
 	}
 }
 
-export class CodeCellRenderer implements IListRenderer<Cell, CellRenderTemplate> {
+export class CodeCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private editorOptions: IEditorOptions;
 	private widgetOptions: ICodeEditorWidgetOptions;
@@ -135,22 +129,21 @@ export class CodeCellRenderer implements IListRenderer<Cell, CellRenderTemplate>
 	renderTemplate(container: HTMLElement): CellRenderTemplate {
 		const innerContent = document.createElement('div');
 		DOM.addClasses(innerContent, 'cell', 'code');
-		const renderer = new marked.Renderer();
 		container.appendChild(innerContent);
 
 		return {
-			cellContainer: innerContent,
-			renderer: renderer
+			cellContainer: innerContent
 		};
 	}
 
-	renderElement(element: Cell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		const codeConfig = this.editorOptions;
 		const innerContent = templateData.cellContainer;
 		const width = innerContent.clientWidth;
 		const lineHeight = codeConfig.lineHeight!;
-		const lineNum = element.value.split(/\r|\n|\r\n/g).length;
-		const totalHeight = lineNum * lineHeight;
+		const lineNum = element.source.length;
+		const totalHeight = Math.max(lineNum + 1, 4) * 21;
+		innerContent.innerHTML = '';
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, innerContent, {
 			...codeConfig,
 			dimension: {
@@ -158,8 +151,8 @@ export class CodeCellRenderer implements IListRenderer<Cell, CellRenderTemplate>
 				height: totalHeight
 			}
 		}, this.widgetOptions);
-		const resource = URI.parse(`notebookcell-${index}-${Date.now()}.js`);
-		const model = this.modelService.createModel(element.value, this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+		const resource = URI.parse(`notebookcell-${index}-${Date.now()}.py`);
+		const model = this.modelService.createModel(element.source.join(''), this.modeService.createByFilepathOrFirstLine(resource), resource, false);
 		editor.setModel(model);
 		const updateHeight = () => {
 			const lineHeight = editor.getOption(EditorOption.lineHeight);
@@ -185,7 +178,7 @@ export class NotebookEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
-	private list: WorkbenchList<Cell> | undefined;
+	private list: WorkbenchList<ICell> | undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -223,7 +216,7 @@ export class NotebookEditor extends BaseEditor {
 			this.instantiationService.createInstance(CodeCellRenderer)
 		];
 
-		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<Cell>>(
+		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<ICell>>(
 			WorkbenchList,
 			'NotebookCellList',
 			this.body,
@@ -252,59 +245,20 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		return super.setInput(input, options, token).then(() => {
-			// 1292 markdown
-			// 545
-			let cells: Cell[] = [
-				{
-					type: 'markdown',
-					value: [
-						'There are two other keyboard shortcuts for running code:\n',
-						'\n',
-						'* `Alt-Enter` runs the current cell and inserts a new one below.\n',
-						'* `Ctrl-Enter` run the current cell and enters command mode.'
-					].join('')
-				},
-				{
-					type: 'markdown',
-					value: [
-						'There are two other keyboard shortcuts for running code:\n',
-						'\n',
-						'* `Alt-Enter` runs the current cell and inserts a new one below.\n',
-						'* `Ctrl-Enter` run the current cell and enters command mode.'
-					].join('')
-				},
-				{
-					type: 'code',
-					value: [
-						'import sys\n',
-						'from ctypes import CDLL\n',
-						'# This will crash a Linux or Mac system\n',
-						'# equivalent calls can be made on Windows\n',
-						'\n',
-						'# Uncomment these lines if you would like to see the segfault\n',
-						'\n',
-						'# libc = CDLL(\"libc.%s\" % dll) \n',
-						'# libc.time(-1)  # BOOM!'
-					].join('')
-				}
-			];
-
-			let stressCells = [];
-			for (let i = 0; i < 500; i++) {
-				stressCells.push(...cells);
-			}
-
-			this.list?.splice(0, 0, stressCells);
-			this.list?.layout();
-		});
+		return super.setInput(input, options, token)
+			.then(() => {
+				return input.resolve();
+			})
+			.then(model => {
+				this.list?.splice(0, 0, model.getNookbook().cells);
+				this.list?.layout();
+			});
 	}
 
 	layout(dimension: DOM.Dimension): void {
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
-		DOM.size(this.body, dimension.width, dimension.height);
-
+		DOM.size(this.body, dimension.width - 20, dimension.height);
 	}
 }
 

@@ -12,9 +12,10 @@
 }
 
 .cell.markdown {
-	padding: 8px;
+	white-space: initial;
 }
 
-.cell {
+.cell.code {
 	transform: translate3d(0, 0, 0);
+	padding: 8px 0 8px 0;
 }

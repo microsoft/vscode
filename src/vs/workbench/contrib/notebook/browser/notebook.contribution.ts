@@ -10,10 +10,18 @@ import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } fro
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { Action } from 'vs/base/common/actions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { endsWith } from 'vs/base/common/strings';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -26,28 +34,32 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-export class NotebookAction extends Action {
-
-	public static readonly ID = 'workbench.action.showNotebook';
-	public static readonly LABEL = nls.localize('notebookSample', "Notebook Playground");
+export class NotebookContribution implements IWorkbenchContribution {
+	private editorOpeningListener: IDisposable | undefined;
 
 	constructor(
-		id: string,
-		label: string,
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
+
 	) {
-		super(id, label);
+		this.editorOpeningListener = this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
 	}
 
-	public run(): Promise<void> {
-		const input = this.instantiationService.createInstance(NotebookEditorInput);
-		return this.editorService.openEditor(input, { pinned: true })
-			.then(() => void (0));
+	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
+		const resource = editor.getResource();
+
+		if (
+			!resource ||
+			!endsWith(resource.path, '.ipynb')
+		) {
+			return undefined;
+		}
+
+		const input = this.instantiationService.createInstance(NotebookEditorInput, editor);
+
+		return { override: this.editorService.openEditor(input, options, group) };
 	}
 }
 
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(
-		SyncActionDescriptor.create(NotebookAction, NotebookAction.ID, NotebookAction.LABEL),
-		'Help: Notebook Playground', nls.localize('help', "Notebook Playground"));
+const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);

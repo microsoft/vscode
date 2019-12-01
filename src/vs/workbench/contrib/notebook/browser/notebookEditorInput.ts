@@ -3,23 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
+import { EditorInput, EditorModel, IEditorInput } from 'vs/workbench/common/editor';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModel } from 'vs/editor/common/model';
+
+export interface ICell {
+	source: string[];
+	cell_type: 'markdown' | 'code';
+}
+
+export interface LanguageInfo {
+	file_extension: string;
+}
+export interface IMetadata {
+	language_info: LanguageInfo;
+}
+export interface INotebook {
+	metadata: IMetadata;
+	cells: ICell[];
+}
+
 
 export class NotebookEditorModel extends EditorModel {
 	constructor(
+		private readonly textModel: ITextModel
 	) {
 		super();
+	}
+
+	public getNookbook(): INotebook {
+		let content = this.textModel.getValue();
+		let notebook: INotebook = JSON.parse(content);
+		return notebook;
 	}
 }
 
 export class NotebookEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.notebook';
-	private readonly _notebookEditorModel: NotebookEditorModel;
+	private promise: Promise<NotebookEditorModel> | null = null;
 
-	constructor() {
+	constructor(
+		public readonly editorInput: IEditorInput,
+		@ITextModelService private readonly textModelResolverService: ITextModelService
+	) {
 		super();
-
-		this._notebookEditorModel = new NotebookEditorModel();
 	}
 
 	getTypeId(): string {
@@ -27,10 +54,19 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return 'Notebook';
+		return this.editorInput.getName();
 	}
 
 	resolve(): Promise<NotebookEditorModel> {
-		return Promise.resolve(this._notebookEditorModel);
+		if (!this.promise) {
+			this.promise = this.textModelResolverService.createModelReference(this.editorInput.getResource()!)
+				.then(ref => {
+					const textModel = ref.object.textEditorModel;
+
+					return new NotebookEditorModel(textModel);
+				});
+		}
+
+		return this.promise;
 	}
 }
