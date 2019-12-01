@@ -9,7 +9,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { parse } from 'vs/base/common/json';
 
-suite.skip('KeybindingsMerge - No Conflicts', () => {
+suite('KeybindingsMerge - No Conflicts', () => {
 
 	test('merge when local and remote are same with one entry', async () => {
 		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
@@ -440,7 +440,7 @@ suite.skip('KeybindingsMerge - No Conflicts', () => {
 
 });
 
-suite('KeybindingsMerge - Conflicts', () => {
+suite.skip('KeybindingsMerge - Conflicts', () => {
 
 	test('merge when local and remote with one entry but different value', async () => {
 		const localContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
