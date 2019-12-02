@@ -51,10 +51,10 @@ declare module 'vscode' {
 	export interface TunnelInformation {
 		/**
 		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
-		 * The localAddress should be the complete local address for connecting to the port. Tunnels provided through
+		 * The localAddress should be the complete local address(ex. localhost:1234) for connecting to the port. Tunnels provided through
 		 * detected are read-only from the forwarded ports UI.
 		 */
-		detected?: { remotePort: number, localAddress: string }[];
+		detectedTunnels?: { remotePort: number, localAddress: string }[];
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -73,7 +73,7 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		forwardPort?(tunnelDescriptor: TunnelOptions): Thenable<Tunnel | undefined>;
+		forwardPort?(tunnelOptions: TunnelOptions): Thenable<Tunnel | undefined>;
 	}
 
 	export namespace workspace {
