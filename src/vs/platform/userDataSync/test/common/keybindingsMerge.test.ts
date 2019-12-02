@@ -452,24 +452,26 @@ if (OS !== OperatingSystem.Windows) {
 			const actual = await mergeKeybindings(localContent, remoteContent, null);
 			assert.ok(actual.hasChanges);
 			assert.ok(actual.hasConflicts);
+			//'<<<<<<< local\n[\n\t{\n\t\t"key": "alt+d",\n\t\t"command": "a",\n\t\t"when": "editorTextFocus && !editorReadonly"\n\t}\n]\n=======\n[\n\t{\n\t\t"key": "alt+c",\n\t\t"command": "a",\n\t\t"when": "editorTextFocus && !editorReadonly"\n\t}\n]\n>>>>>>> remote'
+			//'<<<<<<< local\n\t[\n\t\t{\n\t\t\t"key": "alt+d",\n\t\t\t"command": "a",\n\t\t\t"when": "editorTextFocus && !editorReadonly"\n\t\t}\n\t]\n\t=======\n\t[\n\t\t{\n\t\t\t"key": "alt+c",\n\t\t\t"command": "a",\n\t\t\t"when": "editorTextFocus && !editorReadonly"\n\t\t}\n\t]\n\t>>>>>>> remote'
 			assert.equal(actual.mergeContent,
 				`<<<<<<< local
-	[
-		{
-			"key": "alt+d",
-			"command": "a",
-			"when": "editorTextFocus && !editorReadonly"
-		}
-	]
-	=======
-	[
-		{
-			"key": "alt+c",
-			"command": "a",
-			"when": "editorTextFocus && !editorReadonly"
-		}
-	]
-	>>>>>>> remote`);
+[
+	{
+		"key": "alt+d",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	}
+]
+=======
+[
+	{
+		"key": "alt+c",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	}
+]
+>>>>>>> remote`);
 		});
 
 		test('merge when local and remote with different keybinding', async () => {
@@ -486,32 +488,32 @@ if (OS !== OperatingSystem.Windows) {
 			assert.ok(actual.hasConflicts);
 			assert.equal(actual.mergeContent,
 				`<<<<<<< local
-	[
-		{
-			"key": "alt+d",
-			"command": "a",
-			"when": "editorTextFocus && !editorReadonly"
-		},
-		{
-			"key": "alt+a",
-			"command": "-a",
-			"when": "editorTextFocus && !editorReadonly"
-		}
-	]
-	=======
-	[
-		{
-			"key": "alt+c",
-			"command": "a",
-			"when": "editorTextFocus && !editorReadonly"
-		},
-		{
-			"key": "alt+a",
-			"command": "-a",
-			"when": "editorTextFocus && !editorReadonly"
-		}
-	]
-	>>>>>>> remote`);
+[
+	{
+		"key": "alt+d",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	},
+	{
+		"key": "alt+a",
+		"command": "-a",
+		"when": "editorTextFocus && !editorReadonly"
+	}
+]
+=======
+[
+	{
+		"key": "alt+c",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	},
+	{
+		"key": "alt+a",
+		"command": "-a",
+		"when": "editorTextFocus && !editorReadonly"
+	}
+]
+>>>>>>> remote`);
 		});
 
 		test('merge when the entry is removed in local but updated in remote', async () => {
@@ -523,16 +525,16 @@ if (OS !== OperatingSystem.Windows) {
 			assert.ok(actual.hasConflicts);
 			assert.equal(actual.mergeContent,
 				`<<<<<<< local
-	[]
-	=======
-	[
-		{
-			"key": "alt+c",
-			"command": "a",
-			"when": "editorTextFocus && !editorReadonly"
-		}
-	]
-	>>>>>>> remote`);
+[]
+=======
+[
+	{
+		"key": "alt+c",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	}
+]
+>>>>>>> remote`);
 		});
 
 		test('merge when the entry is removed in local but updated in remote and a new entry is added in local', async () => {
@@ -544,21 +546,21 @@ if (OS !== OperatingSystem.Windows) {
 			assert.ok(actual.hasConflicts);
 			assert.equal(actual.mergeContent,
 				`<<<<<<< local
-	[
-		{
-			"key": "alt+b",
-			"command": "b"
-		}
-	]
-	=======
-	[
-		{
-			"key": "alt+c",
-			"command": "a",
-			"when": "editorTextFocus && !editorReadonly"
-		}
-	]
-	>>>>>>> remote`);
+[
+	{
+		"key": "alt+b",
+		"command": "b"
+	}
+]
+=======
+[
+	{
+		"key": "alt+c",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	}
+]
+>>>>>>> remote`);
 		});
 
 		test('merge when the entry is removed in remote but updated in local', async () => {
@@ -570,16 +572,16 @@ if (OS !== OperatingSystem.Windows) {
 			assert.ok(actual.hasConflicts);
 			assert.equal(actual.mergeContent,
 				`<<<<<<< local
-	[
-		{
-			"key": "alt+c",
-			"command": "a",
-			"when": "editorTextFocus && !editorReadonly"
-		}
-	]
-	=======
-	[]
-	>>>>>>> remote`);
+[
+	{
+		"key": "alt+c",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	}
+]
+=======
+[]
+>>>>>>> remote`);
 		});
 
 		test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
@@ -591,25 +593,25 @@ if (OS !== OperatingSystem.Windows) {
 			assert.ok(actual.hasConflicts);
 			assert.equal(actual.mergeContent,
 				`<<<<<<< local
-	[
-		{
-			"key": "alt+c",
-			"command": "a",
-			"when": "editorTextFocus && !editorReadonly"
-		},
-		{
-			"key": "alt+b",
-			"command": "b"
-		}
-	]
-	=======
-	[
-		{
-			"key": "alt+b",
-			"command": "b"
-		}
-	]
-	>>>>>>> remote`);
+[
+	{
+		"key": "alt+c",
+		"command": "a",
+		"when": "editorTextFocus && !editorReadonly"
+	},
+	{
+		"key": "alt+b",
+		"command": "b"
+	}
+]
+=======
+[
+	{
+		"key": "alt+b",
+		"command": "b"
+	}
+]
+>>>>>>> remote`);
 		});
 
 		test('merge when local and remote has moved forwareded with conflicts', async () => {
@@ -643,68 +645,68 @@ if (OS !== OperatingSystem.Windows) {
 			assert.ok(actual.hasConflicts);
 			assert.equal(actual.mergeContent,
 				`<<<<<<< local
-	[
-		{
-			"key": "alt+d",
-			"command": "-f"
-		},
-		{
-			"key": "cmd+d",
-			"command": "d"
-		},
-		{
-			"key": "cmd+c",
-			"command": "-c"
-		},
-		{
-			"key": "cmd+d",
-			"command": "c",
-			"when": "context1"
-		},
-		{
-			"key": "alt+a",
-			"command": "f"
-		},
-		{
-			"key": "alt+e",
-			"command": "e"
-		},
-		{
-			"key": "alt+g",
-			"command": "g",
-			"when": "context2"
-		}
-	]
-	=======
-	[
-		{
-			"key": "alt+a",
-			"command": "f"
-		},
-		{
-			"key": "cmd+c",
-			"command": "-c"
-		},
-		{
-			"key": "cmd+d",
-			"command": "d"
-		},
-		{
-			"key": "alt+d",
-			"command": "-f"
-		},
-		{
-			"key": "alt+c",
-			"command": "c",
-			"when": "context1"
-		},
-		{
-			"key": "alt+g",
-			"command": "g",
-			"when": "context2"
-		}
-	]
-	>>>>>>> remote`);
+[
+	{
+		"key": "alt+d",
+		"command": "-f"
+	},
+	{
+		"key": "cmd+d",
+		"command": "d"
+	},
+	{
+		"key": "cmd+c",
+		"command": "-c"
+	},
+	{
+		"key": "cmd+d",
+		"command": "c",
+		"when": "context1"
+	},
+	{
+		"key": "alt+a",
+		"command": "f"
+	},
+	{
+		"key": "alt+e",
+		"command": "e"
+	},
+	{
+		"key": "alt+g",
+		"command": "g",
+		"when": "context2"
+	}
+]
+=======
+[
+	{
+		"key": "alt+a",
+		"command": "f"
+	},
+	{
+		"key": "cmd+c",
+		"command": "-c"
+	},
+	{
+		"key": "cmd+d",
+		"command": "d"
+	},
+	{
+		"key": "alt+d",
+		"command": "-f"
+	},
+	{
+		"key": "alt+c",
+		"command": "c",
+		"when": "context1"
+	},
+	{
+		"key": "alt+g",
+		"command": "g",
+		"when": "context2"
+	}
+]
+>>>>>>> remote`);
 		});
 
 	});
