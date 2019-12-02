@@ -39,6 +39,7 @@ const $ = DOM.$;
 interface CellRenderTemplate {
 	cellContainer: HTMLElement;
 	renderer?: marked.Renderer; // TODO this can be cached
+	editor?: CodeEditorWidget;
 }
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
@@ -140,42 +141,34 @@ export class CodeCellRenderer implements IListRenderer<ICell, CellRenderTemplate
 		const innerContent = document.createElement('div');
 		DOM.addClasses(innerContent, 'cell', 'code');
 		container.appendChild(innerContent);
+		const editor = this.instantiationService.createInstance(CodeEditorWidget, innerContent, {
+			...this.editorOptions,
+			dimension: {
+				width: 0,
+				height: 0
+			}
+		}, this.widgetOptions);
 
 		return {
-			cellContainer: innerContent
+			cellContainer: innerContent,
+			editor
 		};
 	}
 
 	renderElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		const codeConfig = this.editorOptions;
 		const innerContent = templateData.cellContainer;
 		const width = innerContent.clientWidth;
 		const lineNum = element.source.length;
 		const totalHeight = Math.max(lineNum + 1, 4) * 21;
-		innerContent.innerHTML = '';
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, innerContent, {
-			...codeConfig,
-			dimension: {
+		const resource = URI.parse(`notebookcell-${index}-${Date.now()}.py`);
+		const model = this.modelService.createModel(element.source.join(''), this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+		templateData.editor?.setModel(model);
+		templateData.editor?.layout(
+			{
 				width: width,
 				height: totalHeight
 			}
-		}, this.widgetOptions);
-		const resource = URI.parse(`notebookcell-${index}-${Date.now()}.py`);
-		const model = this.modelService.createModel(element.source.join(''), this.modeService.createByFilepathOrFirstLine(resource), resource, false);
-		editor.setModel(model);
-		const updateHeight = () => {
-			const lineHeight = editor.getOption(EditorOption.lineHeight);
-			const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
-			if (innerContent.style.height !== height) {
-				innerContent.style.height = height;
-
-				editor.layout({
-					width: innerContent.clientWidth,
-					height: Math.max(model.getLineCount() + 1, 4) * lineHeight
-				});
-			}
-		};
-		updateHeight();
+		);
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
@@ -287,6 +280,7 @@ export class NotebookEditor extends BaseEditor {
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width - 20, dimension.height);
+		this.list?.layout(dimension.height, dimension.width - 20);
 	}
 }
 
