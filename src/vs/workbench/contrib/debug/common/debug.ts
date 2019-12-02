@@ -470,7 +470,7 @@ export interface IDebugConfiguration {
 	focusWindowOnBreak: boolean;
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
 	showBreakpointsInOverviewRuler: boolean;
-	inlineBreakpointCandidates: boolean;
+	showInlineBreakpointCandidates: boolean;
 }
 
 export interface IGlobalConfig {
