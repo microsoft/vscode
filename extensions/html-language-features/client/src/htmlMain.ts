@@ -9,7 +9,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams, DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier } from 'vscode-languageclient';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams, DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0 } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -32,7 +32,7 @@ namespace SemanticTokenRequest {
 	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
 }
 namespace SemanticTokenLegendRequest {
-	export const type: RequestType<void, { types: string[]; modifiers: string[] } | null, any, any> = new RequestType('html/semanticTokenLegend');
+	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any, any> = new RequestType0('html/semanticTokenLegend');
 }
 
 interface IPackageInfo {
@@ -145,16 +145,15 @@ export function activate(context: ExtensionContext) {
 		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
 		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
 
+		client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
+			// toDispose.push(languages.registerSemanticTokensProvider(documentSelector, {
+			// 		provideSemanticTokens(doc, opts) {
+			// 			return null;
+			// 		}
+			// 		g\
 
-
-		// toDispose.push(languages.registerSemanticTokensProvider(documentSelector, {
-		// 	provideSemanticTokens(doc, opts) {
-		// 		return null;
-		// 	}
-		// 	g\
-
-		// }))
-
+			// 	}), vsc);
+		});
 
 	});
 
