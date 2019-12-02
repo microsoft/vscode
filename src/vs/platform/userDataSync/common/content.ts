@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { JSONPath } from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 
 
-export function edit(content: string, eol: string, originalPath: JSONPath, value: any): string {
-	const edit = setProperty(content, originalPath, value, { tabSize: 4, insertSpaces: false, eol })[0];
+export function edit(content: string, originalPath: JSONPath, value: any, formattingOptions: FormattingOptions): string {
+	const edit = setProperty(content, originalPath, value, formattingOptions)[0];
 	if (edit) {
 		content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
 	}
@@ -51,14 +51,3 @@ export function getLineEndOffset(content: string, eol: string, atOffset: number)
 	}
 	return content.length - 1;
 }
-
-export function getEol(content: string): string {
-	if (content.indexOf('\r\n') !== -1) {
-		return '\r\n';
-	}
-	if (content.indexOf('\n') !== -1) {
-		return '\n';
-	}
-	return OS === OperatingSystem.Linux || OS === OperatingSystem.Macintosh ? '\n' : '\r\n';
-}
-

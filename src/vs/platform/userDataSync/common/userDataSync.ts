@@ -16,6 +16,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { URI } from 'vs/base/common/uri';
 
 const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -187,13 +189,15 @@ export interface ISettingsMergeService {
 
 }
 
-export const IUserKeybindingsResolverService = createDecorator<IUserKeybindingsResolverService>('IUserKeybindingsResolverService');
+export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
 
-export interface IUserKeybindingsResolverService {
+export interface IUserDataSyncUtilService {
 
 	_serviceBrand: undefined;
 
-	resolveUserKeybindings(localContent: string, remoteContent: string, baseContent: string | null): Promise<IStringDictionary<string>>;
+	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
+
+	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 
 }
 

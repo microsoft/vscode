@@ -50,7 +50,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IUserDataSyncService, IUserDataSyncStoreService, ISettingsMergeService, registerConfiguration, IUserDataSyncLogService, IUserKeybindingsResolverService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncStoreService, ISettingsMergeService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
@@ -63,7 +63,7 @@ import { AuthTokenService } from 'vs/platform/auth/electron-browser/authTokenSer
 import { AuthTokenChannel } from 'vs/platform/auth/common/authTokenIpc';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { UserKeybindingsResolverServiceClient } from 'vs/platform/userDataSync/common/keybindingsSyncIpc';
+import { UserDataSyncUtilServiceClient } from 'vs/platform/userDataSync/common/keybindingsSyncIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -187,7 +187,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
 		const settingsMergeChannel = server.getChannel('settingsMerge', activeWindowRouter);
 		services.set(ISettingsMergeService, new SettingsMergeChannelClient(settingsMergeChannel));
-		services.set(IUserKeybindingsResolverService, new UserKeybindingsResolverServiceClient(server.getChannel('userKeybindingsResolver', activeWindowRouter)));
+		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', activeWindowRouter)));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 		registerConfiguration();

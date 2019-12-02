@@ -11,6 +11,8 @@ import { firstIndex as findFirstIndex, equals } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ICompareResult {
 	added: Set<string>;
@@ -27,11 +29,13 @@ interface IMergeResult {
 	conflicts: Set<string>;
 }
 
-export function merge(localContent: string, remoteContent: string, baseContent: string | null, normalizedKeys: IStringDictionary<string>): { mergeContent: string, hasChanges: boolean, hasConflicts: boolean } {
+export async function merge(localContent: string, remoteContent: string, baseContent: string | null, formattingOptions: FormattingOptions, userDataSyncUtilService: IUserDataSyncUtilService): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
 	const local = <IUserFriendlyKeybinding[]>parse(localContent);
 	const remote = <IUserFriendlyKeybinding[]>parse(remoteContent);
 	const base = baseContent ? <IUserFriendlyKeybinding[]>parse(baseContent) : null;
 
+	const userbindings: string[] = [...local, ...remote, ...(base || [])].map(keybinding => keybinding.key);
+	const normalizedKeys = await userDataSyncUtilService.resolveUserBindings(userbindings);
 	let keybindingsMergeResult = computeMergeResultByKeybinding(local, remote, base, normalizedKeys);
 
 	if (!keybindingsMergeResult.hasLocalForwarded && !keybindingsMergeResult.hasRemoteForwarded) {
@@ -57,7 +61,6 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 	const baseToRemoteByCommand = baseByCommand ? compareByCommand(baseByCommand, remoteByCommand, normalizedKeys) : { added: keys(remoteByCommand).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
 
 	const commandsMergeResult = computeMergeResult(localToRemoteByCommand, baseToLocalByCommand, baseToRemoteByCommand);
-	const eol = contentUtil.getEol(localContent);
 	let mergeContent = localContent;
 
 	// Removed commands in Remote
@@ -65,7 +68,7 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 		if (commandsMergeResult.conflicts.has(command)) {
 			continue;
 		}
-		mergeContent = removeKeybindings(mergeContent, eol, command);
+		mergeContent = removeKeybindings(mergeContent, command, formattingOptions);
 	}
 
 	// Added commands in remote
@@ -79,7 +82,7 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 			commandsMergeResult.conflicts.add(command);
 			continue;
 		}
-		mergeContent = addKeybindings(mergeContent, eol, keybindings);
+		mergeContent = addKeybindings(mergeContent, keybindings, formattingOptions);
 	}
 
 	// Updated commands in Remote
@@ -93,16 +96,16 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 			commandsMergeResult.conflicts.add(command);
 			continue;
 		}
-		mergeContent = updateKeybindings(mergeContent, eol, command, keybindings);
+		mergeContent = updateKeybindings(mergeContent, command, keybindings, formattingOptions);
 	}
 
 	const hasConflicts = commandsMergeResult.conflicts.size > 0;
 	if (hasConflicts) {
-		mergeContent = `<<<<<<< local${eol}`
+		mergeContent = `<<<<<<< local${formattingOptions.eol}`
 			+ mergeContent
-			+ `${eol}=======${eol}`
+			+ `${formattingOptions.eol}=======${formattingOptions.eol}`
 			+ remoteContent
-			+ `${eol}>>>>>>> remote`;
+			+ `${formattingOptions.eol}>>>>>>> remote`;
 	}
 
 	return { mergeContent, hasChanges: true, hasConflicts };
@@ -330,35 +333,35 @@ function isSameKeybinding(a: IUserFriendlyKeybinding, b: IUserFriendlyKeybinding
 	return true;
 }
 
-function addKeybindings(content: string, eol: string, keybindings: IUserFriendlyKeybinding[]): string {
+function addKeybindings(content: string, keybindings: IUserFriendlyKeybinding[], formattingOptions: FormattingOptions): string {
 	for (const keybinding of keybindings) {
-		content = contentUtil.edit(content, eol, [-1], keybinding);
+		content = contentUtil.edit(content, [-1], keybinding, formattingOptions);
 	}
 	return content;
 }
 
-function removeKeybindings(content: string, eol: string, command: string): string {
+function removeKeybindings(content: string, command: string, formattingOptions: FormattingOptions): string {
 	const keybindings = <IUserFriendlyKeybinding[]>parse(content);
 	for (let index = keybindings.length - 1; index >= 0; index--) {
 		if (keybindings[index].command === command || keybindings[index].command === `-${command}`) {
-			content = contentUtil.edit(content, eol, [index], undefined);
+			content = contentUtil.edit(content, [index], undefined, formattingOptions);
 		}
 	}
 	return content;
 }
 
-function updateKeybindings(content: string, eol: string, command: string, keybindings: IUserFriendlyKeybinding[]): string {
+function updateKeybindings(content: string, command: string, keybindings: IUserFriendlyKeybinding[], formattingOptions: FormattingOptions): string {
 	const allKeybindings = <IUserFriendlyKeybinding[]>parse(content);
 	const location = findFirstIndex(allKeybindings, keybinding => keybinding.command === command || keybinding.command === `-${command}`);
 	// Remove all entries with this command
 	for (let index = allKeybindings.length - 1; index >= 0; index--) {
 		if (allKeybindings[index].command === command || allKeybindings[index].command === `-${command}`) {
-			content = contentUtil.edit(content, eol, [index], undefined);
+			content = contentUtil.edit(content, [index], undefined, formattingOptions);
 		}
 	}
 	// add all entries at the same location where the entry with this command was located.
 	for (let index = keybindings.length - 1; index >= 0; index--) {
-		content = contentUtil.edit(content, eol, [location], keybindings[index]);
+		content = contentUtil.edit(content, [location], keybindings[index], formattingOptions);
 	}
 	return content;
 }

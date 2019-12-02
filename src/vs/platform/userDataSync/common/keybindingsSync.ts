@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserKeybindingsResolverService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
@@ -58,7 +58,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IUserKeybindingsResolverService private readonly userKeybindingsResolverService: IUserKeybindingsResolverService,
+		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
 	) {
 		super();
 		this.lastSyncKeybindingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncKeybindings.json');
@@ -234,8 +234,8 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 				|| lastSyncContent !== remoteContent // Remote has forwarded
 			) {
 				this.logService.trace('Keybindings: Merging remote keybindings with local keybindings...');
-				const keys = await this.userKeybindingsResolverService.resolveUserKeybindings(localContent, remoteContent, lastSyncContent);
-				const result = merge(localContent, remoteContent, lastSyncContent, keys);
+				const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.environmentService.keybindingsResource);
+				const result = await merge(localContent, remoteContent, lastSyncContent, formattingOptions, this.userDataSyncUtilService);
 				// Sync only if there are changes
 				if (result.hasChanges) {
 					hasLocalChanged = result.mergeContent !== localContent;
