@@ -30,7 +30,8 @@ import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { UserDataAutoSync } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSync';
+import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
 
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Initializing);
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
@@ -78,7 +79,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 			if (isWeb) {
 				this._register(instantiationService.createInstance(UserDataAutoSync));
+			} else {
+				this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => this.triggerSync()));
 			}
+		}
+	}
+
+	private triggerSync(): void {
+		if (this.configurationService.getValue<boolean>('sync.enable')
+			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
+			&& this.authTokenService.status === AuthTokenStatus.SignedIn) {
+			this.userDataSyncService.sync();
 		}
 	}
 
