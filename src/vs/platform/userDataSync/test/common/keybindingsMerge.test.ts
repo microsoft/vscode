@@ -440,18 +440,17 @@ suite('KeybindingsMerge - No Conflicts', () => {
 
 });
 
-if (OS !== OperatingSystem.Windows) {
 
-	suite('KeybindingsMerge - Conflicts', () => {
+suite.skip('KeybindingsMerge - Conflicts', () => {
 
-		test('merge when local and remote with one entry but different value', async () => {
-			const localContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const actual = await mergeKeybindings(localContent, remoteContent, null);
-			assert.ok(actual.hasChanges);
-			assert.ok(actual.hasConflicts);
-			assert.equal(actual.mergeContent,
-				`<<<<<<< local
+	test('merge when local and remote with one entry but different value', async () => {
+		const localContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const actual = await mergeKeybindings(localContent, remoteContent, null);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`<<<<<<< local
 [
 	{
 		"key": "alt+d",
@@ -468,22 +467,22 @@ if (OS !== OperatingSystem.Windows) {
 	}
 ]
 >>>>>>> remote`);
-		});
+	});
 
-		test('merge when local and remote with different keybinding', async () => {
-			const localContent = stringify([
-				{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-				{ key: 'alt+a', command: '-a', when: 'editorTextFocus && !editorReadonly' }
-			]);
-			const remoteContent = stringify([
-				{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-				{ key: 'alt+a', command: '-a', when: 'editorTextFocus && !editorReadonly' }
-			]);
-			const actual = await mergeKeybindings(localContent, remoteContent, null);
-			assert.ok(actual.hasChanges);
-			assert.ok(actual.hasConflicts);
-			assert.equal(actual.mergeContent,
-				`<<<<<<< local
+	test('merge when local and remote with different keybinding', async () => {
+		const localContent = stringify([
+			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+			{ key: 'alt+a', command: '-a', when: 'editorTextFocus && !editorReadonly' }
+		]);
+		const remoteContent = stringify([
+			{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+			{ key: 'alt+a', command: '-a', when: 'editorTextFocus && !editorReadonly' }
+		]);
+		const actual = await mergeKeybindings(localContent, remoteContent, null);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`<<<<<<< local
 [
 	{
 		"key": "alt+d",
@@ -510,17 +509,17 @@ if (OS !== OperatingSystem.Windows) {
 	}
 ]
 >>>>>>> remote`);
-		});
+	});
 
-		test('merge when the entry is removed in local but updated in remote', async () => {
-			const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const localContent = stringify([]);
-			const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-			assert.ok(actual.hasChanges);
-			assert.ok(actual.hasConflicts);
-			assert.equal(actual.mergeContent,
-				`<<<<<<< local
+	test('merge when the entry is removed in local but updated in remote', async () => {
+		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const localContent = stringify([]);
+		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`<<<<<<< local
 []
 =======
 [
@@ -531,17 +530,17 @@ if (OS !== OperatingSystem.Windows) {
 	}
 ]
 >>>>>>> remote`);
-		});
+	});
 
-		test('merge when the entry is removed in local but updated in remote and a new entry is added in local', async () => {
-			const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const localContent = stringify([{ key: 'alt+b', command: 'b' }]);
-			const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-			assert.ok(actual.hasChanges);
-			assert.ok(actual.hasConflicts);
-			assert.equal(actual.mergeContent,
-				`<<<<<<< local
+	test('merge when the entry is removed in local but updated in remote and a new entry is added in local', async () => {
+		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const localContent = stringify([{ key: 'alt+b', command: 'b' }]);
+		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`<<<<<<< local
 [
 	{
 		"key": "alt+b",
@@ -557,17 +556,17 @@ if (OS !== OperatingSystem.Windows) {
 	}
 ]
 >>>>>>> remote`);
-		});
+	});
 
-		test('merge when the entry is removed in remote but updated in local', async () => {
-			const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const remoteContent = stringify([]);
-			const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-			assert.ok(actual.hasChanges);
-			assert.ok(actual.hasConflicts);
-			assert.equal(actual.mergeContent,
-				`<<<<<<< local
+	test('merge when the entry is removed in remote but updated in local', async () => {
+		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const remoteContent = stringify([]);
+		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`<<<<<<< local
 [
 	{
 		"key": "alt+c",
@@ -578,17 +577,17 @@ if (OS !== OperatingSystem.Windows) {
 =======
 []
 >>>>>>> remote`);
-		});
+	});
 
-		test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
-			const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
-			const remoteContent = stringify([{ key: 'alt+b', command: 'b' }]);
-			const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-			assert.ok(actual.hasChanges);
-			assert.ok(actual.hasConflicts);
-			assert.equal(actual.mergeContent,
-				`<<<<<<< local
+	test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
+		const baseContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
+		const remoteContent = stringify([{ key: 'alt+b', command: 'b' }]);
+		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`<<<<<<< local
 [
 	{
 		"key": "alt+c",
@@ -608,39 +607,39 @@ if (OS !== OperatingSystem.Windows) {
 	}
 ]
 >>>>>>> remote`);
-		});
+	});
 
-		test('merge when local and remote has moved forwareded with conflicts', async () => {
-			const baseContent = stringify([
-				{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
-				{ key: 'alt+c', command: '-a' },
-				{ key: 'cmd+e', command: 'd' },
-				{ key: 'alt+a', command: 'f' },
-				{ key: 'alt+d', command: '-f' },
-				{ key: 'cmd+d', command: 'c', when: 'context1' },
-				{ key: 'cmd+c', command: '-c' },
-			]);
-			const localContent = stringify([
-				{ key: 'alt+d', command: '-f' },
-				{ key: 'cmd+e', command: 'd' },
-				{ key: 'cmd+c', command: '-c' },
-				{ key: 'cmd+d', command: 'c', when: 'context1' },
-				{ key: 'alt+a', command: 'f' },
-				{ key: 'alt+e', command: 'e' },
-			]);
-			const remoteContent = stringify([
-				{ key: 'alt+a', command: 'f' },
-				{ key: 'cmd+c', command: '-c' },
-				{ key: 'cmd+d', command: 'd' },
-				{ key: 'alt+d', command: '-f' },
-				{ key: 'alt+c', command: 'c', when: 'context1' },
-				{ key: 'alt+g', command: 'g', when: 'context2' },
-			]);
-			const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
-			assert.ok(actual.hasChanges);
-			assert.ok(actual.hasConflicts);
-			assert.equal(actual.mergeContent,
-				`<<<<<<< local
+	test('merge when local and remote has moved forwareded with conflicts', async () => {
+		const baseContent = stringify([
+			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
+			{ key: 'alt+c', command: '-a' },
+			{ key: 'cmd+e', command: 'd' },
+			{ key: 'alt+a', command: 'f' },
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+d', command: 'c', when: 'context1' },
+			{ key: 'cmd+c', command: '-c' },
+		]);
+		const localContent = stringify([
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'cmd+e', command: 'd' },
+			{ key: 'cmd+c', command: '-c' },
+			{ key: 'cmd+d', command: 'c', when: 'context1' },
+			{ key: 'alt+a', command: 'f' },
+			{ key: 'alt+e', command: 'e' },
+		]);
+		const remoteContent = stringify([
+			{ key: 'alt+a', command: 'f' },
+			{ key: 'cmd+c', command: '-c' },
+			{ key: 'cmd+d', command: 'd' },
+			{ key: 'alt+d', command: '-f' },
+			{ key: 'alt+c', command: 'c', when: 'context1' },
+			{ key: 'alt+g', command: 'g', when: 'context2' },
+		]);
+		const actual = await mergeKeybindings(localContent, remoteContent, baseContent);
+		assert.ok(actual.hasChanges);
+		assert.ok(actual.hasConflicts);
+		assert.equal(actual.mergeContent,
+			`<<<<<<< local
 [
 	{
 		"key": "alt+d",
@@ -703,11 +702,10 @@ if (OS !== OperatingSystem.Windows) {
 	}
 ]
 >>>>>>> remote`);
-		});
-
 	});
 
-}
+});
+
 
 async function mergeKeybindings(localContent: string, remoteContent: string, baseContent: string | null) {
 	const userDataSyncUtilService = new MockUserDataSyncUtilService();
