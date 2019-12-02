@@ -172,6 +172,12 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionChangelog: Cache<string> | null;
 	private extensionManifest: Cache<IExtensionManifest | null> | null;
 
+	// Some action bar items use a webview whose vertical scroll position we track in this array (Readme=0, Changelog=1)
+	private initialScrollProgress: number[] = [];
+
+	// Spot when an ExtensionEditor instance gets reused for a different extension, in which case the vertical scroll positions must be zeroed
+	private currentIdentifier: string = '';
+
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly transientDisposables = this._register(new DisposableStore());
@@ -321,6 +327,11 @@ export class ExtensionEditor extends BaseEditor {
 		this.activeElement = null;
 		this.editorLoadComplete = false;
 		const extension = input.extension;
+
+		if (this.currentIdentifier !== extension.identifier.id) {
+			this.initialScrollProgress = [0, 0];
+			this.currentIdentifier = extension.identifier.id;
+		}
 
 		this.transientDisposables.clear();
 
@@ -573,19 +584,25 @@ export class ExtensionEditor extends BaseEditor {
 		return Promise.resolve(null);
 	}
 
-	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate): Promise<IActiveElement> {
+	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate, webviewIndex: number): Promise<IActiveElement> {
 		try {
 			const body = await this.renderMarkdown(cacheResult, template);
 
 			const webviewElement = this.contentDisposables.add(this.webviewService.createWebviewEditorOverlay('extensionEditor', {
 				enableFindWidget: true,
+				tryRestoreScrollPosition: true,
 			}, {}));
 
-			webviewElement.claim(this);
+			webviewElement.initialScrollProgress = this.initialScrollProgress[webviewIndex];
+
 			webviewElement.layoutWebviewOverElement(template.content);
 			webviewElement.html = body;
+			webviewElement.claim(this);
 
 			this.contentDisposables.add(webviewElement.onDidFocus(() => this.fireOnDidFocus()));
+
+			this.contentDisposables.add(webviewElement.onDidScroll(() => this.initialScrollProgress[webviewIndex] = webviewElement.initialScrollProgress));
+
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
 				layout: () => {
 					webviewElement.layoutWebviewOverElement(template.content);
@@ -824,11 +841,11 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openReadme(template: IExtensionEditorTemplate): Promise<IActiveElement> {
-		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template);
+		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template, 0);
 	}
 
 	private openChangelog(template: IExtensionEditorTemplate): Promise<IActiveElement> {
-		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template);
+		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template, 1);
 	}
 
 	private openContributions(template: IExtensionEditorTemplate): Promise<IActiveElement> {
