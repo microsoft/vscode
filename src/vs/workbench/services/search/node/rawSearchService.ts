@@ -277,7 +277,7 @@ export class SearchService implements IRawSearchService {
 		for (const previousSearch in cache.resultsToSearchCache) {
 			// If we narrow down, we might be able to reuse the cached results
 			if (strings.startsWith(searchValue, previousSearch)) {
-				if (hasPathSep && previousSearch.indexOf(sep) < 0) {
+				if (hasPathSep && previousSearch.indexOf(sep) < 0 && previousSearch !== '') {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
