@@ -12,14 +12,14 @@ function timeout(time: number): Promise<void> {
 	});
 }
 
-class SemanticColoringProvider implements vscode.SemanticColoringProvider {
+class SemanticTokensProvider implements vscode.SemanticTokensProvider {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient
 	) {
 	}
 
-	getLegend(): vscode.SemanticColoringLegend {
+	getLegend(): vscode.SemanticTokensLegend {
 		const tokens: string[] = [];
 
 		tokens[ExperimentalProtocol.ClassificationType.comment] = 'comments'; // ok
@@ -48,10 +48,10 @@ class SemanticColoringProvider implements vscode.SemanticColoringProvider {
 		tokens[ExperimentalProtocol.ClassificationType.jsxAttributeStringLiteralValue] = '';
 		tokens[ExperimentalProtocol.ClassificationType.bigintLiteral] = 'numbers';
 
-		return new vscode.SemanticColoringLegend(tokens, []);
+		return new vscode.SemanticTokensLegend(tokens, []);
 	}
 
-	async provideSemanticColoring(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticColoring | null> {
+	async provideSemanticTokens(document: vscode.TextDocument, _options: vscode.SemanticTokensRequestOptions, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
@@ -80,18 +80,9 @@ class SemanticColoringProvider implements vscode.SemanticColoringProvider {
 			return null;
 		}
 
+		const builder = new vscode.SemanticTokensBuilder();
+
 		const tsTokens = response.body.spans;
-
-		let result: number[] = [];
-		let resultLen = 0;
-		const pushResultToken = (line: number, startCharacter: number, endCharacter: number, tokenType: number): void => {
-			result[resultLen++] = line;
-			result[resultLen++] = startCharacter;
-			result[resultLen++] = endCharacter;
-			result[resultLen++] = tokenType;
-			result[resultLen++] = 0;
-		};
-
 		for (let i = 0, len = Math.floor(tsTokens.length / 3); i < len; i++) {
 			const offset = tsTokens[3 * i];
 			const length = tsTokens[3 * i + 1];
@@ -105,14 +96,14 @@ class SemanticColoringProvider implements vscode.SemanticColoringProvider {
 			for (let line = startPos.line; line <= endPos.line; line++) {
 				const startCharacter = (line === startPos.line ? startPos.character : 0);
 				const endCharacter = (line === endPos.line ? endPos.character : document.lineAt(line).text.length);
-				pushResultToken(line, startCharacter, endCharacter, tokenType);
+				builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, 0);
 			}
 		}
 
 		// pretend computation took a long time...
 		await timeout(0);
 
-		return new vscode.SemanticColoring([new vscode.SemanticColoringArea(0, new Uint32Array(result))]);
+		return new vscode.SemanticTokens(builder.build());
 	}
 
 }
@@ -121,6 +112,6 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient
 ) {
-	const provider = new SemanticColoringProvider(client);
-	return vscode.languages.registerSemanticColoringProvider(selector, provider, provider.getLegend());
+	const provider = new SemanticTokensProvider(client);
+	return vscode.languages.registerSemanticTokensProvider(selector, provider, provider.getLegend());
 }
