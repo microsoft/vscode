@@ -180,6 +180,14 @@
         }
       }
     },
+    "configurationDefaults": {
+      "[html]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[handlebars]": {
+        "editor.suggest.insertMode": "replace"
+      }
+    },
     "jsonValidation": [
       {
         "fileMatch": "*.html-data.json",

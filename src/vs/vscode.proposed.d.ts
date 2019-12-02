@@ -83,14 +83,6 @@ declare module 'vscode' {
 		build(): Uint32Array;
 	}
 
-	/**
-	 * A certain token (at index `i` is encoded using 5 uint32 integers):
-	 *  - at index `5*i`   - `deltaLine`: token line number, relative to `SemanticColoringArea.line`
-	 *  - at index `5*i+1` - `deltaStart`: token start character offset inside the line (relative to 0 or the previous token if they are on the same line)
-	 *  - at index `5*i+2` - `length`: the length of the token
-	 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticColoringLegend.tokenTypes`
-	 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticColoringLegend.tokenModifiers`
-	*/
 	export class SemanticTokens {
 		readonly resultId?: string;
 		readonly data: Uint32Array;
@@ -123,6 +115,96 @@ declare module 'vscode' {
 	 * semantic tokens.
 	 */
 	export interface SemanticTokensProvider {
+		/**
+		 * A file can contain many tokens, perhaps even hundreds of thousands tokens. Therefore, to improve
+		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating objects
+		 * and we have decided to represent tokens from a file as an array of integers.
+		 *
+		 *
+		 * In short, each token takes 5 integers to represent, so a specific token i in the file consists of the following fields:
+		 *  - at index `5*i`   - `deltaLine`: token line number, relative to the previous token
+		 *  - at index `5*i+1` - `deltaStart`: token start character, relative to the previous token (relative to 0 or the previous token's start if they are on the same line)
+		 *  - at index `5*i+2` - `length`: the length of the token. A token cannot be multiline.
+		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticTokensLegend.tokenTypes`
+		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticTokensLegend.tokenModifiers`
+		 *
+		 *
+		 * Here is an example for encoding a file with 3 tokens:
+		 * ```
+		 *  [ { line: 2, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 2, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
+		 *    { line: 5, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] } ]
+		 * ```
+		 *
+		 * 1. First of all, a legend must be devised. This legend must be provided up-front and capture all possible token types.
+		 * For this example, we will choose the following legend which is passed in when registering the provider:
+		 * ```
+		 *  { tokenTypes: ['', 'properties', 'types', 'classes'],
+		 *    tokenModifiers: ['', 'private', 'static'] }
+		 * ```
+		 *
+		 * 2. The first transformation is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
+		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Token modifiers are a set and they are looked up by a bitmap,
+		 * so a `tokenModifier` value of `6` is first viewed as a bitmap `0b110`, so it will mean `[tokenModifiers[1], tokenModifiers[2]]` because
+		 * bits 1 and 2 are set. Using this legend, the tokens now are:
+		 * ```
+		 *  [ { line: 2, startChar:  5, length: 3, tokenType: 1, tokenModifiers: 6 }, // 6 is 0b110
+		 *    { line: 2, startChar: 10, length: 4, tokenType: 2, tokenModifiers: 0 },
+		 *    { line: 5, startChar:  2, length: 7, tokenType: 3, tokenModifiers: 0 } ]
+		 * ```
+		 *
+		 * 3. Then, we will encode each token relative to the previous token in the file:
+		 * ```
+		 *  [ { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 1, tokenModifiers: 6 },
+		 *    // this token is on the same line as the first one, so the startChar is made relative
+		 *    { deltaLine: 0, deltaStartChar: 5, length: 4, tokenType: 2, tokenModifiers: 0 },
+		 *    // this token is on a different line than the second one, so the startChar remains unchanged
+		 *    { deltaLine: 3, deltaStartChar: 2, length: 7, tokenType: 3, tokenModifiers: 0 } ]
+		 * ```
+		 *
+		 * 4. Finally, the integers are organized in a single array, which is a memory friendly representation:
+		 * ```
+		 *    // 1st token,  2nd token,  3rd token
+		 *    [  2,5,3,1,6,  0,5,4,2,0,  3,2,7,3,0 ]
+		 * ```
+		 *
+		 * In principle, each call to `provideSemanticTokens` expects a complete representations of the semantic tokens.
+		 * It is possible to simply return all the tokens at each call.
+		 *
+		 * But oftentimes, a small edit in the file will result in a small change to the above delta-based represented tokens.
+		 * (In fact, that is why the above tokens are delta-encoded relative to their corresponding previous tokens).
+		 * In such a case, if VS Code passes in the previous result id, it is possible for an advanced tokenization provider
+		 * to return a delta to the integers array.
+		 *
+		 * To continue with the previous example, suppose a new line has been pressed at the beginning of the file, such that
+		 * all the tokens are now one line lower, and that a new token has appeared since the last result on line 4.
+		 * For example, the tokens might look like:
+		 * ```
+		 *  [ { line: 3, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 3, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
+		 *    { line: 4, startChar:  3, length: 5, tokenType: "properties", tokenModifiers: ["static"] },
+		 *    { line: 6, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] } ]
+		 * ```
+		 *
+		 * The integer encoding of all new tokens would be:
+		 * ```
+		 *     [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
+		 * ```
+		 *
+		 * A smart tokens provider can compute a diff from the previous result to the new result
+		 * ```
+		 *    [  2,5,3,1,6,  0,5,4,2,0,              3,2,7,3,0 ]
+		 *    [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
+		 * ```
+		 * and return as simple integer edits the diff:
+		 * ```
+		 * { edits: [
+		 *    { start:  0, deleteCount: 1, data: [3] } // replace integer at offset 0 with 3
+		 *    { start: 10, deleteCount: 1, data: [1,3,5,1,2,2] } // replace integer at offset 10 with [1,3,5,1,2,2]
+		 * ]}
+		 * ```
+		 * All indices expressed in the returned diff represent indices in the old result array, so they all refer to the previous result state.
+		 */
 		provideSemanticTokens(document: TextDocument, options: SemanticTokensRequestOptions, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	}
 

@@ -271,18 +271,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
-				const model = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
-
-				model.onUndo(edits => { this._proxy.$undoEdits(handle, edits.map(x => x.data)); });
-				model.onApplyEdit(edits => {
-					const editsToApply = edits.filter(x => x.source !== webviewInput).map(x => x.data);
-					if (editsToApply.length) {
-						this._proxy.$applyEdits(handle, editsToApply);
-					}
-				});
-				model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
-				model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
-
+				const model = await this.getModel(webviewInput);
 				webviewInput.onDisposeWebview(() => {
 					this._customEditorService.models.disposeModel(model);
 				});
@@ -313,6 +302,31 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		provider.dispose();
 		this._editorProviders.delete(viewType);
+	}
+
+	public async $registerCapabilities(handle: extHostProtocol.WebviewPanelHandle, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]): Promise<void> {
+		const webviewInput = this.getWebviewInput(handle);
+		const model = await this.getModel(webviewInput);
+
+		const capabilitiesSet = new Set(capabilities);
+		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable)) {
+			model.onUndo(edits => { this._proxy.$undoEdits(handle, edits.map(x => x.data)); });
+
+			model.onApplyEdit(edits => {
+				const editsToApply = edits.filter(x => x.source !== webviewInput).map(x => x.data);
+				if (editsToApply.length) {
+					this._proxy.$applyEdits(handle, editsToApply);
+				}
+			});
+
+			model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
+
+			model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
+		}
+	}
+
+	private getModel(webviewInput: WebviewInput) {
+		return this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
 	}
 
 	public $onEdit(handle: extHostProtocol.WebviewPanelHandle, editData: any): void {

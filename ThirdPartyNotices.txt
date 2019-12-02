@@ -8,7 +8,7 @@ This project incorporates components from the projects listed below. The origina
 1.	atom/language-clojure version 0.22.7 (https://github.com/atom/language-clojure)
 2.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
 3.	atom/language-java version 0.31.3 (https://github.com/atom/language-java)
-4.	atom/language-sass version 0.61.4 (https://github.com/atom/language-sass)
+4.	atom/language-sass version 0.62.1 (https://github.com/atom/language-sass)
 5.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
 6.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
 7.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
@@ -27,13 +27,13 @@ This project incorporates components from the projects listed below. The origina
 20.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
 21.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
 22.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
-23.	jeff-hykin/cpp-textmate-grammar version 1.14.9 (https://github.com/jeff-hykin/cpp-textmate-grammar)
+23.	jeff-hykin/cpp-textmate-grammar version 1.14.13 (https://github.com/jeff-hykin/cpp-textmate-grammar)
 24.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
 25.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 26.	language-docker (https://github.com/moby/moby)
 27.	language-go version 0.44.3 (https://github.com/atom/language-go)
 28.	language-less version 0.34.2 (https://github.com/atom/language-less)
-29.	language-php version 0.44.2 (https://github.com/atom/language-php)
+29.	language-php version 0.44.3 (https://github.com/atom/language-php)
 30.	language-rust version 0.4.12 (https://github.com/zargony/atom-language-rust)
 31.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
 32.	marked version 0.6.2 (https://github.com/markedjs/marked)
@@ -589,7 +589,7 @@ END OF HTML 5.1 W3C Working Draft NOTICES AND INFORMATION
 =========================================
 MIT License
 
-Copyright (c) 2017 Yuki Ueda
+Copyright (c) 2019 Yuki Ueda
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
