@@ -12,76 +12,79 @@ const SEARCH_RESULT_SELECTOR = { language: 'search-result' };
 
 let cachedLastParse: { version: number, parse: ParsedSearchResults } | undefined;
 
-export function activate() {
+export function activate(context: vscode.ExtensionContext) {
+	context.subscriptions.push(
+		vscode.commands.registerCommand('searchResult.rerunSearch', () => vscode.commands.executeCommand('search.action.rerunEditorSearch')),
 
-	vscode.commands.registerCommand('searchResult.rerunSearch', () => vscode.commands.executeCommand('search.action.rerunEditorSearch'));
+		vscode.languages.registerDocumentSymbolProvider(SEARCH_RESULT_SELECTOR, {
+			provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentSymbol[] {
+				const results = parseSearchResults(document, token)
+					.filter(isFileLine)
+					.map(line => new vscode.DocumentSymbol(
+						line.path,
+						'',
+						vscode.SymbolKind.File,
+						line.allLocations.map(({ originSelectionRange }) => originSelectionRange!).reduce((p, c) => p.union(c), line.location.originSelectionRange!),
+						line.location.originSelectionRange!,
+					));
 
-	vscode.languages.registerDocumentSymbolProvider(SEARCH_RESULT_SELECTOR, {
-		provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentSymbol[] {
-			const results = parseSearchResults(document, token)
-				.filter(isFileLine)
-				.map(line => new vscode.DocumentSymbol(
-					line.path,
-					'',
-					vscode.SymbolKind.File,
-					line.allLocations.map(({ originSelectionRange }) => originSelectionRange!).reduce((p, c) => p.union(c), line.location.originSelectionRange!),
-					line.location.originSelectionRange!,
-				));
-
-			return results;
-		}
-	});
-
-	vscode.languages.registerCompletionItemProvider(SEARCH_RESULT_SELECTOR, {
-		provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
-
-			const line = document.lineAt(position.line);
-			if (position.line > 3) { return []; }
-			if (position.character === 0 || (position.character === 1 && line.text === '#')) {
-				const header = Array.from({ length: 4 }).map((_, i) => document.lineAt(i).text);
-
-				return ['# Query:', '# Flags:', '# Including:', '# Excluding:']
-					.filter(suggestion => header.every(line => line.indexOf(suggestion) === -1))
-					.map(flag => ({ label: flag, insertText: (flag.slice(position.character)) + ' ' }));
+				return results;
 			}
+		}),
 
-			if (line.text.indexOf('# Flags:') === -1) { return []; }
+		vscode.languages.registerCompletionItemProvider(SEARCH_RESULT_SELECTOR, {
+			provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
 
-			return ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch']
-				.filter(flag => line.text.indexOf(flag) === -1)
-				.map(flag => ({ label: flag, insertText: flag + ' ' }));
-		}
-	}, '#');
+				const line = document.lineAt(position.line);
+				if (position.line > 3) { return []; }
+				if (position.character === 0 || (position.character === 1 && line.text === '#')) {
+					const header = Array.from({ length: 4 }).map((_, i) => document.lineAt(i).text);
 
-	vscode.languages.registerDefinitionProvider(SEARCH_RESULT_SELECTOR, {
-		provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.DefinitionLink[] {
-			const lineResult = parseSearchResults(document, token)[position.line];
-			if (!lineResult) { return []; }
-			if (lineResult.type === 'file') {
-				// TODO: The multi-match peek UX isnt very smooth.
-				// return lineResult.allLocations.length > 1 ? lineResult.allLocations : [lineResult.location];
-				return [];
+					return ['# Query:', '# Flags:', '# Including:', '# Excluding:']
+						.filter(suggestion => header.every(line => line.indexOf(suggestion) === -1))
+						.map(flag => ({ label: flag, insertText: (flag.slice(position.character)) + ' ' }));
+				}
+
+				if (line.text.indexOf('# Flags:') === -1) { return []; }
+
+				return ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch']
+					.filter(flag => line.text.indexOf(flag) === -1)
+					.map(flag => ({ label: flag, insertText: flag + ' ' }));
 			}
+		}, '#'),
 
-			return [lineResult.location];
-		}
-	});
+		vscode.languages.registerDefinitionProvider(SEARCH_RESULT_SELECTOR, {
+			provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.DefinitionLink[] {
+				const lineResult = parseSearchResults(document, token)[position.line];
+				if (!lineResult) { return []; }
+				if (lineResult.type === 'file') {
+					// TODO: The multi-match peek UX isnt very smooth.
+					// return lineResult.allLocations.length > 1 ? lineResult.allLocations : [lineResult.location];
+					return [];
+				}
 
-	vscode.languages.registerDocumentLinkProvider(SEARCH_RESULT_SELECTOR, {
-		async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentLink[]> {
-			return parseSearchResults(document, token)
-				.filter(({ type }) => type === 'file')
-				.map(({ location }) => ({ range: location.originSelectionRange!, target: location.targetUri }));
-		}
-	});
+				return [lineResult.location];
+			}
+		}),
 
-	vscode.window.onDidChangeActiveTextEditor(e => {
-		if (e?.document.languageId === 'search-result') {
-			// Clear the parse whenever we open a new editor.
-			// Conservative because things like the URI might remain constant even if the contents change, and re-parsing even large files is relatively fast.
-			cachedLastParse = undefined;
-		}
-	});
+		vscode.languages.registerDocumentLinkProvider(SEARCH_RESULT_SELECTOR, {
+			async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentLink[]> {
+				return parseSearchResults(document, token)
+					.filter(({ type }) => type === 'file')
+					.map(({ location }) => ({ range: location.originSelectionRange!, target: location.targetUri }));
+			}
+		}),
+
+		vscode.window.onDidChangeActiveTextEditor(e => {
+			if (e?.document.languageId === 'search-result') {
+				// Clear the parse whenever we open a new editor.
+				// Conservative because things like the URI might remain constant even if the contents change, and re-parsing even large files is relatively fast.
+				cachedLastParse = undefined;
+			}
+		}),
+
+		{ dispose() { cachedLastParse = undefined; } }
+	);
 }
 
 
