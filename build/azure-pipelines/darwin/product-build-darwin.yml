@@ -154,29 +154,29 @@ steps:
     SessionTimeout: 60
   displayName: Codesign
 
-# - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
-#   inputs:
-#     ConnectedServiceName: 'ESRP CodeSign'
-#     FolderPath: '$(agent.builddirectory)'
-#     Pattern: 'VSCode-darwin.zip'
-#     signConfigType: inlineSignParams
-#     inlineOperation: |
-#       [
-#         {
-#           "keyCode": "CP-401337-Apple",
-#           "operationSetCode": "MacAppNotarize",
-#           "parameters": [
-#             {
-#               "parameterName": "BundleId",
-#               "parameterValue": "com.microsoft.VSCodeInsiders"
-#             }
-#           ],
-#           "toolName": "sign",
-#           "toolVersion": "1.0"
-#         }
-#       ]
-#     SessionTimeout: 120
-#   displayName: Notarization
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '$(agent.builddirectory)'
+    Pattern: 'VSCode-darwin.zip'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-401337-Apple",
+          "operationSetCode": "MacAppNotarize",
+          "parameters": [
+            {
+              "parameterName": "BundleId",
+              "parameterValue": "com.microsoft.VSCodeInsiders"
+            }
+          ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]
+    SessionTimeout: 120
+  displayName: Notarization
 
 - script: |
     set -e
