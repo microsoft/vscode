@@ -714,8 +714,7 @@ async function mergeKeybindings(localContent: string, remoteContent: string, bas
 }
 
 function stringify(value: any): string {
-	const result = JSON.stringify(value, null, '\t');
-	return OS === OperatingSystem.Windows ? result.replace('\n', '\r\n') : result;
+	return JSON.stringify(value, null, '\t');
 }
 
 class MockUserDataSyncUtilService implements IUserDataSyncUtilService {
