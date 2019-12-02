@@ -115,9 +115,9 @@ export interface IRemoteExplorerService {
 	targetType: string;
 	readonly helpInformation: HelpInformation[];
 	readonly tunnelModel: TunnelModel;
-	onDidChangeEditable: Event<number>;
-	setEditable(remote: number, data: IEditableData | null): void;
-	getEditableData(remote: number): IEditableData | undefined;
+	onDidChangeEditable: Event<number | undefined>;
+	setEditable(remote: number | undefined, data: IEditableData | null): void;
+	getEditableData(remote: number | undefined): IEditableData | undefined;
 }
 
 export interface HelpInformation {
@@ -162,9 +162,9 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	public readonly onDidChangeTargetType: Event<string> = this._onDidChangeTargetType.event;
 	private _helpInformation: HelpInformation[] = [];
 	private _tunnelModel: TunnelModel;
-	private editable: { remote: number, data: IEditableData } | undefined;
-	private readonly _onDidChangeEditable: Emitter<number> = new Emitter<number>();
-	public readonly onDidChangeEditable: Event<number> = this._onDidChangeEditable.event;
+	private editable: { remote: number | undefined, data: IEditableData } | undefined;
+	private readonly _onDidChangeEditable: Emitter<number | undefined> = new Emitter();
+	public readonly onDidChangeEditable: Event<number | undefined> = this._onDidChangeEditable.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -219,7 +219,7 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		return this._tunnelModel;
 	}
 
-	setEditable(remote: number, data: IEditableData | null): void {
+	setEditable(remote: number | undefined, data: IEditableData | null): void {
 		if (!data) {
 			this.editable = undefined;
 		} else {
@@ -228,7 +228,7 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		this._onDidChangeEditable.fire(remote);
 	}
 
-	getEditableData(remote: number): IEditableData | undefined {
+	getEditableData(remote: number | undefined): IEditableData | undefined {
 		return this.editable && this.editable.remote === remote ? this.editable.data : undefined;
 	}
 }
