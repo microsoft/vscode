@@ -68,64 +68,77 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex - semantic coloring
+	//#region Alex - semantic tokens
 
-	export class SemanticColoringLegend {
+	export class SemanticTokensLegend {
 		public readonly tokenTypes: string[];
 		public readonly tokenModifiers: string[];
 
 		constructor(tokenTypes: string[], tokenModifiers: string[]);
 	}
 
-	export class SemanticColoringArea {
-		/**
-		 * The zero-based line value where this token block begins.
-		 */
-		public readonly line: number;
-		/**
-		 * The actual token block encoded data.
-		 * A certain token (at index `i` is encoded using 5 uint32 integers):
-		 *  - at index `5*i`   - `deltaLine`: token line number, relative to `SemanticColoringArea.line`
-		 *  - at index `5*i+1` - `startCharacter`: token start character offset inside the line (inclusive)
-		 *  - at index `5*i+2` - `endCharacter`: token end character offset inside the line (exclusive)
-		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticColoringLegend.tokenTypes`
-		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticColoringLegend.tokenModifiers`
-		 */
-		public readonly data: Uint32Array;
-
-		constructor(line: number, data: Uint32Array);
-	}
-
-	export class SemanticColoring {
-		public readonly areas: SemanticColoringArea[];
-
-		constructor(areas: SemanticColoringArea[]);
+	export class SemanticTokensBuilder {
+		constructor();
+		push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void;
+		build(): Uint32Array;
 	}
 
 	/**
-	 * The semantic coloring provider interface defines the contract between extensions and
-	 * semantic coloring.
-	 *
-	 *
-	 */
-	export interface SemanticColoringProvider {
+	 * A certain token (at index `i` is encoded using 5 uint32 integers):
+	 *  - at index `5*i`   - `deltaLine`: token line number, relative to `SemanticColoringArea.line`
+	 *  - at index `5*i+1` - `deltaStart`: token start character offset inside the line (relative to 0 or the previous token if they are on the same line)
+	 *  - at index `5*i+2` - `length`: the length of the token
+	 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticColoringLegend.tokenTypes`
+	 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticColoringLegend.tokenModifiers`
+	*/
+	export class SemanticTokens {
+		readonly resultId?: string;
+		readonly data: Uint32Array;
 
-		provideSemanticColoring(document: TextDocument, token: CancellationToken): ProviderResult<SemanticColoring>;
+		constructor(data: Uint32Array, resultId?: string);
+	}
+
+	export class SemanticTokensEdits {
+		readonly resultId?: string;
+		readonly edits: SemanticTokensEdit[];
+
+		constructor(edits: SemanticTokensEdit[], resultId?: string);
+	}
+
+	export class SemanticTokensEdit {
+		readonly start: number;
+		readonly deleteCount: number;
+		readonly data?: Uint32Array;
+
+		constructor(start: number, deleteCount: number, data?: Uint32Array);
+	}
+
+	export interface SemanticTokensRequestOptions {
+		readonly ranges?: readonly Range[];
+		readonly previousResultId?: string;
+	}
+
+	/**
+	 * The semantic tokens provider interface defines the contract between extensions and
+	 * semantic tokens.
+	 */
+	export interface SemanticTokensProvider {
+		provideSemanticTokens(document: TextDocument, options: SemanticTokensRequestOptions, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	}
 
 	export namespace languages {
 		/**
-		 * Register a semantic coloring provider.
+		 * Register a semantic tokens provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A semantic coloring provider.
+		 * @param provider A semantic tokens provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerSemanticColoringProvider(selector: DocumentSelector, provider: SemanticColoringProvider, legend: SemanticColoringLegend): Disposable;
+		export function registerSemanticTokensProvider(selector: DocumentSelector, provider: SemanticTokensProvider, legend: SemanticTokensLegend): Disposable;
 	}
 
 	//#endregion

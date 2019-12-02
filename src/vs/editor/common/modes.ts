@@ -1465,31 +1465,31 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
-export interface SemanticColoringLegend {
+export interface SemanticTokensLegend {
 	readonly tokenTypes: string[];
 	readonly tokenModifiers: string[];
 }
 
-export interface SemanticColoringArea {
-	/**
-	 * The zero-based line value where this token block begins.
-	 */
-	readonly line: number;
-	/**
-	 * The actual token block encoded data.
-	 */
+export interface SemanticTokens {
+	readonly resultId?: string;
 	readonly data: Uint32Array;
-
 }
 
-export interface SemanticColoring {
-	readonly areas: SemanticColoringArea[];
-	dispose(): void;
+export interface SemanticTokensEdit {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly data?: Uint32Array;
 }
 
-export interface SemanticColoringProvider {
-	getLegend(): SemanticColoringLegend;
-	provideSemanticColoring(model: model.ITextModel, token: CancellationToken): ProviderResult<SemanticColoring>;
+export interface SemanticTokensEdits {
+	readonly resultId?: string;
+	readonly edits: SemanticTokensEdit[];
+}
+
+export interface SemanticTokensProvider {
+	getLegend(): SemanticTokensLegend;
+	provideSemanticTokens(model: model.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+	releaseSemanticTokens(resultId: string | undefined): void;
 }
 
 // --- feature registries ------
@@ -1597,7 +1597,7 @@ export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingR
 /**
  * @internal
  */
-export const SemanticColoringProviderRegistry = new LanguageFeatureRegistry<SemanticColoringProvider>();
+export const SemanticTokensProviderRegistry = new LanguageFeatureRegistry<SemanticTokensProvider>();
 
 /**
  * @internal
