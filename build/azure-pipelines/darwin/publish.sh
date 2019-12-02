@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# remove pkg from archive
-zip -d ../VSCode-darwin.zip "*.pkg"
-
 # publish the build
 node build/azure-pipelines/common/createAsset.js \
 	darwin \

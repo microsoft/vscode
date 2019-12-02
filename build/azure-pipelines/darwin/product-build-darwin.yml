@@ -160,6 +160,10 @@ steps:
     SessionTimeout: 60
   displayName: Codesign
 
+- script: |
+    zip -d ../VSCode-darwin.zip "*.pkg"
+  displayName: Clean Archive
+
 - task: PublishPipelineArtifact@0
   displayName: 'Publish Pipeline Artifact'
   inputs:
