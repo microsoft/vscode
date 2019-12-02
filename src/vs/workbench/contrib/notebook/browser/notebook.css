@@ -21,3 +21,9 @@
 	transform: translate3d(0, 0, 0);
 	padding: 8px 0 8px 0;
 }
+
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-tree.focused.no-focused-item:focus:before,
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list:not(.element-focused):focus:before {
+	outline: none !important;
+}

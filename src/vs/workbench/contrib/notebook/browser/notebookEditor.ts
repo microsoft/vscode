@@ -26,6 +26,8 @@ import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreforma
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { getZoomLevel } from 'vs/base/browser/browser';
 
 const $ = DOM.$;
 
@@ -35,22 +37,25 @@ interface CellRenderTemplate {
 }
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
+	private _lineHeight: number;
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+
+		this._lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
 	getHeight(element: ICell): number {
 		if (element.cell_type === 'markdown') {
 			return 100;
 		} else {
-			return 5 * 14;
+			return Math.max(element.source.length + 1, 4) * this._lineHeight;
 		}
 	}
 
 	hasDynamicHeight(element: ICell): boolean {
-		// return element.type === 'markdown';
-		return true;
+		return element.cell_type === 'markdown';
 	}
 
 	getTemplateId(element: ICell): string {
@@ -239,6 +244,12 @@ export class NotebookEditor extends BaseEditor {
 					listFocusForeground: foreground,
 					listHoverForeground: foreground,
 					listHoverBackground: editorBackground,
+					listHoverOutline: editorBackground,
+					listFocusOutline: editorBackground,
+					listInactiveSelectionBackground: editorBackground,
+					listInactiveSelectionForeground: foreground,
+					listInactiveFocusBackground: editorBackground,
+					listInactiveFocusOutline: editorBackground,
 				}
 			}
 		);
