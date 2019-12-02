@@ -25,9 +25,14 @@ import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/w
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 
 const $ = DOM.$;
 
@@ -124,7 +129,7 @@ export class CodeCellRenderer implements IListRenderer<ICell, CellRenderTemplate
 			minimap: { enabled: false },
 		};
 
-		this.widgetOptions = getSimpleCodeEditorWidgetOptions();
+		this.widgetOptions = this.getSimpleCodeEditorWidgetOptions();
 	}
 
 	get templateId() {
@@ -145,7 +150,6 @@ export class CodeCellRenderer implements IListRenderer<ICell, CellRenderTemplate
 		const codeConfig = this.editorOptions;
 		const innerContent = templateData.cellContainer;
 		const width = innerContent.clientWidth;
-		const lineHeight = codeConfig.lineHeight!;
 		const lineNum = element.source.length;
 		const totalHeight = Math.max(lineNum + 1, 4) * 21;
 		innerContent.innerHTML = '';
@@ -176,6 +180,19 @@ export class CodeCellRenderer implements IListRenderer<ICell, CellRenderTemplate
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
 		// throw nerendererw Error('Method not implemented.');
+	}
+
+	getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+		return {
+			isSimpleWidget: false,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				MenuPreventer.ID,
+				SelectionClipboardContributionID,
+				SuggestController.ID,
+				SnippetController2.ID,
+				TabCompletionController.ID
+			])
+		};
 	}
 }
 
