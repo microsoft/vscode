@@ -230,9 +230,16 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			}
 		},
 		accessibilityProvider: options.accessibilityProvider && {
+			...options.accessibilityProvider,
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element as T);
-			}
+			},
+			getAriaLevel: options.accessibilityProvider!.getAriaLevel && (node => {
+				return options.accessibilityProvider!.getAriaLevel!(node.element as T);
+			}),
+			getActiveDescendantId: options.accessibilityProvider.getActiveDescendantId && (node => {
+				return options.accessibilityProvider!.getActiveDescendantId!(node.element as T);
+			})
 		},
 		filter: options.filter && {
 			filter(e, parentVisibility) {
