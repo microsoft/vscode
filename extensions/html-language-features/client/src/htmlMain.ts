@@ -9,7 +9,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams, DocumentRangeFormattingRequest, ProvideCompletionItemsSignature } from 'vscode-languageclient';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams, DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -21,6 +21,18 @@ namespace TagCloseRequest {
 }
 namespace MatchingTagPositionRequest {
 	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
+}
+
+// experimental: semantic tokens
+interface SemanticTokenParams {
+	textDocument: TextDocumentIdentifier;
+	ranges?: Range[];
+}
+namespace SemanticTokenRequest {
+	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+}
+namespace SemanticTokenLegendRequest {
+	export const type: RequestType<void, { types: string[]; modifiers: string[] } | null, any, any> = new RequestType('html/semanticTokenLegend');
 }
 
 interface IPackageInfo {
@@ -132,6 +144,18 @@ export function activate(context: ExtensionContext) {
 		updateFormatterRegistration();
 		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
 		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
+
+
+
+		// toDispose.push(languages.registerSemanticTokensProvider(documentSelector, {
+		// 	provideSemanticTokens(doc, opts) {
+		// 		return null;
+		// 	}
+		// 	g\
+
+		// }))
+
+
 	});
 
 	function updateFormatterRegistration() {

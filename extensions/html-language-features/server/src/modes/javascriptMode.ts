@@ -314,12 +314,64 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		onDocumentRemoved(document: TextDocument) {
 			jsDocuments.onDocumentRemoved(document);
 		},
+		getSemanticTokens(document: TextDocument, ranges: Range[] | undefined): number[] {
+			updateCurrentTextDocument(document);
+			if (!ranges) {
+				ranges = [Range.create(Position.create(0, 0), document.positionAt(document.getText().length))];
+			}
+			const result = [];
+
+			for (let range of ranges) {
+				const start = document.offsetAt(range.start), length = document.offsetAt(range.end) - start;
+				const tokens = jsLanguageService.getSemanticClassifications(FILE_NAME, { start, length });
+
+				let prefLine = 0;
+				let prevChar = 0;
+
+				for (let token of tokens) {
+					const m = tokenMapping[token.classificationType];
+					if (m) {
+						const startPos = document.positionAt(token.textSpan.start);
+						if (prefLine !== startPos.line) {
+							prevChar = 0;
+						}
+						result.push(startPos.line - prefLine); // line delta
+						result.push(startPos.character - prevChar); // line delta
+						result.push(token.textSpan.length); // lemgth
+						result.push(tokenTypes.indexOf(m)); // tokenType
+						result.push(0); // tokenModifier
+
+						prefLine = startPos.line;
+						prevChar = startPos.character;
+					}
+
+				}
+			}
+			return result;
+		},
+		getSemanticTokenLegend(): { types: string[], modifiers: string[] } {
+			return { types: tokenTypes, modifiers: tokenModifiers };
+		},
 		dispose() {
 			jsLanguageService.dispose();
 			jsDocuments.dispose();
 		}
 	};
 }
+
+const tokenTypes: string[] = ['classes', 'enums', 'interfaces', 'namespaces', 'parameterTypes', 'types', 'parameters'];
+const tokenModifiers: string[] = [];
+const tokenMapping: { [name: string]: string } = {
+	[ts.ClassificationTypeNames.className]: 'classes',
+	[ts.ClassificationTypeNames.enumName]: 'enums',
+	[ts.ClassificationTypeNames.interfaceName]: 'interfaces',
+	[ts.ClassificationTypeNames.moduleName]: 'namespaces',
+	[ts.ClassificationTypeNames.typeParameterName]: 'parameterTypes',
+	[ts.ClassificationTypeNames.typeAliasName]: 'types',
+	[ts.ClassificationTypeNames.parameterName]: 'parameters'
+};
+
+
 
 function convertRange(document: TextDocument, span: { start: number | undefined, length: number | undefined }): Range {
 	if (typeof span.start === 'undefined') {

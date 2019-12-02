@@ -6,10 +6,10 @@
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
 	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
-	Position, ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
+	Position, ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification, Range,
 	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest, TextDocumentSyncKind
 } from 'vscode-languageserver';
-import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-html-languageservice';
+import { TextDocument, Diagnostic, DocumentLink, SymbolInformation, TextDocumentIdentifier } from 'vscode-html-languageservice';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
 
 import { format } from './modes/formatting';
@@ -27,6 +27,18 @@ namespace TagCloseRequest {
 }
 namespace MatchingTagPositionRequest {
 	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
+}
+
+// experimental: semantic tokens
+interface SemanticTokenParams {
+	textDocument: TextDocumentIdentifier;
+	ranges?: Range[];
+}
+namespace SemanticTokenRequest {
+	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+}
+namespace SemanticTokenLegendRequest {
+	export const type: RequestType<void, { types: string[]; modifiers: string[] } | null, any, any> = new RequestType('html/semanticTokenLegend');
 }
 
 // Create a connection for the server
@@ -499,6 +511,46 @@ connection.onRequest(MatchingTagPositionRequest.type, (params, token) => {
 		return null;
 	}, null, `Error while computing matching tag position for ${params.textDocument.uri}`, token);
 });
+
+connection.onRequest(MatchingTagPositionRequest.type, (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			const pos = params.position;
+			if (pos.character > 0) {
+				const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+				if (mode && mode.findMatchingTagPosition) {
+					return mode.findMatchingTagPosition(document, pos);
+				}
+			}
+		}
+		return null;
+	}, null, `Error while computing matching tag position for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest(SemanticTokenRequest.type, (params, token) => {
+	return runSafe(() => {
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			const jsMode = languageModes.getMode('javascript');
+			if (jsMode && jsMode.getSemanticTokens) {
+				return jsMode.getSemanticTokens(document, params.ranges);
+			}
+		}
+		return null;
+	}, null, `Error while computing semantic tokens for ${params.textDocument.uri}`, token);
+});
+
+connection.onRequest(SemanticTokenLegendRequest.type, (_params, token) => {
+	return runSafe(() => {
+		const jsMode = languageModes.getMode('javascript');
+		if (jsMode && jsMode.getSemanticTokenLegend) {
+			return jsMode.getSemanticTokenLegend();
+		}
+		return null;
+	}, null, `Error while computing semantic tokens legend`, token);
+});
+
 
 // Listen on the connection
 connection.listen();

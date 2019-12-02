@@ -51,6 +51,8 @@ export interface LanguageMode {
 	findMatchingTagPosition?: (document: TextDocument, position: Position) => Position | null;
 	getFoldingRanges?: (document: TextDocument) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
+	getSemanticTokens?(document: TextDocument, ranges: Range[] | undefined): number[];
+	getSemanticTokenLegend?(): { types: string[], modifiers: string[] };
 	dispose(): void;
 }
 
