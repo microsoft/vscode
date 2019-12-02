@@ -15,9 +15,19 @@ export function prefersExecuteOnUI(manifest: IExtensionManifest, productService:
 	return (extensionKind.length > 0 && extensionKind[0] === 'ui');
 }
 
+export function prefersExecuteOnWorkspace(manifest: IExtensionManifest, productService: IProductService, configurationService: IConfigurationService): boolean {
+	const extensionKind = getExtensionKind(manifest, productService, configurationService);
+	return (extensionKind.length > 0 && extensionKind[0] === 'workspace');
+}
+
 export function canExecuteOnUI(manifest: IExtensionManifest, productService: IProductService, configurationService: IConfigurationService): boolean {
 	const extensionKind = getExtensionKind(manifest, productService, configurationService);
 	return extensionKind.some(kind => kind === 'ui');
+}
+
+export function canExecuteOnWorkspace(manifest: IExtensionManifest, productService: IProductService, configurationService: IConfigurationService): boolean {
+	const extensionKind = getExtensionKind(manifest, productService, configurationService);
+	return extensionKind.some(kind => kind === 'workspace');
 }
 
 export function canExecuteOnWeb(manifest: IExtensionManifest, productService: IProductService, configurationService: IConfigurationService): boolean {
@@ -113,5 +123,5 @@ function toArray(extensionKind: ExtensionKind | ExtensionKind[]): ExtensionKind[
 	if (Array.isArray(extensionKind)) {
 		return extensionKind;
 	}
-	return [extensionKind];
+	return extensionKind === 'ui' ? ['ui', 'workspace'] : [extensionKind];
 }

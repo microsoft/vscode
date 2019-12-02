@@ -32,7 +32,7 @@ export interface Workspace {
 
 export interface LanguageMode {
 	getId(): string;
-	getSelectionRanges?: (document: TextDocument, positions: Position[]) => SelectionRange[];
+	getSelectionRange?: (document: TextDocument, position: Position) => SelectionRange;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
@@ -48,6 +48,7 @@ export interface LanguageMode {
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
+	findMatchingTagPosition?: (document: TextDocument, position: Position) => Position | null;
 	getFoldingRanges?: (document: TextDocument) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;

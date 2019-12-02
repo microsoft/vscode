@@ -387,9 +387,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+		return this.moveOrCopy(source, target, true, overwrite);
+	}
+
+	async copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
+		return this.moveOrCopy(source, target, false, overwrite);
+	}
+
+	private async moveOrCopy(source: URI, target: URI, move: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 
 		// before event
-		await this._onWillRunOperation.fireAsync({ operation: FileOperation.MOVE, target, source }, CancellationToken.None);
+		await this._onWillRunOperation.fireAsync({ operation: move ? FileOperation.MOVE : FileOperation.COPY, target, source }, CancellationToken.None);
 
 		// find all models that related to either source or target (can be many if resource is a folder)
 		const sourceModels: ITextFileEditorModel[] = [];
@@ -433,7 +441,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			modelsToRestore.push(modelToRestore);
 		}
 
-		// in order to move, we need to soft revert all dirty models,
+		// in order to move and copy, we need to soft revert all dirty models,
 		// both from the source as well as the target if any
 		const dirtyModels = [...sourceModels, ...conflictingModels].filter(model => model.isDirty());
 		await this.revertAll(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
@@ -441,7 +449,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// now we can rename the source to target via file operation
 		let stat: IFileStatWithMetadata;
 		try {
-			stat = await this.fileService.move(source, target, overwrite);
+			if (move) {
+				stat = await this.fileService.move(source, target, overwrite);
+			} else {
+				stat = await this.fileService.copy(source, target, overwrite);
+			}
 		} catch (error) {
 
 			// in case of any error, ensure to set dirty flag back
@@ -469,7 +481,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}));
 
 		// after event
-		this._onDidRunOperation.fire(new FileOperationDidRunEvent(FileOperation.MOVE, target, source));
+		this._onDidRunOperation.fire(new FileOperationDidRunEvent(move ? FileOperation.MOVE : FileOperation.COPY, target, source));
 
 		return stat;
 	}

@@ -109,7 +109,6 @@ export interface ITokenClassificationRegistry {
 	 */
 	registerTokenModifier(id: string, description: string): void;
 
-	getTokenClassificationFromString(str: TokenClassificationString): TokenClassification | undefined;
 	getTokenClassification(type: string, modifiers: string[]): TokenClassification | undefined;
 
 	getTokenStylingRule(classification: TokenClassification, value: TokenStyle): TokenStylingRule;
@@ -168,6 +167,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
 		type: 'object',
 		properties: {},
+		additionalProperties: getStylingSchemeEntry(),
 		definitions: {
 			style: {
 				type: 'object',
@@ -234,15 +234,6 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 			}
 		}
 		return { type: tokenTypeDesc.num, modifiers: allModifierBits };
-	}
-
-	public getTokenClassificationFromString(str: TokenClassificationString): TokenClassification | undefined {
-		const parts = str.split('.');
-		const type = parts.shift();
-		if (type) {
-			return this.getTokenClassification(type, parts);
-		}
-		return undefined;
 	}
 
 	public getTokenStylingRule(classification: TokenClassification, value: TokenStyle): TokenStylingRule {
@@ -374,7 +365,7 @@ function getTokenStylingScore(classification: TokenClassification) {
 	return bitCount(classification.modifiers) + ((classification.type !== TOKEN_TYPE_WILDCARD_NUM) ? 1 : 0);
 }
 
-function getStylingSchemeEntry(description: string, deprecationMessage?: string): IJSONSchema {
+function getStylingSchemeEntry(description?: string, deprecationMessage?: string): IJSONSchema {
 	return {
 		description,
 		deprecationMessage,

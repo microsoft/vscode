@@ -10,6 +10,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as resources from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
+import { equals as equalArray } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType, LanguageIdentifier } from 'vs/editor/common/modes';
@@ -44,6 +45,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	private _grammarFactory: TMGrammarFactory | null;
 	private _tokenizersRegistrations: IDisposable[];
 	protected _currentTheme: IRawTheme | null;
+	protected _currentTokenColorMap: string[] | null;
 
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
@@ -65,6 +67,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		this._tokenizersRegistrations = [];
 
 		this._currentTheme = null;
+		this._currentTokenColorMap = null;
 
 		grammarsExtPoint.setHandler((extensions) => {
 			this._grammarDefinitions = null;
@@ -245,16 +248,17 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	}
 
 	private _updateTheme(grammarFactory: TMGrammarFactory, colorTheme: IColorTheme, forceUpdate: boolean): void {
-		if (!forceUpdate && this._currentTheme && AbstractTextMateService.equalsTokenRules(this._currentTheme.settings, colorTheme.tokenColors)) {
+		if (!forceUpdate && this._currentTheme && this._currentTokenColorMap && AbstractTextMateService.equalsTokenRules(this._currentTheme.settings, colorTheme.tokenColors) && equalArray(this._currentTokenColorMap, colorTheme.tokenColorMap)) {
 			return;
 		}
 		this._currentTheme = { name: colorTheme.label, settings: colorTheme.tokenColors };
-		this._doUpdateTheme(grammarFactory, this._currentTheme);
+		this._currentTokenColorMap = colorTheme.tokenColorMap;
+		this._doUpdateTheme(grammarFactory, this._currentTheme, this._currentTokenColorMap);
 	}
 
-	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme): void {
-		grammarFactory.setTheme(theme);
-		let colorMap = AbstractTextMateService._toColorMap(grammarFactory.getColorMap());
+	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, tokenColorMap: string[]): void {
+		grammarFactory.setTheme(theme, tokenColorMap);
+		let colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
 		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.innerHTML = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);

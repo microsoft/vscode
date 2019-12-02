@@ -429,24 +429,26 @@ export class ContributableViewsModel extends Disposable {
 			}
 		}
 
+		viewDescriptors = viewDescriptors.sort(this.compareViewDescriptors.bind(this));
+
 		const toRemove: { index: number, viewDescriptor: IViewDescriptor; }[] = [];
-		const toAdd: { index: number, viewDescriptor: IViewDescriptor, size?: number, collapsed: boolean; }[] = [];
-
-		const previous = this._viewDescriptors;
-		this._viewDescriptors = viewDescriptors.sort(this.compareViewDescriptors.bind(this));
-
-		for (let index = 0; index < previous.length; index++) {
-			const previousViewDescriptor = previous[index];
-			if (this.isViewDescriptorVisible(previousViewDescriptor) && this._viewDescriptors.every(viewDescriptor => viewDescriptor.id !== previousViewDescriptor.id)) {
-				toRemove.push({ index, viewDescriptor: previousViewDescriptor });
+		for (let index = 0; index < this._viewDescriptors.length; index++) {
+			const previousViewDescriptor = this._viewDescriptors[index];
+			if (this.isViewDescriptorVisible(previousViewDescriptor) && viewDescriptors.every(viewDescriptor => viewDescriptor.id !== previousViewDescriptor.id)) {
+				const { visibleIndex } = this.find(previousViewDescriptor.id);
+				toRemove.push({ index: visibleIndex, viewDescriptor: previousViewDescriptor });
 			}
 		}
 
-		for (let index = 0; index < this._viewDescriptors.length; index++) {
-			const viewDescriptor = this._viewDescriptors[index];
+		const previous = this._viewDescriptors;
+		this._viewDescriptors = viewDescriptors.slice(0);
+
+		const toAdd: { index: number, viewDescriptor: IViewDescriptor, size?: number, collapsed: boolean; }[] = [];
+		for (let i = 0; i < this._viewDescriptors.length; i++) {
+			const viewDescriptor = this._viewDescriptors[i];
 			if (this.isViewDescriptorVisible(viewDescriptor) && previous.every(previousViewDescriptor => previousViewDescriptor.id !== viewDescriptor.id)) {
-				const state = this.viewStates.get(viewDescriptor.id)!;
-				toAdd.push({ index, viewDescriptor, size: state.size, collapsed: !!state.collapsed });
+				const { visibleIndex, state } = this.find(viewDescriptor.id);
+				toAdd.push({ index: visibleIndex, viewDescriptor, size: state.size, collapsed: !!state.collapsed });
 			}
 		}
 

@@ -783,6 +783,17 @@
         }
       }
     ],
+    "configurationDefaults": {
+      "[css]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[scss]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[less]": {
+        "editor.suggest.insertMode": "replace"
+      }
+    },
     "jsonValidation": [
       {
         "fileMatch": "*.css-data.json",

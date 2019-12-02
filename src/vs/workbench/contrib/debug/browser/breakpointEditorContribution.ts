@@ -107,32 +107,35 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 	const session = debugService.getViewModel().focusedSession;
 	if (session && session.capabilities.supportsBreakpointLocationsRequest) {
 		await Promise.all(lineNumbers.map(async lineNumber => {
-			const positions = await session.breakpointsLocations(model.uri, lineNumber);
-			if (positions.length > 1) {
-				// Do not render candidates if there is only one, since it is already covered by the line breakpoint
-				positions.forEach(p => {
-					const range = new Range(p.lineNumber, p.column, p.lineNumber, p.column + 1);
-					const breakpointAtPosition = breakpointDecorations.filter(bpd => bpd.range.equalsRange(range)).pop();
-					if (breakpointAtPosition && breakpointAtPosition.inlineWidget) {
-						// Space already occupied, do not render candidate.
-						return;
-					}
-					result.push({
-						range,
-						options: {
-							stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-							beforeContentClassName: `debug-breakpoint-placeholder`
-						},
-						breakpoint: breakpointAtPosition ? breakpointAtPosition.breakpoint : undefined
+			try {
+				const positions = await session.breakpointsLocations(model.uri, lineNumber);
+				if (positions.length > 1) {
+					// Do not render candidates if there is only one, since it is already covered by the line breakpoint
+					positions.forEach(p => {
+						const range = new Range(p.lineNumber, p.column, p.lineNumber, p.column + 1);
+						const breakpointAtPosition = breakpointDecorations.filter(bpd => bpd.range.equalsRange(range)).pop();
+						if (breakpointAtPosition && breakpointAtPosition.inlineWidget) {
+							// Space already occupied, do not render candidate.
+							return;
+						}
+						result.push({
+							range,
+							options: {
+								stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+								beforeContentClassName: `debug-breakpoint-placeholder`
+							},
+							breakpoint: breakpointAtPosition ? breakpointAtPosition.breakpoint : undefined
+						});
 					});
-				});
+				}
+			} catch (e) {
+				// If there is an error when fetching breakpoint locations just do not render them
 			}
 		}));
 	}
 
 	return result;
 }
-
 
 class BreakpointEditorContribution implements IBreakpointEditorContribution {
 
@@ -270,7 +273,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		}));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.onModelDecorationsChanged()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(async (e) => {
-			if (e.affectsConfiguration('debug.showBreakpointsInOverviewRuler')) {
+			if (e.affectsConfiguration('debug.showBreakpointsInOverviewRuler') || e.affectsConfiguration('debug.showInlineBreakpointCandidates')) {
 				await this.setDecorations();
 			}
 		}));
@@ -422,7 +425,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 		}
 
 		// Set breakpoint candidate decorations
-		const desiredCandidateDecorations = await createCandidateDecorations(this.editor.getModel(), this.breakpointDecorations, this.debugService);
+		const desiredCandidateDecorations = debugSettings.showInlineBreakpointCandidates ? await createCandidateDecorations(this.editor.getModel(), this.breakpointDecorations, this.debugService) : [];
 		const candidateDecorationIds = this.editor.deltaDecorations(this.candidateDecorations.map(c => c.decorationId), desiredCandidateDecorations);
 		this.candidateDecorations.forEach(candidate => {
 			candidate.inlineWidget.dispose();

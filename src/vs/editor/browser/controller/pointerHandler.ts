@@ -226,6 +226,10 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	private onTap(event: GestureEvent): void {
+		if (!event.initialTarget || !this.viewHelper.linesContentDomNode.contains(<any>event.initialTarget)) {
+			return;
+		}
+
 		event.preventDefault();
 		this.viewHelper.focusTextArea();
 		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);

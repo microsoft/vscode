@@ -492,4 +492,8 @@ suite('Strings', () => {
 		assertEncodeDecodeUTF8('🧝', [240, 159, 167, 157]);
 
 	});
+
+	test('getGraphemeBreakType', () => {
+		assert.equal(strings.getGraphemeBreakType(0xBC1), strings.GraphemeBreakType.SpacingMark);
+	});
 });

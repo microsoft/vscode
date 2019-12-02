@@ -631,6 +631,12 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			this._setSelections(matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn)));
 		}
 	}
+
+	public selectAllUsingSelections(selections: Selection[]): void {
+		if (selections.length > 0) {
+			this._setSelections(selections);
+		}
+	}
 }
 
 export abstract class MultiCursorSelectionControllerAction extends EditorAction {
@@ -759,7 +765,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 			id: 'editor.action.changeAll',
 			label: nls.localize('changeAll.label', "Change All Occurrences"),
 			alias: 'Change All Occurrences',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus, EditorContextKeys.hasRenameProvider.toNegated()),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2,

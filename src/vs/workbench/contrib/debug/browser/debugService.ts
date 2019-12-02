@@ -40,13 +40,14 @@ import { IAction } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX } from 'vs/workbench/contrib/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -85,6 +86,7 @@ export class DebugService implements IDebugService {
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private inDebugMode: IContextKey<boolean>;
+	private debugUx: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private initializing = false;
 	private previousState: State | undefined;
@@ -126,6 +128,8 @@ export class DebugService implements IDebugService {
 		this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 		this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 		this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
+		this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
+		this.debugUx.set(!!this.configurationManager.selectedConfiguration.name ? 'default' : 'simple');
 
 		this.model = new DebugModel(this.loadBreakpoints(), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadDataBreakpoints(), this.loadWatchExpressions(), this.textFileService);
@@ -168,6 +172,9 @@ export class DebugService implements IDebugService {
 		}));
 		this.toDispose.push(this.viewModel.onDidFocusSession(() => {
 			this.onStateChange();
+		}));
+		this.toDispose.push(this.configurationManager.onDidSelectConfiguration(() => {
+			this.debugUx.set(!!(this.state !== State.Inactive || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
 		}));
 	}
 
@@ -225,6 +232,7 @@ export class DebugService implements IDebugService {
 		if (this.previousState !== state) {
 			this.debugState.set(getStateLabel(state));
 			this.inDebugMode.set(state !== State.Inactive);
+			this.debugUx.set(!!(state !== State.Inactive || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
 		}
@@ -807,7 +815,7 @@ export class DebugService implements IDebugService {
 				return inactivePromise;
 			}
 
-			return taskPromise;
+			return taskPromise.then(withUndefinedAsNull);
 		});
 
 		return new Promise((c, e) => {

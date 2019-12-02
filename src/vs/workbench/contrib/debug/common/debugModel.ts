@@ -157,6 +157,11 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.session = session;
 		try {
 			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			if (response && response.success === false) {
+				this.value = response.message || '';
+				return false;
+			}
+
 			if (response && response.body) {
 				this.value = response.body.result || '';
 				this.reference = response.body.variablesReference;
@@ -1074,7 +1079,7 @@ export class DebugModel implements IDebugModel {
 				if (first.column && second.column) {
 					return first.column - second.column;
 				}
-				return -1;
+				return 1;
 			}
 
 			return first.lineNumber - second.lineNumber;

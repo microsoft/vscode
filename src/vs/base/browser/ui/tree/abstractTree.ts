@@ -161,12 +161,16 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			}
 		},
 		accessibilityProvider: options.accessibilityProvider && {
+			...options.accessibilityProvider,
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			},
 			getAriaLevel(node) {
 				return node.depth;
-			}
+			},
+			getActiveDescendantId: options.accessibilityProvider.getActiveDescendantId && (node => {
+				return options.accessibilityProvider!.getActiveDescendantId!(node.element);
+			})
 		},
 		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
 			...options.keyboardNavigationLabelProvider,
@@ -634,14 +638,14 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const controls = append(this.domNode, $('.controls'));
 
 		this._filterOnType = !!tree.options.filterOnType;
-		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter'));
+		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter.codicon.codicon-list-selection'));
 		this.filterOnTypeDomNode.type = 'checkbox';
 		this.filterOnTypeDomNode.checked = this._filterOnType;
 		this.filterOnTypeDomNode.tabIndex = -1;
 		this.updateFilterOnTypeTitle();
 		domEvent(this.filterOnTypeDomNode, 'input')(this.onDidChangeFilterOnType, this, this.disposables);
 
-		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear'));
+		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear.codicon.codicon-close'));
 		this.clearDomNode.tabIndex = -1;
 		this.clearDomNode.title = localize('clear', "Clear");
 
@@ -1417,8 +1421,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.renderHeight;
 	}
 
-	get firstVisibleElement(): T {
+	get firstVisibleElement(): T | undefined {
 		const index = this.view.firstVisibleIndex;
+
+		if (index < 0 || index >= this.view.length) {
+			return undefined;
+		}
+
 		const node = this.view.element(index);
 		return node.element;
 	}

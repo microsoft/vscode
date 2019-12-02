@@ -53,6 +53,7 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { Hasher } from 'vs/base/common/hash';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -963,7 +964,10 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 
 	constructor(readonly repository: ISCMRepository, readonly hideByDefault: boolean) {
 		const repoId = repository.provider.rootUri ? repository.provider.rootUri.toString() : `#${RepositoryViewDescriptor.counter++}`;
-		this.id = `scm:repository:${repository.provider.label}:${repoId}`;
+		const hasher = new Hasher();
+		hasher.hash(repository.provider.label);
+		hasher.hash(repoId);
+		this.id = `scm:repository:${hasher.value}`;
 		this.name = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
 
 		this.ctorDescriptor = { ctor: RepositoryPane, arguments: [repository] };

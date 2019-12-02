@@ -32,6 +32,18 @@ export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'bracket
 export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
 
 /**
+ * Configuration options for auto indentation in the editor
+ * @internal
+ */
+export const enum EditorAutoIndentStrategy {
+	None = 0,
+	Keep = 1,
+	Brackets = 2,
+	Advanced = 3,
+	Full = 4
+}
+
+/**
  * Configuration options for the editor.
  */
 export interface IEditorOptions {
@@ -320,6 +332,10 @@ export interface IEditorOptions {
 	 */
 	accessibilitySupport?: 'auto' | 'off' | 'on';
 	/**
+	 * Controls the number of lines in the editor that can be read out by a screen reader
+	 */
+	accessibilityPageSize?: number;
+	/**
 	 * Suggest options.
 	 */
 	suggest?: ISuggestOptions;
@@ -364,7 +380,7 @@ export interface IEditorOptions {
 	 * Enable auto indentation adjustment.
 	 * Defaults to false.
 	 */
-	autoIndent?: boolean;
+	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 	/**
 	 * Enable format on type.
 	 * Defaults to false.
@@ -915,6 +931,20 @@ class EditorEnumOption<K1 extends EditorOption, T extends string, V> extends Bas
 
 //#endregion
 
+//#region autoIndent
+
+function _autoIndentFromString(autoIndent: 'none' | 'keep' | 'brackets' | 'advanced' | 'full'): EditorAutoIndentStrategy {
+	switch (autoIndent) {
+		case 'none': return EditorAutoIndentStrategy.None;
+		case 'keep': return EditorAutoIndentStrategy.Keep;
+		case 'brackets': return EditorAutoIndentStrategy.Brackets;
+		case 'advanced': return EditorAutoIndentStrategy.Advanced;
+		case 'full': return EditorAutoIndentStrategy.Full;
+	}
+}
+
+//#endregion
+
 //#region accessibilitySupport
 
 class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibilitySupport, AccessibilitySupport> {
@@ -1300,15 +1330,20 @@ export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
  * Configuration options for go to location
  */
 export interface IGotoLocationOptions {
-	/**
-	 * Control how goto-command work when having multiple results.
-	 */
+
 	multiple?: GoToLocationValues;
+
 	multipleDefinitions?: GoToLocationValues;
 	multipleTypeDefinitions?: GoToLocationValues;
 	multipleDeclarations?: GoToLocationValues;
 	multipleImplementations?: GoToLocationValues;
 	multipleReferences?: GoToLocationValues;
+
+	alternativeDefinitionCommand?: string;
+	alternativeTypeDefinitionCommand?: string;
+	alternativeDeclarationCommand?: string;
+	alternativeImplementationCommand?: string;
+	alternativeReferenceCommand?: string;
 }
 
 export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
@@ -1323,6 +1358,11 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 			multipleDeclarations: 'peek',
 			multipleImplementations: 'peek',
 			multipleReferences: 'peek',
+			alternativeDefinitionCommand: 'editor.action.goToReferences',
+			alternativeTypeDefinitionCommand: 'editor.action.goToReferences',
+			alternativeDeclarationCommand: 'editor.action.goToReferences',
+			alternativeImplementationCommand: '',
+			alternativeReferenceCommand: '',
 		};
 		const jsonSubset: IJSONSchema = {
 			type: 'string',
@@ -1360,6 +1400,31 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 					description: nls.localize('editor.editor.gotoLocation.multipleReferences', "Controls the behavior the 'Go to References'-command when multiple target locations exist."),
 					...jsonSubset,
 				},
+				'editor.gotoLocation.alternativeDefinitionCommand': {
+					type: 'string',
+					default: defaults.alternativeDefinitionCommand,
+					description: nls.localize('alternativeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Definition' is the current location.")
+				},
+				'editor.gotoLocation.alternativeTypeDefinitionCommand': {
+					type: 'string',
+					default: defaults.alternativeTypeDefinitionCommand,
+					description: nls.localize('alternativeTypeDefinitionCommand', "Alternative command id that is being executed when the result of 'Go to Type Definition' is the current location.")
+				},
+				'editor.gotoLocation.alternativeDeclarationCommand': {
+					type: 'string',
+					default: defaults.alternativeDeclarationCommand,
+					description: nls.localize('alternativeDeclarationCommand', "Alternative command id that is being executed when the result of 'Go to Declaration' is the current location.")
+				},
+				'editor.gotoLocation.alternativeImplementationCommand': {
+					type: 'string',
+					default: defaults.alternativeImplementationCommand,
+					description: nls.localize('alternativeImplementationCommand', "Alternative command id that is being executed when the result of 'Go to Implementation' is the current location.")
+				},
+				'editor.gotoLocation.alternativeReferenceCommand': {
+					type: 'string',
+					default: defaults.alternativeReferenceCommand,
+					description: nls.localize('alternativeReferenceCommand', "Alternative command id that is being executed when the result of 'Go to Reference' is the current location.")
+				},
 			}
 		);
 	}
@@ -1376,6 +1441,11 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 			multipleDeclarations: input.multipleDeclarations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleImplementations: input.multipleImplementations ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleImplementations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleReferences: input.multipleReferences ?? EditorStringEnumOption.stringSet<GoToLocationValues>(input.multipleReferences, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			alternativeDefinitionCommand: EditorStringOption.string(input.alternativeDefinitionCommand, this.defaultValue.alternativeDefinitionCommand),
+			alternativeTypeDefinitionCommand: EditorStringOption.string(input.alternativeTypeDefinitionCommand, this.defaultValue.alternativeTypeDefinitionCommand),
+			alternativeDeclarationCommand: EditorStringOption.string(input.alternativeDeclarationCommand, this.defaultValue.alternativeDeclarationCommand),
+			alternativeImplementationCommand: EditorStringOption.string(input.alternativeImplementationCommand, this.defaultValue.alternativeImplementationCommand),
+			alternativeReferenceCommand: EditorStringOption.string(input.alternativeReferenceCommand, this.defaultValue.alternativeReferenceCommand),
 		};
 	}
 }
@@ -2355,6 +2425,10 @@ export interface ISuggestOptions {
 	 */
 	insertMode?: 'insert' | 'replace';
 	/**
+	 * Show a highlight when suggestion replaces or keep text after the cursor. Defaults to false.
+	 */
+	insertHighlight?: boolean;
+	/**
 	 * Enable graceful matching. Defaults to true.
 	 */
 	filterGraceful?: boolean;
@@ -2487,6 +2561,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 	constructor() {
 		const defaults: InternalSuggestOptions = {
 			insertMode: 'insert',
+			insertHighlight: false,
 			filterGraceful: true,
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
@@ -2531,6 +2606,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					],
 					default: defaults.insertMode,
 					description: nls.localize('suggest.insertMode', "Controls whether words are overwritten when accepting completions. Note that this depends on extensions opting into this feature.")
+				},
+				'editor.suggest.insertHighlight': {
+					type: 'boolean',
+					default: defaults.insertHighlight,
+					description: nls.localize('suggest.insertHighlight', "Controls whether unexpected text modifications while accepting completions should be highlighted, e.g `insertMode` is `replace` but the completion only supports `insert`.")
 				},
 				'editor.suggest.filterGraceful': {
 					type: 'boolean',
@@ -2709,6 +2789,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 		const input = _input as ISuggestOptions;
 		return {
 			insertMode: EditorStringEnumOption.stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
+			insertHighlight: EditorBooleanOption.boolean(input.insertHighlight, this.defaultValue.insertHighlight),
 			filterGraceful: EditorBooleanOption.boolean(input.filterGraceful, this.defaultValue.filterGraceful),
 			snippetsPreventQuickSuggestions: EditorBooleanOption.boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: EditorBooleanOption.boolean(input.localityBonus, this.defaultValue.localityBonus),
@@ -2924,6 +3005,7 @@ export const enum EditorOption {
 	acceptSuggestionOnCommitCharacter,
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
+	accessibilityPageSize,
 	ariaLabel,
 	autoClosingBrackets,
 	autoClosingOvertype,
@@ -3051,6 +3133,8 @@ export const EditorOptions = {
 		}
 	)),
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
+	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
+		{ description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader. Warning: this has a performance implication for numbers larger than the default.") })),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
@@ -3095,9 +3179,21 @@ export const EditorOptions = {
 			description: nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes after the user adds an opening quote.")
 		}
 	)),
-	autoIndent: register(new EditorBooleanOption(
-		EditorOption.autoIndent, 'autoIndent', true,
-		{ description: nls.localize('autoIndent', "Controls whether the editor should automatically adjust the indentation when users type, paste or move lines. Extensions with indentation rules of the language must be available.") }
+	autoIndent: register(new EditorEnumOption(
+		EditorOption.autoIndent, 'autoIndent',
+		EditorAutoIndentStrategy.Full, 'full',
+		['none', 'keep', 'brackets', 'advanced', 'full'],
+		_autoIndentFromString,
+		{
+			enumDescriptions: [
+				nls.localize('editor.autoIndent.none', "The editor will not insert indentation automatically."),
+				nls.localize('editor.autoIndent.keep', "The editor will keep the current line's indentation."),
+				nls.localize('editor.autoIndent.brackets', "The editor will keep the current line's indentation and honor language defined brackets."),
+				nls.localize('editor.autoIndent.advanced', "The editor will keep the current line's indentation, honor language defined brackets and invoke special onEnterRules defined by languages."),
+				nls.localize('editor.autoIndent.full', "The editor will keep the current line's indentation, honor language defined brackets, invoke special onEnterRules defined by languages, and honor indentationRules defined by languages."),
+			],
+			description: nls.localize('autoIndent', "Controls whether the editor should automatically adjust the indentation when users type, paste, move or indent lines.")
+		}
 	)),
 	automaticLayout: register(new EditorBooleanOption(
 		EditorOption.automaticLayout, 'automaticLayout', false,

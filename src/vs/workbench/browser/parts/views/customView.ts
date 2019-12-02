@@ -26,7 +26,7 @@ import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { URI } from 'vs/base/common/uri';
 import { dirname, basename } from 'vs/base/common/resources';
-import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
@@ -614,16 +614,7 @@ export class CustomTreeView extends Disposable implements ITreeView {
 		const tree = this.tree;
 		if (tree && this.visible) {
 			this.refreshing = true;
-			await Promise.all(elements.map(element => tree.updateChildren(element, true)));
-
-			elements.map(element => {
-				try {
-					tree.rerender(element);
-				} catch {
-					// noop
-				}
-			});
-
+			await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
 			this.refreshing = false;
 			this.updateContentAreas();
 			if (this.focused) {
@@ -789,16 +780,27 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		// reset
 		templateData.actionBar.clear();
 
-		if (resource || node.themeIcon) {
+		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: matches ? matches : createMatches(element.filterData) });
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'], matches: matches ? matches : createMatches(element.filterData) });
 		}
 
-		templateData.icon.style.backgroundImage = iconUrl ? DOM.asCSSUrl(iconUrl) : '';
 		templateData.icon.title = title ? title : '';
-		DOM.toggleClass(templateData.icon, 'custom-view-tree-node-item-icon', !!iconUrl);
+
+		if (iconUrl) {
+			templateData.icon.className = 'custom-view-tree-node-item-icon';
+			templateData.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
+
+		} else {
+			let iconClass: string | undefined;
+			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
+				iconClass = ThemeIcon.asClassName(node.themeIcon);
+			}
+			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
+		}
+
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
 		if (this._actionRunner) {
@@ -810,6 +812,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
 		DOM.toggleClass(container.parentElement!, 'align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
+	}
+
+	private isFileKindThemeIcon(icon: ThemeIcon | undefined): boolean {
+		if (icon) {
+			return icon.id === FileThemeIcon.id || icon.id === FolderThemeIcon.id;
+		} else {
+			return false;
+		}
 	}
 
 	private getFileKind(node: ITreeItem): FileKind {

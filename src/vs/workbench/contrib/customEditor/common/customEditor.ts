@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import * as glob from 'vs/base/common/glob';
+import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, IEditor, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { EditorInput, IEditor, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
@@ -29,6 +31,7 @@ export interface ICustomEditorService {
 
 	readonly activeCustomEditor: ICustomEditor | undefined;
 
+	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
 	getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[];
 	getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[];
 
@@ -38,7 +41,7 @@ export interface ICustomEditorService {
 	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 }
 
-export type CustomEditorEdit = string;
+export type CustomEditorEdit = { source?: any, data: any };
 
 export interface ICustomEditorModelManager {
 	get(resource: URI, viewType: string): ICustomEditorModel | undefined;
@@ -48,18 +51,33 @@ export interface ICustomEditorModelManager {
 	disposeModel(model: ICustomEditorModel): void;
 }
 
+export interface CustomEditorSaveEvent {
+	readonly resource: URI;
+	readonly waitUntil: (until: Promise<any>) => void;
+}
+
+export interface CustomEditorSaveAsEvent {
+	readonly resource: URI;
+	readonly targetResource: URI;
+	readonly waitUntil: (until: Promise<any>) => void;
+}
+
 export interface ICustomEditorModel extends IWorkingCopy {
-	readonly onUndo: Event<CustomEditorEdit>;
-	readonly onRedo: Event<CustomEditorEdit>;
-	readonly onWillSave: Event<{ waitUntil: (until: Promise<any>) => void }>;
+	readonly onUndo: Event<readonly CustomEditorEdit[]>;
+	readonly onApplyEdit: Event<readonly CustomEditorEdit[]>;
+	readonly onWillSave: Event<CustomEditorSaveEvent>;
+	readonly onWillSaveAs: Event<CustomEditorSaveAsEvent>;
+
+	readonly currentEdits: readonly CustomEditorEdit[];
 
 	undo(): void;
 	redo(): void;
 	revert(options?: IRevertOptions): Promise<boolean>;
 
 	save(options?: ISaveOptions): Promise<boolean>;
+	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
 
-	makeEdit(data: string): void;
+	makeEdit(edit: CustomEditorEdit): void;
 }
 
 export const enum CustomEditorPriority {
@@ -72,9 +90,35 @@ export interface CustomEditorSelector {
 	readonly filenamePattern?: string;
 }
 
-export interface CustomEditorInfo {
-	readonly id: string;
-	readonly displayName: string;
-	readonly priority: CustomEditorPriority;
-	readonly selector: readonly CustomEditorSelector[];
+export class CustomEditorInfo {
+
+	public readonly id: string;
+	public readonly displayName: string;
+	public readonly priority: CustomEditorPriority;
+	public readonly selector: readonly CustomEditorSelector[];
+
+	constructor(descriptor: {
+		readonly id: string;
+		readonly displayName: string;
+		readonly priority: CustomEditorPriority;
+		readonly selector: readonly CustomEditorSelector[];
+	}) {
+		this.id = descriptor.id;
+		this.displayName = descriptor.displayName;
+		this.priority = descriptor.priority;
+		this.selector = descriptor.selector;
+	}
+
+	matches(resource: URI): boolean {
+		return this.selector.some(selector => CustomEditorInfo.selectorMatches(selector, resource));
+	}
+
+	static selectorMatches(selector: CustomEditorSelector, resource: URI): boolean {
+		if (selector.filenamePattern) {
+			if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
+				return true;
+			}
+		}
+		return false;
+	}
 }
