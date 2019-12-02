@@ -141,21 +141,24 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		let badge: IBadge | undefined = undefined;
 		let clazz: string | undefined;
+		let priority: number | undefined = undefined;
 
 		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING) && this.authTokenService.status === AuthTokenStatus.SignedOut) {
 			badge = new NumberBadge(1, () => localize('sign in', "Sync: Sign in..."));
 		} else if (this.authTokenService.status === AuthTokenStatus.SigningIn) {
 			badge = new ProgressBadge(() => localize('signing in', "Signin in..."));
 			clazz = 'progress-badge';
+			priority = 1;
 		} else if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			badge = new NumberBadge(1, () => localize('resolve conflicts', "Resolve Conflicts"));
 		} else if (this.userDataSyncService.status === SyncStatus.Syncing) {
 			badge = new ProgressBadge(() => localize('syncing', "Synchronizing User Configuration..."));
 			clazz = 'progress-badge';
+			priority = 1;
 		}
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
+			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
 		}
 	}
 
