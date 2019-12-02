@@ -850,6 +850,11 @@ export class Minimap extends ViewPart {
 		charWidth: number): void {
 		const y = (lineNumber - layout.startLineNumber) * lineHeight;
 
+		// Skip rendering the line if it's vertically outside our viewport
+		if (y + height < 0 || y > this._options.canvasOuterHeight) {
+			return;
+		}
+
 		// Cache line offset data so that it is only read once per line
 		let lineIndexToXOffset = lineOffsetMap.get(lineNumber);
 		const isFirstDecorationForLine = !lineIndexToXOffset;
