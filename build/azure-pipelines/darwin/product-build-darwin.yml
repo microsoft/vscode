@@ -130,6 +130,12 @@ steps:
     pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
   displayName: Archive build
 
+- task: PublishPipelineArtifact@0
+  displayName: 'Publish Pipeline Artifact'
+  inputs:
+    artifactName: darwin-unsigned
+    targetPath: ../VSCode-darwin.zip
+
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
@@ -154,6 +160,12 @@ steps:
     SessionTimeout: 60
   displayName: Codesign
 
+- task: PublishPipelineArtifact@0
+  displayName: 'Publish Pipeline Artifact'
+  inputs:
+    artifactName: darwin-signed
+    targetPath: ../VSCode-darwin.zip
+
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
@@ -177,6 +189,12 @@ steps:
       ]
     SessionTimeout: 120
   displayName: Notarization
+
+- task: PublishPipelineArtifact@0
+  displayName: 'Publish Pipeline Artifact'
+  inputs:
+    artifactName: darwin-notarized
+    targetPath: ../VSCode-darwin.zip
 
 - script: |
     set -e
