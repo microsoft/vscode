@@ -10,8 +10,16 @@ import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
 
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, ProviderResult, TextEdit, Range, Disposable } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
+import {
+	workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration,
+	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext
+} from 'vscode';
+import {
+	LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType,
+	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature
+} from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -132,6 +140,29 @@ export function activate(context: ExtensionContext) {
 				}
 
 				next(uri, diagnostics);
+			},
+			// testing the replace / insert mode
+			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				function updateRanges(item: CompletionItem) {
+					const range = item.range;
+					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range2 = { inserting: new Range(range.start, position), replacing: range };
+						item.range = undefined;
+					}
+				}
+				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
+					if (r) {
+						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+					}
+					return r;
+				}
+				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+
+				const r = next(document, position, context, token);
+				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+					return r.then(updateProposals);
+				}
+				return updateProposals(r);
 			}
 		}
 	};
@@ -422,5 +453,4 @@ function readJSONFile(location: string) {
 		console.log(`Problems reading ${location}: ${e}`);
 		return {};
 	}
-
 }

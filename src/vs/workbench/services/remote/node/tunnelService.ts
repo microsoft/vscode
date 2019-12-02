@@ -17,7 +17,6 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { findFreePort } from 'vs/base/node/ports';
-import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
@@ -29,7 +28,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 	public readonly tunnelRemotePort: number;
 	public tunnelLocalPort!: number;
-	public localAddress?: URI;
+	public localAddress?: string;
 
 	private readonly _options: IConnectionOptions;
 	private readonly _server: net.Server;
@@ -71,7 +70,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this.tunnelLocalPort = address.port;
 
 		await this._barrier.wait();
-		this.localAddress = URI.from({ scheme: 'http', authority: 'localhost:' + address.port });
+		this.localAddress = 'localhost:' + address.port;
 		return this;
 	}
 

@@ -274,7 +274,11 @@ export class TextAreaInput extends Disposable {
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
 			this._lastTextAreaEvent = TextAreaInputEventType.compositionend;
-
+			// https://github.com/microsoft/monaco-editor/issues/1663
+			// On iOS 13.2, Chinese system IME randomly trigger an additional compositionend event with empty data
+			if (!this._isDoingComposition) {
+				return;
+			}
 			if (compositionDataInValid(e.locale)) {
 				// https://github.com/Microsoft/monaco-editor/issues/339
 				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false, /*couldBeTypingAtOffset0*/false);

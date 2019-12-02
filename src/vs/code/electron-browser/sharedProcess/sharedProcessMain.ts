@@ -51,7 +51,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskF
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataSyncService, IUserDataSyncStoreService, ISettingsMergeService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { SettingsMergeChannelClient } from 'vs/platform/userDataSync/common/settingsSyncIpc';
@@ -64,6 +64,7 @@ import { AuthTokenChannel } from 'vs/platform/auth/common/authTokenIpc';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 import { UserDataSyncUtilServiceClient } from 'vs/platform/userDataSync/common/keybindingsSyncIpc';
+import { UserDataAutoSync } from 'vs/platform/userDataSync/electron-browser/userDataAutoSync';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;

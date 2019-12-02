@@ -117,27 +117,13 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 			return false;
 		}
 
-		// Preserve view state by opening the editor first. In addition
-		// this allows the user to review the contents of the editor.
-		// let viewState: IEditorViewState | undefined = undefined;
-		// const editor = await this.editorService.openEditor(this, undefined, group);
-		// if (isTextEditor(editor)) {
-		// 	viewState = editor.getViewState();
-		// }
-
 		let dialogPath = this._editorResource;
-		// if (this._editorResource.scheme === Schemas.untitled) {
-		// 	dialogPath = this.suggestFileName(resource);
-		// }
-
 		const target = await this.promptForPath(this._editorResource, dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return false; // save cancelled
 		}
 
-		await this._model.saveAs(this._editorResource, target, options);
-
-		return true;
+		return await this._model.saveAs(this._editorResource, target, options);
 	}
 
 	public revert(options?: IRevertOptions): Promise<boolean> {
@@ -156,15 +142,22 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
 
-		return this.fileDialogService.pickFileToSave({});//this.getSaveDialogOptions(defaultUri, availableFileSystems));
+		return this.fileDialogService.pickFileToSave({
+			availableFileSystems,
+			defaultUri
+		});
 	}
 
-	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
-		const webview = assertIsDefined(this.takeOwnershipOfWebview());
-		return this.instantiationService.createInstance(CustomFileEditorInput,
-			uri,
-			this.viewType,
-			generateUuid(),
-			new Lazy(() => webview));
+	public handleMove(_groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
+		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
+		if (editorInfo?.matches(uri)) {
+			const webview = assertIsDefined(this.takeOwnershipOfWebview());
+			return this.instantiationService.createInstance(CustomFileEditorInput,
+				uri,
+				this.viewType,
+				generateUuid(),
+				new Lazy(() => webview));
+		}
+		return undefined;
 	}
 }

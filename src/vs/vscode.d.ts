@@ -8315,8 +8315,8 @@ declare module 'vscode' {
 		 *
 		 * All changes of a workspace edit are applied in the same order in which they have been added. If
 		 * multiple textual inserts are made at the same position, these strings appear in the resulting text
-		 * in the order the 'inserts' were made. Invalid sequences like 'delete file a' -> 'insert text in file a'
-		 * cause failure of the operation.
+		 * in the order the 'inserts' were made, unless that are interleaved with resource edits. Invalid sequences
+		 * like 'delete file a' -> 'insert text in file a' cause failure of the operation.
 		 *
 		 * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
 		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consecutive edits will

@@ -12,7 +12,7 @@ export const ITunnelService = createDecorator<ITunnelService>('tunnelService');
 export interface RemoteTunnel {
 	readonly tunnelRemotePort: number;
 	readonly tunnelLocalPort: number;
-	readonly localAddress?: URI;
+	readonly localAddress?: string;
 	dispose(): void;
 }
 

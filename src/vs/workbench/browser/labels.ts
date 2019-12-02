@@ -444,7 +444,8 @@ class ResourceLabelWidget extends IconLabel {
 			italic: this.options && this.options.italic,
 			matches: this.options && this.options.matches,
 			extraClasses: [],
-			separator: this.options?.separator
+			separator: this.options?.separator,
+			domId: this.options?.domId
 		};
 
 		const resource = this.label.resource;
