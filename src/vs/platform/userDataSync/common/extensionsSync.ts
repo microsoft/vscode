@@ -166,7 +166,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		// First time sync
 		if (!remoteExtensions) {
 			this.logService.info('Extensions: Remote extensions does not exist. Synchronizing extensions for the first time.');
-			return { added: [], removed: [], updated: [], remote: localExtensions.filter(({ identifier }) => ignoredExtensions.some(id => id.toLowerCase() === identifier.id.toLowerCase())) };
+			return { added: [], removed: [], updated: [], remote: localExtensions.filter(({ identifier }) => ignoredExtensions.every(id => id.toLowerCase() !== identifier.id.toLowerCase())) };
 		}
 
 		const uuids: Map<string, string> = new Map<string, string>();
