@@ -825,7 +825,7 @@ declare module 'vscode' {
 		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
 	}
 
-	//#endregionn
+	//#endregion
 
 	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
 
