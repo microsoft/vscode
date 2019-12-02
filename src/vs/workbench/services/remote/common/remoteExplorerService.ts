@@ -10,7 +10,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { URI } from 'vs/base/common/uri';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -20,7 +19,7 @@ export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
 
 export interface Tunnel {
 	remote: number;
-	localUri: URI;
+	localAddress: string;
 	local?: number;
 	name?: string;
 	description?: string;
@@ -47,7 +46,7 @@ export class TunnelModel extends Disposable {
 				if (tunnel.localAddress) {
 					this.forwarded.set(tunnel.tunnelRemotePort, {
 						remote: tunnel.tunnelRemotePort,
-						localUri: tunnel.localAddress,
+						localAddress: tunnel.localAddress,
 						local: tunnel.tunnelLocalPort
 					});
 				}
@@ -63,7 +62,7 @@ export class TunnelModel extends Disposable {
 			if (!this.forwarded.has(tunnel.tunnelRemotePort) && tunnel.localAddress) {
 				this.forwarded.set(tunnel.tunnelRemotePort, {
 					remote: tunnel.tunnelRemotePort,
-					localUri: tunnel.localAddress,
+					localAddress: tunnel.localAddress,
 					local: tunnel.tunnelLocalPort
 				});
 			}
@@ -86,7 +85,7 @@ export class TunnelModel extends Disposable {
 					local: tunnel.tunnelLocalPort,
 					name: name,
 					closeable: true,
-					localUri: tunnel.localAddress
+					localAddress: tunnel.localAddress
 				};
 				this.forwarded.set(remote, newForward);
 				this._onForwardPort.fire(newForward);
@@ -105,8 +104,8 @@ export class TunnelModel extends Disposable {
 		return this.tunnelService.closeTunnel(remote);
 	}
 
-	address(remote: number): URI | undefined {
-		return (this.forwarded.get(remote) || this.published.get(remote))?.localUri;
+	address(remote: number): string | undefined {
+		return (this.forwarded.get(remote) || this.published.get(remote))?.localAddress;
 	}
 }
 
