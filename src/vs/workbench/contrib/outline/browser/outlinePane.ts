@@ -374,7 +374,7 @@ export class OutlinePane extends ViewletPane {
 			}
 			// This is a temporary solution to try and minimize refilters while
 			// ConfigurationChangeEvents only provide the first section of the config path.
-			if (e.affectedKeys.some(key => key.search(/(outline|\[\w+\])/))) {
+			if (e.affectedKeys.some(key => key.search(/(outline|\[\w+\])/) === 0)) {
 				this._tree.refilter();
 			}
 		}));
