@@ -32,7 +32,7 @@ export async function deactivate(): Promise<any> {
 }
 
 async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
-	const pathHint = workspace.getConfiguration('git').get<string>('path');
+	const pathHint = workspace.getConfiguration('git').get<string | string[]>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 
 	let env: any = {};

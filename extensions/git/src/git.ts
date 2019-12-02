@@ -124,8 +124,29 @@ function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
 		.then(undefined, () => findGitWin32InPath(onLookup));
 }
 
-export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
-	const first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
+export function findGit(hints: string | string[] | undefined, onLookup: (path: string) => void): Promise<IGit> {
+	let first: Promise<IGit>;
+
+	if (typeof hints === 'object') {
+		if (hints.length > 0) {
+
+			first = findSpecificGit(hints[0], onLookup);
+
+			let currentHintIndex = 1;
+
+			while (currentHintIndex < hints.length) {
+
+				first = findSpecificGit(hints[currentHintIndex], onLookup)
+					.then(undefined, () => first);
+
+				currentHintIndex++;
+			}
+		} else {
+			first = Promise.reject<IGit>(null);
+		}
+	} else {
+		first = hints ? findSpecificGit(hints, onLookup) : Promise.reject<IGit>(null);
+	}
 
 	return first
 		.then(undefined, () => {
