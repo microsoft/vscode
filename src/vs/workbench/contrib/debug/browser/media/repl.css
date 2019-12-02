@@ -45,6 +45,10 @@
 	opacity: 0.3;
 }
 
+.vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
+	opacity: 0.45;
+}
+
 .repl .repl-tree .output.expression.value-and-source .source {
 	margin-left: 4px;
 	margin-right: 8px;
