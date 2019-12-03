@@ -95,11 +95,17 @@
         },
         "configurationDefaults": {
             "[json]": {
-                "editor.quickSuggestions": {
-                    "strings": true
-                },
-                "editor.suggest.insertMode": "replace"
-            }
+              "editor.quickSuggestions": {
+                  "strings": true
+              },
+              "editor.suggest.insertMode": "replace"
+            },
+            "[jsonc]": {
+              "editor.quickSuggestions": {
+                  "strings": true
+              },
+              "editor.suggest.insertMode": "replace"
+          }
         }
     },
     "dependencies": {
