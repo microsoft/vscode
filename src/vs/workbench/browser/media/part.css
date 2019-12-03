@@ -22,7 +22,8 @@
 	position: relative;
 }
 
-.monaco-workbench .part:focus-within {
+.monaco-workbench.windows.chromium .part:focus-within,
+.monaco-workbench.linux.chromium .part:focus-within {
 	z-index: 1000;
 }
 
