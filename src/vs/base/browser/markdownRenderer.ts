@@ -15,7 +15,6 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
@@ -73,10 +72,6 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
-		if (href && href.indexOf('vscode-icon://codicon/') === 0) {
-			return renderCodicons(`$(${URI.parse(href).path.substr(1)})`);
-		}
-
 		let dimensions: string[] = [];
 		let attributes: string[] = [];
 		if (href) {
