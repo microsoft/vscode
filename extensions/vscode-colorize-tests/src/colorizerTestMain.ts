@@ -8,8 +8,8 @@ import * as jsoncParser from 'jsonc-parser';
 
 export function activate(context: vscode.ExtensionContext): any {
 
-	const tokenModifiers = ['static', 'abstract', 'deprecated', 'declaration', 'documentation', 'member', 'async'];
 	const tokenTypes = ['types', 'structs', 'classes', 'interfaces', 'enums', 'parameterTypes', 'functions', 'variables'];
+	const tokenModifiers = ['static', 'abstract', 'deprecated', 'declaration', 'documentation', 'member', 'async'];
 
 	const legend = new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
 
@@ -17,10 +17,12 @@ export function activate(context: vscode.ExtensionContext): any {
 		provideSemanticTokens(document: vscode.TextDocument): vscode.ProviderResult<vscode.SemanticTokens> {
 			const builder = new vscode.SemanticTokensBuilder();
 
-			function addToken(type: string, modifiers: string[], startLine: number, startCharacter: number, length: number) {
+			function addToken(value: string, startLine: number, startCharacter: number, length: number) {
+				const [type, ...modifiers] = value.split('.');
+
 				let tokenType = legend.tokenTypes.indexOf(type);
 				if (tokenType === -1) {
-					tokenType = 0;
+					return;
 				}
 
 				let tokenModifiers = 0;
@@ -31,18 +33,17 @@ export function activate(context: vscode.ExtensionContext): any {
 					}
 				}
 
+
 				builder.push(startLine, startCharacter, length, tokenType, tokenModifiers);
 			}
 
 			const visitor: jsoncParser.JSONVisitor = {
-				onObjectProperty: (property: string, _offset: number, length: number, startLine: number, startCharacter: number) => {
-					const [type, ...modifiers] = property.split('.');
-					addToken(type, modifiers, startLine, startCharacter, length);
+				onObjectProperty: (property: string, _offset: number, _length: number, startLine: number, startCharacter: number) => {
+					addToken(property, startLine, startCharacter, property.length + 2);
 				},
 				onLiteralValue: (value: any, _offset: number, length: number, startLine: number, startCharacter: number) => {
 					if (typeof value === 'string') {
-						const [type, ...modifiers] = value.split('.');
-						addToken(type, modifiers, startLine, startCharacter, length);
+						addToken(value, startLine, startCharacter, length);
 					}
 				}
 			};
