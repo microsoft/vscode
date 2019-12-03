@@ -28,6 +28,15 @@
           "light": "./src/media/refresh-light.svg",
           "dark": "./src/media/refresh-dark.svg"
         }
+      },
+      {
+        "command": "searchResult.rerunSearchWithContext",
+        "title": "%searchResult.rerunSearchWithContext.title%",
+        "category": "Search Result",
+        "icon": {
+          "light": "./src/media/refresh-light.svg",
+          "dark": "./src/media/refresh-dark.svg"
+        }
       }
     ],
     "menus": {
@@ -35,6 +44,7 @@
         {
           "command": "searchResult.rerunSearch",
           "when": "editorLangId == search-result",
+          "alt": "searchResult.rerunSearchWithContext",
           "group": "navigation"
         }
       ]

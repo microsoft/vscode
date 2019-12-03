@@ -65,6 +65,7 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 };
 
 type SearchResultSerialization = { text: string[], matchRanges: Range[] };
+
 function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
 	const serializedMatches = flatten(fileMatch.matches()
 		.sort(searchMatchComparer)
@@ -76,17 +77,37 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 
 	const targetLineNumberToOffset: Record<string, number> = {};
 
+	const context: { line: string, lineNumber: number }[] = [];
+	fileMatch.context.forEach((line, lineNumber) => context.push({ line, lineNumber }));
+	context.sort((a, b) => a.lineNumber - b.lineNumber);
+
+	let lastLine: number | undefined = undefined;
+
 	const seenLines = new Set<string>();
 	serializedMatches.forEach(match => {
 		if (!seenLines.has(match.line)) {
+			while (context.length && context[0].lineNumber < +match.lineNumber) {
+				const { line, lineNumber } = context.shift()!;
+				if (lastLine !== undefined && lineNumber !== lastLine + 1) {
+					text.push('');
+				}
+				text.push(`  ${lineNumber}  ${line}`);
+				lastLine = lineNumber;
+			}
+
 			targetLineNumberToOffset[match.lineNumber] = text.length;
 			seenLines.add(match.line);
 			text.push(match.line);
+			lastLine = +match.lineNumber;
 		}
 
 		matchRanges.push(...match.ranges.map(translateRangeLines(targetLineNumberToOffset[match.lineNumber])));
 	});
 
+	while (context.length) {
+		const { line, lineNumber } = context.shift()!;
+		text.push(`  ${lineNumber}  ${line}`);
+	}
 
 	return { text, matchRanges };
 }
@@ -104,7 +125,7 @@ const flattenSearchResultSerializations = (serializations: SearchResultSerializa
 	return { text, matchRanges };
 };
 
-const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes: string, excludes: string): string[] => {
+const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes: string, excludes: string, contextLines: number): string[] => {
 	if (!pattern) { return []; }
 
 	const removeNullFalseAndUndefined = <T>(a: (T | null | false | undefined)[]) => a.filter(a => a !== false && a !== null && a !== undefined) as T[];
@@ -123,16 +144,32 @@ const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes
 		]).join(' ')}`,
 		includes ? `# Including: ${includes}` : undefined,
 		excludes ? `# Excluding: ${excludes}` : undefined,
+		contextLines ? `# ContextLines: ${contextLines}` : undefined,
 		''
 	]);
 };
 
-const searchHeaderToContentPattern = (header: string[]): { pattern: string, flags: { regex: boolean, wholeWord: boolean, caseSensitive: boolean, ignoreExcludes: boolean }, includes: string, excludes: string } => {
-	const query = {
+
+type SearchHeader = {
+	pattern: string;
+	flags: {
+		regex: boolean;
+		wholeWord: boolean;
+		caseSensitive: boolean;
+		ignoreExcludes: boolean;
+	};
+	includes: string;
+	excludes: string;
+	context: number | undefined;
+};
+
+const searchHeaderToContentPattern = (header: string[]): SearchHeader => {
+	const query: SearchHeader = {
 		pattern: '',
 		flags: { regex: false, caseSensitive: false, ignoreExcludes: false, wholeWord: false },
 		includes: '',
-		excludes: ''
+		excludes: '',
+		context: undefined
 	};
 
 	const unescapeNewlines = (str: string) => str.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
@@ -145,6 +182,7 @@ const searchHeaderToContentPattern = (header: string[]): { pattern: string, flag
 			case 'Query': query.pattern = unescapeNewlines(value); break;
 			case 'Including': query.includes = value; break;
 			case 'Excluding': query.excludes = value; break;
+			case 'ContextLines': query.context = +value; break;
 			case 'Flags': {
 				query.flags = {
 					regex: value.indexOf('RegExp') !== -1,
@@ -159,19 +197,20 @@ const searchHeaderToContentPattern = (header: string[]): { pattern: string, flag
 	return query;
 };
 
-const serializeSearchResultForEditor = (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, labelFormatter: (x: URI) => string): SearchResultSerialization => {
-	const header = contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern);
+const serializeSearchResultForEditor = (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string): SearchResultSerialization => {
+	const header = contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
 	const allResults =
 		flattenSearchResultSerializations(
-			flatten(searchResult.folderMatches().sort(searchMatchComparer)
-				.map(folderMatch => folderMatch.matches().sort(searchMatchComparer)
-					.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
+			flatten(
+				searchResult.folderMatches().sort(searchMatchComparer)
+					.map(folderMatch => folderMatch.matches().sort(searchMatchComparer)
+						.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
 
 	return { matchRanges: allResults.matchRanges.map(translateRangeLines(header.length)), text: header.concat(allResults.text) };
 };
 
 export const refreshActiveEditorSearch =
-	async (editorService: IEditorService, instantiationService: IInstantiationService, contextService: IWorkspaceContextService, labelService: ILabelService, configurationService: IConfigurationService) => {
+	async (contextLines: number | undefined, editorService: IEditorService, instantiationService: IInstantiationService, contextService: IWorkspaceContextService, labelService: ILabelService, configurationService: IConfigurationService) => {
 		const model = editorService.activeTextEditorWidget?.getModel();
 		if (!model) { return; }
 
@@ -190,6 +229,8 @@ export const refreshActiveEditorSearch =
 			isWordMatch: contentPattern.flags.wholeWord
 		};
 
+		contextLines = contextLines ?? contentPattern.context ?? 0;
+
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchEditor',
 			extraFileResources: instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
@@ -202,6 +243,8 @@ export const refreshActiveEditorSearch =
 				matchLines: 1,
 				charsPerLine: 1000
 			},
+			afterContext: contextLines,
+			beforeContext: contextLines,
 			isSmartCase: configurationService.getValue<ISearchConfigurationProperties>('search').smartCase,
 			expandPatterns: true
 		};
@@ -220,7 +263,7 @@ export const refreshActiveEditorSearch =
 		await searchModel.search(query);
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(searchModel.searchResult, '', '', labelFormatter);
+		const results = serializeSearchResultForEditor(searchModel.searchResult, contentPattern.includes, contentPattern.excludes, contextLines, labelFormatter);
 
 		textModel.setValue(results.text.join(lineDelimiter));
 		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
@@ -233,7 +276,7 @@ export const createEditorFromSearchResult =
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
-		const results = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, labelFormatter);
+		const results = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter);
 
 		let possible = {
 			contents: results.text.join(lineDelimiter),
@@ -255,7 +298,6 @@ export const createEditorFromSearchResult =
 		model.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	};
 
-// theming
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.monaco-editor .searchEditorFindMatch { background-color: ${theme.getColor(searchEditorFindMatch)}; }`);
 

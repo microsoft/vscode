@@ -7,14 +7,17 @@ import * as vscode from 'vscode';
 import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
-const RESULT_LINE_REGEX = /^(\s+)(\d+):(\s+)(.*)$/;
+const RESULT_LINE_REGEX = /^(\s+)(\d+)(?::| )(\s+)(.*)$/;
 const SEARCH_RESULT_SELECTOR = { language: 'search-result' };
+const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
+const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
 
 let cachedLastParse: { version: number, parse: ParsedSearchResults } | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('searchResult.rerunSearch', () => vscode.commands.executeCommand('search.action.rerunEditorSearch')),
+		vscode.commands.registerCommand('searchResult.rerunSearchWithContext', () => vscode.commands.executeCommand('search.action.rerunEditorSearchWithContext')),
 
 		vscode.languages.registerDocumentSymbolProvider(SEARCH_RESULT_SELECTOR, {
 			provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentSymbol[] {
@@ -38,16 +41,16 @@ export function activate(context: vscode.ExtensionContext) {
 				const line = document.lineAt(position.line);
 				if (position.line > 3) { return []; }
 				if (position.character === 0 || (position.character === 1 && line.text === '#')) {
-					const header = Array.from({ length: 4 }).map((_, i) => document.lineAt(i).text);
+					const header = Array.from({ length: DIRECTIVES.length }).map((_, i) => document.lineAt(i).text);
 
-					return ['# Query:', '# Flags:', '# Including:', '# Excluding:']
+					return DIRECTIVES
 						.filter(suggestion => header.every(line => line.indexOf(suggestion) === -1))
 						.map(flag => ({ label: flag, insertText: (flag.slice(position.character)) + ' ' }));
 				}
 
 				if (line.text.indexOf('# Flags:') === -1) { return []; }
 
-				return ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch']
+				return FLAGS
 					.filter(flag => line.text.indexOf(flag) === -1)
 					.map(flag => ({ label: flag, insertText: flag + ' ' }));
 			}
