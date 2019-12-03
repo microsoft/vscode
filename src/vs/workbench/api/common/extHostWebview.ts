@@ -16,7 +16,7 @@ import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import * as vscode from 'vscode';
-import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewStateData } from './extHost.protocol';
+import { ExtHostWebviewsShape, IMainContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelViewStateData, WebviewEditorCapabilities } from './extHost.protocol';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 
 type IconPath = URI | { light: URI, dark: URI };
@@ -257,12 +257,11 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 	}
 
 	async _onSave(): Promise<void> {
-		await assertIsDefined(this._capabilities).editingCapability?.save();
+		await assertIsDefined(this._capabilities?.editingCapability)?.save();
 	}
 
-
 	async _onSaveAs(resource: vscode.Uri, targetResource: vscode.Uri): Promise<void> {
-		await assertIsDefined(this._capabilities).editingCapability?.saveAs(resource, targetResource);
+		await assertIsDefined(this._capabilities?.editingCapability)?.saveAs(resource, targetResource);
 	}
 
 	private assertNotDisposed() {
@@ -450,6 +449,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		this._webviewPanels.set(handle, revivedPanel);
 		const capabilities = await provider.resolveWebviewEditor({ resource: URI.revive(input.resource) }, revivedPanel);
 		revivedPanel._setCapabilities(capabilities);
+		this.registerCapabilites(handle, capabilities);
 
 		// TODO: the first set of edits should likely be passed when resolving
 		if (input.edits.length) {
@@ -479,6 +479,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewEditor | undefined {
 		return this._webviewPanels.get(handle);
+	}
+
+	private registerCapabilites(handle: WebviewPanelHandle, capabilities: vscode.WebviewEditorCapabilities) {
+		const declaredCapabilites: WebviewEditorCapabilities[] = [];
+		if (capabilities.editingCapability) {
+			declaredCapabilites.push(WebviewEditorCapabilities.Editable);
+		}
+		this._proxy.$registerCapabilities(handle, declaredCapabilites);
 	}
 }
 

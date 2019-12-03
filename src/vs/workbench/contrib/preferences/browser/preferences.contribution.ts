@@ -381,7 +381,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			command: {
 				id: OpenGlobalKeybindingsAction.ID,
 				title: OpenGlobalKeybindingsAction.LABEL,
-				iconClassName: 'codicon-go-to-file'
+				icon: { id: 'codicon/go-to-file' }
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.keybindingsResource.toString()),
 			group: 'navigation',
@@ -394,7 +394,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			command: {
 				id: commandId,
 				title: OpenSettings2Action.LABEL,
-				iconClassName: 'codicon-go-to-file'
+				icon: { id: 'codicon/go-to-file' }
 			},
 			when: ResourceContextKey.Resource.isEqualTo(environmentService.settingsResource.toString()),
 			group: 'navigation',
@@ -432,7 +432,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				command: {
 					id: commandId,
 					title: OpenSettings2Action.LABEL,
-					iconClassName: 'codicon-go-to-file'
+					icon: { id: 'codicon/go-to-file' }
 				},
 				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
 				group: 'navigation',
@@ -457,7 +457,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					command: {
 						id: commandId,
 						title: OpenSettings2Action.LABEL,
-						iconClassName: 'codicon-go-to-file'
+						icon: { id: 'codicon/go-to-file' }
 					},
 					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
 					group: 'navigation',
@@ -521,7 +521,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: OpenGlobalKeybindingsFileAction.ID,
 		title: OpenGlobalKeybindingsFileAction.LABEL,
-		iconClassName: 'codicon-go-to-file'
+		icon: { id: 'codicon/go-to-file' }
 	},
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 	group: 'navigation',
@@ -802,7 +802,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 		title: nls.localize('openSettingsJson', "Open Settings (JSON)"),
-		iconClassName: 'codicon-go-to-file'
+		icon: { id: 'codicon/go-to-file' }
 	},
 	group: 'navigation',
 	order: 1,

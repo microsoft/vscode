@@ -36,7 +36,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -66,6 +66,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { Color, RGBA } from 'vs/base/common/color';
 
 const $ = dom.$;
 
@@ -1795,5 +1796,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineSelectionColor = theme.getColor(listActiveSelectionForeground);
 	if (outlineSelectionColor) {
 		collector.addRule(`.monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus { outline-color: ${outlineSelectionColor} }`);
+	}
+
+	const foregroundColor = theme.getColor(foreground);
+	if (foregroundColor) {
+		const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.5));
+		collector.addRule(`.vs-dark .search-view .message { color: ${fgWithOpacity}; }`);
 	}
 });

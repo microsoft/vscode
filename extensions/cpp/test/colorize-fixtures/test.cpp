@@ -16,7 +16,13 @@ void Rectangle::set_values (int x, int y) {
   height = y;
 }
 
+long double operator "" _w(long double);
+#define MY_MACRO(a, b)
+
 int main () {
+  1.2_w; // calls operator "" _w(1.2L)
+  asm("movl %a %b");
+  MY_MACRO(1, 2);
   Rectangle rect;
   rect.set_values (3,4);
   cout << "area: " << rect.area();

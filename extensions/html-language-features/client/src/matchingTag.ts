@@ -45,8 +45,8 @@ export function activateMatchingTagPosition(
 		isEnabled = true;
 	}
 
-	let prevCursorCount = 0;
-	let cursorCount = 0;
+	let prevCursors: readonly Selection[] = [];
+	let cursors: readonly Selection[] = [];
 	let inMirrorMode = false;
 
 	function onDidChangeTextEditorSelection(event: TextEditorSelectionChangeEvent) {
@@ -54,67 +54,67 @@ export function activateMatchingTagPosition(
 			return;
 		}
 
-		prevCursorCount = cursorCount;
-		cursorCount = event.selections.length;
+		prevCursors = cursors;
+		cursors = event.selections;
 
-		if (cursorCount === 1) {
-			if (inMirrorMode && prevCursorCount === 2) {
-				return;
+		if (cursors.length === 1) {
+			if (inMirrorMode && prevCursors.length === 2) {
+				if (cursors[0].isEqual(prevCursors[0]) || cursors[0].isEqual(prevCursors[1])) {
+					return;
+				}
 			}
 			if (event.selections[0].isEmpty) {
-				matchingTagPositionProvider(event.textEditor.document, event.selections[0].active).then(position => {
-					if (position && window.activeTextEditor) {
-						inMirrorMode = true;
-						const newCursor = new Selection(position.line, position.character, position.line, position.character);
-						window.activeTextEditor.selections = [...window.activeTextEditor.selections, newCursor];
+				matchingTagPositionProvider(event.textEditor.document, event.selections[0].active).then(matchingTagPosition => {
+					if (matchingTagPosition && window.activeTextEditor) {
+						const charBeforeAndAfterPositionsRoughtlyEqual = isCharBeforeAndAfterPositionsRoughtlyEqual(
+							event.textEditor.document,
+							event.selections[0].anchor,
+							new Position(matchingTagPosition.line, matchingTagPosition.character)
+						);
+
+						if (charBeforeAndAfterPositionsRoughtlyEqual) {
+							inMirrorMode = true;
+							const newCursor = new Selection(
+								matchingTagPosition.line,
+								matchingTagPosition.character,
+								matchingTagPosition.line,
+								matchingTagPosition.character
+							);
+							window.activeTextEditor.selections = [...window.activeTextEditor.selections, newCursor];
+						}
 					}
 				});
 			}
 		}
 
-		if (cursorCount === 2 && inMirrorMode) {
+		if (cursors.length === 2 && inMirrorMode) {
 			// Check two cases
 			if (event.selections[0].isEmpty && event.selections[1].isEmpty) {
-				const charBeforePrimarySelection = getCharBefore(event.textEditor.document, event.selections[0].anchor);
-				const charAfterPrimarySelection = getCharAfter(event.textEditor.document, event.selections[0].anchor);
-				const charBeforeSecondarySelection = getCharBefore(event.textEditor.document, event.selections[1].anchor);
-				const charAfterSecondarySelection = getCharAfter(event.textEditor.document, event.selections[1].anchor);
+				const charBeforeAndAfterPositionsRoughtlyEqual = isCharBeforeAndAfterPositionsRoughtlyEqual(
+					event.textEditor.document,
+					event.selections[0].anchor,
+					event.selections[1].anchor
+				);
 
-				// Exit mirror mode when cursor position no longer mirror
-				// Unless it's in the case of `<|></|>`
-				const charBeforeBothPositionRoughlyEqual =
-					charBeforePrimarySelection === charBeforeSecondarySelection ||
-					(charBeforePrimarySelection === '/' && charBeforeSecondarySelection === '<') ||
-					(charBeforeSecondarySelection === '/' && charBeforePrimarySelection === '<');
-				const charAfterBothPositionRoughlyEqual =
-					charAfterPrimarySelection === charAfterSecondarySelection ||
-					(charAfterPrimarySelection === ' ' && charAfterSecondarySelection === '>') ||
-					(charAfterSecondarySelection === ' ' && charAfterPrimarySelection === '>');
-
-				if (!charBeforeBothPositionRoughlyEqual || !charAfterBothPositionRoughlyEqual) {
+				if (!charBeforeAndAfterPositionsRoughtlyEqual) {
 					inMirrorMode = false;
 					window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
 					return;
 				} else {
 					// Need to cleanup in the case of <div |></div |>
 					if (
-						charBeforePrimarySelection === ' ' &&
-						charAfterPrimarySelection === '>' &&
-						charBeforeSecondarySelection === ' ' &&
-						charAfterSecondarySelection === '>'
+						shouldDoCleanupForHtmlAttributeInput(
+							event.textEditor.document,
+							event.selections[0].anchor,
+							event.selections[1].anchor
+						)
 					) {
-						const primaryBeforeSecondary =
-							event.textEditor.document.offsetAt(event.selections[0].anchor) <
-							event.textEditor.document.offsetAt(event.selections[1].anchor);
-
-						if (primaryBeforeSecondary) {
-							inMirrorMode = false;
-							const cleanupEdit = new WorkspaceEdit();
-							const cleanupRange = new Range(event.selections[1].anchor.translate(0, -1), event.selections[1].anchor);
-							cleanupEdit.replace(event.textEditor.document.uri, cleanupRange, '');
-							window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
-							workspace.applyEdit(cleanupEdit);
-						}
+						inMirrorMode = false;
+						const cleanupEdit = new WorkspaceEdit();
+						const cleanupRange = new Range(event.selections[1].anchor.translate(0, -1), event.selections[1].anchor);
+						cleanupEdit.replace(event.textEditor.document.uri, cleanupRange, '');
+						window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
+						workspace.applyEdit(cleanupEdit);
 					}
 				}
 			}
@@ -140,4 +140,44 @@ function getCharAfter(document: TextDocument, position: Position) {
 	}
 
 	return document.getText(new Range(position, document.positionAt(offset + 1)));
+}
+
+// Check if chars before and after the two positions are equal
+// For the chars before, `<` and `/` are consiered equal to handle the case of `<|></|>`
+function isCharBeforeAndAfterPositionsRoughtlyEqual(document: TextDocument, firstPos: Position, secondPos: Position) {
+	const charBeforePrimarySelection = getCharBefore(document, firstPos);
+	const charAfterPrimarySelection = getCharAfter(document, firstPos);
+	const charBeforeSecondarySelection = getCharBefore(document, secondPos);
+	const charAfterSecondarySelection = getCharAfter(document, secondPos);
+
+	// Exit mirror mode when cursor position no longer mirror
+	// Unless it's in the case of `<|></|>`
+	const charBeforeBothPositionRoughlyEqual =
+		charBeforePrimarySelection === charBeforeSecondarySelection ||
+		(charBeforePrimarySelection === '/' && charBeforeSecondarySelection === '<') ||
+		(charBeforeSecondarySelection === '/' && charBeforePrimarySelection === '<');
+	const charAfterBothPositionRoughlyEqual =
+		charAfterPrimarySelection === charAfterSecondarySelection ||
+		(charAfterPrimarySelection === ' ' && charAfterSecondarySelection === '>') ||
+		(charAfterSecondarySelection === ' ' && charAfterPrimarySelection === '>');
+
+	return charBeforeBothPositionRoughlyEqual && charAfterBothPositionRoughlyEqual;
+}
+
+function shouldDoCleanupForHtmlAttributeInput(document: TextDocument, firstPos: Position, secondPos: Position) {
+	// Need to cleanup in the case of <div |></div |>
+	const charBeforePrimarySelection = getCharBefore(document, firstPos);
+	const charAfterPrimarySelection = getCharAfter(document, firstPos);
+	const charBeforeSecondarySelection = getCharBefore(document, secondPos);
+	const charAfterSecondarySelection = getCharAfter(document, secondPos);
+
+	const primaryBeforeSecondary = document.offsetAt(firstPos) < document.offsetAt(secondPos);
+
+	return (
+		primaryBeforeSecondary &&
+		charBeforePrimarySelection === ' ' &&
+		charAfterPrimarySelection === '>' &&
+		charBeforeSecondarySelection === ' ' &&
+		charAfterSecondarySelection === '>'
+	);
 }

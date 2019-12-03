@@ -9,7 +9,7 @@ import severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor, ITextEditor } from 'vs/workbench/common/editor';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -470,6 +470,7 @@ export interface IDebugConfiguration {
 	focusWindowOnBreak: boolean;
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
 	showBreakpointsInOverviewRuler: boolean;
+	showInlineBreakpointCandidates: boolean;
 }
 
 export interface IGlobalConfig {
@@ -546,12 +547,17 @@ export interface IDebugAdapterServer {
 	readonly host?: string;
 }
 
-export interface IDebugAdapterImplementation {
-	readonly type: 'implementation';
-	readonly implementation: any;
+export interface IDebugAdapterInlineImpl extends IDisposable {
+	readonly onSendMessage: Event<DebugProtocol.Message>;
+	handleMessage(message: DebugProtocol.Message): void;
 }
 
-export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImplementation;
+export interface IDebugAdapterImpl {
+	readonly type: 'implementation';
+	readonly implementation: IDebugAdapterInlineImpl;
+}
+
+export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImpl;
 
 export interface IPlatformSpecificAdapterContribution {
 	program?: string;
@@ -630,8 +636,11 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
+	onDidRegisterDebugger: Event<void>;
+
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 
+	getDebuggerLabelsForEditor(editor: editorCommon.IEditor | undefined): string[];
 	hasDebugConfigurationProvider(debugType: string): boolean;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
@@ -863,12 +872,12 @@ export const enum BreakpointWidgetContext {
 	LOG_MESSAGE = 2
 }
 
-export interface IDebugEditorContribution extends IEditorContribution {
+export interface IDebugEditorContribution extends editorCommon.IEditorContribution {
 	showHover(range: Range, focus: boolean): Promise<void>;
 	addLaunchConfiguration(): Promise<any>;
 }
 
-export interface IBreakpointEditorContribution extends IEditorContribution {
+export interface IBreakpointEditorContribution extends editorCommon.IEditorContribution {
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 }

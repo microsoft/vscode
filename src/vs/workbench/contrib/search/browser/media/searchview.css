@@ -302,10 +302,6 @@
 	background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.vs-dark .search-view .message {
-	opacity: .5;
-}
-
 .vs-dark .search-view .foldermatch,
 .vs-dark .search-view .filematch {
 	padding: 0;
