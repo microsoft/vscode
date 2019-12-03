@@ -253,7 +253,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Rob: search provider
+	//#region TextSearchProvider: https://github.com/microsoft/vscode/issues/59921
 
 	/**
 	 * The parameters of a query for text search.
@@ -398,32 +398,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The parameters of a query for file search.
-	 */
-	export interface FileSearchQuery {
-		/**
-		 * The search pattern to match against file paths.
-		 */
-		pattern: string;
-	}
-
-	/**
-	 * Options that apply to file search.
-	 */
-	export interface FileSearchOptions extends SearchOptions {
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults?: number;
-
-		/**
-		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
-		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
-		 */
-		session?: CancellationToken;
-	}
-
-	/**
 	 * A preview of the text result.
 	 */
 	export interface TextSearchMatchPreview {
@@ -483,6 +457,50 @@ declare module 'vscode' {
 	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
+	 * A TextSearchProvider provides search results for text results inside files in the workspace.
+	 */
+	export interface TextSearchProvider {
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+	}
+
+	//#endregion
+
+	//#region FileSearchProvider: https://github.com/microsoft/vscode/issues/73524
+
+	/**
+	 * The parameters of a query for file search.
+	 */
+	export interface FileSearchQuery {
+		/**
+		 * The search pattern to match against file paths.
+		 */
+		pattern: string;
+	}
+
+	/**
+	 * Options that apply to file search.
+	 */
+	export interface FileSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults?: number;
+
+		/**
+		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
+		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 */
+		session?: CancellationToken;
+	}
+
+	/**
 	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
 	 *
 	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
@@ -501,19 +519,33 @@ declare module 'vscode' {
 		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
-	/**
-	 * A TextSearchProvider provides search results for text results inside files in the workspace.
-	 */
-	export interface TextSearchProvider {
+	export namespace workspace {
 		/**
-		 * Provide results that match the given text pattern.
-		 * @param query The parameters for this query.
-		 * @param options A set of options to consider while searching.
-		 * @param progress A progress callback that must be invoked for all results.
-		 * @param token A cancellation token.
+		 * Register a search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
+
+		/**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
 	}
+
+	//#endregion
+
+	//#region findTextInFiles: https://github.com/microsoft/vscode/issues/59924
 
 	/**
 	 * Options that can be set on a findTextInFiles search.
@@ -579,28 +611,6 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
-		/**
-		 * Register a search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
-
-		/**
-		 * Register a text search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
-
 		/**
 		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
@@ -729,7 +739,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Rob, Matt: logging
+	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
 
 	/**
 	 * The severity level of a log message
