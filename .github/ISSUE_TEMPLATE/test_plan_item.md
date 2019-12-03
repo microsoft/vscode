@@ -13,6 +13,8 @@ Complexity:
 
 Authors: <!-- Mention the authors if there are more than one eg: @user1, @user2. Otherwise delete this line. -->
 
+<!-- Refer to https://github.com/microsoft/vscode-internalbacklog/tree/master/endgame for more examples. -->
+
 ---
 
 <!-- Please write your test here. -->
