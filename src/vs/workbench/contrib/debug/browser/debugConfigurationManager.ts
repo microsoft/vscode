@@ -18,7 +18,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory } from 'vs/workbench/contrib/debug/common/debug';
@@ -284,7 +284,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			});
 		});
 
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => {
+		this.toDispose.push(Event.any<IWorkspaceFoldersChangeEvent | WorkbenchState>(this.contextService.onDidChangeWorkspaceFolders, this.contextService.onDidChangeWorkbenchState)(() => {
 			this.initLaunches();
 			const toSelect = this.selectedLaunch || (this.launches.length > 0 ? this.launches[0] : undefined);
 			this.selectConfiguration(toSelect);
