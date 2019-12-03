@@ -11,13 +11,22 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 
 export class SortLinesCommand implements editorCommon.ICommand {
 
-	private selection: Selection;
-	private selectionId: string;
-	private descending: boolean;
+	private static _COLLATOR: Intl.Collator | null = null;
+	public static getCollator(): Intl.Collator {
+		if (!SortLinesCommand._COLLATOR) {
+			SortLinesCommand._COLLATOR = new Intl.Collator();
+		}
+		return SortLinesCommand._COLLATOR;
+	}
+
+	private readonly selection: Selection;
+	private readonly descending: boolean;
+	private selectionId: string | null;
 
 	constructor(selection: Selection, descending: boolean) {
 		this.selection = selection;
 		this.descending = descending;
+		this.selectionId = null;
 	}
 
 	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
@@ -30,10 +39,14 @@ export class SortLinesCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId);
+		return helper.getTrackedSelection(this.selectionId!);
 	}
 
-	public static canRun(model: ITextModel, selection: Selection, descending: boolean): boolean {
+	public static canRun(model: ITextModel | null, selection: Selection, descending: boolean): boolean {
+		if (model === null) {
+			return false;
+		}
+
 		let data = getSortData(model, selection, descending);
 
 		if (!data) {
@@ -71,9 +84,7 @@ function getSortData(model: ITextModel, selection: Selection, descending: boolea
 	}
 
 	let sorted = linesToSort.slice(0);
-	sorted.sort((a, b) => {
-		return a.toLowerCase().localeCompare(b.toLowerCase());
-	});
+	sorted.sort(SortLinesCommand.getCollator().compare);
 
 	// If descending, reverse the order.
 	if (descending === true) {

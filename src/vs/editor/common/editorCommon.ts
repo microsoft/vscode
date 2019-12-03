@@ -6,7 +6,7 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -39,7 +39,7 @@ export interface IEditOperationBuilder {
 	 * @param selection The selection to track.
 	 * @param trackPreviousOnEmpty If set, and the selection is empty, indicates whether the selection
 	 *           should clamp to the previous or the next character.
-	 * @return A unique identifer.
+	 * @return A unique identifier.
 	 */
 	trackSelection(selection: Selection, trackPreviousOnEmpty?: boolean): string;
 }
@@ -80,7 +80,7 @@ export interface ICommand {
 
 	/**
 	 * Compute the cursor state after the edit operations were applied.
-	 * @param model The model the commad has executed on.
+	 * @param model The model the command has executed on.
 	 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 	 * @return The cursor state after the command executed.
 	 */
@@ -149,13 +149,13 @@ export interface ILineChange extends IChange {
  * @internal
  */
 export interface IConfiguration extends IDisposable {
-	onDidChange(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
+	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
 
-	readonly editor: editorOptions.InternalEditorOptions;
+	readonly options: IComputedEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
-	updateOptions(newOptions: editorOptions.IEditorOptions): void;
-	getRawOptions(): editorOptions.IEditorOptions;
+	updateOptions(newOptions: IEditorOptions): void;
+	getRawOptions(): IEditorOptions;
 	observeReferenceElement(dimension?: IDimension): void;
 	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
@@ -221,8 +221,8 @@ export interface ICodeEditorViewState {
  * (Serializable) View state for the diff editor.
  */
 export interface IDiffEditorViewState {
-	original: ICodeEditorViewState;
-	modified: ICodeEditorViewState;
+	original: ICodeEditorViewState | null;
+	modified: ICodeEditorViewState | null;
 }
 /**
  * An editor view state.
@@ -263,7 +263,7 @@ export interface IEditor {
 	/**
 	 * Update the editor's options after the editor has been created.
 	 */
-	updateOptions(newOptions: editorOptions.IEditorOptions): void;
+	updateOptions(newOptions: IEditorOptions): void;
 
 	/**
 	 * Indicates that the editor becomes visible.
@@ -280,6 +280,8 @@ export interface IEditor {
 	/**
 	 * Instructs the editor to remeasure its container. This method should
 	 * be called when the container of the editor gets resized.
+	 *
+	 * If a dimension is passed in, the passed in value will be used.
 	 */
 	layout(dimension?: IDimension): void;
 
@@ -312,6 +314,12 @@ export interface IEditor {
 	 * Given a position, returns a column number that takes tab-widths into account.
 	 */
 	getVisibleColumnFromPosition(position: IPosition): number;
+
+	/**
+	 * Given a position, returns a column number that takes tab-widths into account.
+	 * @internal
+	 */
+	getStatusbarColumn(position: IPosition): number;
 
 	/**
 	 * Returns the primary position of the cursor.
@@ -389,7 +397,7 @@ export interface IEditor {
 	 * Set the selections for all the cursors of the editor.
 	 * Cursors will be removed or added, as necessary.
 	 */
-	setSelections(selections: ISelection[]): void;
+	setSelections(selections: readonly ISelection[]): void;
 
 	/**
 	 * Scroll vertically as necessary and reveal lines.
@@ -469,7 +477,7 @@ export interface IDiffEditor extends IEditor {
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): IDiffEditorModel;
+	getModel(): IDiffEditorModel | null;
 
 	/**
 	 * Get the `original` editor.
@@ -487,10 +495,6 @@ export interface IDiffEditor extends IEditor {
  */
 export interface IEditorContribution {
 	/**
-	 * Get a unique identifier for this contribution.
-	 */
-	getId(): string;
-	/**
 	 * Dispose this contribution.
 	 */
 	dispose(): void;
@@ -502,6 +506,17 @@ export interface IEditorContribution {
 	 * Restore view state.
 	 */
 	restoreViewState?(state: any): void;
+}
+
+/**
+ * A diff editor contribution that gets created every time a new  diffeditor gets created and gets disposed when the diff editor gets disposed.
+ * @internal
+ */
+export interface IDiffEditorContribution {
+	/**
+	 * Dispose this contribution.
+	 */
+	dispose(): void;
 }
 
 /**
@@ -534,10 +549,10 @@ export interface IThemeDecorationRenderOptions {
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
-	opacity?: number;
+	opacity?: string;
 	letterSpacing?: string;
 
-	gutterIconPath?: string | UriComponents;
+	gutterIconPath?: UriComponents;
 	gutterIconSize?: string;
 
 	overviewRulerColor?: string | ThemeColor;
@@ -551,7 +566,7 @@ export interface IThemeDecorationRenderOptions {
  */
 export interface IContentDecorationRenderOptions {
 	contentText?: string;
-	contentIconPath?: string | UriComponents;
+	contentIconPath?: UriComponents;
 
 	border?: string;
 	borderColor?: string | ThemeColor;

@@ -5,7 +5,7 @@
 
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -24,11 +24,13 @@ export function isConfigurationOverrides(thing: any): thing is IConfigurationOve
 
 export interface IConfigurationOverrides {
 	overrideIdentifier?: string | null;
-	resource?: URI;
+	resource?: URI | null;
 }
 
 export const enum ConfigurationTarget {
 	USER = 1,
+	USER_LOCAL,
+	USER_REMOTE,
 	WORKSPACE,
 	WORKSPACE_FOLDER,
 	DEFAULT,
@@ -37,6 +39,8 @@ export const enum ConfigurationTarget {
 export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
 	switch (configurationTarget) {
 		case ConfigurationTarget.USER: return 'USER';
+		case ConfigurationTarget.USER_LOCAL: return 'USER_LOCAL';
+		case ConfigurationTarget.USER_REMOTE: return 'USER_REMOTE';
 		case ConfigurationTarget.WORKSPACE: return 'WORKSPACE';
 		case ConfigurationTarget.WORKSPACE_FOLDER: return 'WORKSPACE_FOLDER';
 		case ConfigurationTarget.DEFAULT: return 'DEFAULT';
@@ -59,11 +63,11 @@ export interface IConfigurationChangeEvent {
 }
 
 export interface IConfigurationService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
-	getConfigurationData(): IConfigurationData;
+	getConfigurationData(): IConfigurationData | null;
 
 	/**
 	 * Fetches the value of the section for the given overrides.
@@ -83,12 +87,13 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
-	reloadConfiguration(): Promise<void>;
-	reloadConfiguration(folder: IWorkspaceFolder): Promise<void>;
+	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
+		userLocal?: T,
+		userRemote?: T,
 		workspace?: T,
 		workspaceFolder?: T,
 		memory?: T,
@@ -119,8 +124,7 @@ export interface IConfigurationData {
 	defaults: IConfigurationModel;
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
-	folders: { [folder: string]: IConfigurationModel };
-	isComplete: boolean;
+	folders: [UriComponents, IConfigurationModel][];
 }
 
 export function compare(from: IConfigurationModel, to: IConfigurationModel): { added: string[], removed: string[], updated: string[] } {
@@ -144,7 +148,7 @@ export function toOverrides(raw: any, conflictReporter: (message: string) => voi
 	const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 	for (const key of Object.keys(raw)) {
 		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			const overrideRaw = {};
+			const overrideRaw: any = {};
 			for (const keyInOverrideRaw in raw[key]) {
 				if (configurationProperties[keyInOverrideRaw] && configurationProperties[keyInOverrideRaw].overridable) {
 					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
@@ -227,11 +231,11 @@ function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
 export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T {
 	function accessSetting(config: any, path: string[]): any {
 		let current = config;
-		for (let i = 0; i < path.length; i++) {
+		for (const component of path) {
 			if (typeof current !== 'object' || current === null) {
 				return undefined;
 			}
-			current = current[path[i]];
+			current = current[component];
 		}
 		return <T>current;
 	}
@@ -279,4 +283,17 @@ export function overrideIdentifierFromKey(key: string): string {
 
 export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
 	return `[${overrideIdentifier}]`;
+}
+
+export function getMigratedSettingValue<T>(configurationService: IConfigurationService, currentSettingName: string, legacySettingName: string): T {
+	const setting = configurationService.inspect<T>(currentSettingName);
+	const legacySetting = configurationService.inspect<T>(legacySettingName);
+
+	if (typeof setting.user !== 'undefined' || typeof setting.workspace !== 'undefined' || typeof setting.workspaceFolder !== 'undefined') {
+		return setting.value;
+	} else if (typeof legacySetting.user !== 'undefined' || typeof legacySetting.workspace !== 'undefined' || typeof legacySetting.workspaceFolder !== 'undefined') {
+		return legacySetting.value;
+	} else {
+		return setting.default;
+	}
 }

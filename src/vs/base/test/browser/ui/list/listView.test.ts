@@ -25,7 +25,6 @@ suite('ListView', function () {
 			templateId: 'template',
 			renderTemplate() { templatesCount++; },
 			renderElement() { },
-			disposeElement() { },
 			disposeTemplate() { templatesCount--; }
 		};
 

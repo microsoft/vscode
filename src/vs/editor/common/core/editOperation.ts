@@ -24,14 +24,14 @@ export class EditOperation {
 		};
 	}
 
-	public static replace(range: Range, text: string): IIdentifiedSingleEditOperation {
+	public static replace(range: Range, text: string | null): IIdentifiedSingleEditOperation {
 		return {
 			range: range,
 			text: text
 		};
 	}
 
-	public static replaceMove(range: Range, text: string): IIdentifiedSingleEditOperation {
+	public static replaceMove(range: Range, text: string | null): IIdentifiedSingleEditOperation {
 		return {
 			range: range,
 			text: text,

@@ -19,7 +19,7 @@ interface MyQuickPickItem extends vscode.QuickPickItem {
 enum MessageAction {
 	useLocal,
 	useBundled,
-	learnMore
+	learnMore,
 }
 
 export class TypeScriptVersionPicker {
@@ -58,21 +58,21 @@ export class TypeScriptVersionPicker {
 		pickOptions.push({
 			label: (!this.useWorkspaceTsdkSetting
 				? '• '
-				: '') + localize('useVSCodeVersionOption', 'Use VS Code\'s Version'),
-			description: shippedVersion.versionString,
+				: '') + localize('useVSCodeVersionOption', "Use VS Code's Version"),
+			description: shippedVersion.displayName,
 			detail: shippedVersion.pathLabel,
-			id: MessageAction.useBundled
+			id: MessageAction.useBundled,
 		});
 
 		for (const version of this.versionProvider.localVersions) {
 			pickOptions.push({
 				label: (this.useWorkspaceTsdkSetting && this.currentVersion.path === version.path
 					? '• '
-					: '') + localize('useWorkspaceVersionOption', 'Use Workspace Version'),
-				description: version.versionString,
+					: '') + localize('useWorkspaceVersionOption', "Use Workspace Version"),
+				description: version.displayName,
 				detail: version.pathLabel,
 				id: MessageAction.useLocal,
-				version: version
+				version
 			});
 		}
 
@@ -85,8 +85,8 @@ export class TypeScriptVersionPicker {
 		const selected = await vscode.window.showQuickPick<MyQuickPickItem>(pickOptions, {
 			placeHolder: localize(
 				'selectTsVersion',
-				'Select the TypeScript version used for JavaScript and TypeScript language features'),
-			ignoreFocusOut: firstRun
+				"Select the TypeScript version used for JavaScript and TypeScript language features"),
+			ignoreFocusOut: firstRun,
 		});
 
 		if (!selected) {
@@ -112,9 +112,8 @@ export class TypeScriptVersionPicker {
 				this._currentVersion = shippedVersion;
 				return { oldVersion: previousVersion, newVersion: shippedVersion };
 
-
 			case MessageAction.learnMore:
-				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+				vscode.env.openExternal(vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
 				return { oldVersion: this.currentVersion };
 
 			default:

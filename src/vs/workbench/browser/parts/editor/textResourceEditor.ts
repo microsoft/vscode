@@ -3,28 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
+import { assertIsDefined, isFunction } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { once } from 'vs/base/common/event';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { Event } from 'vs/base/common/event';
+import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -40,14 +36,12 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService
+		@IEditorService editorService: IEditorService
 	) {
-		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 	}
 
-	getTitle(): string {
+	getTitle(): string | undefined {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -55,78 +49,64 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Set input and resolve
-		return super.setInput(input, options, token).then(() => {
-			return input.resolve().then((resolvedModel: EditorModel) => {
+		await super.setInput(input, options, token);
+		const resolvedModel = await input.resolve();
 
-				// Check for cancellation
-				if (token.isCancellationRequested) {
-					return void 0;
-				}
+		// Check for cancellation
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
-				// Assert Model instance
-				if (!(resolvedModel instanceof BaseTextEditorModel)) {
-					return TPromise.wrapError<void>(new Error('Unable to open file as text'));
-				}
+		// Assert Model instance
+		if (!(resolvedModel instanceof BaseTextEditorModel)) {
+			throw new Error('Unable to open file as text');
+		}
 
-				// Set Editor Model
-				const textEditor = this.getControl();
-				const textEditorModel = resolvedModel.textEditorModel;
-				textEditor.setModel(textEditorModel);
+		// Set Editor Model
+		const textEditor = assertIsDefined(this.getControl());
+		const textEditorModel = resolvedModel.textEditorModel;
+		textEditor.setModel(textEditorModel);
 
-				// Apply Options from TextOptions
-				let optionsGotApplied = false;
-				const textOptions = <TextEditorOptions>options;
-				if (textOptions && types.isFunction(textOptions.apply)) {
-					optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
-				}
+		// Apply Options from TextOptions
+		let optionsGotApplied = false;
+		const textOptions = <TextEditorOptions>options;
+		if (textOptions && isFunction(textOptions.apply)) {
+			optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
+		}
 
-				// Otherwise restore View State
-				if (!optionsGotApplied) {
-					this.restoreTextResourceEditorViewState(input);
-				}
+		// Otherwise restore View State
+		if (!optionsGotApplied) {
+			this.restoreTextResourceEditorViewState(input, textEditor);
+		}
 
-				return void 0;
-			});
-		});
+		// Since the resolved model provides information about being readonly
+		// or not, we apply it here to the editor even though the editor input
+		// was already asked for being readonly or not. The rationale is that
+		// a resolved model might have more specific information about being
+		// readonly or not that the input did not have.
+		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
 	}
 
-	private restoreTextResourceEditorViewState(input: EditorInput) {
-		if (input instanceof UntitledEditorInput || input instanceof ResourceEditorInput) {
-			const viewState = this.loadTextEditorViewState(input.getResource());
+	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
+		if (editor instanceof UntitledTextEditorInput || editor instanceof ResourceEditorInput) {
+			const viewState = this.loadTextEditorViewState(editor.getResource());
 			if (viewState) {
-				this.getControl().restoreViewState(viewState);
+				control.restoreViewState(viewState);
 			}
 		}
 	}
 
-	setOptions(options: EditorOptions): void {
-		const textOptions = <TextEditorOptions>options;
-		if (textOptions && types.isFunction(textOptions.apply)) {
-			textOptions.apply(this.getControl(), ScrollType.Smooth);
-		}
-	}
-
-	protected getConfigurationOverrides(): IEditorOptions {
-		const options = super.getConfigurationOverrides();
-
-		options.readOnly = !(this.input instanceof UntitledEditorInput); // all resource editors are readonly except for the untitled one;
-
-		return options;
-	}
-
 	protected getAriaLabel(): string {
-		const input = this.input;
-		const isReadonly = !(this.input instanceof UntitledEditorInput);
-
 		let ariaLabel: string;
-		const inputName = input && input.getName();
-		if (isReadonly) {
+
+		const inputName = this.input?.getName();
+		if (this.input?.isReadonly()) {
 			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0}. Readonly text editor.", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly text editor.");
 		} else {
 			ariaLabel = inputName ? nls.localize('untitledFileEditorWithInputAriaLabel', "{0}. Untitled file text editor.", inputName) : nls.localize('untitledFileEditorAriaLabel', "Untitled file text editor.");
@@ -137,19 +117,14 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
-	 * When smart is true only scroll if the cursor is currently on the last line of the output panel.
-	 * This allows users to click on the output panel to stop scrolling when they see something of interest.
-	 * To resume, they should scroll to the end of the output panel again.
 	 */
-	revealLastLine(smart: boolean): void {
+	revealLastLine(): void {
 		const codeEditor = <ICodeEditor>this.getControl();
 		const model = codeEditor.getModel();
 
 		if (model) {
 			const lastLine = model.getLineCount();
-			if (!smart || codeEditor.getPosition().lineNumber === lastLine) {
-				codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
-			}
+			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
 		}
 	}
 
@@ -159,7 +134,10 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Clear Model
-		this.getControl().setModel(null);
+		const textEditor = this.getControl();
+		if (textEditor) {
+			textEditor.setModel(null);
+		}
 
 		super.clearInput();
 	}
@@ -167,15 +145,15 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	protected saveState(): void {
 
 		// Save View State (only for untitled)
-		if (this.input instanceof UntitledEditorInput) {
+		if (this.input instanceof UntitledTextEditorInput) {
 			this.saveTextResourceEditorViewState(this.input);
 		}
 
 		super.saveState();
 	}
 
-	private saveTextResourceEditorViewState(input: EditorInput): void {
-		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
+	private saveTextResourceEditorViewState(input: EditorInput | undefined): void {
+		if (!(input instanceof UntitledTextEditorInput) && !(input instanceof ResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}
 
@@ -191,7 +169,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			super.saveTextEditorViewState(resource);
 
 			// Make sure to clean up when the input gets disposed
-			once(input.onDispose)(() => {
+			Event.once(input.onDispose)(() => {
 				super.clearTextEditorViewState([resource]);
 			});
 		}
@@ -208,11 +186,9 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IWindowService windowService: IWindowService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, editorService);
 	}
 }

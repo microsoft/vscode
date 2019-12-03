@@ -96,7 +96,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 3, false);
@@ -135,7 +135,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 3, false);
@@ -181,7 +181,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 3, false);
@@ -193,7 +193,7 @@ suite('Folding Model', () => {
 
 			textModel.applyEdits([EditOperation.insert(new Position(4, 1), '//hello\n')]);
 
-			foldingModel.update(computeRanges(textModel, false, void 0));
+			foldingModel.update(computeRanges(textModel, false, undefined));
 
 			assertRanges(foldingModel, [r(1, 3, true), r(5, 8, false), r(6, 7, true)]);
 		} finally {
@@ -221,7 +221,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 12, false);
@@ -235,7 +235,7 @@ suite('Folding Model', () => {
 
 			textModel.applyEdits([EditOperation.delete(new Range(6, 11, 9, 0))]);
 
-			foldingModel.update(computeRanges(textModel, false, void 0));
+			foldingModel.update(computeRanges(textModel, false, undefined));
 
 			assertRanges(foldingModel, [r(1, 9, false), r(2, 8, false), r(3, 5, false), r(6, 8, false)]);
 		} finally {
@@ -258,7 +258,7 @@ suite('Folding Model', () => {
 		try {
 			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, void 0);
+			let ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
 
 			let r1 = r(1, 3, false);

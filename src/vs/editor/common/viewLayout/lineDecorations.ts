@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 export class LineDecoration {
@@ -102,8 +102,8 @@ export class DecorationSegment {
 
 class Stack {
 	public count: number;
-	private stopOffsets: number[];
-	private classNames: string[];
+	private readonly stopOffsets: number[];
+	private readonly classNames: string[];
 
 	constructor() {
 		this.stopOffsets = [];

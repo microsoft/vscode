@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"contributes": {
 		"languages": [{
@@ -15,7 +16,6 @@
 				".atom",
 				".axml",
 				".bpmn",
-				".config",
 				".cpt",
 				".csl",
 				".csproj",
@@ -23,6 +23,8 @@
 				".dita",
 				".ditamap",
 				".dtd",
+        ".ent",
+        ".mod",
 				".dtml",
 				".fsproj",
 				".fxml",
@@ -36,7 +38,7 @@
 				".opml",
 				".owl",
 				".proj",
-        ".props",
+				".props",
 				".pt",
 				".publishsettings",
 				".pubxml",

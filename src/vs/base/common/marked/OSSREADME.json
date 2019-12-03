@@ -1,9 +1,0 @@
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-[
-	{
-		"name": "marked",
-		"repositoryURL": "https://github.com/markedjs/marked",
-		"version": "0.5.0",
-		"license": "MIT"
-	}
-]

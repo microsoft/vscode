@@ -1,0 +1,93 @@
+{
+	"name": "vscode-test-resolver",
+	"description": "Test resolver for VS Code",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"enableProposedApi": true,
+	"private": true,
+	"engines": {
+		"vscode": "^1.25.0"
+	},
+	"extensionKind": [ "ui" ],
+	"scripts": {
+		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-test-resolver ./tsconfig.json"
+	},
+	"activationEvents": [
+		"onResolveRemoteAuthority:test",
+		"onCommand:vscode-testresolver.newWindow",
+		"onCommand:vscode-testresolver.newWindowWithError",
+		"onCommand:vscode-testresolver.showLog"
+	],
+	"main": "./out/extension",
+	"devDependencies": {
+		"@types/node": "^12.11.7",
+		"vscode": "1.1.5"
+	},
+	"contributes": {
+		"resourceLabelFormatters": [
+			{
+				"scheme": "vscode-remote",
+				"authority": "test+*",
+				"formatting": {
+					"label": "${path}",
+					"separator": "/",
+					"tildify": true,
+					"workspaceSuffix": "TestResolver"
+				}
+			}
+		],
+		"commands": [
+			{
+				"title": "New Window",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.newWindow"
+			},
+			{
+				"title": "Show Log",
+				"category": "Remote-TestResolver",
+				"command": "vscode-testresolver.showLog"
+			}
+		],
+		"menus": {
+			"statusBar/windowIndicator": [
+				{
+					"command": "vscode-testresolver.newWindow",
+					"when": "!remoteName",
+					"group": "9_local_testresolver@2"
+				},
+				{
+					"command": "vscode-testresolver.showLog",
+					"when": "remoteName == test",
+					"group": "1_remote_testresolver_open@3"
+				},
+				{
+					"command": "vscode-testresolver.newWindow",
+					"when": "remoteName == test",
+					"group": "1_remote_testresolver_open@1"
+				}
+			]
+		},
+		"configuration": {
+			"properties": {
+				"testresolver.startupDelay": {
+					"description": "If set, the resolver will delay for the given amount of seconds. Use ths setting for testing a slow resolver",
+					"type": "number",
+					"default": 0
+				},
+				"testresolver.startupError": {
+					"description": "If set, the resolver will fail. Use ths setting for testing the failure of a resolver.",
+					"type": "boolean",
+					"default": false
+				},
+				"testresolver.pause": {
+					"description": "If set, connection is paused",
+					"type": "boolean",
+					"default": false
+				}
+			}
+		}
+	}
+
+
+}

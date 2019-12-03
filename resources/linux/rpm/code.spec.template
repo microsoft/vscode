@@ -18,10 +18,14 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 mkdir -p %{buildroot}/usr/share/@@NAME@@
 mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/share/pixmaps
+mkdir -p %{buildroot}/usr/share/bash-completion/completions
+mkdir -p %{buildroot}/usr/share/zsh/site-functions
 cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
 cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
 cp -r usr/share/applications/@@NAME@@-url-handler.desktop %{buildroot}/usr/share/applications
-cp -r usr/share/pixmaps/@@NAME@@.png %{buildroot}/usr/share/pixmaps
+cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}/usr/share/pixmaps
+cp usr/share/bash-completion/completions/@@NAME@@ %{buildroot}/usr/share/bash-completion/completions/@@NAME@@
+cp usr/share/zsh/site-functions/_@@NAME@@ %{buildroot}/usr/share/zsh/site-functions/_@@NAME@@
 
 %post
 # Remove the legacy bin command if this is the stable build
@@ -53,4 +57,6 @@ fi
 /usr/share/@@NAME@@/
 /usr/share/applications/@@NAME@@.desktop
 /usr/share/applications/@@NAME@@-url-handler.desktop
-/usr/share/pixmaps/@@NAME@@.png
+/usr/share/pixmaps/@@ICON@@.png
+/usr/share/bash-completion/completions/@@NAME@@
+/usr/share/zsh/site-functions/_@@NAME@@

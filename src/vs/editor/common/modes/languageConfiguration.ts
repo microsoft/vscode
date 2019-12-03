@@ -78,7 +78,9 @@ export interface LanguageConfiguration {
 	 *
 	 * @deprecated Will be replaced by a better API soon.
 	 */
-	__electricCharacterSupport?: IBracketElectricCharacterContribution;
+	__electricCharacterSupport?: {
+		docComment?: IDocComment;
+	};
 }
 
 /**
@@ -86,7 +88,7 @@ export interface LanguageConfiguration {
  */
 export interface IndentationRule {
 	/**
-	 * If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).
+	 * If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).
 	 */
 	decreaseIndentPattern: RegExp;
 	/**
@@ -96,11 +98,11 @@ export interface IndentationRule {
 	/**
 	 * If a line matches this pattern, then **only the next line** after it should be indented once.
 	 */
-	indentNextLinePattern?: RegExp;
+	indentNextLinePattern?: RegExp | null;
 	/**
 	 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 	 */
-	unIndentedLinePattern?: RegExp;
+	unIndentedLinePattern?: RegExp | null;
 
 }
 
@@ -120,7 +122,7 @@ export interface FoldingMarkers {
  */
 export interface FoldingRules {
 	/**
-	 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+	 * Used by the indentation based strategy to decide whether empty lines belong to the previous or the next block.
 	 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
 	 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
 	 * If not set, `false` is used and empty lines belong to the previous block.
@@ -155,10 +157,6 @@ export interface OnEnterRule {
 	action: EnterAction;
 }
 
-export interface IBracketElectricCharacterContribution {
-	docComment?: IDocComment;
-}
-
 /**
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
  */
@@ -170,7 +168,7 @@ export interface IDocComment {
 	/**
 	 * The string that appears on the last line and closes the doc comment (e.g. ' * /').
 	 */
-	close: string;
+	close?: string;
 }
 
 /**
@@ -221,10 +219,6 @@ export interface EnterAction {
 	 */
 	indentAction: IndentAction;
 	/**
-	 * Describe whether to outdent current line.
-	 */
-	outdentCurrentLine?: boolean;
-	/**
 	 * Describes text to be appended after the new line and after the indentation.
 	 */
 	appendText?: string;
@@ -232,6 +226,28 @@ export interface EnterAction {
 	 * Describes the number of characters to remove from the new line's indentation.
 	 */
 	removeText?: number;
+}
+
+/**
+ * @internal
+ */
+export interface CompleteEnterAction {
+	/**
+	 * Describe what to do with the indentation.
+	 */
+	indentAction: IndentAction;
+	/**
+	 * Describes text to be appended after the new line and after the indentation.
+	 */
+	appendText: string;
+	/**
+	 * Describes the number of characters to remove from the new line's indentation.
+	 */
+	removeText: number;
+	/**
+	 * The line's indentation minus removeText
+	 */
+	indentation: string;
 }
 
 /**
@@ -253,7 +269,7 @@ export class StandardAutoClosingPairConditional {
 
 		if (Array.isArray(source.notIn)) {
 			for (let i = 0, len = source.notIn.length; i < len; i++) {
-				let notIn = source.notIn[i];
+				const notIn: string = source.notIn[i];
 				switch (notIn) {
 					case 'string':
 						this._standardTokenMask |= StandardTokenType.String;

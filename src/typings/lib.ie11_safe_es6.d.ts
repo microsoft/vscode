@@ -10,7 +10,7 @@ interface Map<K, V> {
 	clear(): void;
 	delete(key: K): boolean;
 	forEach(callbackfn: (value: V, index: K, map: Map<K, V>) => void, thisArg?: any): void;
-	get(key: K): V;
+	get(key: K): V | undefined;
 	has(key: K): boolean;
 	set(key: K, value?: V): Map<K, V>;
 	readonly size: number;
@@ -59,7 +59,7 @@ interface SetConstructor {
 declare var Set: SetConstructor;
 
 
-interface WeakMap<K, V> {
+interface WeakMap<K extends object, V> {
 	delete(key: K): boolean;
 	get(key: K): V | undefined;
 	has(key: K): boolean;
@@ -70,9 +70,9 @@ interface WeakMap<K, V> {
 
 interface WeakMapConstructor {
 	new(): WeakMap<any, any>;
-	new <K, V>(): WeakMap<K, V>;
+	new <K extends object, V>(): WeakMap<K, V>;
 	// new <K, V>(entries?: [K, V][]): WeakMap<K, V>;
-	readonly prototype: WeakMap<any, any>;
+	readonly prototype: WeakMap<object, any>;
 }
 declare var WeakMap: WeakMapConstructor;
 

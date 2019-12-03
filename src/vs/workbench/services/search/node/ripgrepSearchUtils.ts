@@ -5,8 +5,10 @@
 
 import { startsWith } from 'vs/base/common/strings';
 import { ILogService } from 'vs/platform/log/common/log';
-import { SearchRange, TextSearchResult } from 'vs/platform/search/common/search';
-import * as vscode from 'vscode';
+import { SearchRange, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { mapArrayOrNot } from 'vs/base/common/arrays';
+import { URI } from 'vs/base/common/uri';
+import * as searchExtTypes from 'vs/workbench/services/search/common/searchExtTypes';
 
 export type Maybe<T> = T | null | undefined;
 
@@ -14,62 +16,30 @@ export function anchorGlob(glob: string): string {
 	return startsWith(glob, '**') || startsWith(glob, '/') ? glob : `/${glob}`;
 }
 
-export function createTextSearchResult(uri: vscode.Uri, text: string, range: Range, previewOptions?: vscode.TextSearchPreviewOptions): vscode.TextSearchResult {
-	const searchRange: SearchRange = {
-		startLineNumber: range.start.line,
-		startColumn: range.start.character,
-		endLineNumber: range.end.line,
-		endColumn: range.end.character,
-	};
+/**
+ * Create a vscode.TextSearchMatch by using our internal TextSearchMatch type for its previewOptions logic.
+ */
+export function createTextSearchResult(uri: URI, text: string, range: searchExtTypes.Range | searchExtTypes.Range[], previewOptions?: searchExtTypes.TextSearchPreviewOptions): searchExtTypes.TextSearchMatch {
+	const searchRange = mapArrayOrNot(range, rangeToSearchRange);
 
-	const internalResult = new TextSearchResult(text, searchRange, previewOptions);
-	const internalPreviewRange = internalResult.preview.match;
+	const internalResult = new TextSearchMatch(text, searchRange, previewOptions);
+	const internalPreviewRange = internalResult.preview.matches;
 	return {
-		range: new Range(internalResult.range.startLineNumber, internalResult.range.startColumn, internalResult.range.endLineNumber, internalResult.range.endColumn),
+		ranges: mapArrayOrNot(searchRange, searchRangeToRange),
 		uri,
 		preview: {
 			text: internalResult.preview.text,
-			match: new Range(internalPreviewRange.startLineNumber, internalPreviewRange.startColumn, internalPreviewRange.endLineNumber, internalPreviewRange.endColumn),
+			matches: mapArrayOrNot(internalPreviewRange, searchRangeToRange)
 		}
 	};
 }
 
-export class Position {
-	constructor(public readonly line, public readonly character) { }
-
-	isBefore(other: Position): boolean { return false; }
-	isBeforeOrEqual(other: Position): boolean { return false; }
-	isAfter(other: Position): boolean { return false; }
-	isAfterOrEqual(other: Position): boolean { return false; }
-	isEqual(other: Position): boolean { return false; }
-	compareTo(other: Position): number { return 0; }
-	translate(lineDelta?: number, characterDelta?: number): Position;
-	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
-	translate(_: any) { return null; }
-	with(line?: number, character?: number): Position;
-	with(change: { line?: number; character?: number; }): Position;
-	with(_: any): Position { return null; }
+function rangeToSearchRange(range: searchExtTypes.Range): SearchRange {
+	return new SearchRange(range.start.line, range.start.character, range.end.line, range.end.character);
 }
 
-export class Range {
-	readonly start: Position;
-	readonly end: Position;
-
-	constructor(startLine: number, startCol: number, endLine: number, endCol: number) {
-		this.start = new Position(startLine, startCol);
-		this.end = new Position(endLine, endCol);
-	}
-
-	isEmpty: boolean;
-	isSingleLine: boolean;
-	contains(positionOrRange: Position | Range): boolean { return false; }
-	isEqual(other: Range): boolean { return false; }
-	intersection(range: Range): Range | undefined { return null; }
-	union(other: Range): Range { return null; }
-
-	with(start?: Position, end?: Position): Range;
-	with(change: { start?: Position, end?: Position }): Range;
-	with(_: any): Range { return null; }
+function searchRangeToRange(range: SearchRange): searchExtTypes.Range {
+	return new searchExtTypes.Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 }
 
 export interface IOutputChannel {
@@ -77,7 +47,7 @@ export interface IOutputChannel {
 }
 
 export class OutputChannel implements IOutputChannel {
-	constructor(@ILogService private logService: ILogService) { }
+	constructor(@ILogService private readonly logService: ILogService) { }
 
 	appendLine(msg: string): void {
 		this.logService.debug('RipgrepSearchEH#search', msg);

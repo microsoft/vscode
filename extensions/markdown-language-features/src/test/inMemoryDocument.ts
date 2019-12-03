@@ -10,7 +10,8 @@ export class InMemoryDocument implements vscode.TextDocument {
 
 	constructor(
 		public readonly uri: vscode.Uri,
-		private readonly _contents: string
+		private readonly _contents: string,
+		public readonly version = 1,
 	) {
 		this._lines = this._contents.split(/\n/g);
 	}
@@ -18,7 +19,6 @@ export class InMemoryDocument implements vscode.TextDocument {
 
 	isUntitled: boolean = false;
 	languageId: string = '';
-	version: number = 1;
 	isDirty: boolean = false;
 	isClosed: boolean = false;
 	eol: vscode.EndOfLine = vscode.EndOfLine.LF;

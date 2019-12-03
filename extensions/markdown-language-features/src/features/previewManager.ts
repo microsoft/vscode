@@ -5,64 +5,112 @@
 
 import * as vscode from 'vscode';
 import { Logger } from '../logger';
-import { MarkdownContributions } from '../markdownExtensions';
-import { disposeAll } from '../util/dispose';
-import { MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
-import { MarkdownPreview, PreviewSettings } from './preview';
+import { MarkdownContributionProvider } from '../markdownExtensions';
+import { disposeAll, Disposable } from '../util/dispose';
+import { TopmostLineMonitor } from '../util/topmostLineMonitor';
+import { DynamicMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
 
+export interface DynamicPreviewSettings {
+	readonly resourceColumn: vscode.ViewColumn;
+	readonly previewColumn: vscode.ViewColumn;
+	readonly locked: boolean;
+}
 
-export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
+class PreviewStore extends Disposable {
+
+	private readonly _previews = new Set<DynamicMarkdownPreview>();
+
+	public dispose(): void {
+		super.dispose();
+		for (const preview of this._previews) {
+			preview.dispose();
+		}
+		this._previews.clear();
+	}
+
+	[Symbol.iterator](): Iterator<DynamicMarkdownPreview> {
+		return this._previews[Symbol.iterator]();
+	}
+
+	public get(resource: vscode.Uri, previewSettings: DynamicPreviewSettings): DynamicMarkdownPreview | undefined {
+		for (const preview of this._previews) {
+			if (preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.locked)) {
+				return preview;
+			}
+		}
+		return undefined;
+	}
+
+	public add(preview: DynamicMarkdownPreview) {
+		this._previews.add(preview);
+	}
+
+	public delete(preview: DynamicMarkdownPreview) {
+		this._previews.delete(preview);
+	}
+}
+
+export class MarkdownPreviewManager extends Disposable implements vscode.WebviewPanelSerializer, vscode.WebviewEditorProvider {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
-	private readonly _topmostLineMonitor = new MarkdownFileTopmostLineMonitor();
+	private readonly _topmostLineMonitor = new TopmostLineMonitor();
 	private readonly _previewConfigurations = new MarkdownPreviewConfigurationManager();
-	private readonly _previews: MarkdownPreview[] = [];
-	private _activePreview: MarkdownPreview | undefined = undefined;
-	private readonly _disposables: vscode.Disposable[] = [];
+
+	private readonly _dynamicPreviews = this._register(new PreviewStore());
+	private readonly _staticPreviews = this._register(new PreviewStore());
+
+	private _activePreview: DynamicMarkdownPreview | undefined = undefined;
 
 	public constructor(
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _logger: Logger,
-		private readonly _contributions: MarkdownContributions
+		private readonly _contributions: MarkdownContributionProvider
 	) {
-		this._disposables.push(vscode.window.registerWebviewPanelSerializer(MarkdownPreview.viewType, this));
-	}
-
-	public dispose(): void {
-		disposeAll(this._disposables);
-		disposeAll(this._previews);
+		super();
+		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
+		this._register(vscode.window.registerWebviewEditorProvider('vscode.markdown.preview.editor', this));
 	}
 
 	public refresh() {
-		for (const preview of this._previews) {
+		for (const preview of this._dynamicPreviews) {
+			preview.refresh();
+		}
+		for (const preview of this._staticPreviews) {
 			preview.refresh();
 		}
 	}
 
 	public updateConfiguration() {
-		for (const preview of this._previews) {
+		for (const preview of this._dynamicPreviews) {
+			preview.updateConfiguration();
+		}
+		for (const preview of this._staticPreviews) {
 			preview.updateConfiguration();
 		}
 	}
 
-	public preview(
+	public openDynamicPreview(
 		resource: vscode.Uri,
-		previewSettings: PreviewSettings
+		settings: DynamicPreviewSettings
 	): void {
-		let preview = this.getExistingPreview(resource, previewSettings);
+		let preview = this._dynamicPreviews.get(resource, settings);
 		if (preview) {
-			preview.reveal(previewSettings.previewColumn);
+			preview.reveal(settings.previewColumn);
 		} else {
-			preview = this.createNewPreview(resource, previewSettings);
+			preview = this.createNewDynamicPreview(resource, settings);
 		}
 
 		preview.update(resource);
 	}
 
 	public get activePreviewResource() {
-		return this._activePreview && this._activePreview.resource;
+		return this._activePreview?.resource;
+	}
+
+	public get activePreviewResourceColumn() {
+		return this._activePreview?.resourceColumn;
 	}
 
 	public toggleLock() {
@@ -71,7 +119,7 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 			preview.toggleLock();
 
 			// Close any previews that are now redundant, such as having two dynamic previews in the same editor group
-			for (const otherPreview of this._previews) {
+			for (const otherPreview of this._dynamicPreviews) {
 				if (otherPreview !== preview && preview.matches(otherPreview)) {
 					otherPreview.dispose();
 				}
@@ -83,34 +131,50 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 		webview: vscode.WebviewPanel,
 		state: any
 	): Promise<void> {
-		const preview = await MarkdownPreview.revive(
+		const resource = vscode.Uri.parse(state.resource);
+		const locked = state.locked;
+		const line = state.line;
+		const resourceColumn = state.resourceColumn;
+
+		const preview = await DynamicMarkdownPreview.revive(
+			{ resource, locked, line, resourceColumn },
 			webview,
-			state,
 			this._contentProvider,
 			this._previewConfigurations,
 			this._logger,
 			this._topmostLineMonitor,
 			this._contributions);
 
-		this.registerPreview(preview);
+		this.registerDynamicPreview(preview);
 	}
 
-	private getExistingPreview(
-		resource: vscode.Uri,
-		previewSettings: PreviewSettings
-	): MarkdownPreview | undefined {
-		return this._previews.find(preview =>
-			preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.locked));
+	public async resolveWebviewEditor(
+		input: { readonly resource: vscode.Uri; },
+		webview: vscode.WebviewPanel
+	): Promise<vscode.WebviewEditorCapabilities> {
+		const preview = DynamicMarkdownPreview.revive(
+			{ resource: input.resource, locked: false, resourceColumn: vscode.ViewColumn.One },
+			webview,
+			this._contentProvider,
+			this._previewConfigurations,
+			this._logger,
+			this._topmostLineMonitor,
+			this._contributions);
+		this.registerStaticPreview(preview);
+		return {};
 	}
 
-	private createNewPreview(
+	private createNewDynamicPreview(
 		resource: vscode.Uri,
-		previewSettings: PreviewSettings
-	): MarkdownPreview {
-		const preview = MarkdownPreview.create(
-			resource,
+		previewSettings: DynamicPreviewSettings
+	): DynamicMarkdownPreview {
+		const preview = DynamicMarkdownPreview.create(
+			{
+				resource,
+				resourceColumn: previewSettings.resourceColumn,
+				locked: previewSettings.locked,
+			},
 			previewSettings.previewColumn,
-			previewSettings.locked,
 			this._contentProvider,
 			this._previewConfigurations,
 			this._logger,
@@ -119,34 +183,48 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 
 		this.setPreviewActiveContext(true);
 		this._activePreview = preview;
-		return this.registerPreview(preview);
+		return this.registerDynamicPreview(preview);
 	}
 
-	private registerPreview(
-		preview: MarkdownPreview
-	): MarkdownPreview {
-		this._previews.push(preview);
+	private registerDynamicPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
+		this._dynamicPreviews.add(preview);
 
 		preview.onDispose(() => {
-			const existing = this._previews.indexOf(preview);
-			if (existing === -1) {
-				return;
-			}
+			this._dynamicPreviews.delete(preview);
+		});
 
-			this._previews.splice(existing, 1);
+		this.trackActive(preview);
+
+		preview.onDidChangeViewState(() => {
+			// Remove other dynamic previews in our column
+			disposeAll(Array.from(this._dynamicPreviews).filter(otherPreview => preview !== otherPreview && preview.matches(otherPreview)));
+		});
+		return preview;
+	}
+
+	private registerStaticPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
+		this._staticPreviews.add(preview);
+
+		preview.onDispose(() => {
+			this._staticPreviews.delete(preview);
+		});
+
+		this.trackActive(preview);
+		return preview;
+	}
+
+	private trackActive(preview: DynamicMarkdownPreview): void {
+		preview.onDidChangeViewState(({ webviewPanel }) => {
+			this.setPreviewActiveContext(webviewPanel.active);
+			this._activePreview = webviewPanel.active ? preview : undefined;
+		});
+
+		preview.onDispose(() => {
 			if (this._activePreview === preview) {
 				this.setPreviewActiveContext(false);
 				this._activePreview = undefined;
 			}
 		});
-
-		preview.onDidChangeViewState(({ webviewPanel }) => {
-			disposeAll(this._previews.filter(otherPreview => preview !== otherPreview && preview!.matches(otherPreview)));
-			this.setPreviewActiveContext(webviewPanel.active);
-			this._activePreview = webviewPanel.active ? preview : undefined;
-		});
-
-		return preview;
 	}
 
 	private setPreviewActiveContext(value: boolean) {

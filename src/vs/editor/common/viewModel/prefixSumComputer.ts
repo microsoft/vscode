@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toUint32 } from 'vs/editor/common/core/uint';
+import { toUint32 } from 'vs/base/common/uint';
 
 export class PrefixSumIndexOfResult {
 	_prefixSumIndexOfResultBrand: void;
@@ -32,7 +32,7 @@ export class PrefixSumComputer {
 	/**
 	 * prefixSum[i], 0 <= i <= prefixSumValidIndex can be trusted
 	 */
-	private prefixSumValidIndex: Int32Array;
+	private readonly prefixSumValidIndex: Int32Array;
 
 	constructor(values: Uint32Array) {
 		this.values = values;

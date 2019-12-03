@@ -20,6 +20,15 @@
 	color: #555;
 	font-size: 11px;
 	padding: 3px 5px;
+	margin: 0 2px;
+}
+
+.monaco-keybinding > .monaco-keybinding-key:first-child {
+	margin-left: 0;
+}
+
+.monaco-keybinding > .monaco-keybinding-key:last-child {
+	margin-right: 0;
 }
 
 .hc-black .monaco-keybinding > .monaco-keybinding-key,
@@ -36,5 +45,5 @@
 }
 
 .monaco-keybinding > .monaco-keybinding-key-chord-separator {
-	width: 2px;
+	width: 6px;
 }

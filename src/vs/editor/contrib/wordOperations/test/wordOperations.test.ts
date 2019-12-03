@@ -9,7 +9,7 @@ import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
-import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/wordOperations';
+import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight, CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect } from 'vs/editor/contrib/wordOperations/wordOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('WordOperations', () => {
@@ -26,6 +26,10 @@ suite('WordOperations', () => {
 	const _cursorWordStartRightSelect = new CursorWordStartRightSelect();
 	const _cursorWordEndRightSelect = new CursorWordEndRightSelect();
 	const _cursorWordRightSelect = new CursorWordRightSelect();
+	const _cursorWordAccessibilityLeft = new CursorWordAccessibilityLeft();
+	const _cursorWordAccessibilityLeftSelect = new CursorWordAccessibilityLeftSelect();
+	const _cursorWordAccessibilityRight = new CursorWordAccessibilityRight();
+	const _cursorWordAccessibilityRightSelect = new CursorWordAccessibilityRightSelect();
 	const _deleteWordLeft = new DeleteWordLeft();
 	const _deleteWordStartLeft = new DeleteWordStartLeft();
 	const _deleteWordEndLeft = new DeleteWordEndLeft();
@@ -38,6 +42,12 @@ suite('WordOperations', () => {
 	}
 	function cursorWordLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordLeftSelect : _cursorWordLeft);
+	}
+	function cursorWordAccessibilityLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
+		runEditorCommand(editor, inSelectionMode ? _cursorWordAccessibilityLeft : _cursorWordAccessibilityLeftSelect);
+	}
+	function cursorWordAccessibilityRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
+		runEditorCommand(editor, inSelectionMode ? _cursorWordAccessibilityRightSelect : _cursorWordAccessibilityRight);
 	}
 	function cursorWordStartLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordStartLeftSelect : _cursorWordStartLeft);
@@ -86,8 +96,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1000, 1000),
 			ed => cursorWordLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -114,8 +124,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1000, 1000),
 			ed => cursorWordLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -130,8 +140,24 @@ suite('WordOperations', () => {
 			text,
 			new Position(1, 21),
 			ed => cursorWordLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordLeftSelect - issue #74369: cursorWordLeft and cursorWordLeftSelect do not behave consistently', () => {
+		const EXPECTED = [
+			'|this.|is.|a.|test',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 15),
+			ed => cursorWordLeft(ed, true),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -145,8 +171,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1000, 1000),
 			ed => cursorWordStartLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -160,8 +186,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1000, 1000),
 			ed => cursorWordStartLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -174,8 +200,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1000, 1000),
 			ed => cursorWordEndLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -194,8 +220,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => cursorWordRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(5, 2))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(5, 2))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -224,8 +250,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => cursorWordRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 50))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -240,8 +266,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => cursorWordRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 17))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 17))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -256,8 +282,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => moveWordEndRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 50))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -273,8 +299,8 @@ suite('WordOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => moveWordStartRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 50))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -288,8 +314,51 @@ suite('WordOperations', () => {
 			text,
 			new Position(1, 1),
 			ed => moveWordStartRight(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 15))
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 15))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('issue #64810: cursorWordStartRight skips first word after newline', () => {
+		// This is the behaviour observed in Visual Studio, please do not touch test
+		const EXPECTED = ['Hello |World|', '|Hei |mailman|'].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => moveWordStartRight(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(2, 12))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordAccessibilityLeft', () => {
+		const EXPECTED = ['|   /* |Just |some   |more   |text |a+= |3 +|5-|3 + |7 */  '].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => cursorWordAccessibilityLeft(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordAccessibilityRight', () => {
+		const EXPECTED = ['   /* |Just |some   |more   |text |a+= |3 +|5-|3 + |7 */  |'].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => cursorWordAccessibilityRight(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -303,7 +372,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setSelection(new Selection(3, 7, 3, 9));
 			deleteWordLeft(editor);
 			assert.equal(model.getLineContent(3), '    Thd Line🐶');
@@ -319,7 +388,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 1));
 			deleteWordLeft(editor);
 			assert.equal(model.getLineContent(1), '    \tMy First Line\t ');
@@ -335,7 +404,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(3, 11));
 			deleteWordLeft(editor);
 			assert.equal(model.getLineContent(3), '    Line🐶');
@@ -351,7 +420,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 11));
 			deleteWordLeft(editor);
 			assert.equal(model.getLineContent(2), '\tMy  Line');
@@ -367,7 +436,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 12));
 			deleteWordLeft(editor);
 			assert.equal(model.getLineContent(1), '    \tMy st Line\t ');
@@ -383,7 +452,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setSelection(new Selection(3, 7, 3, 9));
 			deleteWordRight(editor);
 			assert.equal(model.getLineContent(3), '    Thd Line🐶');
@@ -399,7 +468,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(5, 3));
 			deleteWordRight(editor);
 			assert.equal(model.getLineContent(5), '1');
@@ -415,7 +484,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(3, 1));
 			deleteWordRight(editor);
 			assert.equal(model.getLineContent(3), 'Third Line🐶');
@@ -431,7 +500,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 5));
 			deleteWordRight(editor);
 			assert.equal(model.getLineContent(2), '\tMy  Line');
@@ -447,7 +516,7 @@ suite('WordOperations', () => {
 			'',
 			'1',
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 11));
 			deleteWordRight(editor);
 			assert.equal(model.getLineContent(1), '    \tMy Fi Line\t ');
@@ -464,7 +533,7 @@ suite('WordOperations', () => {
 			text,
 			new Position(1000, 10000),
 			ed => deleteWordLeft(ed),
-			ed => ed.getPosition(),
+			ed => ed.getPosition()!,
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
@@ -480,7 +549,7 @@ suite('WordOperations', () => {
 			text,
 			new Position(1000, 10000),
 			ed => deleteWordStartLeft(ed),
-			ed => ed.getPosition(),
+			ed => ed.getPosition()!,
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
@@ -496,7 +565,7 @@ suite('WordOperations', () => {
 			text,
 			new Position(1000, 10000),
 			ed => deleteWordEndLeft(ed),
-			ed => ed.getPosition(),
+			ed => ed.getPosition()!,
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
@@ -508,7 +577,7 @@ suite('WordOperations', () => {
 			'{',
 			'}'
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 1));
 			deleteWordLeft(editor); assert.equal(model.getLineContent(1), '{}');
 		});
@@ -517,7 +586,7 @@ suite('WordOperations', () => {
 			'{',
 			'}'
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 1));
 			deleteWordStartLeft(editor); assert.equal(model.getLineContent(1), '{}');
 		});
@@ -526,7 +595,7 @@ suite('WordOperations', () => {
 			'{',
 			'}'
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 1));
 			deleteWordEndLeft(editor); assert.equal(model.getLineContent(1), '{}');
 		});
@@ -551,7 +620,7 @@ suite('WordOperations', () => {
 			'public void Add( int x,',
 			'                 int y )'
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 24));
 			deleteWordRight(editor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
 		});
@@ -562,7 +631,7 @@ suite('WordOperations', () => {
 			'public void Add( int x,',
 			'                 int y )'
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 24));
 			deleteWordStartRight(editor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
 		});
@@ -573,7 +642,7 @@ suite('WordOperations', () => {
 			'public void Add( int x,',
 			'                 int y )'
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 24));
 			deleteWordEndRight(editor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
 		});
@@ -612,7 +681,7 @@ suite('WordOperations', () => {
 			'A line with text.',
 			'   And another one'
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 18));
 			deleteWordRight(editor); assert.equal(model.getLineContent(1), 'A line with text.And another one', '001');
 		});
@@ -623,7 +692,7 @@ suite('WordOperations', () => {
 			'A line with text.',
 			'   And another one'
 		], {}, (editor, _) => {
-			const model = editor.getModel();
+			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 1));
 			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
 		});

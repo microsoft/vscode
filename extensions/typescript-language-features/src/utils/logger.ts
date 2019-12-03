@@ -5,10 +5,11 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as is from './is';
 import { memoize } from './memoize';
 
 const localize = nls.loadMessageBundle();
+
+type LogLevel = 'Trace' | 'Info' | 'Error';
 
 export default class Logger {
 
@@ -19,26 +20,16 @@ export default class Logger {
 
 	private data2String(data: any): string {
 		if (data instanceof Error) {
-			if (is.string(data.stack)) {
-				return data.stack;
-			}
-			return (data as Error).message;
+			return data.stack || data.message;
 		}
-		if (is.boolean(data.success) && !data.success && is.string(data.message)) {
+		if (data.success === false && data.message) {
 			return data.message;
-		}
-		if (is.string(data)) {
-			return data;
 		}
 		return data.toString();
 	}
 
 	public info(message: string, data?: any): void {
 		this.logLevel('Info', message, data);
-	}
-
-	public warn(message: string, data?: any): void {
-		this.logLevel('Warn', message, data);
 	}
 
 	public error(message: string, data?: any): void {
@@ -49,10 +40,21 @@ export default class Logger {
 		this.logLevel('Error', message, data);
 	}
 
-	public logLevel(level: string, message: string, data?: any): void {
-		this.output.appendLine(`[${level}  - ${(new Date().toLocaleTimeString())}] ${message}`);
+	public logLevel(level: LogLevel, message: string, data?: any): void {
+		this.output.appendLine(`[${level}  - ${this.now()}] ${message}`);
 		if (data) {
 			this.output.appendLine(this.data2String(data));
 		}
 	}
+
+	private now(): string {
+		const now = new Date();
+		return padLeft(now.getUTCHours() + '', 2, '0')
+			+ ':' + padLeft(now.getMinutes() + '', 2, '0')
+			+ ':' + padLeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMilliseconds();
+	}
+}
+
+function padLeft(s: string, n: number, pad = ' ') {
+	return pad.repeat(Math.max(0, n - s.length)) + s;
 }

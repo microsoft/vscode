@@ -16,11 +16,7 @@
 
 .monaco-select-box-dropdown-container {
 	display: none;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing:	border-box;
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown * {
@@ -55,11 +51,7 @@
 	padding-right: 1px;
 	width: 100%;
 	overflow: hidden;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing:	border-box;
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane {
@@ -71,12 +63,26 @@
 	padding-bottom: var(--dropdown-padding-bottom);
 }
 
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row {
+	cursor: pointer;
+}
+
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-text {
 	text-overflow: ellipsis;
 	overflow: hidden;
 	padding-left: 3.5px;
 	white-space: nowrap;
+	float: left;
 }
+
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-decorator-right {
+	text-overflow: ellipsis;
+	overflow: hidden;
+	padding-right: 10px;
+	white-space: nowrap;
+	float: right;
+}
+
 
 /* Accepted CSS hiding technique for accessibility reader text  */
 /* https://webaim.org/techniques/css/invisiblecontent/ */

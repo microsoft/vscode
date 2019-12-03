@@ -2520,7 +2520,7 @@
 	},
 	{
 		"c": "]",
-		"t": "text.html.markdown meta.paragraph.markdown meta.link.reference.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown meta.link.reference.markdown punctuation.definition.string.end.markdown",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

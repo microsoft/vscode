@@ -9,8 +9,9 @@
 
 const withDefaults = require('../shared.webpack.config');
 const path = require('path');
+var webpack = require('webpack');
 
-module.exports = withDefaults({
+const config = withDefaults({
 	context: path.join(__dirname, 'client'),
 	entry: {
 		extension: './src/jsonMain.ts',
@@ -20,3 +21,8 @@ module.exports = withDefaults({
 		path: path.join(__dirname, 'client', 'dist')
 	}
 });
+
+// add plugin, don't replace inherited
+config.plugins.push(new webpack.IgnorePlugin(/vertx/)); // request-light dependency
+
+module.exports = config;

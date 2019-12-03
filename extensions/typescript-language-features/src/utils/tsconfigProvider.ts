@@ -2,11 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
 
 export interface TSConfig {
-	path: string;
-	workspaceFolder?: vscode.WorkspaceFolder;
+	readonly uri: vscode.Uri;
+	readonly fsPath: string;
+	readonly posixPath: string;
+	readonly workspaceFolder?: vscode.WorkspaceFolder;
 }
 
 export default class TsConfigProvider {
@@ -19,7 +22,9 @@ export default class TsConfigProvider {
 			const root = vscode.workspace.getWorkspaceFolder(config);
 			if (root) {
 				configs.set(config.fsPath, {
-					path: config.fsPath,
+					uri: config,
+					fsPath: config.fsPath,
+					posixPath: config.path,
 					workspaceFolder: root
 				});
 			}

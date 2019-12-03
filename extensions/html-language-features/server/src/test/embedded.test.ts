@@ -5,8 +5,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as embeddedSupport from '../modes/embeddedSupport';
-import { TextDocument } from 'vscode-languageserver-types';
-import { getLanguageService } from 'vscode-html-languageservice';
+import { getLanguageService, TextDocument } from 'vscode-html-languageservice';
 
 suite('HTML Embedded Support', () => {
 
@@ -89,7 +88,7 @@ suite('HTML Embedded Support', () => {
 		assertLanguageId('<script type="text/ecmascript">var| i = 0;</script>', 'javascript');
 		assertLanguageId('<script type="application/javascript">var| i = 0;</script>', 'javascript');
 		assertLanguageId('<script type="application/ecmascript">var| i = 0;</script>', 'javascript');
-		assertLanguageId('<script type="application/typescript">var| i = 0;</script>', void 0);
+		assertLanguageId('<script type="application/typescript">var| i = 0;</script>', undefined);
 		assertLanguageId('<script type=\'text/javascript\'>var| i = 0;</script>', 'javascript');
 	});
 

@@ -4,6 +4,7 @@
 	"description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
@@ -73,12 +74,6 @@
         "tokenTypes": {
           "meta.tag string.quoted": "other"
         }
-      }
-    ],
-    "snippets": [
-      {
-        "language": "html",
-        "path": "./snippets/html.snippets.json"
       }
     ]
   }

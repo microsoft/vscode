@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 
 import { IStringDictionary } from 'vs/base/common/collections';
-import product from 'vs/platform/node/product';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import product from 'vs/platform/product/common/product';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -30,14 +30,13 @@ interface LanguagePackFile {
 	[locale: string]: LanguagePackEntry;
 }
 
-export class LanguagePackCachedDataCleaner {
-
-	private _disposables: IDisposable[] = [];
+export class LanguagePackCachedDataCleaner extends Disposable {
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService
 	) {
+		super();
 		// We have no Language pack support for dev version (run from source)
 		// So only cleanup when we have a build version.
 		if (this._environmentService.isBuilt) {
@@ -45,27 +44,23 @@ export class LanguagePackCachedDataCleaner {
 		}
 	}
 
-	dispose(): void {
-		this._disposables = dispose(this._disposables);
-	}
-
 	private _manageCachedDataSoon(): void {
-		let handle = setTimeout(async () => {
+		let handle: any = setTimeout(async () => {
 			handle = undefined;
 			this._logService.info('Starting to clean up unused language packs.');
 			const maxAge = product.nameLong.indexOf('Insiders') >= 0
 				? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
 				: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 			try {
-				let installed: IStringDictionary<boolean> = Object.create(null);
+				const installed: IStringDictionary<boolean> = Object.create(null);
 				const metaData: LanguagePackFile = JSON.parse(await pfs.readFile(path.join(this._environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
 				for (let locale of Object.keys(metaData)) {
-					let entry = metaData[locale];
+					const entry = metaData[locale];
 					installed[`${entry.hash}.${locale}`] = true;
 				}
 				// Cleanup entries for language packs that aren't installed anymore
 				const cacheDir = path.join(this._environmentService.userDataPath, 'clp');
-				let exists = await pfs.exists(cacheDir);
+				const exists = await pfs.exists(cacheDir);
 				if (!exists) {
 					return;
 				}
@@ -101,12 +96,10 @@ export class LanguagePackCachedDataCleaner {
 			}
 		}, 40 * 1000);
 
-		this._disposables.push({
-			dispose() {
-				if (handle !== void 0) {
-					clearTimeout(handle);
-				}
+		this._register(toDisposable(() => {
+			if (handle !== undefined) {
+				clearTimeout(handle);
 			}
-		});
+		}));
 	}
 }

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as mime from 'vs/base/common/mime';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -13,6 +15,7 @@ import { NULL_LANGUAGE_IDENTIFIER, NULL_MODE_ID } from 'vs/editor/common/modes/n
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -26,40 +29,56 @@ export interface IResolvedLanguage {
 	configurationFiles: URI[];
 }
 
-export class LanguagesRegistry {
+export class LanguagesRegistry extends Disposable {
 
-	private _nextLanguageId: number;
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private readonly _warnOnOverwrite: boolean;
+
+	private _nextLanguageId2: number;
+	private readonly _languageIdToLanguage: string[];
+	private readonly _languageToLanguageId: { [id: string]: number; };
+
 	private _languages: { [id: string]: IResolvedLanguage; };
-	private _languageIds: string[];
-
 	private _mimeTypesMap: { [mimeType: string]: LanguageIdentifier; };
 	private _nameMap: { [name: string]: LanguageIdentifier; };
 	private _lowercaseNameMap: { [name: string]: LanguageIdentifier; };
 
-	private _warnOnOverwrite: boolean;
-
 	constructor(useModesRegistry = true, warnOnOverwrite = false) {
-		this._nextLanguageId = 1;
+		super();
+
+		this._warnOnOverwrite = warnOnOverwrite;
+
+		this._nextLanguageId2 = 1;
+		this._languageIdToLanguage = [];
+		this._languageToLanguageId = Object.create(null);
+
 		this._languages = {};
 		this._mimeTypesMap = {};
 		this._nameMap = {};
 		this._lowercaseNameMap = {};
-		this._languageIds = [];
-		this._warnOnOverwrite = warnOnOverwrite;
 
 		if (useModesRegistry) {
-			this._registerLanguages(ModesRegistry.getLanguages());
-			ModesRegistry.onDidAddLanguages((m) => this._registerLanguages(m));
+			this._initializeFromRegistry();
+			this._register(ModesRegistry.onDidChangeLanguages((m) => this._initializeFromRegistry()));
 		}
 	}
 
-	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
-		if (desc.length === 0) {
-			return;
-		}
+	private _initializeFromRegistry(): void {
+		this._languages = {};
+		this._mimeTypesMap = {};
+		this._nameMap = {};
+		this._lowercaseNameMap = {};
 
-		for (let i = 0; i < desc.length; i++) {
-			this._registerLanguage(desc[i]);
+		const desc = ModesRegistry.getLanguages();
+		this._registerLanguages(desc);
+	}
+
+	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
+
+		for (const d of desc) {
+			this._registerLanguage(d);
 		}
 
 		// Rebuild fast path maps
@@ -80,6 +99,20 @@ export class LanguagesRegistry {
 		});
 
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerOverrideIdentifiers(ModesRegistry.getLanguages().map(language => language.id));
+
+		this._onDidChange.fire();
+	}
+
+	private _getLanguageId(language: string): number {
+		if (this._languageToLanguageId[language]) {
+			return this._languageToLanguageId[language];
+		}
+
+		const languageId = this._nextLanguageId2++;
+		this._languageIdToLanguage[languageId] = language;
+		this._languageToLanguageId[language] = languageId;
+
+		return languageId;
 	}
 
 	private _registerLanguage(lang: ILanguageExtensionPoint): void {
@@ -89,7 +122,7 @@ export class LanguagesRegistry {
 		if (hasOwnProperty.call(this._languages, langId)) {
 			resolvedLanguage = this._languages[langId];
 		} else {
-			let languageId = this._nextLanguageId++;
+			const languageId = this._getLanguageId(langId);
 			resolvedLanguage = {
 				identifier: new LanguageIdentifier(langId, languageId),
 				name: null,
@@ -99,7 +132,6 @@ export class LanguagesRegistry {
 				filenames: [],
 				configurationFiles: []
 			};
-			this._languageIds[languageId] = langId;
 			this._languages[langId] = resolvedLanguage;
 		}
 
@@ -159,7 +191,7 @@ export class LanguagesRegistry {
 
 		resolvedLanguage.aliases.push(langId);
 
-		let langAliases: (string | null)[] | null = null;
+		let langAliases: Array<string | null> | null = null;
 		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
 			if (lang.aliases.length === 0) {
 				// signal that this language should not get a name
@@ -170,8 +202,7 @@ export class LanguagesRegistry {
 		}
 
 		if (langAliases !== null) {
-			for (let i = 0; i < langAliases.length; i++) {
-				const langAlias = langAliases[i];
+			for (const langAlias of langAliases) {
 				if (!langAlias || langAlias.length === 0) {
 					continue;
 				}
@@ -237,10 +268,10 @@ export class LanguagesRegistry {
 			return null;
 		}
 		const language = this._languages[modeId];
-		return (language.mimetypes[0] || null);
+		return withUndefinedAsNull(language.mimetypes[0]);
 	}
 
-	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string): string[] {
+	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string[] {
 		if (!commaSeparatedMimetypesOrCommaSeparatedIds) {
 			return [];
 		}
@@ -270,7 +301,7 @@ export class LanguagesRegistry {
 		if (typeof _modeId === 'string') {
 			modeId = _modeId;
 		} else {
-			modeId = this._languageIds[_modeId];
+			modeId = this._languageIdToLanguage[_modeId];
 			if (!modeId) {
 				return null;
 			}
@@ -292,11 +323,11 @@ export class LanguagesRegistry {
 		return [];
 	}
 
-	public getModeIdsFromFilepathOrFirstLine(filepath: string, firstLine?: string): string[] {
-		if (!filepath && !firstLine) {
+	public getModeIdsFromFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
+		if (!resource && !firstLine) {
 			return [];
 		}
-		let mimeTypes = mime.guessMimeTypes(filepath, firstLine);
+		let mimeTypes = mime.guessMimeTypes(resource, firstLine);
 		return this.extractModeIds(mimeTypes.join(','));
 	}
 

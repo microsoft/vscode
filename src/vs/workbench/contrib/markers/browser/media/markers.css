@@ -1,0 +1,201 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar .action-item.markers-panel-action-filter-container {
+	cursor: default;
+	display: flex;
+}
+
+.monaco-action-bar .markers-panel-action-filter {
+	display: flex;
+	align-items: center;
+	flex: 1;
+}
+
+.monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
+	height: 24px;
+	font-size: 12px;
+	flex: 1;
+}
+
+.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
+	height: 25px;
+	border: 1px solid transparent;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls {
+	position: absolute;
+	top: 0px;
+	bottom: 0;
+	right: 0px;
+	display: flex;
+	align-items: center;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge {
+	margin: 4px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.hidden,
+.markers-panel-action-filter.small > .markers-panel-filter-controls > .markers-panel-filter-badge {
+	display: none;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters {
+	line-height: 20px;
+	height: 20px;
+	min-width: 22px;
+	margin-left: 4px;
+}
+
+.panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container {
+	max-width: 600px;
+	min-width: 300px;
+	margin-right: 10px;
+}
+
+.markers-panel-container .monaco-action-bar.markers-panel-filter-container .action-item.markers-panel-action-filter-container,
+.panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container.grow {
+	flex: 1;
+}
+
+.markers-panel .markers-panel-container {
+	height: 100%;
+}
+
+.markers-panel .hide {
+	display: none;
+}
+
+.markers-panel-container .monaco-action-bar.markers-panel-filter-container {
+	margin: 10px 20px;
+}
+
+.markers-panel .markers-panel-container .message-box-container {
+	line-height: 22px;
+	padding-left: 20px;
+	height: 100%;
+}
+
+.markers-panel .markers-panel-container .message-box-container .messageAction {
+	margin-left: 4px;
+	cursor: pointer;
+	text-decoration: underline;
+}
+
+.markers-panel  .markers-panel-container .hidden {
+	display: none;
+}
+
+.markers-panel .markers-panel-container .tree-container.hidden {
+	display: none;
+	visibility: hidden;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
+	display: flex;
+	line-height: 22px;
+	padding-right: 10px;
+}
+
+.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
+	line-height: 20px;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-stats {
+	display: inline-block;
+	margin-left: 10px;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .count-badge-wrapper {
+	margin-left: 10px;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container {
+	flex: 1;
+	overflow: hidden;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line {
+	overflow: hidden;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line > .marker-message {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line.details-container {
+	display: flex;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:before {
+	content: '(';
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:after {
+	content: ')';
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-source,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-line {
+	margin-left: 6px;
+}
+
+.markers-panel .monaco-tl-contents .codicon {
+	margin-right: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .related-info-resource,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .related-info-resource-separator,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-line,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code {
+	opacity: 0.7;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .highlight {
+	font-weight: bold;
+}
+
+.markers-panel .monaco-tl-contents .codicon {
+	height: 22px;
+}
+
+.markers-panel .monaco-tl-contents .actions .monaco-action-bar {
+	display: none;
+}
+
+.markers-panel .monaco-list-row:hover .monaco-tl-contents > .marker-icon.quickFix,
+.markers-panel .monaco-list-row.selected .monaco-tl-contents > .marker-icon.quickFix,
+.markers-panel .monaco-list-row.focused .monaco-tl-contents > .marker-icon.quickFix {
+	display: none;
+}
+
+.markers-panel .monaco-list-row:hover .monaco-tl-contents .actions .monaco-action-bar,
+.markers-panel .monaco-list-row.selected .monaco-tl-contents .actions .monaco-action-bar,
+.markers-panel .monaco-list-row.focused .monaco-tl-contents .actions .monaco-action-bar {
+	display: block;
+}
+
+.markers-panel .monaco-tl-contents .multiline-actions .action-label,
+.markers-panel .monaco-tl-contents .actions .action-label {
+	width: 16px;
+}
+
+.markers-panel .monaco-tl-contents .multiline-actions .action-label {
+	line-height: 22px;
+}
+
+.markers-panel .monaco-tl-contents .multiline-actions .action-item.disabled,
+.markers-panel .monaco-tl-contents .actions .action-item.disabled {
+	display: none;
+}

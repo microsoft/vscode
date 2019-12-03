@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
-import { TextDocument, Position, Range, CompletionItem, FoldingRange } from 'vscode-languageserver-types';
+import {
+	LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions,
+	HTMLFormatConfiguration, SelectionRange,
+	TextDocument, Position, Range, CompletionItem, FoldingRange
+} from 'vscode-html-languageservice';
 import { LanguageMode, Workspace } from './languageModes';
 import { getPathCompletionParticipant } from './pathCompletion';
 
@@ -14,6 +17,9 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 	return {
 		getId() {
 			return 'html';
+		},
+		getSelectionRange(document: TextDocument, position: Position): SelectionRange {
+			return htmlLanguageService.getSelectionRanges(document, [position])[0];
 		},
 		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
@@ -68,8 +74,16 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			}
 			return null;
 		},
+		doRename(document: TextDocument, position: Position, newName: string) {
+			const htmlDocument = htmlDocuments.get(document);
+			return htmlLanguageService.doRename(document, position, newName, htmlDocument);
+		},
 		onDocumentRemoved(document: TextDocument) {
 			htmlDocuments.onDocumentRemoved(document);
+		},
+		findMatchingTagPosition(document: TextDocument, position: Position) {
+			const htmlDocument = htmlDocuments.get(document);
+			return htmlLanguageService.findMatchingTagPosition(document, position, htmlDocument);
 		},
 		dispose() {
 			htmlDocuments.dispose();
@@ -78,7 +92,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 }
 
 function merge(src: any, dst: any): any {
-	for (var key in src) {
+	for (const key in src) {
 		if (src.hasOwnProperty(key)) {
 			dst[key] = src[key];
 		}

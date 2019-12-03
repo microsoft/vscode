@@ -4,16 +4,32 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/03cb9582024f477f93f3d27c46f7c084b2b14afe",
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/e90aa2554b439827f125fd60ff6d7773fc582fcc",
 	"name": "Log file",
 	"scopeName": "text.log",
 	"patterns": [
 		{
-			"match": "\\b(DEBUG|Debug|Trace)\\b|(?i)\\b(debug)\\:",
+			"match": "\\b(Trace)\\b:",
+			"name": "comment log.verbose"
+		},
+		{
+			"match": "(?i)\\[(verbose|verb|vrb|vb|v)\\]",
+			"name": "comment log.verbose"
+		},
+		{
+			"match": "\\bV/",
+			"name": "comment log.verbose"
+		},
+		{
+			"match": "\\b(DEBUG|Debug)\\b|(?i)\\b(debug)\\:",
 			"name": "markup.changed log.debug"
 		},
 		{
 			"match": "(?i)\\[(debug|dbug|dbg|de|d)\\]",
+			"name": "markup.changed log.debug"
+		},
+		{
+			"match": "\\bD/",
 			"name": "markup.changed log.debug"
 		},
 		{
@@ -25,11 +41,19 @@
 			"name": "markup.inserted log.info"
 		},
 		{
+			"match": "\\bI/",
+			"name": "markup.inserted log.info"
+		},
+		{
 			"match": "\\b(WARNING|WARN|Warn)\\b|(?i)\\b(warning)\\:",
 			"name": "markup.deleted log.warning"
 		},
 		{
 			"match": "(?i)\\[(warning|warn|wrn|wn|w)\\]",
+			"name": "markup.deleted log.warning"
+		},
+		{
+			"match": "\\bW/",
 			"name": "markup.deleted log.warning"
 		},
 		{
@@ -41,6 +65,10 @@
 			"name": "string.regexp, strong log.error"
 		},
 		{
+			"match": "\\bE/",
+			"name": "string.regexp, strong log.error"
+		},
+		{
 			"match": "\\b\\d{4}-\\d{2}-\\d{2}(T|\\b)",
 			"name": "comment log.date"
 		},
@@ -49,7 +77,7 @@
 			"name": "comment log.date"
 		},
 		{
-			"match": "\\d{2}:\\d{2}(:\\d{2}([.,]\\d{3,})?)?(Z| ?[+-]\\d{2}:\\d{2})?\\b",
+			"match": "\\d{1,2}:\\d{2}(:\\d{2}([.,]\\d{1,})?)?(Z| ?[+-]\\d{1,2}:\\d{2})?\\b",
 			"name": "comment log.date"
 		},
 		{
@@ -69,7 +97,7 @@
 			"name": "string log.string"
 		},
 		{
-			"match": "(^|[^\\w])'[^']*'",
+			"match": "(?<![\\w])'[^']*'",
 			"name": "string log.string"
 		},
 		{

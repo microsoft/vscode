@@ -1,0 +1,39 @@
+#compdef @@APPNAME@@
+
+local arguments
+
+arguments=(
+	'(-d --diff)'{-d,--diff}'[compare two files with each other]:file to compare:_files:file to compare with:_files'
+	\*'--folder-uri[open a window with given folder uri(s)]:folder uri: '
+	\*{-a,--add}'[add folder(s) to the last active window]:directory:_directories'
+	'(-g --goto)'{-g,--goto}'[open a file at the path on the specified line and column position]:file\:line[\:column]:_files -r \:'
+	'(-n --new-window -r --reuse-window)'{-n,--new-window}'[force to open a new window]'
+	'(-n --new-window -r --reuse-window)'{-r,--reuse-window}'[force to open a file or folder in an already opened window]'
+	'(-w --wait)'{-w,--wait}'[wait for the files to be closed before returning]'
+	'--locale=[the locale to use (e.g. en-US or zh-TW)]:locale (e.g. en-US or zh-TW):(de en en-US es fr it ja ko ru zh-CN zh-TW bg hu pt-br tr)'
+	'--user-data-dir[specify the directory that user data is kept in]:directory:_directories'
+	'(- *)'{-v,--version}'[print version]'
+	'(- *)'{-h,--help}'[print usage]'
+	'--telemetry[show all telemetry events which VS code collects]'
+	'--extensions-dir[set the root path for extensions]:root path:_directories'
+	'--list-extensions[list the installed extensions]'
+	'--category[filters installed extension list by category, when using --list-extension]'
+	'--show-versions[show versions of installed extensions, when using --list-extension]'
+	'--install-extension[install an extension]:id or path:_files -g "*.vsix(-.)"'
+	'--uninstall-extension[uninstall an extension]:id or path:_files -g "*.vsix(-.)"'
+	'--enable-proposed-api[enables proposed API features for extensions]::extension id: '
+	'--verbose[print verbose output (implies --wait)]'
+	'--log[log level to use]:level [info]:(critical error warn info debug trace off)'
+	'(-s --status)'{-s,--status}'[print process usage and diagnostics information]'
+	'(-p --performance)'{-p,--performance}'[start with the "Developer: Startup Performance" command enabled]'
+	'--prof-startup[run CPU profiler during startup]'
+	'(--disable-extension --disable-extensions)--disable-extensions[disable all installed extensions]'
+	\*'--disable-extension[disable an extension]:extension id: '
+	'--inspect-extensions[allow debugging and profiling of extensions]'
+	'--inspect-brk-extensions[allow debugging and profiling of extensions with the extension host being paused after start]'
+	'--disable-gpu[disable GPU hardware acceleration]'
+	'--max-memory=[max memory size for a window (in Mbytes)]:size (Mbytes)'
+	'*:file or directory:_files'
+)
+
+_arguments -s -S $arguments

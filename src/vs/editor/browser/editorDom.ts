@@ -59,7 +59,7 @@ export class EditorPagePosition {
 }
 
 export function createEditorPagePosition(editorViewDomNode: HTMLElement): EditorPagePosition {
-	let editorPos = dom.getDomNodePagePosition(editorViewDomNode);
+	const editorPos = dom.getDomNodePagePosition(editorViewDomNode);
 	return new EditorPagePosition(editorPos.left, editorPos.top, editorPos.width, editorPos.height);
 }
 
@@ -84,12 +84,12 @@ export class EditorMouseEvent extends StandardMouseEvent {
 }
 
 export interface EditorMouseEventMerger {
-	(lastEvent: EditorMouseEvent, currentEvent: EditorMouseEvent): EditorMouseEvent;
+	(lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent;
 }
 
 export class EditorMouseEventFactory {
 
-	private _editorViewDomNode: HTMLElement;
+	private readonly _editorViewDomNode: HTMLElement;
 
 	constructor(editorViewDomNode: HTMLElement) {
 		this._editorViewDomNode = editorViewDomNode;
@@ -124,17 +124,55 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		let myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
 		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'mousemove', callback, myMerger, minimumTimeMs);
 	}
 }
 
+export class EditorPointerEventFactory {
+
+	private readonly _editorViewDomNode: HTMLElement;
+
+	constructor(editorViewDomNode: HTMLElement) {
+		this._editorViewDomNode = editorViewDomNode;
+	}
+
+	private _create(e: MouseEvent): EditorMouseEvent {
+		return new EditorMouseEvent(e, this._editorViewDomNode);
+	}
+
+	public onPointerUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableListener(target, 'pointerup', (e: MouseEvent) => {
+			callback(this._create(e));
+		});
+	}
+
+	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableListener(target, 'pointerdown', (e: MouseEvent) => {
+			callback(this._create(e));
+		});
+	}
+
+	public onPointerLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableNonBubblingPointerOutListener(target, (e: MouseEvent) => {
+			callback(this._create(e));
+		});
+	}
+
+	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
+			return merger(lastEvent, this._create(currentEvent));
+		};
+		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'pointermove', callback, myMerger, minimumTimeMs);
+	}
+}
+
 export class GlobalEditorMouseMoveMonitor extends Disposable {
 
-	private _editorViewDomNode: HTMLElement;
-	private _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
+	private readonly _editorViewDomNode: HTMLElement;
+	protected readonly _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
 	private _keydownListener: IDisposable | null;
 
 	constructor(editorViewDomNode: HTMLElement) {
@@ -157,7 +195,7 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 			this._globalMouseMoveMonitor.stopMonitoring(true);
 		}, true);
 
-		let myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, new EditorMouseEvent(currentEvent, this._editorViewDomNode));
 		};
 

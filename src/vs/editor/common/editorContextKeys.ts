@@ -38,6 +38,7 @@ export namespace EditorContextKeys {
 	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', false);
 	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', false);
 	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', false);
+	export const hasDeclarationProvider = new RawContextKey<boolean>('editorHasDeclarationProvider', false);
 	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', false);
 	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', false);
 	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', false);
@@ -45,7 +46,12 @@ export namespace EditorContextKeys {
 	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', false);
 	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', false);
 	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', false);
+	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', false);
+
+	// -- mode context keys: formatting
 	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', false);
 	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', false);
-	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', false);
+	export const hasMultipleDocumentFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentFormattingProvider', false);
+	export const hasMultipleDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentSelectionFormattingProvider', false);
+
 }

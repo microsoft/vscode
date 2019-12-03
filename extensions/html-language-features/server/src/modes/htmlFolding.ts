@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TextDocument, CancellationToken, Position, Range } from 'vscode-languageserver';
-import { FoldingRange } from 'vscode-languageserver-types';
+import { FoldingRange } from 'vscode-html-languageservice';
 import { LanguageModes, LanguageMode } from './languageModes';
 
 export function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, _cancellationToken: CancellationToken | null): FoldingRange[] {
@@ -54,7 +54,7 @@ function limitRanges(ranges: FoldingRange[], maxRanges: number) {
 
 	// compute each range's nesting level in 'nestingLevels'.
 	// count the number of ranges for each level in 'nestingLevelCounts'
-	let top: FoldingRange | undefined = void 0;
+	let top: FoldingRange | undefined = undefined;
 	let previous: FoldingRange[] = [];
 	let nestingLevels: number[] = [];
 	let nestingLevelCounts: number[] = [];

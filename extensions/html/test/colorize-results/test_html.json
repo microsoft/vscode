@@ -2431,7 +2431,7 @@
 		}
 	},
 	{
-		"c": "octicon",
+		"c": "codicon",
 		"t": "text.html.derivative meta.tag.inline.span.start.html meta.attribute.class.html string.unquoted.html",
 		"r": {
 			"dark_plus": "string: #CE9178",

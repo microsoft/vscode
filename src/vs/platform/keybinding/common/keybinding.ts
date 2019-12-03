@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Keybinding, KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -28,6 +29,8 @@ export interface IKeybindingEvent {
 }
 
 export interface IKeyboardEvent {
+	readonly _standardKeyboardEventBrand: true;
+
 	readonly ctrlKey: boolean;
 	readonly shiftKey: boolean;
 	readonly altKey: boolean;
@@ -36,10 +39,16 @@ export interface IKeyboardEvent {
 	readonly code: string;
 }
 
+export interface KeybindingsSchemaContribution {
+	readonly onDidChange?: Event<void>;
+
+	getSchemaAdditions(): IJSONSchema[];
+}
+
 export const IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
@@ -53,9 +62,16 @@ export interface IKeybindingService {
 	resolveUserBinding(userBinding: string): ResolvedKeybinding[];
 
 	/**
+	 * Resolve and dispatch `keyboardEvent` and invoke the command.
+	 */
+	dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean;
+
+	/**
 	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
 	 */
 	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null;
+
+	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
 
 	/**
 	 * Look up keybindings for a command.
@@ -67,13 +83,13 @@ export interface IKeybindingService {
 	 * Look up the preferred (last defined) keybinding for a command.
 	 * @returns The preferred keybinding or null if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string): ResolvedKeybinding | null;
+	lookupKeybinding(commandId: string): ResolvedKeybinding | undefined;
 
 	getDefaultKeybindingsContent(): string;
 
-	getDefaultKeybindings(): ResolvedKeybindingItem[];
+	getDefaultKeybindings(): readonly ResolvedKeybindingItem[];
 
-	getKeybindings(): ResolvedKeybindingItem[];
+	getKeybindings(): readonly ResolvedKeybindingItem[];
 
 	customKeybindingsCount(): number;
 
@@ -82,5 +98,10 @@ export interface IKeybindingService {
 	 * text box. *Note* that the results of this function can be incorrect.
 	 */
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
+
+	registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
+
+	_dumpDebugInfo(): string;
+	_dumpDebugInfoJSON(): string;
 }
 

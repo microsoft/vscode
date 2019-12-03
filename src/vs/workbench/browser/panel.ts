@@ -8,9 +8,10 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IConstructorSignature0, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { isAncestor } from 'vs/base/browser/dom';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export abstract class Panel extends Composite implements IPanel { }
 
@@ -19,13 +20,17 @@ export abstract class Panel extends Composite implements IPanel { }
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
 
-	constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, _commandId?: string) {
+	public static create<Services extends BrandedService[]>(ctor: { new(...services: Services): Panel }, id: string, name: string, cssClass?: string, order?: number, _commandId?: string): PanelDescriptor {
+		return new PanelDescriptor(ctor as IConstructorSignature0<Panel>, id, name, cssClass, order, _commandId);
+	}
+
+	private constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, _commandId?: string) {
 		super(ctor, id, name, cssClass, order, _commandId);
 	}
 }
 
 export class PanelRegistry extends CompositeRegistry<Panel> {
-	private defaultPanelId: string;
+	private defaultPanelId: string | undefined;
 
 	/**
 	 * Registers a panel to the platform.
@@ -35,10 +40,24 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	}
 
 	/**
+	 * Deregisters a panel to the platform.
+	 */
+	deregisterPanel(id: string): void {
+		super.deregisterComposite(id);
+	}
+
+	/**
+	 * Returns a panel by id.
+	 */
+	getPanel(id: string): PanelDescriptor | undefined {
+		return this.getComposite(id);
+	}
+
+	/**
 	 * Returns an array of registered panels known to the platform.
 	 */
 	getPanels(): PanelDescriptor[] {
-		return this.getComposites() as PanelDescriptor[];
+		return this.getComposites();
 	}
 
 	/**
@@ -52,7 +71,14 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 * Gets the id of the panel that should open on startup by default.
 	 */
 	getDefaultPanelId(): string {
-		return this.defaultPanelId;
+		return assertIsDefined(this.defaultPanelId);
+	}
+
+	/**
+	 * Find out if a panel exists with the provided ID.
+	 */
+	hasPanel(id: string): boolean {
+		return this.getPanels().some(panel => panel.id === id);
 	}
 }
 
@@ -61,38 +87,38 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
  */
 export abstract class TogglePanelAction extends Action {
 
-	private panelId: string;
-
 	constructor(
 		id: string,
 		label: string,
-		panelId: string,
+		private readonly panelId: string,
 		protected panelService: IPanelService,
-		private partService: IPartService,
+		private layoutService: IWorkbenchLayoutService,
 		cssClass?: string
 	) {
 		super(id, label, cssClass);
-		this.panelId = panelId;
 	}
 
-	run(): Thenable<any> {
+	run(): Promise<any> {
 		if (this.isPanelFocused()) {
-			return this.partService.setPanelHidden(true);
+			this.layoutService.setPanelHidden(true);
+		} else {
+			this.panelService.openPanel(this.panelId, true);
 		}
 
-		return this.panelService.openPanel(this.panelId, true);
+		return Promise.resolve();
 	}
 
 	private isPanelActive(): boolean {
 		const activePanel = this.panelService.getActivePanel();
 
-		return activePanel && activePanel.getId() === this.panelId;
+		return activePanel?.getId() === this.panelId;
 	}
 
 	private isPanelFocused(): boolean {
 		const activeElement = document.activeElement;
+		const panelPart = this.layoutService.getContainer(Parts.PANEL_PART);
 
-		return this.isPanelActive() && activeElement && isAncestor(activeElement, this.partService.getContainer(Parts.PANEL_PART));
+		return !!(this.isPanelActive() && activeElement && panelPart && isAncestor(activeElement, panelPart));
 	}
 }
 

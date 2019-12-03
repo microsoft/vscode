@@ -151,8 +151,8 @@ const colorRegExp = /^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/;
 export class ColorMap {
 
 	private _lastColorId: number;
-	private _id2color: Color[];
-	private _color2id: Map<string, ColorId>;
+	private readonly _id2color: Color[];
+	private readonly _color2id: Map<string, ColorId>;
 
 	constructor() {
 		this._lastColorId = 0;
@@ -240,7 +240,7 @@ export class TokenTheme {
 	}
 }
 
-const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex)\b/;
+const STANDARD_TOKEN_TYPE_REGEXP = /\b(comment|string|regex|regexp)\b/;
 export function toStandardTokenType(tokenType: string): StandardTokenType {
 	let m = tokenType.match(STANDARD_TOKEN_TYPE_REGEXP);
 	if (!m) {
@@ -252,6 +252,8 @@ export function toStandardTokenType(tokenType: string): StandardTokenType {
 		case 'string':
 			return StandardTokenType.String;
 		case 'regex':
+			return StandardTokenType.RegEx;
+		case 'regexp':
 			return StandardTokenType.RegEx;
 	}
 	throw new Error('Unexpected match for standard token type!');
