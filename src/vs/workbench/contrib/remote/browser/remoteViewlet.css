@@ -27,7 +27,6 @@
 	height: 20px;
 	flex-shrink: 1;
 	margin-top: 7px;
-	border-radius: 4px;
 }
 
 .monaco-workbench.mac .part > .title > .title-actions .switch-remote {
