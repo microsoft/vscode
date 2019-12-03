@@ -17,6 +17,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -117,26 +118,19 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 			return false;
 		}
 
-		// Preserve view state by opening the editor first. In addition
-		// this allows the user to review the contents of the editor.
-		// let viewState: IEditorViewState | undefined = undefined;
-		// const editor = await this.editorService.openEditor(this, undefined, group);
-		// if (isTextEditor(editor)) {
-		// 	viewState = editor.getViewState();
-		// }
-
 		let dialogPath = this._editorResource;
-		// if (this._editorResource.scheme === Schemas.untitled) {
-		// 	dialogPath = this.suggestFileName(resource);
-		// }
-
 		const target = await this.promptForPath(this._editorResource, dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return false; // save cancelled
 		}
 
-		await this._model.saveAs(this._editorResource, target, options);
+		if (!await this._model.saveAs(this._editorResource, target, options)) {
+			return false;
+		}
 
+		const replacement = this.handleMove(groupId, target) || this.instantiationService.createInstance(FileEditorInput, target, undefined, undefined);
+
+		await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], groupId);
 		return true;
 	}
 
@@ -156,15 +150,22 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		// Help user to find a name for the file by opening it first
 		await this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true } });
 
-		return this.fileDialogService.pickFileToSave({});//this.getSaveDialogOptions(defaultUri, availableFileSystems));
+		return this.fileDialogService.pickFileToSave({
+			availableFileSystems,
+			defaultUri
+		});
 	}
 
-	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
-		const webview = assertIsDefined(this.takeOwnershipOfWebview());
-		return this.instantiationService.createInstance(CustomFileEditorInput,
-			uri,
-			this.viewType,
-			generateUuid(),
-			new Lazy(() => webview));
+	public handleMove(_groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
+		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
+		if (editorInfo?.matches(uri)) {
+			const webview = assertIsDefined(this.takeOwnershipOfWebview());
+			return this.instantiationService.createInstance(CustomFileEditorInput,
+				uri,
+				this.viewType,
+				generateUuid(),
+				new Lazy(() => webview));
+		}
+		return undefined;
 	}
 }

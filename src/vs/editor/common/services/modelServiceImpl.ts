@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier, SemanticColoringProviderRegistry, SemanticColoringProvider, SemanticColoring, SemanticColoringLegend } from 'vs/editor/common/modes';
+import { LanguageIdentifier, SemanticTokensProviderRegistry, SemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -459,22 +459,22 @@ class SemanticColoringFeature extends Disposable {
 
 class SemanticStyling extends Disposable {
 
-	private _caches: WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>;
+	private _caches: WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>;
 
 	constructor(
 		private readonly _themeService: IThemeService
 	) {
 		super();
-		this._caches = new WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>();
+		this._caches = new WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>();
 		if (this._themeService) {
 			// workaround for tests which use undefined... :/
 			this._register(this._themeService.onThemeChange(() => {
-				this._caches = new WeakMap<SemanticColoringProvider, SemanticColoringProviderStyling>();
+				this._caches = new WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>();
 			}));
 		}
 	}
 
-	public get(provider: SemanticColoringProvider): SemanticColoringProviderStyling {
+	public get(provider: SemanticTokensProvider): SemanticColoringProviderStyling {
 		if (!this._caches.has(provider)) {
 			this._caches.set(provider, new SemanticColoringProviderStyling(provider.getLegend(), this._themeService));
 		}
@@ -580,7 +580,7 @@ class SemanticColoringProviderStyling {
 	private readonly _hashTable: HashTable;
 
 	constructor(
-		private readonly _legend: SemanticColoringLegend,
+		private readonly _legend: SemanticTokensLegend,
 		private readonly _themeService: IThemeService
 	) {
 		this._hashTable = new HashTable();
@@ -611,13 +611,39 @@ class SemanticColoringProviderStyling {
 	}
 }
 
+const enum SemanticColoringConstants {
+	/**
+	 * Let's aim at having 8KB buffers if possible...
+	 * So that would be 8192 / (5 * 4) = 409.6 tokens per area
+	 */
+	DesiredTokensPerArea = 400,
+
+	/**
+	 * Try to keep the total number of areas under 1024 if possible,
+	 * simply compensate by having more tokens per area...
+	 */
+	DesiredMaxAreas = 1024,
+}
+
+class SemanticTokensResponse {
+	constructor(
+		private readonly _provider: SemanticTokensProvider,
+		public readonly resultId: string | undefined,
+		public readonly data: Uint32Array
+	) { }
+
+	public dispose(): void {
+		this._provider.releaseSemanticTokens(this.resultId);
+	}
+}
+
 class ModelSemanticColoring extends Disposable {
 
 	private _isDisposed: boolean;
 	private readonly _model: ITextModel;
 	private readonly _semanticStyling: SemanticStyling;
 	private readonly _fetchSemanticTokens: RunOnceScheduler;
-	private _currentResponse: SemanticColoring | null;
+	private _currentResponse: SemanticTokensResponse | null;
 	private _currentRequestCancellationTokenSource: CancellationTokenSource | null;
 
 	constructor(model: ITextModel, themeService: IThemeService, stylingProvider: SemanticStyling) {
@@ -631,12 +657,12 @@ class ModelSemanticColoring extends Disposable {
 		this._currentRequestCancellationTokenSource = null;
 
 		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
-		this._register(SemanticColoringProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
+		this._register(SemanticTokensProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
 		if (themeService) {
 			// workaround for tests which use undefined... :/
 			this._register(themeService.onThemeChange(_ => {
 				// clear out existing tokens
-				this._setSemanticTokens(null, null, []);
+				this._setSemanticTokens(null, null, null, []);
 				this._fetchSemanticTokens.schedule();
 			}));
 		}
@@ -673,90 +699,206 @@ class ModelSemanticColoring extends Disposable {
 		});
 
 		const styling = this._semanticStyling.get(provider);
-		const request = Promise.resolve(provider.provideSemanticColoring(this._model, this._currentRequestCancellationTokenSource.token));
+
+		const lastResultId = this._currentResponse ? this._currentResponse.resultId || null : null;
+		const request = Promise.resolve(provider.provideSemanticTokens(this._model, lastResultId, null, this._currentRequestCancellationTokenSource.token));
 
 		request.then((res) => {
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(res || null, styling, pendingChanges);
+			this._setSemanticTokens(provider, res || null, styling, pendingChanges);
 		}, (err) => {
 			errors.onUnexpectedError(err);
 			this._currentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setSemanticTokens(null, styling, pendingChanges);
+			this._setSemanticTokens(provider, null, styling, pendingChanges);
 		});
 	}
 
-	private _setSemanticTokens(tokens: SemanticColoring | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
+	private static _isSemanticTokens(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokens {
+		return v && !!((<SemanticTokens>v).data);
+	}
+
+	private static _isSemanticTokensEdits(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokensEdits {
+		return v && Array.isArray((<SemanticTokensEdits>v).edits);
+	}
+
+	private static _copy(src: Uint32Array, srcOffset: number, dest: Uint32Array, destOffset: number, length: number): void {
+		for (let i = 0; i < length; i++) {
+			dest[destOffset + i] = src[srcOffset + i];
+		}
+	}
+
+	private _setSemanticTokens(provider: SemanticTokensProvider | null, tokens: SemanticTokens | SemanticTokensEdits | null, styling: SemanticColoringProviderStyling | null, pendingChanges: IModelContentChangedEvent[]): void {
+		const currentResponse = this._currentResponse;
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
 			this._currentResponse = null;
 		}
 		if (this._isDisposed) {
 			// disposed!
-			if (tokens) {
-				tokens.dispose();
+			if (provider && tokens) {
+				provider.releaseSemanticTokens(tokens.resultId);
 			}
 			return;
 		}
-		this._currentResponse = tokens;
-		if (!this._currentResponse || !styling) {
+		if (!provider || !tokens || !styling) {
 			this._model.setSemanticTokens(null);
 			return;
 		}
 
-		const result: MultilineTokens2[] = [];
-		for (const area of this._currentResponse.areas) {
-			const srcTokens = area.data;
-			const tokenCount = srcTokens.length / 5;
-			let destTokens = new Uint32Array(4 * tokenCount);
-			let destOffset = 0;
-			for (let i = 0; i < tokenCount; i++) {
-				const srcOffset = 5 * i;
-				const deltaLine = srcTokens[srcOffset];
-				const startCharacter = srcTokens[srcOffset + 1];
-				const endCharacter = srcTokens[srcOffset + 2];
-				const tokenTypeIndex = srcTokens[srcOffset + 3];
-				const tokenModifierSet = srcTokens[srcOffset + 4];
-				const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet);
-				if (metadata !== Constants.NO_STYLING) {
-					destTokens[destOffset] = deltaLine;
-					destTokens[destOffset + 1] = startCharacter;
-					destTokens[destOffset + 2] = endCharacter;
-					destTokens[destOffset + 3] = metadata;
-					destOffset += 4;
+		if (ModelSemanticColoring._isSemanticTokensEdits(tokens)) {
+			if (!currentResponse) {
+				// not possible!
+				this._model.setSemanticTokens(null);
+				return;
+			}
+			if (tokens.edits.length === 0) {
+				// nothing to do!
+				tokens = {
+					resultId: tokens.resultId,
+					data: currentResponse.data
+				};
+			} else {
+				let deltaLength = 0;
+				for (const edit of tokens.edits) {
+					deltaLength += (edit.data ? edit.data.length : 0) - edit.deleteCount;
 				}
-			}
 
-			if (destOffset !== destTokens.length) {
-				destTokens = destTokens.subarray(0, destOffset);
+				const srcData = currentResponse.data;
+				const destData = new Uint32Array(srcData.length + deltaLength);
+
+				let srcLastStart = srcData.length;
+				let destLastStart = destData.length;
+				for (let i = tokens.edits.length - 1; i >= 0; i--) {
+					const edit = tokens.edits[i];
+
+					const copyCount = srcLastStart - (edit.start + edit.deleteCount);
+					if (copyCount > 0) {
+						ModelSemanticColoring._copy(srcData, srcLastStart - copyCount, destData, destLastStart - copyCount, copyCount);
+						destLastStart -= copyCount;
+					}
+
+					if (edit.data) {
+						ModelSemanticColoring._copy(edit.data, 0, destData, destLastStart - edit.data.length, edit.data.length);
+						destLastStart -= edit.data.length;
+					}
+
+					srcLastStart = edit.start;
+				}
+
+				if (srcLastStart > 0) {
+					ModelSemanticColoring._copy(srcData, 0, destData, 0, srcLastStart);
+				}
+
+				tokens = {
+					resultId: tokens.resultId,
+					data: destData
+				};
 			}
-			const tokens = new MultilineTokens2(area.line, new SparseEncodedTokens(destTokens));
-			result.push(tokens);
 		}
 
-		// Adjust incoming semantic tokens
-		if (pendingChanges.length > 0) {
-			// More changes occurred while the request was running
-			// We need to:
-			// 1. Adjust incoming semantic tokens
-			// 2. Request them again
-			for (const change of pendingChanges) {
-				for (const area of result) {
-					for (const singleChange of change.changes) {
-						area.applyEdit(singleChange.range, singleChange.text);
+		if (ModelSemanticColoring._isSemanticTokens(tokens)) {
+
+			this._currentResponse = new SemanticTokensResponse(provider, tokens.resultId, tokens.data);
+
+			const srcData = tokens.data;
+			const tokenCount = (tokens.data.length / 5) | 0;
+			const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
+
+			const result: MultilineTokens2[] = [];
+
+			let tokenIndex = 0;
+			let lastLineNumber = 1;
+			let lastStartCharacter = 0;
+			while (tokenIndex < tokenCount) {
+				const tokenStartIndex = tokenIndex;
+				let tokenEndIndex = Math.min(tokenStartIndex + tokensPerArea, tokenCount);
+
+				// Keep tokens on the same line in the same area...
+				if (tokenEndIndex < tokenCount) {
+
+					let smallTokenEndIndex = tokenEndIndex;
+					while (smallTokenEndIndex - 1 > tokenStartIndex && srcData[5 * smallTokenEndIndex] === 0) {
+						smallTokenEndIndex--;
+					}
+
+					if (smallTokenEndIndex - 1 === tokenStartIndex) {
+						// there are so many tokens on this line that our area would be empty, we must now go right
+						let bigTokenEndIndex = tokenEndIndex;
+						while (bigTokenEndIndex + 1 < tokenCount && srcData[5 * bigTokenEndIndex] === 0) {
+							bigTokenEndIndex++;
+						}
+						tokenEndIndex = bigTokenEndIndex;
+					} else {
+						tokenEndIndex = smallTokenEndIndex;
 					}
 				}
+
+				let destData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 4);
+				let destOffset = 0;
+				let areaLine = 0;
+				while (tokenIndex < tokenEndIndex) {
+					const srcOffset = 5 * tokenIndex;
+					const deltaLine = srcData[srcOffset];
+					const deltaCharacter = srcData[srcOffset + 1];
+					const lineNumber = lastLineNumber + deltaLine;
+					const startCharacter = (deltaLine === 0 ? lastStartCharacter + deltaCharacter : deltaCharacter);
+					const length = srcData[srcOffset + 2];
+					const tokenTypeIndex = srcData[srcOffset + 3];
+					const tokenModifierSet = srcData[srcOffset + 4];
+					const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet);
+
+					if (metadata !== Constants.NO_STYLING) {
+						if (areaLine === 0) {
+							areaLine = lineNumber;
+						}
+						destData[destOffset] = lineNumber - areaLine;
+						destData[destOffset + 1] = startCharacter;
+						destData[destOffset + 2] = startCharacter + length;
+						destData[destOffset + 3] = metadata;
+						destOffset += 4;
+					}
+
+					lastLineNumber = lineNumber;
+					lastStartCharacter = startCharacter;
+					tokenIndex++;
+				}
+
+				if (destOffset !== destData.length) {
+					destData = destData.subarray(0, destOffset);
+				}
+
+				const tokens = new MultilineTokens2(areaLine, new SparseEncodedTokens(destData));
+				result.push(tokens);
 			}
 
-			this._fetchSemanticTokens.schedule();
+			// Adjust incoming semantic tokens
+			if (pendingChanges.length > 0) {
+				// More changes occurred while the request was running
+				// We need to:
+				// 1. Adjust incoming semantic tokens
+				// 2. Request them again
+				for (const change of pendingChanges) {
+					for (const area of result) {
+						for (const singleChange of change.changes) {
+							area.applyEdit(singleChange.range, singleChange.text);
+						}
+					}
+				}
+
+				this._fetchSemanticTokens.schedule();
+			}
+
+			this._model.setSemanticTokens(result);
+			return;
 		}
 
-		this._model.setSemanticTokens(result);
+		this._model.setSemanticTokens(null);
 	}
 
-	private _getSemanticColoringProvider(): SemanticColoringProvider | null {
-		const result = SemanticColoringProviderRegistry.ordered(this._model);
+	private _getSemanticColoringProvider(): SemanticTokensProvider | null {
+		const result = SemanticTokensProviderRegistry.ordered(this._model);
 		return (result.length > 0 ? result[0] : null);
 	}
 }

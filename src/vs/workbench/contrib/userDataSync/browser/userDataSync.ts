@@ -30,7 +30,9 @@ import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { UserDataAutoSync } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSync';
+import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
+import { timeout } from 'vs/base/common/async';
 
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Initializing);
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
@@ -78,7 +80,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 			if (isWeb) {
 				this._register(instantiationService.createInstance(UserDataAutoSync));
+			} else {
+				this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => this.triggerSync()));
 			}
+		}
+	}
+
+	private triggerSync(): void {
+		if (this.configurationService.getValue<boolean>('sync.enable')
+			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
+			&& this.authTokenService.status === AuthTokenStatus.SignedIn) {
+			this.userDataSyncService.sync();
 		}
 	}
 
@@ -93,7 +105,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private onDidChangeSyncStatus(status: SyncStatus) {
 		this.syncStatusContext.set(status);
 
-		this.updateBadge();
+		if (status === SyncStatus.Syncing) {
+			// Show syncing progress if takes more than 1s.
+			timeout(1000).then(() => this.updateBadge());
+		} else {
+			this.updateBadge();
+		}
 
 		if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			if (!this.conflictsWarningDisposable.value) {
@@ -141,21 +158,24 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		let badge: IBadge | undefined = undefined;
 		let clazz: string | undefined;
+		let priority: number | undefined = undefined;
 
 		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING) && this.authTokenService.status === AuthTokenStatus.SignedOut) {
 			badge = new NumberBadge(1, () => localize('sign in', "Sync: Sign in..."));
 		} else if (this.authTokenService.status === AuthTokenStatus.SigningIn) {
 			badge = new ProgressBadge(() => localize('signing in', "Signin in..."));
 			clazz = 'progress-badge';
+			priority = 1;
 		} else if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
 			badge = new NumberBadge(1, () => localize('resolve conflicts', "Resolve Conflicts"));
 		} else if (this.userDataSyncService.status === SyncStatus.Syncing) {
 			badge = new ProgressBadge(() => localize('syncing', "Synchronizing User Configuration..."));
 			clazz = 'progress-badge';
+			priority = 1;
 		}
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
+			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
 		}
 	}
 
@@ -189,6 +209,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const items = [{
 				id: 'sync.enableSettings',
 				label: localize('user settings', "User Settings")
+			}, {
+				id: 'sync.enableKeybindings',
+				label: localize('user keybindings', "User Keybindings")
 			}, {
 				id: 'sync.enableExtensions',
 				label: localize('extensions', "Extensions")
@@ -251,13 +274,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private getPreviewEditorInput(): IEditorInput | undefined {
-		return this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource))[0];
+		return this.editorService.editors.filter(input => isEqual(input.getResource(), this.workbenchEnvironmentService.settingsSyncPreviewResource) || isEqual(input.getResource(), this.workbenchEnvironmentService.keybindingsSyncPreviewResource))[0];
 	}
 
 	private async handleConflicts(): Promise<void> {
-		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
+		const conflictsResource = this.getConflictsResource();
+		if (conflictsResource) {
 			const resourceInput = {
-				resource: this.workbenchEnvironmentService.settingsSyncPreviewResource,
+				resource: conflictsResource,
 				options: {
 					preserveFocus: false,
 					pinned: false,
@@ -277,6 +301,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 		}
+	}
+
+	private getConflictsResource(): URI | null {
+		if (this.userDataSyncService.conflictsSource === SyncSource.Settings) {
+			return this.workbenchEnvironmentService.settingsSyncPreviewResource;
+		}
+		if (this.userDataSyncService.conflictsSource === SyncSource.Keybindings) {
+			return this.workbenchEnvironmentService.keybindingsSyncPreviewResource;
+		}
+		return null;
 	}
 
 	private registerActions(): void {
@@ -371,7 +405,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			command: {
 				id: continueSyncCommandId,
 				title: localize('continue sync', "Sync: Continue"),
-				iconLocation: {
+				icon: {
 					light: SYNC_PUSH_LIGHT_ICON_URI,
 					dark: SYNC_PUSH_DARK_ICON_URI
 				}
@@ -379,6 +413,19 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: 'navigation',
 			order: 1,
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Resource.isEqualTo(this.workbenchEnvironmentService.settingsSyncPreviewResource.toString())),
+		});
+		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+			command: {
+				id: continueSyncCommandId,
+				title: localize('continue sync', "Sync: Continue"),
+				icon: {
+					light: SYNC_PUSH_LIGHT_ICON_URI,
+					dark: SYNC_PUSH_DARK_ICON_URI
+				}
+			},
+			group: 'navigation',
+			order: 1,
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts), ResourceContextKey.Resource.isEqualTo(this.workbenchEnvironmentService.keybindingsSyncPreviewResource.toString())),
 		});
 
 		const signOutMenuItem: IMenuItem = {

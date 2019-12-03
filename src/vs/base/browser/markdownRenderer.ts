@@ -63,7 +63,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
 		}
-		return uri.toString();
+		return uri.toString(true);
 	};
 
 	// signal to code-block render that the
@@ -178,7 +178,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderer
 	};
 
-	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote];
+	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote, Schemas.vscodeRemoteResource];
 	if (markdown.isTrusted) {
 		allowedSchemes.push(Schemas.command);
 	}

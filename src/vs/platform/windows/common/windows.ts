@@ -25,6 +25,7 @@ export interface IBaseOpenWindowsOptions {
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	forceNewWindow?: boolean;
+	preferNewWindow?: boolean;
 
 	noRecentEntry?: boolean;
 }

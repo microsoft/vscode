@@ -21,7 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
-import { decodeSemanticTokensDto, ISemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
+import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -325,10 +325,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
-	// --- semantic coloring
+	// --- semantic tokens
 
-	$registerSemanticColoringProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticColoringLegend): void {
-		this._registrations.set(handle, modes.SemanticColoringProviderRegistry.register(selector, new MainThreadSemanticColoringProvider(this._proxy, handle, legend)));
+	$registerSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void {
+		this._registrations.set(handle, modes.SemanticTokensProviderRegistry.register(selector, new MainThreadSemanticTokensProvider(this._proxy, handle, legend)));
 	}
 
 	// --- suggest
@@ -602,47 +602,28 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 }
 
-class MainThreadSemanticColoringCacheEntry implements modes.SemanticColoring {
-
-	constructor(
-		private readonly _parent: MainThreadSemanticColoringProvider,
-		public readonly uri: URI,
-		public readonly id: number,
-		public readonly areas: modes.SemanticColoringArea[],
-	) {
-	}
-
-	dispose(): void {
-		this._parent.release(this);
-	}
-}
-
-export class MainThreadSemanticColoringProvider implements modes.SemanticColoringProvider {
-
-	private readonly _cache = new Map<string, MainThreadSemanticColoringCacheEntry>();
+export class MainThreadSemanticTokensProvider implements modes.SemanticTokensProvider {
 
 	constructor(
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _handle: number,
-		private readonly _legend: modes.SemanticColoringLegend,
+		private readonly _legend: modes.SemanticTokensLegend,
 	) {
 	}
 
-	release(entry: MainThreadSemanticColoringCacheEntry): void {
-		const currentCacheEntry = this._cache.get(entry.uri.toString()) || null;
-		if (currentCacheEntry && currentCacheEntry.id === entry.id) {
-			this._cache.delete(entry.uri.toString());
+	public releaseSemanticTokens(resultId: string | undefined): void {
+		if (resultId) {
+			this._proxy.$releaseSemanticTokens(this._handle, parseInt(resultId, 10));
 		}
-		this._proxy.$releaseSemanticColoring(this._handle, entry.id);
 	}
 
-	getLegend(): modes.SemanticColoringLegend {
+	public getLegend(): modes.SemanticTokensLegend {
 		return this._legend;
 	}
 
-	async provideSemanticColoring(model: ITextModel, token: CancellationToken): Promise<modes.SemanticColoring | null> {
-		const lastResult = this._cache.get(model.uri.toString()) || null;
-		const encodedDto = await this._proxy.$provideSemanticColoring(this._handle, model.uri, lastResult ? lastResult.id : 0, token);
+	async provideSemanticTokens(model: ITextModel, lastResultId: string | null, ranges: EditorRange[] | null, token: CancellationToken): Promise<modes.SemanticTokens | modes.SemanticTokensEdits | null> {
+		const nLastResultId = lastResultId ? parseInt(lastResultId, 10) : 0;
+		const encodedDto = await this._proxy.$provideSemanticTokens(this._handle, model.uri, ranges, nLastResultId, token);
 		if (!encodedDto) {
 			return null;
 		}
@@ -650,27 +631,15 @@ export class MainThreadSemanticColoringProvider implements modes.SemanticColorin
 			return null;
 		}
 		const dto = decodeSemanticTokensDto(encodedDto);
-		const res = this._resolveDeltas(model, lastResult, dto);
-		this._cache.set(model.uri.toString(), res);
-		return res;
-	}
-
-	private _resolveDeltas(model: ITextModel, lastResult: MainThreadSemanticColoringCacheEntry | null, dto: ISemanticTokensDto): MainThreadSemanticColoringCacheEntry {
-		let areas: modes.SemanticColoringArea[] = [];
-		for (let i = 0, len = dto.areas.length; i < len; i++) {
-			const areaDto = dto.areas[i];
-			if (areaDto.type === 'full') {
-				areas[i] = {
-					line: areaDto.line,
-					data: areaDto.data
-				};
-			} else {
-				areas[i] = {
-					line: areaDto.line,
-					data: lastResult!.areas[areaDto.oldIndex].data
-				};
-			}
+		if (dto.type === 'full') {
+			return {
+				resultId: String(dto.id),
+				data: dto.data
+			};
 		}
-		return new MainThreadSemanticColoringCacheEntry(this, model.uri, dto.id, areas);
+		return {
+			resultId: String(dto.id),
+			edits: dto.deltas
+		};
 	}
 }

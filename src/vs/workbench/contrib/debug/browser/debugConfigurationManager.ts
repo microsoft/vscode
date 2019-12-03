@@ -286,7 +286,8 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => {
 			this.initLaunches();
-			this.selectConfiguration(this.selectedLaunch);
+			const toSelect = this.selectedLaunch || (this.launches.length > 0 ? this.launches[0] : undefined);
+			this.selectConfiguration(toSelect);
 			this.setCompoundSchemaValues();
 		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {

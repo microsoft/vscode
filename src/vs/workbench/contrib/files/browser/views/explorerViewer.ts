@@ -19,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSou
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService, IEditableData } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, isEqualOrParent, basename, hasToIgnoreCase, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -46,7 +46,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
 import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -54,6 +54,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
+import { IEditableData } from 'vs/workbench/common/views';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -119,10 +120,12 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 
 export interface ICompressedNavigationController {
 	readonly current: ExplorerItem;
+	readonly currentId: string;
 	readonly items: ExplorerItem[];
 	readonly labels: HTMLElement[];
 	readonly index: number;
 	readonly count: number;
+	readonly onDidChange: Event<void>;
 	previous(): void;
 	next(): void;
 	first(): void;
@@ -130,7 +133,9 @@ export interface ICompressedNavigationController {
 	setIndex(index: number): void;
 }
 
-export class CompressedNavigationController implements ICompressedNavigationController {
+export class CompressedNavigationController implements ICompressedNavigationController, IDisposable {
+
+	static ID = 0;
 
 	private _index: number;
 	readonly labels: HTMLElement[];
@@ -138,10 +143,19 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	get index(): number { return this._index; }
 	get count(): number { return this.items.length; }
 	get current(): ExplorerItem { return this.items[this._index]!; }
+	get currentId(): string { return `${this.id}_${this.index}`; }
 
-	constructor(readonly items: ExplorerItem[], templateData: IFileTemplateData) {
+	private _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData) {
 		this._index = items.length - 1;
 		this.labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
+
+		for (let i = 0; i < items.length; i++) {
+			this.labels[i].setAttribute('aria-label', items[i].name);
+		}
+
 		DOM.addClass(this.labels[this._index], 'active');
 	}
 
@@ -185,6 +199,12 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 		DOM.removeClass(this.labels[this._index], 'active');
 		this._index = index;
 		DOM.addClass(this.labels[this._index], 'active');
+
+		this._onDidChange.fire();
+	}
+
+	dispose(): void {
+		this._onDidChange.dispose();
 	}
 }
 
@@ -194,12 +214,15 @@ export interface IFileTemplateData {
 	container: HTMLElement;
 }
 
-export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IDisposable {
+export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
+
+	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
+	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
 
 	constructor(
 		private labels: ResourceLabels,
@@ -239,7 +262,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			templateData.elementDisposable = this.renderStat(stat, stat.name, node.filterData, templateData);
+			templateData.elementDisposable = this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
 		}
 
 		// Input Box
@@ -262,11 +285,17 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			templateData.label.element.style.display = 'flex';
 
 			const disposables = new DisposableStore();
-			const label = node.element.elements.map(e => e.name);
-			disposables.add(this.renderStat(stat, label, node.filterData, templateData));
+			const id = `compressed-explorer_${CompressedNavigationController.ID++}`;
 
-			const compressedNavigationController = new CompressedNavigationController(node.element.elements, templateData);
+			const label = node.element.elements.map(e => e.name);
+			disposables.add(this.renderStat(stat, label, id, node.filterData, templateData));
+
+			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData);
+			disposables.add(compressedNavigationController);
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
+
+			// accessibility
+			disposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
 
 			domEvent(templateData.container, 'mousedown')(e => {
 				const result = getIconLabelNameFromHTMLElement(e.target);
@@ -276,9 +305,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			}, undefined, disposables);
 
-			disposables.add(toDisposable(() => {
-				this.compressedNavigationControllers.delete(stat);
-			}));
+			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
 
 			templateData.elementDisposable = disposables;
 		}
@@ -291,7 +318,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		}
 	}
 
-	private renderStat(stat: ExplorerItem, label: string | string[], filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
+	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
 		if (this.explorerService.isCut(stat)) {
@@ -303,7 +330,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			extraClasses,
 			fileDecorations: this.config.explorer.decorations,
 			matches: createMatches(filterData),
-			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority)
+			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
+			domId
 		});
 
 		return templateData.label.onDidRender(() => {
@@ -411,14 +439,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		return this.compressedNavigationControllers.get(stat);
 	}
 
-	dispose(): void {
-		this.configListener.dispose();
-	}
-}
+	// IAccessibilityProvider
 
-export class ExplorerAccessibilityProvider implements IAccessibilityProvider<ExplorerItem> {
 	getAriaLabel(element: ExplorerItem): string {
 		return element.name;
+	}
+
+	getActiveDescendantId(stat: ExplorerItem): string | undefined {
+		const compressedNavigationController = this.compressedNavigationControllers.get(stat);
+		return compressedNavigationController?.currentId;
+	}
+
+	dispose(): void {
+		this.configListener.dispose();
 	}
 }
 

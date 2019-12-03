@@ -68,69 +68,164 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex - semantic coloring
+	//#region Alex - semantic tokens
 
-	export class SemanticColoringLegend {
+	export class SemanticTokensLegend {
 		public readonly tokenTypes: string[];
 		public readonly tokenModifiers: string[];
 
 		constructor(tokenTypes: string[], tokenModifiers: string[]);
 	}
 
-	export class SemanticColoringArea {
-		/**
-		 * The zero-based line value where this token block begins.
-		 */
-		public readonly line: number;
-		/**
-		 * The actual token block encoded data.
-		 * A certain token (at index `i` is encoded using 5 uint32 integers):
-		 *  - at index `5*i`   - `deltaLine`: token line number, relative to `SemanticColoringArea.line`
-		 *  - at index `5*i+1` - `startCharacter`: token start character offset inside the line (inclusive)
-		 *  - at index `5*i+2` - `endCharacter`: token end character offset inside the line (exclusive)
-		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticColoringLegend.tokenTypes`
-		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticColoringLegend.tokenModifiers`
-		 */
-		public readonly data: Uint32Array;
-
-		constructor(line: number, data: Uint32Array);
+	export class SemanticTokensBuilder {
+		constructor();
+		push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void;
+		build(): Uint32Array;
 	}
 
-	export class SemanticColoring {
-		public readonly areas: SemanticColoringArea[];
+	export class SemanticTokens {
+		readonly resultId?: string;
+		readonly data: Uint32Array;
 
-		constructor(areas: SemanticColoringArea[]);
+		constructor(data: Uint32Array, resultId?: string);
+	}
+
+	export class SemanticTokensEdits {
+		readonly resultId?: string;
+		readonly edits: SemanticTokensEdit[];
+
+		constructor(edits: SemanticTokensEdit[], resultId?: string);
+	}
+
+	export class SemanticTokensEdit {
+		readonly start: number;
+		readonly deleteCount: number;
+		readonly data?: Uint32Array;
+
+		constructor(start: number, deleteCount: number, data?: Uint32Array);
+	}
+
+	export interface SemanticTokensRequestOptions {
+		readonly ranges?: readonly Range[];
+		readonly previousResultId?: string;
 	}
 
 	/**
-	 * The semantic coloring provider interface defines the contract between extensions and
-	 * semantic coloring.
-	 *
-	 *
+	 * The semantic tokens provider interface defines the contract between extensions and
+	 * semantic tokens.
 	 */
-	export interface SemanticColoringProvider {
-
-		provideSemanticColoring(document: TextDocument, token: CancellationToken): ProviderResult<SemanticColoring>;
+	export interface SemanticTokensProvider {
+		/**
+		 * A file can contain many tokens, perhaps even hundreds of thousands tokens. Therefore, to improve
+		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating objects
+		 * and we have decided to represent tokens from a file as an array of integers.
+		 *
+		 *
+		 * In short, each token takes 5 integers to represent, so a specific token i in the file consists of the following fields:
+		 *  - at index `5*i`   - `deltaLine`: token line number, relative to the previous token
+		 *  - at index `5*i+1` - `deltaStart`: token start character, relative to the previous token (relative to 0 or the previous token's start if they are on the same line)
+		 *  - at index `5*i+2` - `length`: the length of the token. A token cannot be multiline.
+		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticTokensLegend.tokenTypes`
+		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticTokensLegend.tokenModifiers`
+		 *
+		 *
+		 * Here is an example for encoding a file with 3 tokens:
+		 * ```
+		 *  [ { line: 2, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 2, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
+		 *    { line: 5, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] } ]
+		 * ```
+		 *
+		 * 1. First of all, a legend must be devised. This legend must be provided up-front and capture all possible token types.
+		 * For this example, we will choose the following legend which is passed in when registering the provider:
+		 * ```
+		 *  { tokenTypes: ['', 'properties', 'types', 'classes'],
+		 *    tokenModifiers: ['', 'private', 'static'] }
+		 * ```
+		 *
+		 * 2. The first transformation is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
+		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Token modifiers are a set and they are looked up by a bitmap,
+		 * so a `tokenModifier` value of `6` is first viewed as a bitmap `0b110`, so it will mean `[tokenModifiers[1], tokenModifiers[2]]` because
+		 * bits 1 and 2 are set. Using this legend, the tokens now are:
+		 * ```
+		 *  [ { line: 2, startChar:  5, length: 3, tokenType: 1, tokenModifiers: 6 }, // 6 is 0b110
+		 *    { line: 2, startChar: 10, length: 4, tokenType: 2, tokenModifiers: 0 },
+		 *    { line: 5, startChar:  2, length: 7, tokenType: 3, tokenModifiers: 0 } ]
+		 * ```
+		 *
+		 * 3. Then, we will encode each token relative to the previous token in the file:
+		 * ```
+		 *  [ { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 1, tokenModifiers: 6 },
+		 *    // this token is on the same line as the first one, so the startChar is made relative
+		 *    { deltaLine: 0, deltaStartChar: 5, length: 4, tokenType: 2, tokenModifiers: 0 },
+		 *    // this token is on a different line than the second one, so the startChar remains unchanged
+		 *    { deltaLine: 3, deltaStartChar: 2, length: 7, tokenType: 3, tokenModifiers: 0 } ]
+		 * ```
+		 *
+		 * 4. Finally, the integers are organized in a single array, which is a memory friendly representation:
+		 * ```
+		 *    // 1st token,  2nd token,  3rd token
+		 *    [  2,5,3,1,6,  0,5,4,2,0,  3,2,7,3,0 ]
+		 * ```
+		 *
+		 * In principle, each call to `provideSemanticTokens` expects a complete representations of the semantic tokens.
+		 * It is possible to simply return all the tokens at each call.
+		 *
+		 * But oftentimes, a small edit in the file will result in a small change to the above delta-based represented tokens.
+		 * (In fact, that is why the above tokens are delta-encoded relative to their corresponding previous tokens).
+		 * In such a case, if VS Code passes in the previous result id, it is possible for an advanced tokenization provider
+		 * to return a delta to the integers array.
+		 *
+		 * To continue with the previous example, suppose a new line has been pressed at the beginning of the file, such that
+		 * all the tokens are now one line lower, and that a new token has appeared since the last result on line 4.
+		 * For example, the tokens might look like:
+		 * ```
+		 *  [ { line: 3, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 3, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
+		 *    { line: 4, startChar:  3, length: 5, tokenType: "properties", tokenModifiers: ["static"] },
+		 *    { line: 6, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] } ]
+		 * ```
+		 *
+		 * The integer encoding of all new tokens would be:
+		 * ```
+		 *     [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
+		 * ```
+		 *
+		 * A smart tokens provider can compute a diff from the previous result to the new result
+		 * ```
+		 *    [  2,5,3,1,6,  0,5,4,2,0,              3,2,7,3,0 ]
+		 *    [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
+		 * ```
+		 * and return as simple integer edits the diff:
+		 * ```
+		 * { edits: [
+		 *    { start:  0, deleteCount: 1, data: [3] } // replace integer at offset 0 with 3
+		 *    { start: 10, deleteCount: 1, data: [1,3,5,1,2,2] } // replace integer at offset 10 with [1,3,5,1,2,2]
+		 * ]}
+		 * ```
+		 * All indices expressed in the returned diff represent indices in the old result array, so they all refer to the previous result state.
+		 */
+		provideSemanticTokens(document: TextDocument, options: SemanticTokensRequestOptions, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	}
 
 	export namespace languages {
 		/**
-		 * Register a semantic coloring provider.
+		 * Register a semantic tokens provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A semantic coloring provider.
+		 * @param provider A semantic tokens provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerSemanticColoringProvider(selector: DocumentSelector, provider: SemanticColoringProvider, legend: SemanticColoringLegend): Disposable;
+		export function registerSemanticTokensProvider(selector: DocumentSelector, provider: SemanticTokensProvider, legend: SemanticTokensLegend): Disposable;
 	}
 
 	//#endregion
 
-	// #region Joh - code insets, https://github.com/microsoft/vscode/issues/85682
+	//#region editor insets: https://github.com/microsoft/vscode/issues/85682
 
 	export interface WebviewEditorInset {
 		readonly editor: TextEditor;
@@ -147,7 +242,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh - read/write in chunks, https://github.com/microsoft/vscode/issues/84515
+	//#region read/write in chunks: https://github.com/microsoft/vscode/issues/84515
 
 	export interface FileSystemProvider {
 		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
@@ -158,7 +253,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Rob: search provider
+	//#region TextSearchProvider: https://github.com/microsoft/vscode/issues/59921
 
 	/**
 	 * The parameters of a query for text search.
@@ -303,32 +398,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The parameters of a query for file search.
-	 */
-	export interface FileSearchQuery {
-		/**
-		 * The search pattern to match against file paths.
-		 */
-		pattern: string;
-	}
-
-	/**
-	 * Options that apply to file search.
-	 */
-	export interface FileSearchOptions extends SearchOptions {
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults?: number;
-
-		/**
-		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
-		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
-		 */
-		session?: CancellationToken;
-	}
-
-	/**
 	 * A preview of the text result.
 	 */
 	export interface TextSearchMatchPreview {
@@ -388,6 +457,50 @@ declare module 'vscode' {
 	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
+	 * A TextSearchProvider provides search results for text results inside files in the workspace.
+	 */
+	export interface TextSearchProvider {
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+	}
+
+	//#endregion
+
+	//#region FileSearchProvider: https://github.com/microsoft/vscode/issues/73524
+
+	/**
+	 * The parameters of a query for file search.
+	 */
+	export interface FileSearchQuery {
+		/**
+		 * The search pattern to match against file paths.
+		 */
+		pattern: string;
+	}
+
+	/**
+	 * Options that apply to file search.
+	 */
+	export interface FileSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults?: number;
+
+		/**
+		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
+		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 */
+		session?: CancellationToken;
+	}
+
+	/**
 	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
 	 *
 	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
@@ -406,19 +519,33 @@ declare module 'vscode' {
 		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
-	/**
-	 * A TextSearchProvider provides search results for text results inside files in the workspace.
-	 */
-	export interface TextSearchProvider {
+	export namespace workspace {
 		/**
-		 * Provide results that match the given text pattern.
-		 * @param query The parameters for this query.
-		 * @param options A set of options to consider while searching.
-		 * @param progress A progress callback that must be invoked for all results.
-		 * @param token A cancellation token.
+		 * Register a search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
+
+		/**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
 	}
+
+	//#endregion
+
+	//#region findTextInFiles: https://github.com/microsoft/vscode/issues/59924
 
 	/**
 	 * Options that can be set on a findTextInFiles search.
@@ -485,28 +612,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * Register a search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
-
-		/**
-		 * Register a text search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
-
-		/**
 		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param callback A callback, called for each result
@@ -528,7 +633,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: diff command, https://github.com/microsoft/vscode/issues/84899
+	//#region diff command: https://github.com/microsoft/vscode/issues/84899
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -561,7 +666,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: decorations, https://github.com/microsoft/vscode/issues/54938
+	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
 	export class Decoration {
 		letter?: string;
@@ -582,7 +687,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region André: debug
+	//#region André: debug API for inline debug adapters https://github.com/microsoft/vscode/issues/85544
 
 	/**
 	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
@@ -592,13 +697,22 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements this interface.
+	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements the DebugAdapter interface.
 	 */
-	export interface DebugAdapter {
+	export interface DebugAdapter extends Disposable {
 
+		/**
+		 * An event which fires when the debug adapter sends a Debug Adapter Protocol message to VS Code.
+		 * Messages can be requests, responses, or events.
+		 */
 		readonly onSendMessage: Event<DebugProtocolMessage>;
-		readonly onError: Event<Error>;
 
+		/**
+		 * Handle a Debug Adapter Protocol message.
+		 * Messages can be requests, responses, or events.
+		 * Results or errors are returned via onSendMessage events.
+		 * @param message A Debug Adapter Protocol message
+		 */
 		handleMessage(message: DebugProtocolMessage): void;
 	}
 
@@ -625,7 +739,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Rob, Matt: logging
+	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
 
 	/**
 	 * The severity level of a log message
@@ -736,7 +850,76 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal
+	//#region Terminal data write event https://github.com/microsoft/vscode/issues/78502
+
+	export interface TerminalDataWriteEvent {
+		/**
+		 * The [terminal](#Terminal) for which the data was written.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The data being written.
+		 */
+		readonly data: string;
+	}
+
+	namespace window {
+		/**
+		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
+		 * words, this provides access to the raw data stream from the process running within the
+		 * terminal, including VT sequences.
+		 */
+		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
+	}
+
+	//#endregion
+
+	//#region Terminal exit status https://github.com/microsoft/vscode/issues/62103
+
+	export interface TerminalExitStatus {
+		/**
+		 * The exit code that a terminal exited with, it can have the following values:
+		 * - Zero: the terminal process or custom execution succeeded.
+		 * - Non-zero: the terminal process or custom execution failed.
+		 * - `undefined`: the user forcefully closed the terminal or a custom execution exited
+		 *   without providing an exit code.
+		 */
+		readonly code: number | undefined;
+	}
+
+	export interface Terminal {
+		/**
+		 * The exit status of the terminal, this will be undefined while the terminal is active.
+		 *
+		 * **Example:** Show a notification with the exit code when the terminal exits with a
+		 * non-zero exit code.
+		 * ```typescript
+		 * window.onDidCloseTerminal(t => {
+		 *   if (t.exitStatus && t.exitStatus.code) {
+		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
+		 *   }
+		 * });
+		 * ```
+		 */
+		readonly exitStatus: TerminalExitStatus | undefined;
+	}
+
+	//#endregion
+
+	//#region Terminal creation options https://github.com/microsoft/vscode/issues/63052
+
+	export interface Terminal {
+		/**
+		 * The object used to initialize the terminal, this is useful for things like detecting the
+		 * shell type of shells not launched by the extension or detecting what folder the shell was
+		 * launched in.
+		 */
+		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+	}
+
+	//#endregion
+
+	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
 
 	/**
 	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
@@ -752,71 +935,20 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
-	export interface TerminalDataWriteEvent {
-		/**
-		 * The [terminal](#Terminal) for which the data was written.
-		 */
-		readonly terminal: Terminal;
-		/**
-		 * The data being written.
-		 */
-		readonly data: string;
-	}
-
-	export interface TerminalExitStatus {
-		/**
-		 * The exit code that a terminal exited with, it can have the following values:
-		 * - Zero: the terminal process or custom execution succeeded.
-		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcefully closed the terminal or a custom execution exited
-		 *   without providing an exit code.
-		 */
-		readonly code: number | undefined;
-	}
-
 	namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
 		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
-
-		/**
-		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
-		 * words, this provides access to the raw data stream from the process running within the
-		 * terminal, including VT sequences.
-		 */
-		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 	}
 
 	export interface Terminal {
-		/**
-		 * The object used to initialize the terminal, this is useful for things like detecting the
-		 * shell type of shells not launched by the extension or detecting what folder the shell was
-		 * launched in.
-		 */
-		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
-
 		/**
 		 * The current dimensions of the terminal. This will be `undefined` immediately after the
 		 * terminal is created as the dimensions are not known until shortly after the terminal is
 		 * created.
 		 */
 		readonly dimensions: TerminalDimensions | undefined;
-
-		/**
-		 * The exit status of the terminal, this will be undefined while the terminal is active.
-		 *
-		 * **Example:** Show a notification with the exit code when the terminal exits with a
-		 * non-zero exit code.
-		 * ```typescript
-		 * window.onDidCloseTerminal(t => {
-		 *   if (t.exitStatus && t.exitStatus.code) {
-		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
-		 *   }
-		 * });
-		 * ```
-		 */
-		readonly exitStatus: TerminalExitStatus | undefined;
 	}
 
 	//#endregion
@@ -838,8 +970,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree View
-
+	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
@@ -872,9 +1003,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region CustomExecution
-
-
+	//#region CustomExecution: https://github.com/microsoft/vscode/issues/81007
 	/**
 	 * A task to execute
 	 */
@@ -893,7 +1022,9 @@ declare module 'vscode' {
 		 */
 		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
+	//#endregion
 
+	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
@@ -902,7 +1033,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	// #region Ben - status bar item with ID and Name
+	//#region Ben - status bar item with ID and Name
 
 	export namespace window {
 
@@ -950,7 +1081,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// #region Ben - extension auth flow (desktop+web)
+	//#region Ben - extension auth flow (desktop+web)
 
 	export interface AppUriOptions {
 		payload?: {
@@ -970,7 +1101,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Custom editors, mjbvz, https://github.com/microsoft/vscode/issues/77131
+	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	/**
 	 * Defines how a webview editor interacts with VS Code.
@@ -1088,7 +1219,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region joh, insert/replace completions: https://github.com/microsoft/vscode/issues/10266
+	//#region insert/replace completions: https://github.com/microsoft/vscode/issues/10266
 
 	export interface CompletionItem {
 
@@ -1108,7 +1239,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region chrmarti, pelmers - allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
+	//#region allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
 
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 		/**
@@ -1119,7 +1250,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region mjbvz - Surfacing reasons why a code action cannot be applied to users — https://github.com/microsoft/vscode/issues/85160
+	//#region Surfacing reasons why a code action cannot be applied to users: https://github.com/microsoft/vscode/issues/85160
 
 	export interface CodeAction {
 		/**

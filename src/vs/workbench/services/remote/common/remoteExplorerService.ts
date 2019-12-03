@@ -10,16 +10,16 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { URI } from 'vs/base/common/uri';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IEditableData } from 'vs/workbench/common/views';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
 
 export interface Tunnel {
 	remote: number;
-	localUri: URI;
+	localAddress: string;
 	local?: number;
 	name?: string;
 	description?: string;
@@ -46,7 +46,7 @@ export class TunnelModel extends Disposable {
 				if (tunnel.localAddress) {
 					this.forwarded.set(tunnel.tunnelRemotePort, {
 						remote: tunnel.tunnelRemotePort,
-						localUri: tunnel.localAddress,
+						localAddress: tunnel.localAddress,
 						local: tunnel.tunnelLocalPort
 					});
 				}
@@ -62,7 +62,7 @@ export class TunnelModel extends Disposable {
 			if (!this.forwarded.has(tunnel.tunnelRemotePort) && tunnel.localAddress) {
 				this.forwarded.set(tunnel.tunnelRemotePort, {
 					remote: tunnel.tunnelRemotePort,
-					localUri: tunnel.localAddress,
+					localAddress: tunnel.localAddress,
 					local: tunnel.tunnelLocalPort
 				});
 			}
@@ -85,7 +85,7 @@ export class TunnelModel extends Disposable {
 					local: tunnel.tunnelLocalPort,
 					name: name,
 					closeable: true,
-					localUri: tunnel.localAddress
+					localAddress: tunnel.localAddress
 				};
 				this.forwarded.set(remote, newForward);
 				this._onForwardPort.fire(newForward);
@@ -104,8 +104,8 @@ export class TunnelModel extends Disposable {
 		return this.tunnelService.closeTunnel(remote);
 	}
 
-	address(remote: number): URI | undefined {
-		return (this.forwarded.get(remote) || this.published.get(remote))?.localUri;
+	address(remote: number): string | undefined {
+		return (this.forwarded.get(remote) || this.published.get(remote))?.localAddress;
 	}
 }
 
@@ -115,6 +115,9 @@ export interface IRemoteExplorerService {
 	targetType: string;
 	readonly helpInformation: HelpInformation[];
 	readonly tunnelModel: TunnelModel;
+	onDidChangeEditable: Event<number | undefined>;
+	setEditable(remote: number | undefined, data: IEditableData | null): void;
+	getEditableData(remote: number | undefined): IEditableData | undefined;
 }
 
 export interface HelpInformation {
@@ -155,10 +158,13 @@ const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInforma
 class RemoteExplorerService implements IRemoteExplorerService {
 	public _serviceBrand: undefined;
 	private _targetType: string = '';
-	private _onDidChangeTargetType: Emitter<string> = new Emitter<string>();
-	public onDidChangeTargetType: Event<string> = this._onDidChangeTargetType.event;
+	private readonly _onDidChangeTargetType: Emitter<string> = new Emitter<string>();
+	public readonly onDidChangeTargetType: Event<string> = this._onDidChangeTargetType.event;
 	private _helpInformation: HelpInformation[] = [];
 	private _tunnelModel: TunnelModel;
+	private editable: { remote: number | undefined, data: IEditableData } | undefined;
+	private readonly _onDidChangeEditable: Emitter<number | undefined> = new Emitter();
+	public readonly onDidChangeEditable: Event<number | undefined> = this._onDidChangeEditable.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -211,6 +217,19 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	get tunnelModel(): TunnelModel {
 		return this._tunnelModel;
+	}
+
+	setEditable(remote: number | undefined, data: IEditableData | null): void {
+		if (!data) {
+			this.editable = undefined;
+		} else {
+			this.editable = { remote, data };
+		}
+		this._onDidChangeEditable.fire(remote);
+	}
+
+	getEditableData(remote: number | undefined): IEditableData | undefined {
+		return this.editable && this.editable.remote === remote ? this.editable.data : undefined;
 	}
 }
 

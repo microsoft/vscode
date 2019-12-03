@@ -26,6 +26,7 @@ export interface IIconLabelValueOptions {
 	labelEscapeNewLines?: boolean;
 	descriptionMatches?: IMatch[];
 	readonly separator?: string;
+	readonly domId?: string;
 }
 
 class FastLabelNode {
@@ -178,7 +179,7 @@ class Label {
 			if (!this.singleLabel) {
 				this.container.innerHTML = '';
 				dom.removeClass(this.container, 'multiple');
-				this.singleLabel = dom.append(this.container, dom.$('a.label-name'));
+				this.singleLabel = dom.append(this.container, dom.$('a.label-name', { id: options?.domId }));
 			}
 
 			this.singleLabel.textContent = label;
@@ -189,8 +190,9 @@ class Label {
 
 			for (let i = 0; i < label.length; i++) {
 				const l = label[i];
+				const id = options?.domId && `${options?.domId}_${i}`;
 
-				dom.append(this.container, dom.$('a.label-name', { 'data-icon-label-count': label.length, 'data-icon-label-index': i }, l));
+				dom.append(this.container, dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i }, l));
 
 				if (i < label.length - 1) {
 					dom.append(this.container, dom.$('span.label-separator', undefined, options?.separator || '/'));
@@ -238,7 +240,7 @@ class LabelWithHighlights {
 			if (!this.singleLabel) {
 				this.container.innerHTML = '';
 				dom.removeClass(this.container, 'multiple');
-				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name')), this.supportCodicons);
+				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), this.supportCodicons);
 			}
 
 			this.singleLabel.set(label, options?.matches, options?.title, options?.labelEscapeNewLines);
@@ -254,8 +256,9 @@ class LabelWithHighlights {
 			for (let i = 0; i < label.length; i++) {
 				const l = label[i];
 				const m = matches ? matches[i] : undefined;
+				const id = options?.domId && `${options?.domId}_${i}`;
 
-				const name = dom.$('a.label-name', { 'data-icon-label-count': label.length, 'data-icon-label-index': i });
+				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i });
 				const highlightedLabel = new HighlightedLabel(dom.append(this.container, name), this.supportCodicons);
 				highlightedLabel.set(l, m, options?.title, options?.labelEscapeNewLines);
 
