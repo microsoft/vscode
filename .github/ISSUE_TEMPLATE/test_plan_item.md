@@ -3,7 +3,7 @@ name: Test Plan Item
 about: Create a test plan item describing how to test a feature
 ---
 
-Refs: <!-- Refer to the issue that this issue is testing. -->
+Refs: <!-- Refer to the issue that this test plan item is testing. -->
 
 - [ ] Mac
 - [ ] Linux
