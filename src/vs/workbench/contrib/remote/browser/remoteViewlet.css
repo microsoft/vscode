@@ -35,5 +35,5 @@
 }
 
 .monaco-workbench .part > .title > .title-actions .switch-remote > .monaco-select-box {
-	padding-left: 3px;
+	padding: 0 22px 0 6px;
 }
