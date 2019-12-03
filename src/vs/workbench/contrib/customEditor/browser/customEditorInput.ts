@@ -17,6 +17,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -123,7 +124,14 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 			return false; // save cancelled
 		}
 
-		return await this._model.saveAs(this._editorResource, target, options);
+		if (!await this._model.saveAs(this._editorResource, target, options)) {
+			return false;
+		}
+
+		const replacement = this.handleMove(groupId, target) || this.instantiationService.createInstance(FileEditorInput, target, undefined, undefined);
+
+		await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], groupId);
+		return true;
 	}
 
 	public revert(options?: IRevertOptions): Promise<boolean> {
