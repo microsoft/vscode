@@ -20,6 +20,7 @@
 	 */
 	transform: translate3d(0px, 0px, 0px);
 	overflow: visible; /* when a new layer is created, we need to set overflow visible to avoid clipping the menubar */
+	position: relative;
 }
 
 .monaco-workbench .activitybar > .content {
