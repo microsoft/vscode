@@ -206,7 +206,7 @@ export class SearchView extends ViewletPane {
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
 
-		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(500));
+		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(2000));
 
 		this.actions = [
 			this._register(this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)),

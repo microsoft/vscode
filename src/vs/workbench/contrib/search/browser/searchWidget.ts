@@ -466,6 +466,7 @@ export class SearchWidget extends Widget {
 		}
 
 		if (keyboardEvent.equals(KeyCode.Enter)) {
+			this.searchInput.onSearchSubmit();
 			this.submitSearch();
 			keyboardEvent.preventDefault();
 		}
