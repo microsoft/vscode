@@ -396,7 +396,7 @@ const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 	const panelService = accessor.get(IPanelService);
 	const fileService = accessor.get(IFileService);
 	const configurationService = accessor.get(IConfigurationService);
-	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
+	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
 
 	return openSearchView(viewletService, panelService, configurationService, true).then(searchView => {
 		if (resources && resources.length && searchView) {
