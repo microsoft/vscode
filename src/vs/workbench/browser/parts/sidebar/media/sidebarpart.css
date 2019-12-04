@@ -17,7 +17,9 @@
 	transform: translate3d(0px, 0px, 0px);
 }
 
-
+.monaco-workbench .part.sidebar > .content {
+	overflow: hidden;
+}
 
 .monaco-workbench.nosidebar > .part.sidebar {
 	display: none !important;
