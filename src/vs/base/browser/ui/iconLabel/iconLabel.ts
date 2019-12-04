@@ -163,11 +163,18 @@ export class IconLabel extends Disposable {
 
 class Label {
 
+	private label: string | string[] | undefined = undefined;
 	private singleLabel: HTMLElement | undefined = undefined;
 
 	constructor(private container: HTMLElement) { }
 
 	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
+		if (this.label === label) {
+			return;
+		}
+
+		this.label = label;
+
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerHTML = '';
@@ -217,11 +224,18 @@ function splitMatches(labels: string[], separator: string, matches: IMatch[] | u
 
 class LabelWithHighlights {
 
+	private label: string | string[] | undefined = undefined;
 	private singleLabel: HighlightedLabel | undefined = undefined;
 
 	constructor(private container: HTMLElement, private supportCodicons: boolean) { }
 
 	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {
+		if (this.label === label) {
+			return;
+		}
+
+		this.label = label;
+
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
 				this.container.innerHTML = '';
