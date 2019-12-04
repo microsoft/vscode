@@ -181,8 +181,7 @@ body.web {
 	-webkit-appearance: none;
 	-moz-appearance: none;
 	/* Hides inner border from FF */
-	border-block: none;
-	border-inline: none;
+	border: 1px solid;
 }
 
 .monaco-workbench .select-container {
