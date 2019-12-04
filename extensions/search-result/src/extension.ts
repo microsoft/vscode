@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
-const RESULT_LINE_REGEX = /^(\s+)(\d+)(?::| )(\s+)(.*)$/;
+const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const SEARCH_RESULT_SELECTOR = { language: 'search-result' };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
 const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
@@ -66,7 +66,13 @@ export function activate(context: vscode.ExtensionContext) {
 					return [];
 				}
 
-				return [lineResult.location];
+				const translateRangeSidewaysBy = (r: vscode.Range, n: number) =>
+					r.with({ start: new vscode.Position(r.start.line, Math.max(0, n - r.start.character)), end: new vscode.Position(r.end.line, Math.max(0, n - r.end.character)) });
+
+				return [{
+					...lineResult.location,
+					targetSelectionRange: translateRangeSidewaysBy(lineResult.location.targetSelectionRange!, position.character - 1)
+				}];
 			}
 		}),
 
@@ -166,13 +172,14 @@ function parseSearchResults(document: vscode.TextDocument, token: vscode.Cancell
 
 		const resultLine = RESULT_LINE_REGEX.exec(line);
 		if (resultLine) {
-			const [, indentation, _lineNumber, resultIndentation] = resultLine;
+			const [, indentation, _lineNumber, seperator, resultIndentation] = resultLine;
 			const lineNumber = +_lineNumber - 1;
-			const resultStart = (indentation + _lineNumber + ':' + resultIndentation).length;
+			const resultStart = (indentation + _lineNumber + seperator + resultIndentation).length;
+			const metadataOffset = (indentation + _lineNumber + seperator).length;
 
 			const location: vscode.LocationLink = {
 				targetRange: new vscode.Range(Math.max(lineNumber - 3, 0), 0, lineNumber + 3, line.length),
-				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, line.length),
+				targetSelectionRange: new vscode.Range(lineNumber, metadataOffset, lineNumber, metadataOffset),
 				targetUri: currentTarget,
 				originSelectionRange: new vscode.Range(i, resultStart, i, line.length),
 			};
