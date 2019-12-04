@@ -695,7 +695,7 @@ configurationRegistry.registerConfiguration({
 		'search.exclude': {
 			type: 'object',
 			markdownDescription: nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
-			default: { '**/node_modules': true, '**/bower_components': true },
+			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
 			additionalProperties: {
 				anyOf: [
 					{
