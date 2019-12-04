@@ -84,6 +84,13 @@
 					"type": "boolean",
 					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
 				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"type": "string"
+					}
+				},
 				"runArgs": {
 					"type": "array",
 					"description": "The arguments required when starting in the container.",
