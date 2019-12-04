@@ -73,6 +73,7 @@
 
 .monaco-editor .parameter-hints-widget.multiple .controls {
 	display: flex;
+	padding: 0 2px;
 }
 
 .monaco-editor .parameter-hints-widget.multiple .button {
