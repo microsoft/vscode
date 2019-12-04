@@ -239,7 +239,7 @@ export const refreshActiveEditorSearch =
 
 		const textModel = model as ITextModel;
 
-		const header = textModel.getValueInRange(new Range(1, 1, 5, 1))
+		const header = textModel.getValueInRange(new Range(1, 1, 5, 1), EndOfLinePreference.LF)
 			.split(lineDelimiter)
 			.filter(line => line.indexOf('# ') === 0);
 
