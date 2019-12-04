@@ -232,7 +232,8 @@ export class DebugService implements IDebugService {
 		if (this.previousState !== state) {
 			this.debugState.set(getStateLabel(state));
 			this.inDebugMode.set(state !== State.Inactive);
-			this.debugUx.set(!!(state !== State.Inactive || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+			// Only show the simple ux if debug is not yet started and if no launch.json exists
+			this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
 		}
