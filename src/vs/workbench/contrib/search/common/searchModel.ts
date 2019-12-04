@@ -999,7 +999,7 @@ export class SearchModel extends Disposable {
 		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
 
 		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
-		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 100 : 0));
+		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
 		const currentRequest = this.searchService.textSearch(this._searchQuery, this.currentCancelTokenSource.token, p => {
