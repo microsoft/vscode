@@ -325,7 +325,11 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		// set decorations for caller ranges (if in the same file)
 		let decorations: IModelDeltaDecoration[] = [];
 		let fullRange: IRange | undefined;
-		for (const loc of element.locations) {
+		let locations = element.locations;
+		if (!locations) {
+			locations = [{ uri: element.item.uri, range: element.item.selectionRange }];
+		}
+		for (const loc of locations) {
 			if (loc.uri.toString() === previewUri.toString()) {
 				decorations.push({ range: loc.range, options });
 				fullRange = !fullRange ? loc.range : Range.plusRange(loc.range, fullRange);
