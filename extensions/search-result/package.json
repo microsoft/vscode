@@ -19,6 +19,11 @@
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:search-result ./tsconfig.json"
   },
   "contributes": {
+    "configurationDefaults": {
+      "[search-result]": {
+        "editor.lineNumbers": "off"
+      }
+    },
     "commands": [
       {
         "command": "searchResult.rerunSearch",

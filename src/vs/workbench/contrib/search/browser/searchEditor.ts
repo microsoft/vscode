@@ -291,8 +291,6 @@ export const createEditorFromSearchResult =
 
 		const editor = await editorService.openEditor(possible);
 		const control = editor?.getControl()!;
-		control.updateOptions({ lineNumbers: 'off' });
-
 		const model = control.getModel() as ITextModel;
 
 		model.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
