@@ -335,6 +335,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		return {
 			override: (async () => {
 				const standardEditor = await this.editorService.openEditor(editor, { ...options, ignoreOverrides: true }, group);
+				// Give a moment to make sure the editor is showing.
+				// Otherwise the focus shift can cause the prompt to be dismissed right away.
+				await new Promise(resolve => setTimeout(resolve, 20));
 				const selectedEditor = await this.customEditorService.promptOpenWith(resource, options, group);
 				if (selectedEditor && selectedEditor.input) {
 					await group.replaceEditors([{
