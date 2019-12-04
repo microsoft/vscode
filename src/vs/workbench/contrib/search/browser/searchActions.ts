@@ -389,33 +389,57 @@ export class ExpandAllAction extends Action {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			const viewer = searchView.getControl();
-
-			const navigator = viewer.navigate();
-			let node = navigator.first();
-			let expandFolderMatchLevel = false;
-			if (node instanceof FolderMatch) {
-				expandFolderMatchLevel = true;
-				while (node = navigator.next()) {
-					if (node instanceof FileMatch) {
-						expandFolderMatchLevel = false;
-						break;
-					}
-				}
-			}
-
-			if (expandFolderMatchLevel) {
-				node = navigator.first();
-				do {
-					if (node instanceof FolderMatch) {
-						viewer.expand(node);
-					}
-				} while (node = navigator.next());
-			} else {
-				viewer.expandAll();
-			}
-
+			viewer.expandAll();
 			viewer.domFocus();
 			viewer.focusFirst();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+export class ToggleCollapseAndExpandAction extends Action {
+	static readonly ID: string = 'search.action.collapseOrExpandSearchResults';
+	static LABEL: string = nls.localize('ToggleCollapseAndExpandAction.label', "Toggle Collapse and Expand");
+
+	constructor(id: string, label: string,
+		private collapseAction: CollapseDeepestExpandedLevelAction,
+		private expandAction: ExpandAllAction,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
+	) {
+		super(id, label, collapseAction.class);
+		this.update();
+	}
+
+	update(): void {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		this.enabled = !!searchView && searchView.hasSearchResults();
+	}
+
+	isSomeCollapsible(): boolean {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		if (searchView) {
+			const viewer = searchView.getControl();
+			const navigator = viewer.navigate();
+			let node = navigator.first();
+			while (node = navigator.next()) {
+				if (!viewer.isCollapsed(node)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	run(): Promise<void> {
+		if (this.isSomeCollapsible()) {
+			this.collapseAction.run();
+			if (!this.isSomeCollapsible()) {
+				this.class = this.expandAction.class;
+			}
+		} else {
+			this.expandAction.run();
+			this.class = this.collapseAction.class;
 		}
 		return Promise.resolve(undefined);
 	}
