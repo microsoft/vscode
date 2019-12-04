@@ -7,7 +7,7 @@
 	cursor: pointer;
 }
 
-.codicon-debug-hint:not(*[class*='codicon-debug-breakpoint']) {
+.codicon-debug-hint:not([class*='codicon-debug-breakpoint']) {
 	opacity: .4 !important;
 }
 
