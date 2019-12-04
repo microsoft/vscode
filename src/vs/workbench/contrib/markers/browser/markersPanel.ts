@@ -37,7 +37,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Separator, ActionViewItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { domEvent } from 'vs/base/browser/event';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
@@ -46,6 +46,7 @@ import { MementoObject } from 'vs/workbench/common/memento';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterator<ITreeElement<TreeElement>> {
 	const markersIt = Iterator.fromArray(resourceMarkers.markers);
@@ -520,10 +521,14 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		if (filtered === 0) {
 			this.messageBoxContainer.style.display = 'block';
 			this.messageBoxContainer.setAttribute('tabIndex', '0');
-			if (total > 0) {
-				this.renderFilteredByFilterMessage(this.messageBoxContainer);
+			if (this.filterAction.activeFile) {
+				this.renderFilterMessageForActiveFile(this.messageBoxContainer);
 			} else {
-				this.renderNoProblemsMessage(this.messageBoxContainer);
+				if (total > 0) {
+					this.renderFilteredByFilterMessage(this.messageBoxContainer);
+				} else {
+					this.renderNoProblemsMessage(this.messageBoxContainer);
+				}
 			}
 		} else {
 			this.messageBoxContainer.style.display = 'none';
@@ -536,16 +541,50 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 	}
 
+	private renderFilterMessageForActiveFile(container: HTMLElement): void {
+		if (this.currentActiveResource && this.markersWorkbenchService.markersModel.getResourceMarkers(this.currentActiveResource)) {
+			this.renderFilteredByFilterMessage(container);
+		} else {
+			this.renderNoProblemsMessageForActiveFile(container);
+		}
+	}
+
 	private renderFilteredByFilterMessage(container: HTMLElement) {
 		const span1 = dom.append(container, dom.$('span'));
 		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('clearFilter', "Clear Filters");
+		link.setAttribute('tabIndex', '0');
+		const span2 = dom.append(container, dom.$('span'));
+		span2.textContent = '.';
+		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.clearFilters());
+		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				this.clearFilters();
+				e.stopPropagation();
+			}
+		});
 		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
+	}
+
+	private renderNoProblemsMessageForActiveFile(container: HTMLElement) {
+		const span = dom.append(container, dom.$('span'));
+		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT;
+		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT);
 	}
 
 	private renderNoProblemsMessage(container: HTMLElement) {
 		const span = dom.append(container, dom.$('span'));
 		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
 		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
+	}
+
+	private clearFilters(): void {
+		this.filterAction.filterText = '';
+		this.filterAction.excludedFiles = false;
+		this.filterAction.showErrors = true;
+		this.filterAction.showWarnings = true;
+		this.filterAction.showInfos = true;
 	}
 
 	private autoReveal(focus: boolean = false): void {
