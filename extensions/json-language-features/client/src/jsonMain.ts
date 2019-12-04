@@ -351,6 +351,8 @@ function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 function getSettings(): Settings {
 	let httpSettings = workspace.getConfiguration('http');
 
+	let resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get('json.maxItemsComputed')))) || 5000;
+
 	let settings: Settings = {
 		http: {
 			proxy: httpSettings.get('proxy'),
@@ -358,7 +360,7 @@ function getSettings(): Settings {
 		},
 		json: {
 			schemas: [],
-			resultLimit: 5000
+			resultLimit
 		}
 	};
 	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
