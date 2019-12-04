@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextQuery, IPatternInfo, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import * as network from 'vs/base/common/network';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ITextModel, TrackedRangeStickiness, EndOfLinePreference } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
@@ -20,6 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
@@ -277,16 +278,25 @@ export const createEditorFromSearchResult =
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
 		const results = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter);
-
+		const contents = results.text.join(lineDelimiter);
 		let possible = {
-			contents: results.text.join(lineDelimiter),
+			contents,
 			mode: 'search-result',
 			resource: URI.from({ scheme: network.Schemas.untitled, path: searchTerm })
 		};
 
 		let id = 0;
-		while (editorService.getOpened(possible)) {
+		let existing = editorService.getOpened(possible);
+		while (existing) {
+			if (existing instanceof UntitledTextEditorInput) {
+				const model = await existing.resolve();
+				const existingContents = model.textEditorModel.getValue(EndOfLinePreference.LF);
+				if (existingContents === contents) {
+					break;
+				}
+			}
 			possible.resource = possible.resource.with({ path: searchTerm + '-' + ++id });
+			existing = editorService.getOpened(possible);
 		}
 
 		const editor = await editorService.openEditor(possible);
