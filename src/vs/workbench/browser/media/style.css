@@ -180,6 +180,9 @@ body.web {
 .monaco-workbench select {
 	-webkit-appearance: none;
 	-moz-appearance: none;
+	/* Hides inner border from FF */
+	border-block: none;
+	border-inline: none;
 }
 
 .monaco-workbench .select-container {
