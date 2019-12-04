@@ -51,7 +51,6 @@
 
 .monaco-workbench .part.statusbar > .left-items {
 	flex-grow: 1; /* left items push right items to the far right end */
-	overflow: hidden; /* Hide the overflowing entries */
 }
 
 .monaco-workbench  .part.statusbar > .items-container > .statusbar-item {
