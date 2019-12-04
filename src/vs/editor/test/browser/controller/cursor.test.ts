@@ -3641,7 +3641,7 @@ suite('Editor Controller - Indentation Rules', () => {
 						// ^(.*\*/)?\s*\}.*$
 						decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
 						// ^.*\{[^}"']*$
-						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
+						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)(\/\/.*|\/\*.*?\*\/)?$/
 					},
 					onEnterRules: javascriptOnEnterRules
 				}));
@@ -3687,6 +3687,23 @@ suite('Editor Controller - Indentation Rules', () => {
 
 		model.dispose();
 		mode.dispose();
+	});
+
+	test('issue #86176: JS: increaseIndentPattern does not work for comments including apostrophes', () => {
+		usingCursor({
+			text: [
+				'if (true) { \\ \'Apostrophe comment \'console.log()',
+				'}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: { autoIndent: 'full' }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 30, false);
+			assertCursor(cursor, new Selection(1, 30, 1, 30));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(2, 5, 2, 5));
+		});
 	});
 
 	test('issue #38261: TAB key results in bizarre indentation in C++ mode ', () => {
