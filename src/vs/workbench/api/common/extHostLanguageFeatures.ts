@@ -110,7 +110,7 @@ class CodeLensAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
-		private readonly _provider: vscode.CodeLensProvider
+		private readonly _provider: vscode.CodeLensProvider,
 	) { }
 
 	provideCodeLenses(resource: URI, token: CancellationToken): Promise<extHostProtocol.ICodeLensListDto | undefined> {
@@ -140,7 +140,7 @@ class CodeLensAdapter {
 			}
 
 			return result;
-		});
+		}, e => reportError('Failed to provide code lense', e));
 	}
 
 	resolveCodeLens(symbol: extHostProtocol.ICodeLensDto, token: CancellationToken): Promise<extHostProtocol.ICodeLensDto | undefined> {
@@ -171,7 +171,7 @@ class CodeLensAdapter {
 			newLens = newLens || lens;
 			symbol.command = this._commands.toInternal(newLens.command || CodeLensAdapter._badCmd, disposables);
 			return symbol;
-		});
+		}, e => reportError('Failed to resolve code lense', e));
 	}
 
 	releaseCodeLenses(cachedId: number): void {
@@ -195,7 +195,9 @@ class DefinitionAdapter {
 	provideDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideDefinition(doc, pos, token)).then(convertToLocationLinks);
+		return asPromise(() => this._provider.provideDefinition(doc, pos, token)).then(
+			convertToLocationLinks,
+			e => reportError('Failed to provide definition', e));
 	}
 }
 
@@ -209,7 +211,9 @@ class DeclarationAdapter {
 	provideDeclaration(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideDeclaration(doc, pos, token)).then(convertToLocationLinks);
+		return asPromise(() => this._provider.provideDeclaration(doc, pos, token)).then(
+			convertToLocationLinks,
+			e => reportError('Failed to provide declaration', e));
 	}
 }
 
@@ -223,7 +227,9 @@ class ImplementationAdapter {
 	provideImplementation(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideImplementation(doc, pos, token)).then(convertToLocationLinks);
+		return asPromise(() => this._provider.provideImplementation(doc, pos, token)).then(
+			convertToLocationLinks,
+			e => reportError('Failed to provide implementation', e));
 	}
 }
 
@@ -237,7 +243,9 @@ class TypeDefinitionAdapter {
 	provideTypeDefinition(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.LocationLink[]> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
-		return asPromise(() => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToLocationLinks);
+		return asPromise(() => this._provider.provideTypeDefinition(doc, pos, token)).then(
+			convertToLocationLinks,
+			e => reportError('Failed to provide type definition', e));
 	}
 }
 
@@ -265,7 +273,7 @@ class HoverAdapter {
 			}
 
 			return typeConvert.Hover.from(value);
-		});
+		}, e => reportError('Failed to provide hover', e));
 	}
 }
 
@@ -286,7 +294,7 @@ class DocumentHighlightAdapter {
 				return value.map(typeConvert.DocumentHighlight.from);
 			}
 			return undefined;
-		});
+		}, e => reportError('Failed to provide document highlights', e));
 	}
 }
 
@@ -306,7 +314,7 @@ class ReferenceAdapter {
 				return value.map(typeConvert.location.from);
 			}
 			return undefined;
-		});
+		}, e => reportError('Failed to provide references', e));
 	}
 }
 
@@ -395,7 +403,7 @@ class CodeActionAdapter {
 			}
 
 			return { cacheId, actions };
-		});
+		}, e => reportError('Failed to provide custom code actions', e));
 	}
 
 	public releaseCodeActions(cachedId: number): void {
@@ -425,7 +433,7 @@ class DocumentFormattingAdapter {
 				return value.map(typeConvert.TextEdit.from);
 			}
 			return undefined;
-		});
+		}, e => reportError('Failed to provide formatting edits', e));
 	}
 }
 
@@ -446,7 +454,7 @@ class RangeFormattingAdapter {
 				return value.map(typeConvert.TextEdit.from);
 			}
 			return undefined;
-		});
+		}, e => reportError('Failed to provide range formatting edits', e));
 	}
 }
 
@@ -469,7 +477,7 @@ class OnTypeFormattingAdapter {
 				return value.map(typeConvert.TextEdit.from);
 			}
 			return undefined;
-		});
+		}, e => reportError('Failed to provide type formatting edits', e));
 	}
 }
 
@@ -506,7 +514,7 @@ class NavigateTypeAdapter {
 				this._resultCache.set(result._id!, [result.symbols[0]._id!, result.symbols[result.symbols.length - 1]._id!]);
 			}
 			return result;
-		});
+		}, e => reportError('Failed to provide workspace symbols', e));
 	}
 
 	async resolveWorkspaceSymbol(symbol: extHostProtocol.IWorkspaceSymbolDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolDto | undefined> {
@@ -516,7 +524,10 @@ class NavigateTypeAdapter {
 
 		const item = this._symbolCache.get(symbol._id!);
 		if (item) {
-			const value = await asPromise(() => this._provider.resolveWorkspaceSymbol!(item, token));
+			const value = await asPromise(() => this._provider.resolveWorkspaceSymbol!(item, token)).then(
+				value => value,
+				e => reportError('Failed to resolve workspace symbol', e)
+			);
 			return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
 		}
 		return undefined;
@@ -556,6 +567,7 @@ class RenameAdapter {
 			}
 			return typeConvert.WorkspaceEdit.from(value);
 		}, err => {
+			reportError('Failed to provide rename edits', err);
 			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
 				return <extHostProtocol.IWorkspaceEditDto>{ rejectReason, edits: undefined! };
@@ -596,6 +608,7 @@ class RenameAdapter {
 			}
 			return { range: typeConvert.Range.from(range), text };
 		}, err => {
+			reportError('Failed to prepare rename', err);
 			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
 				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined!, text: undefined! };
@@ -650,7 +663,7 @@ export class SemanticTokensAdapter {
 				this._previousResults.delete(previousResultId);
 			}
 			return this._send(SemanticTokensAdapter._convertToEdits(previousResult, value), value);
-		});
+		}, e => reportError('Failed to provide semantic tokens', e));
 	}
 
 	async releaseSemanticColoring(semanticColoringResultId: number): Promise<void> {
@@ -795,7 +808,7 @@ class SuggestAdapter {
 			}
 
 			return result;
-		});
+		}, e => reportError('Failed to provide completion items', e));
 	}
 
 	resolveCompletionItem(_resource: URI, position: IPosition, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ISuggestDataDto | undefined> {
@@ -817,7 +830,7 @@ class SuggestAdapter {
 
 			const pos = typeConvert.Position.to(position);
 			return this._convertCompletionItem(resolvedItem, pos, id);
-		});
+		}, e => reportError('Failed to resolve completion item', e));
 	}
 
 	releaseCompletionItems(id: number): any {
@@ -930,7 +943,7 @@ class SignatureHelpAdapter {
 				return { ...typeConvert.SignatureHelp.from(value), id };
 			}
 			return undefined;
-		});
+		}, e => reportError('Failed to provide signature help', e));
 	}
 
 	private reviveContext(context: extHostProtocol.ISignatureHelpContextDto): vscode.SignatureHelpContext {
@@ -1027,7 +1040,7 @@ class LinkProviderAdapter {
 				}
 				return result;
 			}
-		});
+		}, e => reportError('Failed to provide document links', e));
 	}
 
 	resolveLink(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ILinkDto | undefined> {
@@ -1040,7 +1053,7 @@ class LinkProviderAdapter {
 		}
 		return asPromise(() => this._provider.resolveDocumentLink!(item, token)).then(value => {
 			return value && typeConvert.DocumentLink.from(value) || undefined;
-		});
+		}, e => reportError('Failed to resolve document link', e));
 	}
 
 	releaseLinks(id: number): any {
@@ -1070,7 +1083,7 @@ class ColorProviderAdapter {
 			});
 
 			return colorInfos;
-		});
+		}, e => reportError('Failed to provide colors', e));
 	}
 
 	provideColorPresentations(resource: URI, raw: extHostProtocol.IRawColorInfo, token: CancellationToken): Promise<modes.IColorPresentation[] | undefined> {
@@ -1082,7 +1095,7 @@ class ColorProviderAdapter {
 				return undefined;
 			}
 			return value.map(typeConvert.ColorPresentation.from);
-		});
+		}, e => reportError('Failed to provide color presentations', e));
 	}
 }
 
@@ -1100,7 +1113,7 @@ class FoldingProviderAdapter {
 				return undefined;
 			}
 			return ranges.map(typeConvert.FoldingRange.from);
-		});
+		}, e => reportError('Failed to provide folding ranges', e));
 	}
 }
 
@@ -1146,7 +1159,7 @@ class SelectionRangeAdapter {
 				}
 			}
 			return allResults;
-		});
+		}, e => reportError('Failed to provide selection ranges', e));
 	}
 }
 
@@ -1179,16 +1192,21 @@ class CallHierarchyAdapter {
 		if (!item) {
 			throw new Error('missing call hierarchy item');
 		}
-		const calls = await this._provider.provideCallHierarchyIncomingCalls(item, token);
-		if (!calls) {
-			return undefined;
+		try {
+			const calls = await this._provider.provideCallHierarchyIncomingCalls(item, token);
+			if (!calls) {
+				return undefined;
+			}
+			return calls.map(call => {
+				return {
+					from: this._cacheAndConvertItem(sessionId, call.from),
+					fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
+				};
+			});
+		} catch (e) {
+			reportError('Failed to provide call hierarchy incoming calls', e);
+			throw e;
 		}
-		return calls.map(call => {
-			return {
-				from: this._cacheAndConvertItem(sessionId, call.from),
-				fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
-			};
-		});
 	}
 
 	async provideCallsFrom(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IOutgoingCallDto[] | undefined> {
@@ -1196,16 +1214,21 @@ class CallHierarchyAdapter {
 		if (!item) {
 			throw new Error('missing call hierarchy item');
 		}
-		const calls = await this._provider.provideCallHierarchyOutgoingCalls(item, token);
-		if (!calls) {
-			return undefined;
+		try {
+			const calls = await this._provider.provideCallHierarchyOutgoingCalls(item, token);
+			if (!calls) {
+				return undefined;
+			}
+			return calls.map(call => {
+				return {
+					to: this._cacheAndConvertItem(sessionId, call.to),
+					fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
+				};
+			});
+		} catch (e) {
+			reportError('Failed to provide calls from', e);
+			throw e;
 		}
-		return calls.map(call => {
-			return {
-				to: this._cacheAndConvertItem(sessionId, call.to),
-				fromRanges: call.fromRanges.map(r => typeConvert.Range.from(r))
-			};
-		});
 	}
 
 	releaseSession(sessionId: string): void {
@@ -1761,4 +1784,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._proxy.$setLanguageConfiguration(handle, languageId, serializedConfiguration);
 		return this._createDisposable(handle);
 	}
+}
+
+
+function reportError<T>(message: string, error: any): Promise<T> {
+	console.log(message);
+	console.log(error);
+	return Promise.reject(error);
 }
