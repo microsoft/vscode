@@ -144,8 +144,8 @@ declare module 'vscode' {
 		 * ```
 		 *
 		 * 2. The first transformation is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
-		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Token modifiers are a set and they are looked up by a bitmap,
-		 * so a `tokenModifier` value of `6` is first viewed as a bitmap `0b110`, so it will mean `[tokenModifiers[1], tokenModifiers[2]]` because
+		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Multiple token modifiers can be set by using bit flags,
+		 * so a `tokenModifier` value of `6` is first viewed as binary `0b110`, which means `[tokenModifiers[1], tokenModifiers[2]]` because
 		 * bits 1 and 2 are set. Using this legend, the tokens now are:
 		 * ```
 		 *  [ { line: 2, startChar:  5, length: 3, tokenType: 1, tokenModifiers: 6 }, // 6 is 0b110
