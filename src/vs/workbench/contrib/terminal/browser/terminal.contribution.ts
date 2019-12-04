@@ -215,7 +215,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.rendererType': {
 			type: 'string',
 			enum: ['auto', 'canvas', 'dom', 'experimentalWebgl'],
-			enumDescriptions: [
+			markdownEnumDescriptions: [
 				nls.localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
 				nls.localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
 				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
