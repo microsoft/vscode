@@ -21,6 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
 import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { localize } from 'vs/nls';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
@@ -173,7 +174,28 @@ const searchHeaderToContentPattern = (header: string[]): SearchHeader => {
 		context: undefined
 	};
 
-	const unescapeNewlines = (str: string) => str.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
+	const unescapeNewlines = (str: string) => {
+		let out = '';
+		for (let i = 0; i < str.length; i++) {
+			if (str[i] === '\\') {
+				i++;
+				const escaped = str[i];
+
+				if (escaped === 'n') {
+					out += '\n';
+				}
+				else if (escaped === '\\') {
+					out += '\\';
+				}
+				else {
+					throw Error(localize('invalidQueryStringError', "All backslashes in Query string must be escaped (\\\\)"));
+				}
+			} else {
+				out += str[i];
+			}
+		}
+		return out;
+	};
 	const parseYML = /^# ([^:]*): (.*)$/;
 	for (const line of header) {
 		const parsed = parseYML.exec(line);
