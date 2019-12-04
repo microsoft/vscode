@@ -997,7 +997,7 @@ class Trait<T> {
 	}
 
 	private _set(nodes: ITreeNode<T, any>[], silent: boolean, browserEvent?: UIEvent): void {
-		this.nodes = nodes.length > 1 && this.identityProvider ? distinct(nodes, node => this.identityProvider!.getId(node.element).toString()) : [...nodes];
+		this.nodes = [...nodes];
 		this.elements = undefined;
 		this._nodeSet = undefined;
 

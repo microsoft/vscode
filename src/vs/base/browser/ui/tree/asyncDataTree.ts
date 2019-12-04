@@ -1189,14 +1189,16 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 			if (compressedNode) {
 				for (let i = 0; i < compressedNode.elements.length; i++) {
 					const id = getId(compressedNode.elements[i].element as T);
+					const element = compressedNode.elements[compressedNode.elements.length - 1].element as T;
 
-					if (oldSelection.has(id)) {
-						selection.push(compressedNode.elements[compressedNode.elements.length - 1].element as T);
+					// github.com/microsoft/vscode/issues/85938
+					if (oldSelection.has(id) && selection.indexOf(element) === -1) {
+						selection.push(element);
 						didChangeSelection = true;
 					}
 
-					if (oldFocus.has(id)) {
-						focus.push(compressedNode.elements[compressedNode.elements.length - 1].element as T);
+					if (oldFocus.has(id) && focus.indexOf(element) === -1) {
+						focus.push(element);
 						didChangeFocus = true;
 					}
 				}
