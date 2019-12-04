@@ -236,7 +236,7 @@ class IssueReporterItem extends HelpItemBase {
 
 class HelpAction extends Action {
 	static readonly ID = 'remote.explorer.help';
-	static readonly LABEL = nls.localize('remote.explorer.help', "Help and Feedback");
+	static readonly LABEL = nls.localize('remote.explorer.help', "Help, Documentation, and Feedback");
 	private helpModel: HelpModel;
 
 	constructor(id: string,
