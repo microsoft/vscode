@@ -14,9 +14,10 @@ suite('TokensStore', () => {
 
 	const SEMANTIC_COLOR = 5;
 
-	function parseTokensState(state: string[]): { text: string; tokens: number[]; } {
+	function parseTokensState(state: string[]): { text: string; tokens: MultilineTokens2; } {
 		let text: string[] = [];
 		let tokens: number[] = [];
+		let baseLine = 1;
 		for (let i = 0; i < state.length; i++) {
 			const line = state[i];
 
@@ -43,7 +44,10 @@ suite('TokensStore', () => {
 				const tokenLength = secondPipeOffset - firstPipeOffset - 1;
 				const metadata = (SEMANTIC_COLOR << MetadataConsts.FOREGROUND_OFFSET);
 
-				tokens.push(i, tokenStartCharacter, tokenStartCharacter + tokenLength, metadata);
+				if (tokens.length === 0) {
+					baseLine = i + 1;
+				}
+				tokens.push(i + 1 - baseLine, tokenStartCharacter, tokenStartCharacter + tokenLength, metadata);
 
 				lineText += line.substr(firstPipeOffset + 1, tokenLength);
 				startOffset = secondPipeOffset + 1;
@@ -56,7 +60,7 @@ suite('TokensStore', () => {
 
 		return {
 			text: text.join('\n'),
-			tokens: tokens
+			tokens: new MultilineTokens2(baseLine, new SparseEncodedTokens(new Uint32Array(tokens)))
 		};
 	}
 
@@ -90,7 +94,7 @@ suite('TokensStore', () => {
 	function testTokensAdjustment(rawInitialState: string[], edits: IIdentifiedSingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
 		const model = TextModel.createFromString(initialState.text);
-		model.setSemanticTokens([new MultilineTokens2(1, new SparseEncodedTokens(new Uint32Array(initialState.tokens)))]);
+		model.setSemanticTokens([initialState.tokens]);
 
 		model.applyEdits(edits);
 
@@ -112,6 +116,51 @@ suite('TokensStore', () => {
 			[
 				`import { |URI| } from 'vs/base/common/uri';`,
 				`const fo = |URI|.parse('hey');`
+			]
+		);
+	});
+
+	test('deleting a newline', () => {
+		testTokensAdjustment(
+			[
+				`import { |URI| } from 'vs/base/common/uri';`,
+				`const foo = |URI|.parse('hey');`
+			],
+			[
+				{ range: new Range(1, 42, 2, 1), text: '' }
+			],
+			[
+				`import { |URI| } from 'vs/base/common/uri';const foo = |URI|.parse('hey');`
+			]
+		);
+	});
+
+	test('inserting a newline', () => {
+		testTokensAdjustment(
+			[
+				`import { |URI| } from 'vs/base/common/uri';const foo = |URI|.parse('hey');`
+			],
+			[
+				{ range: new Range(1, 42, 1, 42), text: '\n' }
+			],
+			[
+				`import { |URI| } from 'vs/base/common/uri';`,
+				`const foo = |URI|.parse('hey');`
+			]
+		);
+	});
+
+	test('deleting a newline 2', () => {
+		testTokensAdjustment(
+			[
+				`import { `,
+				`    |URI| } from 'vs/base/common/uri';const foo = |URI|.parse('hey');`
+			],
+			[
+				{ range: new Range(1, 10, 2, 5), text: '' }
+			],
+			[
+				`import { |URI| } from 'vs/base/common/uri';const foo = |URI|.parse('hey');`
 			]
 		);
 	});
