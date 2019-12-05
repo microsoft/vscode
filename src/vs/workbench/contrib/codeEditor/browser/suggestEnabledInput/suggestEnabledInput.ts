@@ -72,6 +72,7 @@ interface SuggestEnabledInputOptions {
 	 * Context key tracking the focus state of this element
 	 */
 	focusContextKey?: IContextKey<boolean>;
+	fixedOverflowWidgets?: boolean;
 }
 
 export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
@@ -126,7 +127,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
 		const editorOptions: IEditorOptions = mixin(
-			getSimpleEditorOptions(false),
+			getSimpleEditorOptions(!!options.fixedOverflowWidgets),
 			getSuggestEnabledInputOptions(ariaLabel));
 
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
