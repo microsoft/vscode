@@ -84,6 +84,12 @@ declare module 'vscode' {
 	}
 
 	export class SemanticTokens {
+		/**
+		 * The result id of the tokens.
+		 *
+		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
+		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
+		 */
 		readonly resultId?: string;
 		readonly data: Uint32Array;
 
@@ -91,6 +97,12 @@ declare module 'vscode' {
 	}
 
 	export class SemanticTokensEdits {
+		/**
+		 * The result id of the tokens.
+		 *
+		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
+		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
+		 */
 		readonly resultId?: string;
 		readonly edits: SemanticTokensEdit[];
 
@@ -107,6 +119,11 @@ declare module 'vscode' {
 
 	export interface SemanticTokensRequestOptions {
 		readonly ranges?: readonly Range[];
+		/**
+		 * The previous result id that the editor still holds in memory.
+		 *
+		 * Only when this is set it is safe for a `SemanticTokensProvider` to return `SemanticTokensEdits`.
+		 */
 		readonly previousResultId?: string;
 	}
 
@@ -191,7 +208,13 @@ declare module 'vscode' {
 		 *     [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
 		 * ```
 		 *
-		 * A smart tokens provider can compute a diff from the previous result to the new result
+		 * A smart tokens provider can return a `resultId` to `SemanticTokens`. Then, if the editor still has in memory the previous
+		 * result, the editor will pass in options the previous result id at `SemanticTokensRequestOptions.previousResultId`. Only when
+		 * the editor passes in the previous result id, it is safe and smart for a smart tokens provider can compute a diff from the
+		 * previous result to the new result.
+		 *
+		 * *NOTE*: It is illegal to return `SemanticTokensEdits` if `options.previousResultId` is not set!
+		 *
 		 * ```
 		 *    [  2,5,3,1,6,  0,5,4,2,0,              3,2,7,3,0 ]
 		 *    [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
