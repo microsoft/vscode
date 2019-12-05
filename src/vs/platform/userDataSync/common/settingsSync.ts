@@ -10,10 +10,10 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
+import { joinPath, dirname } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { startsWith } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -37,7 +37,6 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
-	private readonly throttledDelayer: ThrottledDelayer<void>;
 	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
@@ -53,23 +52,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	) {
 		super();
 		this.lastSyncSettingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncSettings.json');
-		this.throttledDelayer = this._register(new ThrottledDelayer<void>(500));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.settingsResource))(() => this.throttledDelayer.trigger(() => this.onDidChangeSettings())));
-	}
-
-	private async onDidChangeSettings(): Promise<void> {
-		const localFileContent = await this.getLocalFileContent();
-		const lastSyncData = await this.getLastSyncUserData();
-		if (localFileContent && lastSyncData) {
-			if (localFileContent.value.toString() !== lastSyncData.content) {
-				this._onDidChangeLocal.fire();
-				return;
-			}
-		}
-		if (!localFileContent || !lastSyncData) {
-			this._onDidChangeLocal.fire();
-			return;
-		}
+		this._register(this.fileService.watch(dirname(this.environmentService.settingsResource)));
+		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.settingsResource))(() => this._onDidChangeLocal.fire()));
 	}
 
 	private setStatus(status: SyncStatus): void {
