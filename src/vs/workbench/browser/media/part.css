@@ -8,6 +8,11 @@
 	overflow: hidden;
 }
 
+.monaco-workbench.windows.chromium .part:focus-within,
+.monaco-workbench.linux.chromium .part:focus-within {
+	z-index: 500;
+}
+
 .monaco-workbench .part > .title {
 	display: none; /* Parts have to opt in to show title area */
 }
