@@ -122,7 +122,7 @@ export class ExpressionContainer implements IExpressionContainer {
 					new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
 				: [];
 		} catch (e) {
-			return [new Variable(this.session, this.threadId, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, undefined, true)];
+			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, { kind: 'virtual' }, undefined, false)];
 		}
 	}
 
