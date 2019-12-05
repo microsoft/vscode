@@ -428,7 +428,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 	}
 
 	protected _doLayoutBody(height: number, width: number): void {
-		if (this._dim.height !== height || this._dim.width === width) {
+		if (this._dim.height !== height || this._dim.width !== width) {
 			super._doLayoutBody(height, width);
 			this._dim = { height, width };
 			this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;
