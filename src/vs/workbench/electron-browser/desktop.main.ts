@@ -140,14 +140,11 @@ class DesktopMain extends Disposable {
 
 		// Diagnostics to make extension errors more visible
 		errorHandler.addExternalErrorListener(e => {
-			console.log('External Error Happened.');
 			if (e.stack) {
-				if (e.name) {
-					console.log(e.name);
-				}
 				console.log(e.stack);
+			} else {
+				console.log('Error occured: ', e);
 			}
-			console.log(e);
 		});
 	}
 
