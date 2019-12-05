@@ -102,7 +102,7 @@ export abstract class BreadcrumbsPicker {
 		this._domNode.appendChild(this._treeContainer);
 
 		this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
-		this._tree = this._createTree(this._treeContainer);
+		this._tree = this._createTree(this._treeContainer, input);
 
 		this._disposables.add(this._tree.onDidChangeSelection(e => {
 			if (e.browserEvent !== this._fakeEvent) {
@@ -153,7 +153,7 @@ export abstract class BreadcrumbsPicker {
 	}
 
 	protected abstract _setInput(element: BreadcrumbElement): Promise<void>;
-	protected abstract _createTree(container: HTMLElement): Tree<any, any>;
+	protected abstract _createTree(container: HTMLElement, element: BreadcrumbElement): Tree<any, any>;
 	protected abstract _getTargetFromEvent(element: any): any | undefined;
 }
 
@@ -359,7 +359,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		super(parent, instantiationService, themeService, configService);
 	}
 
-	_createTree(container: HTMLElement) {
+	_createTree(container: HTMLElement, _: BreadcrumbElement) {
 
 		// tree icon theme specials
 		dom.addClass(this._treeContainer, 'file-icon-themable-tree');
@@ -440,7 +440,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		this._symbolSortOrder = BreadcrumbsConfig.SymbolSortOrder.bindTo(this._configurationService);
 	}
 
-	protected _createTree(container: HTMLElement) {
+	protected _createTree(container: HTMLElement, element: BreadcrumbElement) {
 		return this._instantiationService.createInstance<typeof WorkbenchDataTree, WorkbenchDataTree<OutlineModel, any, FuzzyScore>>(
 			WorkbenchDataTree,
 			'BreadcrumbsOutlinePicker',
@@ -452,7 +452,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
-				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
+				sorter: new OutlineItemComparator(this._getOutlineItemCompareType(element)),
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
 				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
@@ -486,8 +486,12 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		}
 	}
 
-	private _getOutlineItemCompareType(): OutlineSortOrder {
-		switch (this._symbolSortOrder.getValue()) {
+	private _getOutlineItemCompareType(input: BreadcrumbElement): OutlineSortOrder {
+		const element = input as TreeElement;
+		const textModel = OutlineModel.get(element)!.textModel;
+		const resource = textModel.uri;
+		const overrideIdentifier = textModel.getLanguageIdentifier().language;
+		switch (this._symbolSortOrder.getValue({ resource, overrideIdentifier })) {
 			case 'name':
 				return OutlineSortOrder.ByName;
 			case 'type':
