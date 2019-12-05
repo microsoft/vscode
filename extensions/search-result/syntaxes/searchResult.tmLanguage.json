@@ -7,12 +7,30 @@
 			"name": "comment"
 		},
 		{
-			"match": "^\\S.*:$",
-			"name": "string path.searchResult"
+			"match": "^(?!\\s)(.*?)([^\\\\\\/\\n]*)(:)$",
+			"name": "string path.searchResult",
+			"captures": {
+				"1": {
+					"name": "dirname.path.searchResult"
+				},
+				"2": {
+					"name": "basename.path.searchResult"
+				},
+				"3": {
+					"name": "endingColon.path.searchResult"
+				}
+			}
 		},
 		{
-			"match": "^  \\d+",
-			"name": "constant.numeric lineNumber.searchResult"
+			"match": "^  (\\d+)(:| )",
+			"captures": {
+				"1": {
+					"name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+				},
+				"2:": {
+					"name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+				}
+			}
 		}
 	]
 }
