@@ -293,8 +293,13 @@ export class SparseEncodedTokens implements IEncodedTokens {
 			} else if (tokenDeltaLine === endDeltaLine && tokenStartCharacter >= endCharacter) {
 				// 4. (continued) The token starts after the deletion range, on the last line where a deletion occurs
 				tokenDeltaLine -= deletedLineCount;
-				tokenStartCharacter -= endCharacter;
-				tokenEndCharacter -= endCharacter;
+				if (deletedLineCount === 0) {
+					tokenStartCharacter -= (endCharacter - startCharacter);
+					tokenEndCharacter -= (endCharacter - startCharacter);
+				} else {
+					tokenStartCharacter -= endCharacter;
+					tokenEndCharacter -= endCharacter;
+				}
 			} else {
 				throw new Error(`Not possible!`);
 			}
