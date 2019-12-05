@@ -652,11 +652,15 @@ class ModelSemanticColoring extends Disposable {
 		this._isDisposed = false;
 		this._model = model;
 		this._semanticStyling = stylingProvider;
-		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 500));
+		this._fetchSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchSemanticTokensNow(), 300));
 		this._currentResponse = null;
 		this._currentRequestCancellationTokenSource = null;
 
-		this._register(this._model.onDidChangeContent(e => this._fetchSemanticTokens.schedule()));
+		this._register(this._model.onDidChangeContent(e => {
+			if (!this._fetchSemanticTokens.isScheduled()) {
+				this._fetchSemanticTokens.schedule();
+			}
+		}));
 		this._register(SemanticTokensProviderRegistry.onDidChange(e => this._fetchSemanticTokens.schedule()));
 		if (themeService) {
 			// workaround for tests which use undefined... :/
@@ -887,7 +891,9 @@ class ModelSemanticColoring extends Disposable {
 					}
 				}
 
-				this._fetchSemanticTokens.schedule();
+				if (!this._fetchSemanticTokens.isScheduled()) {
+					this._fetchSemanticTokens.schedule();
+				}
 			}
 
 			this._model.setSemanticTokens(result);
