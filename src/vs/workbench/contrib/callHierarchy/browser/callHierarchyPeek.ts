@@ -49,10 +49,10 @@ class ChangeHierarchyDirectionAction extends Action {
 		});
 		const update = () => {
 			if (getDirection() === CallHierarchyDirection.CallsFrom) {
-				this.label = localize('toggle.from', "Showing Calls");
+				this.label = localize('toggle.from', "Show Incoming Calls");
 				this.class = 'calls-from';
 			} else {
-				this.label = localize('toggle.to', "Showing Callers");
+				this.label = localize('toggle.to', "Showing Outgoing Calls");
 				this.class = 'calls-to';
 			}
 		};
