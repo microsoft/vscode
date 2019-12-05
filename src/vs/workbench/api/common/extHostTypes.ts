@@ -2368,7 +2368,7 @@ export enum CommentMode {
 
 //#region Semantic Coloring
 
-export class SemanticColoringLegend {
+export class SemanticTokensLegend {
 	public readonly tokenTypes: string[];
 	public readonly tokenModifiers: string[];
 
@@ -2378,21 +2378,74 @@ export class SemanticColoringLegend {
 	}
 }
 
-export class SemanticColoringArea {
-	public readonly line: number;
-	public readonly data: Uint32Array;
+export class SemanticTokensBuilder {
 
-	constructor(line: number, data: Uint32Array) {
-		this.line = line;
+	private _prevLine: number;
+	private _prevChar: number;
+	private _data: number[];
+	private _dataLen: number;
+
+	constructor() {
+		this._prevLine = 0;
+		this._prevChar = 0;
+		this._data = [];
+		this._dataLen = 0;
+	}
+
+	public push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void {
+		let pushLine = line;
+		let pushChar = char;
+		if (this._dataLen > 0) {
+			pushLine -= this._prevLine;
+			if (pushLine === 0) {
+				pushChar -= this._prevChar;
+			}
+		}
+
+		this._data[this._dataLen++] = pushLine;
+		this._data[this._dataLen++] = pushChar;
+		this._data[this._dataLen++] = length;
+		this._data[this._dataLen++] = tokenType;
+		this._data[this._dataLen++] = tokenModifiers;
+
+		this._prevLine = line;
+		this._prevChar = char;
+	}
+
+	public build(): Uint32Array {
+		return new Uint32Array(this._data);
+	}
+}
+
+export class SemanticTokens {
+	readonly resultId?: string;
+	readonly data: Uint32Array;
+
+	constructor(data: Uint32Array, resultId?: string) {
+		this.resultId = resultId;
 		this.data = data;
 	}
 }
 
-export class SemanticColoring {
-	public readonly areas: SemanticColoringArea[];
+export class SemanticTokensEdit {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly data?: Uint32Array;
 
-	constructor(areas: SemanticColoringArea[]) {
-		this.areas = areas;
+	constructor(start: number, deleteCount: number, data?: Uint32Array) {
+		this.start = start;
+		this.deleteCount = deleteCount;
+		this.data = data;
+	}
+}
+
+export class SemanticTokensEdits {
+	readonly resultId?: string;
+	readonly edits: SemanticTokensEdit[];
+
+	constructor(edits: SemanticTokensEdit[], resultId?: string) {
+		this.resultId = resultId;
+		this.edits = edits;
 	}
 }
 

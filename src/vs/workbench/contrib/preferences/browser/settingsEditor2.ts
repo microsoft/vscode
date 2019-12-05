@@ -406,6 +406,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
 			placeholderText: searchBoxLabel,
 			focusContextKey: this.searchFocusContextKey,
+			fixedOverflowWidgets: true
 			// TODO: Aria-live
 		})
 		);

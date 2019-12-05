@@ -18,6 +18,7 @@ import { startsWith } from 'vs/base/common/strings';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { localize } from 'vs/nls';
 
 export interface ISyncPreviewResult {
 	readonly added: ISyncExtension[];
@@ -166,7 +167,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		// First time sync
 		if (!remoteExtensions) {
 			this.logService.info('Extensions: Remote extensions does not exist. Synchronizing extensions for the first time.');
-			return { added: [], removed: [], updated: [], remote: localExtensions.filter(({ identifier }) => ignoredExtensions.some(id => id.toLowerCase() === identifier.id.toLowerCase())) };
+			return { added: [], removed: [], updated: [], remote: localExtensions.filter(({ identifier }) => ignoredExtensions.every(id => id.toLowerCase() !== identifier.id.toLowerCase())) };
 		}
 
 		const uuids: Map<string, string> = new Map<string, string>();
@@ -323,7 +324,12 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier, e.version);
 				if (extension) {
 					this.logService.info('Extensions: Installing local extension.', e.identifier.id, extension.version);
-					await this.extensionManagementService.installFromGallery(extension);
+					try {
+						await this.extensionManagementService.installFromGallery(extension);
+					} catch (e) {
+						this.logService.error(e);
+						this.logService.info(localize('skip extension', "Skipping synchronising extension {0}", extension.displayName || extension.identifier.id));
+					}
 				}
 			}));
 		}
@@ -331,7 +337,9 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 	private async getLocalExtensions(): Promise<ISyncExtension[]> {
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		return installedExtensions.map(({ identifier }) => ({ identifier, enabled: true }));
+		return installedExtensions
+			.filter(({ identifier }) => !!identifier.uuid)
+			.map(({ identifier }) => ({ identifier, enabled: true }));
 	}
 
 	private async getLastSyncUserData(): Promise<IUserData | null> {

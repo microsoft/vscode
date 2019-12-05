@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -197,6 +197,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
+	private _context: Map<number, string> = new Map();
+	public get context(): Map<number, string> {
+		return new Map(this._context);
+	}
+
 	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions | undefined, private _maxResults: number | undefined, private _parent: FolderMatch, private rawMatch: IFileMatch,
 		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService
 	) {
@@ -221,6 +226,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 					textSearchResultToMatches(rawMatch, this)
 						.forEach(m => this.add(m));
 				});
+
+			this.addContext(this.rawMatch.results);
 		}
 	}
 
@@ -375,6 +382,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return getBaseLabel(this.resource);
 	}
 
+	addContext(results: ITextSearchResult[] | undefined) {
+		if (!results) { return; }
+
+		results
+			.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
+			.forEach(context => this._context.set(context.lineNumber, context.text));
+	}
+
 	add(match: Match, trigger?: boolean) {
 		this._matches.set(match.id(), match);
 		if (trigger) {
@@ -479,6 +494,8 @@ export class FolderMatch extends Disposable {
 							.forEach(m => existingFileMatch.add(m));
 					});
 				updated.push(existingFileMatch);
+
+				existingFileMatch.addContext(rawFileMatch.results);
 			} else {
 				const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
@@ -965,11 +982,6 @@ export class SearchModel extends Disposable {
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch();
 
-		// Exclude Search Editor results unless explicity included
-		const searchEditorFilenameGlob = `**/*.code-search`;
-		if (!query.includePattern || !query.includePattern[searchEditorFilenameGlob]) {
-			query.excludePattern = { ...(query.excludePattern ?? {}), [searchEditorFilenameGlob]: true };
-		}
 
 		this._searchQuery = query;
 		if (!this.searchConfig.searchOnType) {
@@ -982,7 +994,7 @@ export class SearchModel extends Disposable {
 		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
 
 		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
-		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 100 : 0));
+		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
 		const currentRequest = this.searchService.textSearch(this._searchQuery, this.currentCancelTokenSource.token, p => {

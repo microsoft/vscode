@@ -279,7 +279,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconLocation: {
+		icon: {
 			dark: WORD_WRAP_DARK_ICON,
 			light: WORD_WRAP_LIGHT_ICON
 		}
@@ -296,7 +296,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconLocation: {
+		icon: {
 			dark: WORD_WRAP_DARK_ICON,
 			light: WORD_WRAP_LIGHT_ICON
 		}

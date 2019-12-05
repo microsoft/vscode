@@ -20,6 +20,7 @@ import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, 
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
@@ -34,7 +35,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: EditorContextKeys.focus.toNegated(),
 	handler: async (accessor: ServicesAccessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IExplorerService));
 		const targetResource = firstOrDefault(resources);
 		if (!targetResource) {
 			return;
