@@ -28,7 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 namespace delta {
@@ -327,7 +327,7 @@ export class MainThreadDocumentsAndEditors {
 		@IModeService modeService: IModeService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IPanelService panelService: IPanelService,
@@ -335,7 +335,7 @@ export class MainThreadDocumentsAndEditors {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		const mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService, environmentService));
+		const mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledTextEditorService, environmentService));
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
 		const mainThreadTextEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));

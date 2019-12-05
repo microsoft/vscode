@@ -40,13 +40,14 @@ import { IAction } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
-import { isExtensionHostDebugging } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX } from 'vs/workbench/contrib/debug/common/debug';
+import { getExtensionHostDebugSession } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isErrorWithActions, createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -85,6 +86,7 @@ export class DebugService implements IDebugService {
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private inDebugMode: IContextKey<boolean>;
+	private debugUx: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private initializing = false;
 	private previousState: State | undefined;
@@ -126,6 +128,8 @@ export class DebugService implements IDebugService {
 		this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 		this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 		this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
+		this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
+		this.debugUx.set(!!this.configurationManager.selectedConfiguration.name ? 'default' : 'simple');
 
 		this.model = new DebugModel(this.loadBreakpoints(), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadDataBreakpoints(), this.loadWatchExpressions(), this.textFileService);
@@ -168,6 +172,9 @@ export class DebugService implements IDebugService {
 		}));
 		this.toDispose.push(this.viewModel.onDidFocusSession(() => {
 			this.onStateChange();
+		}));
+		this.toDispose.push(this.configurationManager.onDidSelectConfiguration(() => {
+			this.debugUx.set(!!(this.state !== State.Inactive || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
 		}));
 	}
 
@@ -225,6 +232,8 @@ export class DebugService implements IDebugService {
 		if (this.previousState !== state) {
 			this.debugState.set(getStateLabel(state));
 			this.inDebugMode.set(state !== State.Inactive);
+			// Only show the simple ux if debug is not yet started and if no launch.json exists
+			this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
 		}
@@ -258,7 +267,7 @@ export class DebugService implements IDebugService {
 		try {
 			// make sure to save all files and that the configuration is up to date
 			await this.extensionService.activateByEvent('onDebug');
-			await this.textFileService.saveAll();
+			await this.editorService.saveAll();
 			await this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined);
 			await this.extensionService.whenInstalledExtensionsRegistered();
 
@@ -488,8 +497,6 @@ export class DebugService implements IDebugService {
 			}
 
 			const errorMessage = error instanceof Error ? error.message : error;
-			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
-
 			await this.showError(errorMessage, isErrorWithActions(error) ? error.actions : []);
 			return false;
 		}
@@ -532,8 +539,9 @@ export class DebugService implements IDebugService {
 			}
 
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (isExtensionHostDebugging(session.configuration) && session.state === State.Running && session.configuration.noDebug) {
-				this.extensionHostDebugService.close(session.getId());
+			const extensionDebugSession = getExtensionHostDebugSession(session);
+			if (extensionDebugSession && extensionDebugSession.state === State.Running && extensionDebugSession.configuration.noDebug) {
+				this.extensionHostDebugService.close(extensionDebugSession.getId());
 			}
 
 			this.telemetryDebugSessionStop(session, adapterExitEvent);
@@ -570,7 +578,7 @@ export class DebugService implements IDebugService {
 	}
 
 	async restartSession(session: IDebugSession, restartData?: any): Promise<any> {
-		await this.textFileService.saveAll();
+		await this.editorService.saveAll();
 		const isAutoRestart = !!restartData;
 
 		const runTasks: () => Promise<TaskRunResult> = async () => {
@@ -583,19 +591,20 @@ export class DebugService implements IDebugService {
 			return this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask);
 		};
 
-		if (session.capabilities.supportsRestartRequest) {
+		const extensionDebugSession = getExtensionHostDebugSession(session);
+		if (extensionDebugSession) {
 			const taskResult = await runTasks();
 			if (taskResult === TaskRunResult.Success) {
-				await session.restart();
+				this.extensionHostDebugService.reload(extensionDebugSession.getId());
 			}
 
 			return;
 		}
 
-		if (isExtensionHostDebugging(session.configuration)) {
+		if (session.capabilities.supportsRestartRequest) {
 			const taskResult = await runTasks();
 			if (taskResult === TaskRunResult.Success) {
-				this.extensionHostDebugService.reload(session.getId());
+				await session.restart();
 			}
 
 			return;
@@ -793,6 +802,7 @@ export class DebugService implements IDebugService {
 				// Check that the task isn't busy and if it is, wait for it
 				const busyTasks = await this.taskService.getBusyTasks();
 				if (busyTasks.filter(t => t._id === task._id).length) {
+					taskStarted = true;
 					return inactivePromise;
 				}
 				// task is already running and isn't busy - nothing to do.
@@ -808,7 +818,7 @@ export class DebugService implements IDebugService {
 				return inactivePromise;
 			}
 
-			return taskPromise;
+			return taskPromise.then(withUndefinedAsNull);
 		});
 
 		return new Promise((c, e) => {
@@ -1197,19 +1207,6 @@ export class DebugService implements IDebugService {
 			sessionLengthInSeconds: adapterExitEvent.sessionLengthInSeconds,
 			breakpointCount: breakpoints.length,
 			watchExpressionsCount: this.model.getWatchExpressions().length
-		});
-	}
-
-	private telemetryDebugMisconfiguration(debugType: string | undefined, message: string): Promise<any> {
-		/* __GDPR__
-			"debugMisconfiguration" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"error": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-			}
-		*/
-		return this.telemetryService.publicLog('debugMisconfiguration', {
-			type: debugType,
-			error: message
 		});
 	}
 

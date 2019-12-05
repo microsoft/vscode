@@ -1,7 +1,7 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "10.15.1"
+    versionSpec: "12.13.0"
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
     versionSpec: "1.x"
@@ -13,7 +13,7 @@ steps:
   inputs:
     keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-    vstsFeed: '$(ArtifactFeed)'
+    vstsFeed: 'vscode-build-cache'
 - powershell: |
     yarn --frozen-lockfile
   env:
@@ -24,7 +24,7 @@ steps:
   inputs:
     keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-    vstsFeed: '$(ArtifactFeed)'
+    vstsFeed: 'vscode-build-cache'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - powershell: |
     yarn electron

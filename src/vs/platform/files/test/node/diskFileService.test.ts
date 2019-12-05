@@ -20,13 +20,14 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { VSBuffer, VSBufferReadable, toVSBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, streamToBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
 import { find } from 'vs/base/common/arrays';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
 		return undefined;
 	}
+
 	return find(root.children, child => child.name === name);
 }
 
@@ -57,6 +58,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 	totalBytesRead: number = 0;
 
 	private invalidStatSize: boolean = false;
+	private smallStatSize: boolean = false;
 
 	private _testCapabilities!: FileSystemProviderCapabilities;
 	get capabilities(): FileSystemProviderCapabilities {
@@ -64,6 +66,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 			this._testCapabilities =
 				FileSystemProviderCapabilities.FileReadWrite |
 				FileSystemProviderCapabilities.FileOpenReadWriteClose |
+				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.FileFolderCopy;
 
 			if (isLinux) {
@@ -78,8 +81,12 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		this._testCapabilities = capabilities;
 	}
 
-	setInvalidStatSize(disabled: boolean): void {
-		this.invalidStatSize = disabled;
+	setInvalidStatSize(enabled: boolean): void {
+		this.invalidStatSize = enabled;
+	}
+
+	setSmallStatSize(enabled: boolean): void {
+		this.smallStatSize = enabled;
 	}
 
 	async stat(resource: URI): Promise<IStat> {
@@ -87,6 +94,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 		if (this.invalidStatSize) {
 			res.size = String(res.size) as any; // for https://github.com/Microsoft/vscode/issues/72909
+		} else if (this.smallStatSize) {
+			res.size = 1;
 		}
 
 		return res;
@@ -174,7 +183,7 @@ suite('Disk File Service', function () {
 		assert.equal(event!.target!.isDirectory, true);
 	});
 
-	test('createFolder: creating multiple folders at once', async function () {
+	test('createFolder: creating multiple folders at once', async () => {
 		let event: FileOperationEvent;
 		disposables.add(service.onAfterOperation(e => event = e));
 
@@ -204,23 +213,35 @@ suite('Disk File Service', function () {
 		assert.equal(exists, false);
 	});
 
-	test('resolve', async () => {
-		const resolved = await service.resolve(URI.file(testDir), { resolveTo: [URI.file(join(testDir, 'deep'))] });
-		assert.equal(resolved.children!.length, 8);
+	test('resolve - file', async () => {
+		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver/index.html'));
+		const resolved = await service.resolve(resource);
 
-		const deep = (getByName(resolved, 'deep')!);
-		assert.equal(deep.children!.length, 4);
+		assert.equal(resolved.name, 'index.html');
+		assert.equal(resolved.isFile, true);
+		assert.equal(resolved.isDirectory, false);
+		assert.equal(resolved.isSymbolicLink, false);
+		assert.equal(resolved.resource.toString(), resource.toString());
+		assert.equal(resolved.children, undefined);
+		assert.ok(resolved.mtime! > 0);
+		assert.ok(resolved.ctime! > 0);
+		assert.ok(resolved.size! > 0);
 	});
 
 	test('resolve - directory', async () => {
 		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
 
-		const result = await service.resolve(URI.file(getPathFromAmdModule(require, './fixtures/resolver')));
+		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver'));
+		const result = await service.resolve(resource);
 
 		assert.ok(result);
+		assert.equal(result.resource.toString(), resource.toString());
+		assert.equal(result.name, 'resolver');
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
 		assert.ok(result!.isDirectory);
+		assert.ok(result.mtime! > 0);
+		assert.ok(result.ctime! > 0);
 		assert.equal(result.children!.length, testsElements.length);
 
 		assert.ok(result.children!.every(entry => {
@@ -233,12 +254,18 @@ suite('Disk File Service', function () {
 			assert.ok(basename(value.resource.fsPath));
 			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
 				assert.ok(value.isDirectory);
+				assert.equal(value.mtime, undefined);
+				assert.equal(value.ctime, undefined);
 			} else if (basename(value.resource.fsPath) === 'index.html') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
+				assert.equal(value.mtime, undefined);
+				assert.equal(value.ctime, undefined);
 			} else if (basename(value.resource.fsPath) === 'site.css') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
+				assert.equal(value.mtime, undefined);
+				assert.equal(value.ctime, undefined);
 			} else {
 				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
 			}
@@ -251,9 +278,12 @@ suite('Disk File Service', function () {
 		const result = await service.resolve(URI.file(getPathFromAmdModule(require, './fixtures/resolver')), { resolveMetadata: true });
 
 		assert.ok(result);
+		assert.equal(result.name, 'resolver');
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
 		assert.ok(result!.isDirectory);
+		assert.ok(result.mtime! > 0);
+		assert.ok(result.ctime! > 0);
 		assert.equal(result.children!.length, testsElements.length);
 
 		assert.ok(result.children!.every(entry => {
@@ -268,16 +298,30 @@ suite('Disk File Service', function () {
 			assert.ok(basename(value.resource.fsPath));
 			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
 				assert.ok(value.isDirectory);
+				assert.ok(value.mtime! > 0);
+				assert.ok(value.ctime! > 0);
 			} else if (basename(value.resource.fsPath) === 'index.html') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
+				assert.ok(value.mtime! > 0);
+				assert.ok(value.ctime! > 0);
 			} else if (basename(value.resource.fsPath) === 'site.css') {
 				assert.ok(!value.isDirectory);
 				assert.ok(!value.children);
+				assert.ok(value.mtime! > 0);
+				assert.ok(value.ctime! > 0);
 			} else {
 				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
 			}
 		});
+	});
+
+	test('resolve - directory with resolveTo', async () => {
+		const resolved = await service.resolve(URI.file(testDir), { resolveTo: [URI.file(join(testDir, 'deep'))] });
+		assert.equal(resolved.children!.length, 8);
+
+		const deep = (getByName(resolved, 'deep')!);
+		assert.equal(deep.children!.length, 4);
 	});
 
 	test('resolve - directory - resolveTo single directory', async () => {
@@ -419,6 +463,7 @@ suite('Disk File Service', function () {
 		await service.del(source.resource);
 
 		assert.equal(existsSync(source.resource.fsPath), false);
+
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, resource.fsPath);
 		assert.equal(event!.operation, FileOperation.DELETE);
@@ -481,56 +526,56 @@ suite('Disk File Service', function () {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		await testMoveAcrossProviders();
+		return testMoveAcrossProviders();
 	});
 
 	test('move - across providers (unbuffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		await testMoveAcrossProviders();
+		return testMoveAcrossProviders();
 	});
 
 	test('move - across providers (buffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		await testMoveAcrossProviders();
+		return testMoveAcrossProviders();
 	});
 
 	test('move - across providers (unbuffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		await testMoveAcrossProviders();
+		return testMoveAcrossProviders();
 	});
 
 	test('move - across providers - large (buffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		await testMoveAcrossProviders('lorem.txt');
+		return testMoveAcrossProviders('lorem.txt');
 	});
 
 	test('move - across providers - large (unbuffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		await testMoveAcrossProviders('lorem.txt');
+		return testMoveAcrossProviders('lorem.txt');
 	});
 
 	test('move - across providers - large (buffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		await testMoveAcrossProviders('lorem.txt');
+		return testMoveAcrossProviders('lorem.txt');
 	});
 
 	test('move - across providers - large (unbuffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		await testMoveAcrossProviders('lorem.txt');
+		return testMoveAcrossProviders('lorem.txt');
 	});
 
 	async function testMoveAcrossProviders(sourceFile = 'index.html'): Promise<void> {
@@ -596,28 +641,28 @@ suite('Disk File Service', function () {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		await testMoveFolderAcrossProviders();
+		return testMoveFolderAcrossProviders();
 	});
 
 	test('move - directory - across providers (unbuffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		await testMoveFolderAcrossProviders();
+		return testMoveFolderAcrossProviders();
 	});
 
 	test('move - directory - across providers (buffered => unbuffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		await testMoveFolderAcrossProviders();
+		return testMoveFolderAcrossProviders();
 	});
 
-	test('move - directory - across providers (unbuffered => buffered)', async function () {
+	test('move - directory - across providers (unbuffered => buffered)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		await testMoveFolderAcrossProviders();
+		return testMoveFolderAcrossProviders();
 	});
 
 	async function testMoveFolderAcrossProviders(): Promise<void> {
@@ -992,6 +1037,10 @@ suite('Disk File Service', function () {
 		assert.equal(source.size, copied.size);
 	});
 
+	test('readFile - small file - default', () => {
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
 	test('readFile - small file - buffered', () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
@@ -1016,6 +1065,22 @@ suite('Disk File Service', function () {
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
 
+	test('readFile - small file - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
+	test('readFile - small file - streamed / readonly', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream | FileSystemProviderCapabilities.Readonly);
+
+		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	});
+
+	test('readFile - large file - default', async () => {
+		return testReadFile(URI.file(join(testDir, 'lorem.txt')));
+	});
+
 	test('readFile - large file - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
@@ -1028,35 +1093,69 @@ suite('Disk File Service', function () {
 		return testReadFile(URI.file(join(testDir, 'lorem.txt')));
 	});
 
+	test('readFile - large file - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testReadFile(URI.file(join(testDir, 'lorem.txt')));
+	});
+
 	async function testReadFile(resource: URI): Promise<void> {
 		const content = await service.readFile(resource);
 
 		assert.equal(content.value.toString(), readFileSync(resource.fsPath));
 	}
 
+	test('readFileStream - small file - default', () => {
+		return testReadFileStream(URI.file(join(testDir, 'small.txt')));
+	});
+
+	test('readFileStream - small file - buffered', () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return testReadFileStream(URI.file(join(testDir, 'small.txt')));
+	});
+
+	test('readFileStream - small file - unbuffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		return testReadFileStream(URI.file(join(testDir, 'small.txt')));
+	});
+
+	test('readFileStream - small file - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testReadFileStream(URI.file(join(testDir, 'small.txt')));
+	});
+
+	async function testReadFileStream(resource: URI): Promise<void> {
+		const content = await service.readFileStream(resource);
+
+		assert.equal((await streamToBuffer(content.value)).toString(), readFileSync(resource.fsPath));
+	}
+
+	test('readFile - Files are intermingled #38331 - default', async () => {
+		return testFilesNotIntermingled();
+	});
+
 	test('readFile - Files are intermingled #38331 - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		let resource1 = URI.file(join(testDir, 'lorem.txt'));
-		let resource2 = URI.file(join(testDir, 'some_utf16le.css'));
-
-		// load in sequence and keep data
-		const value1 = await service.readFile(resource1);
-		const value2 = await service.readFile(resource2);
-
-		// load in parallel in expect the same result
-		const result = await Promise.all([
-			service.readFile(resource1),
-			service.readFile(resource2)
-		]);
-
-		assert.equal(result[0].value.toString(), value1.value.toString());
-		assert.equal(result[1].value.toString(), value2.value.toString());
+		return testFilesNotIntermingled();
 	});
 
 	test('readFile - Files are intermingled #38331 - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testFilesNotIntermingled();
+	});
+
+	test('readFile - Files are intermingled #38331 - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testFilesNotIntermingled();
+	});
+
+	async function testFilesNotIntermingled() {
 		let resource1 = URI.file(join(testDir, 'lorem.txt'));
 		let resource2 = URI.file(join(testDir, 'some_utf16le.css'));
 
@@ -1072,108 +1171,149 @@ suite('Disk File Service', function () {
 
 		assert.equal(result[0].value.toString(), value1.value.toString());
 		assert.equal(result[1].value.toString(), value2.value.toString());
+	}
+
+	test('readFile - from position (ASCII) - default', async () => {
+		return testReadFileFromPositionAscii();
 	});
 
 	test('readFile - from position (ASCII) - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const resource = URI.file(join(testDir, 'small.txt'));
-
-		const contents = await service.readFile(resource, { position: 6 });
-
-		assert.equal(contents.value.toString(), 'File');
-	});
-
-	test('readFile - from position (with umlaut) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-
-		const resource = URI.file(join(testDir, 'small_umlaut.txt'));
-
-		const contents = await service.readFile(resource, { position: Buffer.from('Small File with Ü').length });
-
-		assert.equal(contents.value.toString(), 'mlaut');
+		return testReadFileFromPositionAscii();
 	});
 
 	test('readFile - from position (ASCII) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testReadFileFromPositionAscii();
+	});
+
+	test('readFile - from position (ASCII) - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testReadFileFromPositionAscii();
+	});
+
+	async function testReadFileFromPositionAscii() {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
 		const contents = await service.readFile(resource, { position: 6 });
 
 		assert.equal(contents.value.toString(), 'File');
+	}
+
+	test('readFile - from position (with umlaut) - default', async () => {
+		return testReadFileFromPositionUmlaut();
+	});
+
+	test('readFile - from position (with umlaut) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return testReadFileFromPositionUmlaut();
 	});
 
 	test('readFile - from position (with umlaut) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testReadFileFromPositionUmlaut();
+	});
+
+	test('readFile - from position (with umlaut) - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testReadFileFromPositionUmlaut();
+	});
+
+	async function testReadFileFromPositionUmlaut() {
 		const resource = URI.file(join(testDir, 'small_umlaut.txt'));
 
 		const contents = await service.readFile(resource, { position: Buffer.from('Small File with Ü').length });
 
 		assert.equal(contents.value.toString(), 'mlaut');
-	});
+	}
 
+	test('readFile - 3 bytes (ASCII) - default', async () => {
+		return testReadThreeBytesFromFile();
+	});
 
 	test('readFile - 3 bytes (ASCII) - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const resource = URI.file(join(testDir, 'small.txt'));
-
-		const contents = await service.readFile(resource, { length: 3 });
-
-		assert.equal(contents.value.toString(), 'Sma');
+		return testReadThreeBytesFromFile();
 	});
 
 	test('readFile - 3 bytes (ASCII) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testReadThreeBytesFromFile();
+	});
+
+	test('readFile - 3 bytes (ASCII) - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testReadThreeBytesFromFile();
+	});
+
+	async function testReadThreeBytesFromFile() {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
 		const contents = await service.readFile(resource, { length: 3 });
 
 		assert.equal(contents.value.toString(), 'Sma');
+	}
+
+	test('readFile - 20000 bytes (large) - default', async () => {
+		return readLargeFileWithLength(20000);
 	});
 
 	test('readFile - 20000 bytes (large) - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const resource = URI.file(join(testDir, 'lorem.txt'));
-
-		const contents = await service.readFile(resource, { length: 20000 });
-
-		assert.equal(contents.value.byteLength, 20000);
+		return readLargeFileWithLength(20000);
 	});
 
 	test('readFile - 20000 bytes (large) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+		return readLargeFileWithLength(20000);
+	});
 
-		const contents = await service.readFile(resource, { length: 20000 });
+	test('readFile - 20000 bytes (large) - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
 
-		assert.equal(contents.value.byteLength, 20000);
+		return readLargeFileWithLength(20000);
+	});
+
+	test('readFile - 80000 bytes (large) - default', async () => {
+		return readLargeFileWithLength(80000);
 	});
 
 	test('readFile - 80000 bytes (large) - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const resource = URI.file(join(testDir, 'lorem.txt'));
-
-		const contents = await service.readFile(resource, { length: 80000 });
-
-		assert.equal(contents.value.byteLength, 80000);
+		return readLargeFileWithLength(80000);
 	});
 
 	test('readFile - 80000 bytes (large) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return readLargeFileWithLength(80000);
+	});
+
+	test('readFile - 80000 bytes (large) - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return readLargeFileWithLength(80000);
+	});
+
+	async function readLargeFileWithLength(length: number) {
 		const resource = URI.file(join(testDir, 'lorem.txt'));
 
-		const contents = await service.readFile(resource, { length: 80000 });
+		const contents = await service.readFile(resource, { length });
 
-		assert.equal(contents.value.byteLength, 80000);
-	});
+		assert.equal(contents.value.byteLength, length);
+	}
 
 	test('readFile - FILE_IS_DIRECTORY', async () => {
 		const resource = URI.file(join(testDir, 'deep'));
@@ -1203,9 +1343,29 @@ suite('Disk File Service', function () {
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 	});
 
+	test('readFile - FILE_NOT_MODIFIED_SINCE - default', async () => {
+		return testNotModifiedSince();
+	});
+
 	test('readFile - FILE_NOT_MODIFIED_SINCE - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
+		return testNotModifiedSince();
+	});
+
+	test('readFile - FILE_NOT_MODIFIED_SINCE - unbuffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		return testNotModifiedSince();
+	});
+
+	test('readFile - FILE_NOT_MODIFIED_SINCE - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testNotModifiedSince();
+	});
+
+	async function testNotModifiedSince() {
 		const resource = URI.file(join(testDir, 'index.html'));
 
 		const contents = await service.readFile(resource);
@@ -1221,10 +1381,9 @@ suite('Disk File Service', function () {
 		assert.ok(error);
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
 		assert.equal(fileProvider.totalBytesRead, 0);
-	});
+	}
 
 	test('readFile - FILE_NOT_MODIFIED_SINCE does not fire wrongly - https://github.com/Microsoft/vscode/issues/72909', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 		fileProvider.setInvalidStatSize(true);
 
 		const resource = URI.file(join(testDir, 'index.html'));
@@ -1241,45 +1400,37 @@ suite('Disk File Service', function () {
 		assert.ok(!error);
 	});
 
-	test('readFile - FILE_NOT_MODIFIED_SINCE - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
-
-		const resource = URI.file(join(testDir, 'index.html'));
-
-		const contents = await service.readFile(resource);
-		fileProvider.totalBytesRead = 0;
-
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource, { etag: contents.etag });
-		} catch (err) {
-			error = err;
-		}
-
-		assert.ok(error);
-		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
-		assert.equal(fileProvider.totalBytesRead, 0);
+	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - default', async () => {
+		return testFileExceedsMemoryLimit();
 	});
 
-	test('readFile - FILE_EXCEED_MEMORY_LIMIT - buffered', async () => {
+	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const resource = URI.file(join(testDir, 'index.html'));
-
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource, { limits: { memory: 10 } });
-		} catch (err) {
-			error = err;
-		}
-
-		assert.ok(error);
-		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
+		return testFileExceedsMemoryLimit();
 	});
 
-	test('readFile - FILE_EXCEED_MEMORY_LIMIT - unbuffered', async () => {
+	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testFileExceedsMemoryLimit();
+	});
+
+	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testFileExceedsMemoryLimit();
+	});
+
+	async function testFileExceedsMemoryLimit() {
+		await doTestFileExceedsMemoryLimit();
+
+		// Also test when the stat size is wrong
+		fileProvider.setSmallStatSize(true);
+		return doTestFileExceedsMemoryLimit(false);
+	}
+
+	async function doTestFileExceedsMemoryLimit(testTotalBytesRead = true) {
 		const resource = URI.file(join(testDir, 'index.html'));
 
 		let error: FileOperationError | undefined = undefined;
@@ -1290,28 +1441,44 @@ suite('Disk File Service', function () {
 		}
 
 		assert.ok(error);
-		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEED_MEMORY_LIMIT);
+		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
+
+		if (testTotalBytesRead) {
+			assert.equal(fileProvider.totalBytesRead, 0);
+		}
+	}
+
+	test('readFile - FILE_TOO_LARGE - default', async () => {
+		return testFileTooLarge();
 	});
 
 	test('readFile - FILE_TOO_LARGE - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const resource = URI.file(join(testDir, 'index.html'));
-
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource, { limits: { size: 10 } });
-		} catch (err) {
-			error = err;
-		}
-
-		assert.ok(error);
-		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_TOO_LARGE);
+		return testFileTooLarge();
 	});
 
 	test('readFile - FILE_TOO_LARGE - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testFileTooLarge();
+	});
+
+	test('readFile - FILE_TOO_LARGE - streamed', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testFileTooLarge();
+	});
+
+	async function testFileTooLarge() {
+		await doTestFileExceedsMemoryLimit();
+
+		// Also test when the stat size is wrong
+		fileProvider.setSmallStatSize(true);
+		return doTestFileTooLarge();
+	}
+
+	async function doTestFileTooLarge() {
 		const resource = URI.file(join(testDir, 'index.html'));
 
 		let error: FileOperationError | undefined = undefined;
@@ -1323,18 +1490,18 @@ suite('Disk File Service', function () {
 
 		assert.ok(error);
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_TOO_LARGE);
-	});
+	}
 
 	test('createFile', async () => {
-		assertCreateFile(contents => VSBuffer.fromString(contents));
+		return assertCreateFile(contents => VSBuffer.fromString(contents));
 	});
 
 	test('createFile (readable)', async () => {
-		assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
+		return assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
 	});
 
 	test('createFile (stream)', async () => {
-		assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
+		return assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
 	});
 
 	async function assertCreateFile(converter: (content: string) => VSBuffer | VSBufferReadable | VSBufferReadableStream): Promise<void> {
@@ -1390,57 +1557,23 @@ suite('Disk File Service', function () {
 		assert.equal(event!.target!.resource.fsPath, resource.fsPath);
 	});
 
+	test('writeFile - default', async () => {
+		return testWriteFile();
+	});
+
 	test('writeFile - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const resource = URI.file(join(testDir, 'small.txt'));
-
-		const content = readFileSync(resource.fsPath);
-		assert.equal(content, 'Small File');
-
-		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, VSBuffer.fromString(newContent));
-
-		assert.equal(readFileSync(resource.fsPath), newContent);
-	});
-
-	test('writeFile (large file) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-
-		const resource = URI.file(join(testDir, 'lorem.txt'));
-
-		const content = readFileSync(resource.fsPath);
-		const newContent = content.toString() + content.toString();
-
-		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent));
-		assert.equal(fileStat.name, 'lorem.txt');
-
-		assert.equal(readFileSync(resource.fsPath), newContent);
-	});
-
-	test('writeFile - buffered - readonly throws', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
-
-		const resource = URI.file(join(testDir, 'small.txt'));
-
-		const content = readFileSync(resource.fsPath);
-		assert.equal(content, 'Small File');
-
-		const newContent = 'Updates to the small file';
-
-		let error: Error;
-		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContent));
-		} catch (err) {
-			error = err;
-		}
-
-		assert.ok(error!);
+		return testWriteFile();
 	});
 
 	test('writeFile - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testWriteFile();
+	});
+
+	async function testWriteFile() {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
 		const content = readFileSync(resource.fsPath);
@@ -1450,11 +1583,25 @@ suite('Disk File Service', function () {
 		await service.writeFile(resource, VSBuffer.fromString(newContent));
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	}
+
+	test('writeFile (large file) - default', async () => {
+		return testWriteFileLarge();
+	});
+
+	test('writeFile (large file) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return testWriteFileLarge();
 	});
 
 	test('writeFile (large file) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testWriteFileLarge();
+	});
+
+	async function testWriteFileLarge() {
 		const resource = URI.file(join(testDir, 'lorem.txt'));
 
 		const content = readFileSync(resource.fsPath);
@@ -1464,11 +1611,21 @@ suite('Disk File Service', function () {
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	}
+
+	test('writeFile - buffered - readonly throws', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+
+		return testWriteFileReadonlyThrows();
 	});
 
 	test('writeFile - unbuffered - readonly throws', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
 
+		return testWriteFileReadonlyThrows();
+	});
+
+	async function testWriteFileReadonlyThrows() {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
 		const content = readFileSync(resource.fsPath);
@@ -1484,7 +1641,7 @@ suite('Disk File Service', function () {
 		}
 
 		assert.ok(error!);
-	});
+	}
 
 	test('writeFile (large file) - multiple parallel writes queue up', async () => {
 		const resource = URI.file(join(testDir, 'lorem.txt'));
@@ -1501,37 +1658,23 @@ suite('Disk File Service', function () {
 		assert.ok(['0', '00', '000', '0000', '00000'].some(offset => fileContent === offset + newContent));
 	});
 
+	test('writeFile (readable) - default', async () => {
+		return testWriteFileReadable();
+	});
+
 	test('writeFile (readable) - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const resource = URI.file(join(testDir, 'small.txt'));
-
-		const content = readFileSync(resource.fsPath);
-		assert.equal(content, 'Small File');
-
-		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, toLineByLineReadable(newContent));
-
-		assert.equal(readFileSync(resource.fsPath), newContent);
-	});
-
-	test('writeFile (large file - readable) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-
-		const resource = URI.file(join(testDir, 'lorem.txt'));
-
-		const content = readFileSync(resource.fsPath);
-		const newContent = content.toString() + content.toString();
-
-		const fileStat = await service.writeFile(resource, toLineByLineReadable(newContent));
-		assert.equal(fileStat.name, 'lorem.txt');
-
-		assert.equal(readFileSync(resource.fsPath), newContent);
+		return testWriteFileReadable();
 	});
 
 	test('writeFile (readable) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testWriteFileReadable();
+	});
+
+	async function testWriteFileReadable() {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
 		const content = readFileSync(resource.fsPath);
@@ -1541,11 +1684,25 @@ suite('Disk File Service', function () {
 		await service.writeFile(resource, toLineByLineReadable(newContent));
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	}
+
+	test('writeFile (large file - readable) - default', async () => {
+		return testWriteFileLargeReadable();
+	});
+
+	test('writeFile (large file - readable) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return testWriteFileLargeReadable();
 	});
 
 	test('writeFile (large file - readable) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testWriteFileLargeReadable();
+	});
+
+	async function testWriteFileLargeReadable() {
 		const resource = URI.file(join(testDir, 'lorem.txt'));
 
 		const content = readFileSync(resource.fsPath);
@@ -1555,55 +1712,59 @@ suite('Disk File Service', function () {
 		assert.equal(fileStat.name, 'lorem.txt');
 
 		assert.equal(readFileSync(resource.fsPath), newContent);
+	}
+
+	test('writeFile (stream) - default', async () => {
+		return testWriteFileStream();
 	});
 
 	test('writeFile (stream) - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		const source = URI.file(join(testDir, 'small.txt'));
-		const target = URI.file(join(testDir, 'small-copy.txt'));
-
-		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
-		assert.equal(fileStat.name, 'small-copy.txt');
-
-		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
-	});
-
-	test('writeFile (large file - stream) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-
-		const source = URI.file(join(testDir, 'lorem.txt'));
-		const target = URI.file(join(testDir, 'lorem-copy.txt'));
-
-		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
-		assert.equal(fileStat.name, 'lorem-copy.txt');
-
-		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+		return testWriteFileStream();
 	});
 
 	test('writeFile (stream) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testWriteFileStream();
+	});
+
+	async function testWriteFileStream() {
 		const source = URI.file(join(testDir, 'small.txt'));
 		const target = URI.file(join(testDir, 'small-copy.txt'));
 
-		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'small-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+	}
+
+	test('writeFile (large file - stream) - default', async () => {
+		return testWriteFileLargeStream();
+	});
+
+	test('writeFile (large file - stream) - buffered', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return testWriteFileLargeStream();
 	});
 
 	test('writeFile (large file - stream) - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
+		return testWriteFileLargeStream();
+	});
+
+	async function testWriteFileLargeStream() {
 		const source = URI.file(join(testDir, 'lorem.txt'));
 		const target = URI.file(join(testDir, 'lorem-copy.txt'));
 
-		const fileStat = await service.writeFile(target, toVSBufferReadableStream(createReadStream(source.fsPath)));
+		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'lorem-copy.txt');
 
 		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
-	});
+	}
 
 	test('writeFile (file is created including parents)', async () => {
 		const resource = URI.file(join(testDir, 'other', 'newfile.txt'));

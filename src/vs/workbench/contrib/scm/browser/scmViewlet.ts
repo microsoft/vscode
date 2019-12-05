@@ -29,8 +29,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IViewsRegistry, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { nextTick } from 'vs/base/common/process';
-import { RepositoryPanel, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPanel';
-import { MainPanelDescriptor, MainPanel } from 'vs/workbench/contrib/scm/browser/mainPanel';
+import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPane';
+import { MainPaneDescriptor, MainPane } from 'vs/workbench/contrib/scm/browser/mainPane';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -73,8 +73,8 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 	}
 
 	get visibleRepositories(): ISCMRepository[] {
-		return this.panels.filter(panel => panel instanceof RepositoryPanel)
-			.map(panel => (panel as RepositoryPanel).repository);
+		return this.panes.filter(pane => pane instanceof RepositoryPane)
+			.map(pane => (pane as RepositoryPane).repository);
 	}
 
 	get onDidChangeVisibleRepositories(): Event<ISCMRepository[]> {
@@ -107,11 +107,11 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 		this.message = $('.empty-message', { tabIndex: 0 }, localize('no open repo', "No source control providers registered."));
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([new MainPanelDescriptor(this)], VIEW_CONTAINER);
+		viewsRegistry.registerViews([new MainPaneDescriptor(this)], VIEW_CONTAINER);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.alwaysShowProviders') && configurationService.getValue<boolean>('scm.alwaysShowProviders')) {
-				this.viewsModel.setVisible(MainPanel.ID, true);
+				this.viewsModel.setVisible(MainPane.ID, true);
 			}
 		}));
 
@@ -184,11 +184,11 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 			const repository = this.visibleRepositories[0];
 
 			if (repository) {
-				const panel = this.panels
-					.filter(panel => panel instanceof RepositoryPanel && panel.repository === repository)[0] as RepositoryPanel | undefined;
+				const pane = this.panes
+					.filter(pane => pane instanceof RepositoryPane && pane.repository === repository)[0] as RepositoryPane | undefined;
 
-				if (panel) {
-					panel.focus();
+				if (pane) {
+					pane.focus();
 				} else {
 					super.focus();
 				}
@@ -257,10 +257,10 @@ export class SCMViewlet extends ViewContainerViewlet implements IViewModel {
 
 		for (const viewDescriptor of toSetInvisible) {
 			if (oneToOne) {
-				const panel = this.panels.filter(panel => panel.id === viewDescriptor.id)[0];
+				const pane = this.panes.filter(pane => pane.id === viewDescriptor.id)[0];
 
-				if (panel) {
-					size = this.getPanelSize(panel);
+				if (pane) {
+					size = this.getPaneSize(pane);
 				}
 			}
 

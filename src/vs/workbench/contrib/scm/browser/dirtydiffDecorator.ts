@@ -24,14 +24,13 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { PeekViewWidget, getOuterEditor } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { rot } from 'vs/base/common/numbers';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
@@ -41,7 +40,7 @@ import { basename, isEqualOrParent } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { OverviewRulerLane, ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
+import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition } from 'vs/editor/common/model';
 import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -810,20 +809,38 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
 	dark: new Color(new RGBA(12, 125, 157)),
 	light: new Color(new RGBA(102, 175, 224)),
-	hc: new Color(new RGBA(0, 73, 122))
+	hc: new Color(new RGBA(0, 155, 249))
 }, nls.localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
 
 export const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
 	dark: new Color(new RGBA(88, 124, 12)),
 	light: new Color(new RGBA(129, 184, 139)),
-	hc: new Color(new RGBA(27, 82, 37))
+	hc: new Color(new RGBA(51, 171, 78))
 }, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
 export const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', {
 	dark: new Color(new RGBA(148, 21, 27)),
 	light: new Color(new RGBA(202, 75, 81)),
-	hc: new Color(new RGBA(141, 14, 20))
+	hc: new Color(new RGBA(252, 93, 109))
 }, nls.localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
+
+export const minimapGutterModifiedBackground = registerColor('minimapGutter.modifiedBackground', {
+	dark: new Color(new RGBA(12, 125, 157)),
+	light: new Color(new RGBA(102, 175, 224)),
+	hc: new Color(new RGBA(0, 155, 249))
+}, nls.localize('minimapGutterModifiedBackground', "Minimap gutter background color for lines that are modified."));
+
+export const minimapGutterAddedBackground = registerColor('minimapGutter.addedBackground', {
+	dark: new Color(new RGBA(88, 124, 12)),
+	light: new Color(new RGBA(129, 184, 139)),
+	hc: new Color(new RGBA(51, 171, 78))
+}, nls.localize('minimapGutterAddedBackground', "Minimap gutter background color for lines that are added."));
+
+export const minimapGutterDeletedBackground = registerColor('minimapGutter.deletedBackground', {
+	dark: new Color(new RGBA(148, 21, 27)),
+	light: new Color(new RGBA(202, 75, 81)),
+	hc: new Color(new RGBA(252, 93, 109))
+}, nls.localize('minimapGutterDeletedBackground', "Minimap gutter background color for lines that are deleted."));
 
 const overviewRulerDefault = new Color(new RGBA(0, 122, 204, 0.6));
 export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
@@ -832,7 +849,7 @@ export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler
 
 class DirtyDiffDecorator extends Disposable {
 
-	static createDecoration(className: string, foregroundColor: string, options: { gutter: boolean, overview: boolean, isWholeLine: boolean }): ModelDecorationOptions {
+	static createDecoration(className: string, options: { gutter: boolean, overview: { active: boolean, color: string }, minimap: { active: boolean, color: string }, isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
 			isWholeLine: options.isWholeLine,
 		};
@@ -841,10 +858,17 @@ class DirtyDiffDecorator extends Disposable {
 			decorationOptions.linesDecorationsClassName = `dirty-diff-glyph ${className}`;
 		}
 
-		if (options.overview) {
+		if (options.overview.active) {
 			decorationOptions.overviewRuler = {
-				color: themeColorFromId(foregroundColor),
+				color: themeColorFromId(options.overview.color),
 				position: OverviewRulerLane.Left
+			};
+		}
+
+		if (options.minimap.active) {
+			decorationOptions.minimap = {
+				color: themeColorFromId(options.minimap.color),
+				position: MinimapPosition.Gutter
 			};
 		}
 
@@ -867,11 +891,26 @@ class DirtyDiffDecorator extends Disposable {
 		const decorations = configurationService.getValue<string>('scm.diffDecorations');
 		const gutter = decorations === 'all' || decorations === 'gutter';
 		const overview = decorations === 'all' || decorations === 'overview';
-		const options = { gutter, overview, isWholeLine: true };
+		const minimap = decorations === 'all' || decorations === 'minimap';
 
-		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', overviewRulerModifiedForeground, options);
-		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', overviewRulerAddedForeground, options);
-		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', overviewRulerDeletedForeground, { ...options, isWholeLine: false });
+		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', {
+			gutter,
+			overview: { active: overview, color: overviewRulerModifiedForeground },
+			minimap: { active: minimap, color: minimapGutterModifiedBackground },
+			isWholeLine: true
+		});
+		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', {
+			gutter,
+			overview: { active: overview, color: overviewRulerAddedForeground },
+			minimap: { active: minimap, color: minimapGutterAddedBackground },
+			isWholeLine: true
+		});
+		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', {
+			gutter,
+			overview: { active: overview, color: overviewRulerDeletedForeground },
+			minimap: { active: minimap, color: minimapGutterDeletedBackground },
+			isWholeLine: false
+		});
 
 		this._register(model.onDidChange(this.onDidChange, this));
 	}
@@ -1176,9 +1215,15 @@ class DirtyDiffItem {
 	}
 }
 
+interface IViewState {
+	readonly width: number;
+	readonly visibility: 'always' | 'hover';
+}
+
 export class DirtyDiffWorkbenchController extends Disposable implements ext.IWorkbenchContribution, IModelRegistry {
 
 	private enabled = false;
+	private viewState: IViewState = { width: 3, visibility: 'always' };
 	private models: ITextModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
 	private readonly transientDisposables = this._register(new DisposableStore());
@@ -1223,15 +1268,20 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 			width = 3;
 		}
 
-		this.stylesheet.innerHTML = `.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${width}px;}`;
+		this.setViewState({ ...this.viewState, width });
 	}
 
 	private onDidChangeDiffVisibiltiyConfiguration(): void {
-		const visibility = this.configurationService.getValue<string>('scm.diffDecorationsGutterVisibility');
+		const visibility = this.configurationService.getValue<'always' | 'hover'>('scm.diffDecorationsGutterVisibility');
+		this.setViewState({ ...this.viewState, visibility });
+	}
 
+	private setViewState(state: IViewState): void {
+		this.viewState = state;
 		this.stylesheet.innerHTML = `
+			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
 			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
-				opacity: ${visibility === 'always' ? 1 : 0};
+				opacity: ${state.visibility === 'always' ? 1 : 0};
 			}
 		`;
 	}

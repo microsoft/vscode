@@ -27,10 +27,6 @@
 	cursor: pointer;
 }
 
-.monaco-editor .codelens-decoration.invisible-cl {
-	opacity: 0;
-}
-
 @keyframes fadein {
 	0% { opacity: 0; visibility: visible;}
 	100% { opacity: 1; }

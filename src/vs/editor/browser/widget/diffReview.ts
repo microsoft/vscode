@@ -695,7 +695,7 @@ export class DiffReview extends Disposable {
 			if (originalLine !== 0) {
 				originalLineNumber.appendChild(document.createTextNode(String(originalLine)));
 			} else {
-				originalLineNumber.innerHTML = '&nbsp;';
+				originalLineNumber.innerHTML = '&#160;';
 			}
 			cell.appendChild(originalLineNumber);
 
@@ -707,13 +707,13 @@ export class DiffReview extends Disposable {
 			if (modifiedLine !== 0) {
 				modifiedLineNumber.appendChild(document.createTextNode(String(modifiedLine)));
 			} else {
-				modifiedLineNumber.innerHTML = '&nbsp;';
+				modifiedLineNumber.innerHTML = '&#160;';
 			}
 			cell.appendChild(modifiedLineNumber);
 
 			const spacer = document.createElement('span');
 			spacer.className = spacerClassName;
-			spacer.innerHTML = '&nbsp;&nbsp;';
+			spacer.innerHTML = '&#160;&#160;';
 			cell.appendChild(spacer);
 
 			let lineContent: string;

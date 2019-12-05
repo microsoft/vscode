@@ -12,6 +12,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { asArray } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface ProviderData {
 	provider: vscode.DecorationProvider;
@@ -28,6 +29,7 @@ export class ExtHostDecorations implements IExtHostDecorations {
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadDecorations);
 	}
@@ -66,10 +68,10 @@ export class ExtHostDecorations implements IExtHostDecorations {
 					Decoration.validate(data);
 					result[id] = <DecorationData>[data.priority, data.bubble, data.title, data.letter, data.color];
 				} catch (e) {
-					console.warn(`INVALID decoration from extension '${extensionId.value}': ${e}`);
+					this._logService.warn(`INVALID decoration from extension '${extensionId.value}': ${e}`);
 				}
 			}, err => {
-				console.error(err);
+				this._logService.error(err);
 			});
 
 		})).then(() => {

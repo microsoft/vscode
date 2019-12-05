@@ -56,7 +56,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		this.callbacks = callbacks;
 	}
 
-	getTitle() {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
@@ -93,7 +93,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		}
 
 		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
-		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, binaryContainer, scrollbar, {
+		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.resource, size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, binaryContainer, scrollbar, {
 			openInternalClb: () => this.handleOpenInternalCallback(input, options),
 			openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
 			metadataClb: meta => this.handleMetadataChanged(meta)

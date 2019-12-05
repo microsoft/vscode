@@ -158,6 +158,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						'--nolazy',
 						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portNumber
 					];
+				} else {
+					opts.execArgv = ['--inspect-port=0'];
 				}
 
 				const crashReporterOptions = undefined; // TODO@electron pass this in as options to the extension host after verifying this actually works
@@ -170,10 +172,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
-				this._extensionHostProcess.stdout.setEncoding('utf8');
-				this._extensionHostProcess.stderr.setEncoding('utf8');
-				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
-				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				this._extensionHostProcess.stdout!.setEncoding('utf8');
+				this._extensionHostProcess.stderr!.setEncoding('utf8');
+				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout!, 'data');
+				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr!, 'data');
 				const onOutput = Event.any(
 					Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
 					Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))

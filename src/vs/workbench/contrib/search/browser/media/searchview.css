@@ -47,6 +47,10 @@
 	height: 24px; /* set initial height before measure */
 }
 
+.search-view .monaco-inputbox > .wrapper > textarea.input {
+	scrollbar-width: none; /* Firefox: hide scrollbar */
+}
+
 .search-view .monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
 	display: none;
 }
@@ -296,10 +300,6 @@
 
 .vs-dark .search-view .search-widget .toggle-replace-button:hover {
 	background-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-.vs-dark .search-view .message {
-	opacity: .5;
 }
 
 .vs-dark .search-view .foldermatch,

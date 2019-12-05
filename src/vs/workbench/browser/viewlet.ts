@@ -10,7 +10,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature0, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleSidebarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
@@ -56,19 +56,26 @@ export abstract class Viewlet extends Composite implements IViewlet {
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
-	constructor(
+	public static create<Services extends BrandedService[]>(
+		ctor: { new(...services: Services): Viewlet },
+		id: string,
+		name: string,
+		cssClass?: string,
+		order?: number,
+		iconUrl?: URI
+	): ViewletDescriptor {
+		return new ViewletDescriptor(ctor as IConstructorSignature0<Viewlet>, id, name, cssClass, order, iconUrl);
+	}
+
+	private constructor(
 		ctor: IConstructorSignature0<Viewlet>,
 		id: string,
 		name: string,
 		cssClass?: string,
 		order?: number,
-		private _iconUrl?: URI
+		readonly iconUrl?: URI
 	) {
 		super(ctor, id, name, cssClass, order, id);
-	}
-
-	get iconUrl(): URI | undefined {
-		return this._iconUrl;
 	}
 }
 

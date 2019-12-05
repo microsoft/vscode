@@ -14,7 +14,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { MultilineTokens } from 'vs/editor/common/model/tokensStore';
+import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -30,7 +30,8 @@ export enum OverviewRulerLane {
  * Position in the minimap to render the decoration.
  */
 export enum MinimapPosition {
-	Inline = 1
+	Inline = 1,
+	Gutter = 2
 }
 
 export interface IDecorationOptions {
@@ -790,6 +791,11 @@ export interface ITextModel {
 	 * @internal
 	 */
 	setTokens(tokens: MultilineTokens[]): void;
+
+	/**
+	 * @internal
+	 */
+	setSemanticTokens(tokens: MultilineTokens2[] | null): void;
 
 	/**
 	 * Flush all tokenization state.

@@ -30,7 +30,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -59,6 +59,7 @@ import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/mar
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -452,10 +453,8 @@ export class ExtensionEditor extends BaseEditor {
 	private setSubText(extension: IExtension, reloadAction: ReloadAction, template: IExtensionEditorTemplate): void {
 		hide(template.subtextContainer);
 
-		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
-		const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction);
-		ignoreAction.extension = extension;
-		undoIgnoreAction.extension = extension;
+		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction, extension);
+		const undoIgnoreAction = this.instantiationService.createInstance(UndoIgnoreExtensionRecommendationAction, extension);
 		ignoreAction.enabled = false;
 		undoIgnoreAction.enabled = false;
 
@@ -609,9 +608,10 @@ export class ExtensionEditor extends BaseEditor {
 				if (!link) {
 					return;
 				}
-
 				// Whitelist supported schemes for links
-				if ([Schemas.http, Schemas.https, Schemas.mailto].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesActionId)) {
+				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
+					|| (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId)
+				) {
 					this.openerService.open(link);
 				}
 			}, null, this.contentDisposables));
@@ -644,6 +644,8 @@ export class ExtensionEditor extends BaseEditor {
 					body {
 						padding: 10px 20px;
 						line-height: 22px;
+						max-width: 780px;
+						margin: 0 auto;
 					}
 
 					img {
@@ -846,6 +848,7 @@ export class ExtensionEditor extends BaseEditor {
 				const renders = [
 					this.renderSettings(content, manifest, layout),
 					this.renderCommands(content, manifest, layout),
+					this.renderCodeActions(content, manifest, layout),
 					this.renderLanguages(content, manifest, layout),
 					this.renderColorThemes(content, manifest, layout),
 					this.renderIconThemes(content, manifest, layout),
@@ -887,7 +890,11 @@ export class ExtensionEditor extends BaseEditor {
 		append(template.content, scrollableContent.getDomNode());
 		this.contentDisposables.add(scrollableContent);
 
-		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.dependencies || [], this.extensionsWorkbenchService), content);
+		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree,
+			new ExtensionData(extension, null, extension => extension.dependencies || [], this.extensionsWorkbenchService), content,
+			{
+				listBackground: editorBackground
+			});
 		const layout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();
@@ -907,7 +914,11 @@ export class ExtensionEditor extends BaseEditor {
 		append(template.content, scrollableContent.getDomNode());
 		this.contentDisposables.add(scrollableContent);
 
-		const extensionsPackTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content);
+		const extensionsPackTree = this.instantiationService.createInstance(ExtensionsTree,
+			new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content,
+			{
+				listBackground: editorBackground
+			});
 		const layout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();
@@ -922,8 +933,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const configuration = contributes && contributes.configuration;
+		const configuration = manifest.contributes?.configuration;
 		let properties: any = {};
 		if (Array.isArray(configuration)) {
 			configuration.forEach(config => {
@@ -959,9 +969,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const contrib = contributes && contributes.debuggers || [];
-
+		const contrib = manifest.contributes?.debuggers || [];
 		if (!contrib.length) {
 			return false;
 		}
@@ -984,10 +992,9 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderViewContainers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const contrib = contributes && contributes.viewsContainers || {};
+		const contrib = manifest.contributes?.viewsContainers || {};
 
-		let viewContainers = Object.keys(contrib).reduce((result, location) => {
+		const viewContainers = Object.keys(contrib).reduce((result, location) => {
 			let viewContainersForLocation: IViewContainer[] = contrib[location];
 			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
 			return result;
@@ -1010,10 +1017,9 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderViews(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const contrib = contributes && contributes.views || {};
+		const contrib = manifest.contributes?.views || {};
 
-		let views = Object.keys(contrib).reduce((result, location) => {
+		const views = Object.keys(contrib).reduce((result, location) => {
 			let viewsForLocation: IView[] = contrib[location];
 			result.push(...viewsForLocation.map(view => ({ ...view, location })));
 			return result;
@@ -1036,9 +1042,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderLocalizations(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const localizations = contributes && contributes.localizations || [];
-
+		const localizations = manifest.contributes?.localizations || [];
 		if (!localizations.length) {
 			return false;
 		}
@@ -1056,7 +1060,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderCustomEditors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const webviewEditors = (manifest.contributes && manifest.contributes.webviewEditors) || [];
+		const webviewEditors = manifest.contributes?.webviewEditors || [];
 		if (!webviewEditors.length) {
 			return false;
 		}
@@ -1080,10 +1084,39 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const contrib = contributes && contributes.themes || [];
+	private renderCodeActions(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const codeActions = manifest.contributes?.codeActions || [];
+		if (!codeActions.length) {
+			return false;
+		}
 
+		const flatActions = arrays.flatten(
+			codeActions.map(contribution =>
+				contribution.actions.map(action => ({ ...action, languages: contribution.languages }))));
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('codeActions', "Code Actions ({0})", flatActions.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('codeActions.title', "Title")),
+					$('th', undefined, localize('codeActions.kind', "Kind")),
+					$('th', undefined, localize('codeActions.description', "Description")),
+					$('th', undefined, localize('codeActions.languages', "Languages"))),
+				...flatActions.map(action =>
+					$('tr', undefined,
+						$('td', undefined, action.title),
+						$('td', undefined, $('code', undefined, action.kind)),
+						$('td', undefined, action.description ?? ''),
+						$('td', undefined, ...action.languages.map(language => $('code', undefined, language)))))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.themes || [];
 		if (!contrib.length) {
 			return false;
 		}
@@ -1098,9 +1131,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const contrib = contributes && contributes.iconThemes || [];
-
+		const contrib = manifest.contributes?.iconThemes || [];
 		if (!contrib.length) {
 			return false;
 		}
@@ -1115,10 +1146,8 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderColors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const colors = contributes && contributes.colors;
-
-		if (!(colors && colors.length)) {
+		const colors = manifest.contributes?.colors || [];
+		if (!colors.length) {
 			return false;
 		}
 
@@ -1160,9 +1189,7 @@ export class ExtensionEditor extends BaseEditor {
 
 
 	private renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const contrib = contributes && contributes.jsonValidation || [];
-
+		const contrib = manifest.contributes?.jsonValidation || [];
 		if (!contrib.length) {
 			return false;
 		}
@@ -1184,8 +1211,7 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private renderCommands(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const rawCommands = contributes && contributes.commands || [];
+		const rawCommands = manifest.contributes?.commands || [];
 		const commands = rawCommands.map(c => ({
 			id: c.command,
 			title: c.title,
@@ -1195,7 +1221,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		const byId = arrays.index(commands, c => c.id);
 
-		const menus = contributes && contributes.menus || {};
+		const menus = manifest.contributes?.menus || {};
 
 		Object.keys(menus).forEach(context => {
 			menus[context].forEach(menu => {
@@ -1211,7 +1237,7 @@ export class ExtensionEditor extends BaseEditor {
 			});
 		});
 
-		const rawKeybindings = contributes && contributes.keybindings ? (Array.isArray(contributes.keybindings) ? contributes.keybindings : [contributes.keybindings]) : [];
+		const rawKeybindings = manifest.contributes?.keybindings ? (Array.isArray(manifest.contributes.keybindings) ? manifest.contributes.keybindings : [manifest.contributes.keybindings]) : [];
 
 		rawKeybindings.forEach(rawKeybinding => {
 			const keybinding = this.resolveKeybinding(rawKeybinding);
@@ -1265,7 +1291,7 @@ export class ExtensionEditor extends BaseEditor {
 
 	private renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
-		const rawLanguages = contributes && contributes.languages || [];
+		const rawLanguages = contributes?.languages || [];
 		const languages = rawLanguages.map(l => ({
 			id: l.id,
 			name: (l.aliases || [])[0] || l.id,
@@ -1276,8 +1302,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		const byId = arrays.index(languages, l => l.id);
 
-		const grammars = contributes && contributes.grammars || [];
-
+		const grammars = contributes?.grammars || [];
 		grammars.forEach(grammar => {
 			let language = byId[grammar.language];
 
@@ -1290,8 +1315,7 @@ export class ExtensionEditor extends BaseEditor {
 			}
 		});
 
-		const snippets = contributes && contributes.snippets || [];
-
+		const snippets = contributes?.snippets || [];
 		snippets.forEach(snippet => {
 			let language = byId[snippet.language];
 

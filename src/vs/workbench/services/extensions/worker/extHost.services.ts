@@ -12,8 +12,8 @@ import { IExtHostCommands, ExtHostCommands } from 'vs/workbench/api/common/extHo
 import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostTerminalService, WorkerExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostTask, WorkerExtHostTask } from 'vs/workbench/api/common/extHostTask';
-import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
-import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
+import { IExtHostDebugService, WorkerExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
+import { IExtHostSearch, ExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
@@ -32,6 +32,7 @@ registerSingleton(IExtHostCommands, ExtHostCommands);
 registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors);
 registerSingleton(IExtHostStorage, ExtHostStorage);
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
+registerSingleton(IExtHostSearch, ExtHostSearch);
 
 // register services that only throw errors
 function NotImplementedProxy<T>(name: ServiceIdentifier<T>): { new(): T } {
@@ -50,8 +51,7 @@ function NotImplementedProxy<T>(name: ServiceIdentifier<T>): { new(): T } {
 }
 registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService);
 registerSingleton(IExtHostTask, WorkerExtHostTask);
-registerSingleton(IExtHostDebugService, class extends NotImplementedProxy(IExtHostDebugService) { });
-registerSingleton(IExtHostSearch, class extends NotImplementedProxy(IExtHostSearch) { });
+registerSingleton(IExtHostDebugService, WorkerExtHostDebugService);
 registerSingleton(IExtensionStoragePaths, class extends NotImplementedProxy(IExtensionStoragePaths) {
 	whenReady = Promise.resolve();
 });

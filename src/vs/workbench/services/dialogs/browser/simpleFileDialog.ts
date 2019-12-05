@@ -32,10 +32,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ITextFileService, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource } from 'vs/workbench/common/editor';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { SaveReason } from 'vs/workbench/common/editor';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -53,13 +52,12 @@ export namespace SaveLocalFileCommand {
 	export const LABEL = nls.localize('saveLocalFile', "Save Local File...");
 	export function handler(): ICommandHandler {
 		return accessor => {
-			const textFileService = accessor.get(ITextFileService);
 			const editorService = accessor.get(IEditorService);
-			let resource: URI | undefined = toResource(editorService.activeEditor);
-			const options: ISaveOptions = { force: true, availableFileSystems: [Schemas.file] };
-			if (resource) {
-				return textFileService.saveAs(resource, undefined, options);
+			const activeControl = editorService.activeControl;
+			if (activeControl) {
+				return editorService.save({ groupId: activeControl.group.id, editor: activeControl.input }, { saveAs: true, availableFileSystems: [Schemas.file], reason: SaveReason.EXPLICIT });
 			}
+
 			return Promise.resolve(undefined);
 		};
 	}
@@ -262,6 +260,7 @@ export class SimpleFileDialog {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
 			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
+			this.filePickBox.sortByLabel = false;
 			this.filePickBox.autoFocusOnList = false;
 			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;
@@ -373,28 +372,7 @@ export class SimpleFileDialog {
 			});
 
 			this.filePickBox.onDidChangeValue(async value => {
-				try {
-					// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
-					if (this.isValueChangeFromUser()) {
-						// If the user has just entered more bad path, don't change anything
-						if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
-							this.filePickBox.validationMessage = undefined;
-							const filePickBoxUri = this.filePickBoxValue();
-							let updated: UpdateResult = UpdateResult.NotUpdated;
-							if (!resources.isEqual(this.currentFolder, filePickBoxUri, true)) {
-								updated = await this.tryUpdateItems(value, filePickBoxUri);
-							}
-							if (updated === UpdateResult.NotUpdated) {
-								this.setActiveItems(value);
-							}
-						} else {
-							this.filePickBox.activeItems = [];
-							this.userEnteredPathSegment = '';
-						}
-					}
-				} catch {
-					// Since any text can be entered in the input box, there is potential for error causing input. If this happens, do nothing.
-				}
+				return this.handleValueChange(value);
 			});
 			this.filePickBox.onDidHide(() => {
 				this.hidden = true;
@@ -413,6 +391,31 @@ export class SimpleFileDialog {
 			}
 			this.busy = false;
 		});
+	}
+
+	private async handleValueChange(value: string) {
+		try {
+			// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
+			if (this.isValueChangeFromUser()) {
+				// If the user has just entered more bad path, don't change anything
+				if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
+					this.filePickBox.validationMessage = undefined;
+					const filePickBoxUri = this.filePickBoxValue();
+					let updated: UpdateResult = UpdateResult.NotUpdated;
+					if (!resources.isEqual(this.currentFolder, filePickBoxUri, true)) {
+						updated = await this.tryUpdateItems(value, filePickBoxUri);
+					}
+					if (updated === UpdateResult.NotUpdated) {
+						this.setActiveItems(value);
+					}
+				} else {
+					this.filePickBox.activeItems = [];
+					this.userEnteredPathSegment = '';
+				}
+			}
+		} catch {
+			// Since any text can be entered in the input box, there is potential for error causing input. If this happens, do nothing.
+		}
 	}
 
 	private isBadSubpath(value: string) {
@@ -514,6 +517,16 @@ export class SimpleFileDialog {
 		return undefined;
 	}
 
+	private root(value: URI) {
+		let lastDir = value;
+		let dir = resources.dirname(value);
+		while (!resources.isEqual(lastDir, dir)) {
+			lastDir = dir;
+			dir = resources.dirname(dir);
+		}
+		return dir;
+	}
+
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
 		if ((value.length > 0) && ((value[value.length - 1] === '~') || (value[0] === '~'))) {
 			let newDir = this.userHome;
@@ -521,6 +534,11 @@ export class SimpleFileDialog {
 				newDir = resources.joinPath(newDir, value.substring(1));
 			}
 			await this.updateItems(newDir, true);
+			return UpdateResult.Updated;
+		} else if (value === '\\') {
+			valueUri = this.root(this.currentFolder);
+			value = this.pathFromUri(valueUri);
+			await this.updateItems(valueUri, true);
 			return UpdateResult.Updated;
 		} else if (!resources.isEqual(this.currentFolder, valueUri, true) && (this.endsWithSlash(value) || (!resources.isEqual(this.currentFolder, resources.dirname(valueUri), true) && resources.isEqualOrParent(this.currentFolder, resources.dirname(valueUri), true)))) {
 			let stat: IFileStat | undefined;
@@ -535,7 +553,7 @@ export class SimpleFileDialog {
 			} else if (this.endsWithSlash(value)) {
 				// The input box contains a path that doesn't exist on the system.
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.badPath', 'The path does not exist.');
-				// Save this bad path. It can take too long to to a stat on every user entered character, but once a user enters a bad path they are likely
+				// Save this bad path. It can take too long to a stat on every user entered character, but once a user enters a bad path they are likely
 				// to keep typing more bad path. We can compare against this bad path and see if the user entered path starts with it.
 				this.badPath = value;
 				return UpdateResult.InvalidPath;
@@ -602,7 +620,7 @@ export class SimpleFileDialog {
 			this.activeItem = quickPickItem;
 			if (force) {
 				// clear any selected text
-				this.insertText(this.userEnteredPathSegment, '');
+				document.execCommand('insertText', false, '');
 			}
 			return false;
 		} else if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
@@ -631,14 +649,19 @@ export class SimpleFileDialog {
 	private insertText(wholeValue: string, insertText: string) {
 		if (this.filePickBox.inputHasFocus()) {
 			document.execCommand('insertText', false, insertText);
+			if (this.filePickBox.value !== wholeValue) {
+				this.filePickBox.value = wholeValue;
+				this.handleValueChange(wholeValue);
+			}
 		} else {
 			this.filePickBox.value = wholeValue;
+			this.handleValueChange(wholeValue);
 		}
 	}
 
 	private addPostfix(uri: URI): URI {
 		let result = uri;
-		if (this.requiresTrailing && this.options.filters && this.options.filters.length > 0) {
+		if (this.requiresTrailing && this.options.filters && this.options.filters.length > 0 && !resources.hasTrailingPathSeparator(uri)) {
 			// Make sure that the suffix is added. If the user deleted it, we automatically add it here
 			let hasExt: boolean = false;
 			const currentExt = resources.extname(uri).substr(1);

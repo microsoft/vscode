@@ -73,12 +73,15 @@ export class DebugHoverWidget implements IContentWidget {
 		this.treeContainer.setAttribute('role', 'tree');
 		const dataSource = new DebugHoverDataSource();
 
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<IExpression, IExpression, any>>(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			dataSource, {
 			ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
-			horizontalScrolling: true
+			horizontalScrolling: true,
+			overrideStyles: {
+				listBackground: editorHoverBackground
+			}
 		});
 
 		this.valueContainer = $('.value');

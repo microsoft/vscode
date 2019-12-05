@@ -8,13 +8,13 @@ import { EditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/e
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
 
 class ServiceAccessor {
-	constructor(@IUntitledEditorService public untitledEditorService: UntitledEditorService) {
+	constructor(@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService) {
 	}
 }
 
@@ -48,12 +48,12 @@ suite('Workbench editor', () => {
 	});
 
 	teardown(() => {
-		accessor.untitledEditorService.revertAll();
-		accessor.untitledEditorService.dispose();
+		accessor.untitledTextEditorService.revertAll();
+		accessor.untitledTextEditorService.dispose();
 	});
 
 	test('toResource', () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 
 		assert.ok(!toResource(null!));
 

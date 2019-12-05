@@ -59,17 +59,10 @@ export class SelectColorThemeAction extends Action {
 				}
 				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
-
-					let themeId = theme.id;
-					if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
-						if (applyTheme) {
-							openExtensionViewlet(this.viewletService, 'category:themes ');
-						}
-						themeId = currentTheme.id;
-					}
+					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
 					let target: ConfigurationTarget | undefined = undefined;
 					if (applyTheme) {
-						let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
+						const confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 						target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 					}
 
@@ -82,15 +75,35 @@ export class SelectColorThemeAction extends Action {
 				}, applyTheme ? 0 : 200);
 			};
 
-			const placeHolder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
-			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
-			const activeItem: ThemeItem = picks[autoFocusIndex] as ThemeItem;
+			return new Promise((s, _) => {
+				let isCompleted = false;
 
-			const chooseTheme = (theme: ThemeItem) => selectTheme(theme || currentTheme, true);
-			const tryTheme = (theme: ThemeItem) => selectTheme(theme, false);
-
-			return this.quickInputService.pick(picks, { placeHolder, activeItem, onDidFocus: tryTheme })
-				.then(chooseTheme);
+				const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+				quickpick.items = picks;
+				quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
+				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
+				quickpick.canSelectMany = false;
+				quickpick.onDidAccept(_ => {
+					const theme = quickpick.activeItems[0];
+					if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
+						openExtensionViewlet(this.viewletService, `category:themes ${quickpick.value}`);
+					} else {
+						selectTheme(theme, true);
+					}
+					isCompleted = true;
+					quickpick.hide();
+					s();
+				});
+				quickpick.onDidChangeActive(themes => selectTheme(themes[0], false));
+				quickpick.onDidHide(() => {
+					if (!isCompleted) {
+						selectTheme(currentTheme, true);
+						s();
+					}
+				});
+				quickpick.show();
+			});
 		});
 	}
 }
@@ -131,16 +144,10 @@ class SelectIconThemeAction extends Action {
 				}
 				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
-					let themeId = theme.id;
-					if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
-						if (applyTheme) {
-							openExtensionViewlet(this.viewletService, 'tag:icon-theme ');
-						}
-						themeId = currentTheme.id;
-					}
+					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
 					let target: ConfigurationTarget | undefined = undefined;
 					if (applyTheme) {
-						let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
+						const confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 						target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 					}
 					this.themeService.setFileIconTheme(themeId, target).then(undefined,
@@ -152,14 +159,35 @@ class SelectIconThemeAction extends Action {
 				}, applyTheme ? 0 : 200);
 			};
 
-			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");
-			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
-			const activeItem: ThemeItem = picks[autoFocusIndex] as ThemeItem;
-			const chooseTheme = (theme: ThemeItem) => selectTheme(theme || currentTheme, true);
-			const tryTheme = (theme: ThemeItem) => selectTheme(theme, false);
+			return new Promise((s, _) => {
+				let isCompleted = false;
 
-			return this.quickInputService.pick(picks, { placeHolder, activeItem, onDidFocus: tryTheme })
-				.then(chooseTheme);
+				const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+				quickpick.items = picks;
+				quickpick.placeholder = localize('themes.selectIconTheme', "Select File Icon Theme");
+				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
+				quickpick.canSelectMany = false;
+				quickpick.onDidAccept(_ => {
+					const theme = quickpick.activeItems[0];
+					if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
+						openExtensionViewlet(this.viewletService, `tag:icon-theme ${quickpick.value}`);
+					} else {
+						selectTheme(theme, true);
+					}
+					isCompleted = true;
+					quickpick.hide();
+					s();
+				});
+				quickpick.onDidChangeActive(themes => selectTheme(themes[0], false));
+				quickpick.onDidHide(() => {
+					if (!isCompleted) {
+						selectTheme(currentTheme, true);
+						s();
+					}
+				});
+				quickpick.show();
+			});
 		});
 	}
 }
@@ -257,16 +285,16 @@ class GenerateColorThemeAction extends Action {
 
 const category = localize('preferences', "Preferences");
 
-const colorThemeDescriptor = new SyncActionDescriptor(SelectColorThemeAction, SelectColorThemeAction.ID, SelectColorThemeAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_T) });
+const colorThemeDescriptor = SyncActionDescriptor.create(SelectColorThemeAction, SelectColorThemeAction.ID, SelectColorThemeAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_T) });
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(colorThemeDescriptor, 'Preferences: Color Theme', category);
 
-const iconThemeDescriptor = new SyncActionDescriptor(SelectIconThemeAction, SelectIconThemeAction.ID, SelectIconThemeAction.LABEL);
+const iconThemeDescriptor = SyncActionDescriptor.create(SelectIconThemeAction, SelectIconThemeAction.ID, SelectIconThemeAction.LABEL);
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(iconThemeDescriptor, 'Preferences: File Icon Theme', category);
 
 
 const developerCategory = localize('developer', "Developer");
 
-const generateColorThemeDescriptor = new SyncActionDescriptor(GenerateColorThemeAction, GenerateColorThemeAction.ID, GenerateColorThemeAction.LABEL);
+const generateColorThemeDescriptor = SyncActionDescriptor.create(GenerateColorThemeAction, GenerateColorThemeAction.ID, GenerateColorThemeAction.LABEL);
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', developerCategory);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {

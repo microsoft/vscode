@@ -40,7 +40,7 @@ import * as modes from 'vs/editor/common/modes';
 import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/view/editorColorRegistry';
 import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -869,9 +869,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public onVisible(): void {
+		this._modelData?.view.refreshFocusState();
 	}
 
 	public onHide(): void {
+		this._modelData?.view.refreshFocusState();
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {

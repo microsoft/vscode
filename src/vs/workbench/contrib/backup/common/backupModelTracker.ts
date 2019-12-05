@@ -7,10 +7,10 @@ import { URI as Uri } from 'vs/base/common/uri';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
+import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
+import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const AUTO_SAVE_AFTER_DELAY_DISABLED_TIME = CONTENT_CHANGE_EVENT_BUFFER_DELAY + 500;
 
@@ -21,8 +21,8 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -32,26 +32,20 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 	private registerListeners() {
 
 		// Listen for text file model changes
-		this._register(this.textFileService.models.onModelContentChanged((e) => this.onTextFileModelChanged(e)));
-		this._register(this.textFileService.models.onModelSaved((e) => this.discardBackup(e.resource)));
-		this._register(this.textFileService.models.onModelDisposed((e) => this.discardBackup(e)));
+		this._register(this.textFileService.models.onModelContentChanged(e => this.onTextFileModelChanged(e)));
+		this._register(this.textFileService.models.onModelSaved(e => this.discardBackup(e.resource)));
+		this._register(this.textFileService.models.onModelDisposed(e => this.discardBackup(e)));
 
 		// Listen for untitled model changes
-		this._register(this.untitledEditorService.onDidChangeContent((e) => this.onUntitledModelChanged(e)));
-		this._register(this.untitledEditorService.onDidDisposeModel((e) => this.discardBackup(e)));
+		this._register(this.untitledTextEditorService.onDidChangeContent(e => this.onUntitledModelChanged(e)));
+		this._register(this.untitledTextEditorService.onDidDisposeModel(e => this.discardBackup(e)));
 
-		// Listen to config changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IFilesConfiguration>())));
+		// Listen to auto save config changes
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(c => this.onAutoSaveConfigurationChange(c)));
 	}
 
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		if (!configuration || !configuration.files) {
-			this.configuredAutoSaveAfterDelay = false;
-
-			return;
-		}
-
-		this.configuredAutoSaveAfterDelay = (configuration.files.autoSave === AutoSaveConfiguration.AFTER_DELAY && configuration.files.autoSaveDelay <= AUTO_SAVE_AFTER_DELAY_DISABLED_TIME);
+	private onAutoSaveConfigurationChange(configuration: IAutoSaveConfiguration): void {
+		this.configuredAutoSaveAfterDelay = typeof configuration.autoSaveDelay === 'number' && configuration.autoSaveDelay < AUTO_SAVE_AFTER_DELAY_DISABLED_TIME;
 	}
 
 	private onTextFileModelChanged(event: TextFileModelChangeEvent): void {
@@ -71,8 +65,8 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 	}
 
 	private onUntitledModelChanged(resource: Uri): void {
-		if (this.untitledEditorService.isDirty(resource)) {
-			this.untitledEditorService.loadOrCreate({ resource }).then(model => model.backup());
+		if (this.untitledTextEditorService.isDirty(resource)) {
+			this.untitledTextEditorService.loadOrCreate({ resource }).then(model => model.backup());
 		} else {
 			this.discardBackup(resource);
 		}

@@ -22,7 +22,7 @@ suite('Workbench editor input', () => {
 		assert(input.matches(input));
 		assert(!input.matches(otherInput));
 		assert(!input.matches(null));
-		assert(!input.getName());
+		assert(input.getName());
 
 		input.onDispose(() => {
 			assert(true);

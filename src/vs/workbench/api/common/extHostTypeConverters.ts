@@ -13,7 +13,7 @@ import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/mode
 import * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -30,7 +30,6 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-
 
 export interface PositionLike {
 	line: number;
@@ -290,16 +289,23 @@ export namespace MarkdownString {
 		if (!data) {
 			return part;
 		}
+		let changed = false;
 		data = cloneAndChange(data, value => {
 			if (URI.isUri(value)) {
 				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
+				changed = true;
 				return key;
 			} else {
 				return undefined;
 			}
 		});
-		return encodeURIComponent(JSON.stringify(data));
+
+		if (!changed) {
+			return part;
+		}
+
+		return JSON.stringify(data);
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
@@ -627,14 +633,39 @@ export namespace DocumentSymbol {
 
 export namespace CallHierarchyItem {
 
-	export function to(item: extHostProtocol.ICallHierarchyItemDto): vscode.CallHierarchyItem {
-		return new types.CallHierarchyItem(
+	export function to(item: extHostProtocol.ICallHierarchyItemDto): types.CallHierarchyItem {
+		const result = new types.CallHierarchyItem(
 			SymbolKind.to(item.kind),
 			item.name,
 			item.detail || '',
 			URI.revive(item.uri),
 			Range.to(item.range),
 			Range.to(item.selectionRange)
+		);
+
+		result._sessionId = item._sessionId;
+		result._itemId = item._itemId;
+
+		return result;
+	}
+}
+
+export namespace CallHierarchyIncomingCall {
+
+	export function to(item: extHostProtocol.IIncomingCallDto): types.CallHierarchyIncomingCall {
+		return new types.CallHierarchyIncomingCall(
+			CallHierarchyItem.to(item.from),
+			item.fromRanges.map(r => Range.to(r))
+		);
+	}
+}
+
+export namespace CallHierarchyOutgoingCall {
+
+	export function to(item: extHostProtocol.IOutgoingCallDto): types.CallHierarchyOutgoingCall {
+		return new types.CallHierarchyOutgoingCall(
+			CallHierarchyItem.to(item.to),
+			item.fromRanges.map(r => Range.to(r))
 		);
 	}
 }
@@ -811,7 +842,7 @@ export namespace CompletionItem {
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
 		result.range = editorRange.Range.isIRange(suggestion.range) ? Range.to(suggestion.range) : undefined;
-		result.range2 = editorRange.Range.isIRange(suggestion.range) ? undefined : { insert: Range.to(suggestion.range.insert), replace: Range.to(suggestion.range.replace) };
+		result.range2 = editorRange.Range.isIRange(suggestion.range) ? undefined : { inserting: Range.to(suggestion.range.insert), replacing: Range.to(suggestion.range.replace) };
 		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
 		// 'inserText'-logic
 		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
@@ -893,7 +924,7 @@ export namespace DocumentLink {
 		let target: URI | undefined = undefined;
 		if (link.url) {
 			try {
-				target = typeof link.url === 'string' ? URI.parse(link.url) : URI.revive(link.url);
+				target = typeof link.url === 'string' ? URI.parse(link.url, true) : URI.revive(link.url);
 			} catch (err) {
 				// ignore
 			}

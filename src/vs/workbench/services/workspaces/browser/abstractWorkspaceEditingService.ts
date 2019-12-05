@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER, IEnterWorkspaceResult } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER, IEnterWorkspaceResult, hasWorkspaceFileExtension, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -43,13 +43,25 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		@IHostService protected readonly hostService: IHostService
 	) { }
 
-	pickNewWorkspacePath(): Promise<URI | undefined> {
-		return this.fileDialogService.showSaveDialog({
+	async pickNewWorkspacePath(): Promise<URI | undefined> {
+		let workspacePath = await this.fileDialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
 			defaultUri: this.fileDialogService.defaultWorkspacePath()
 		});
+
+		if (!workspacePath) {
+			return; // canceled
+		}
+
+		if (!hasWorkspaceFileExtension(workspacePath)) {
+			// Always ensure we have workspace file extension
+			// (see https://github.com/microsoft/vscode/issues/84818)
+			workspacePath = workspacePath.with({ path: `${workspacePath.path}.${WORKSPACE_EXTENSION}` });
+		}
+
+		return workspacePath;
 	}
 
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
@@ -120,7 +132,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			// Do not allow workspace folders with scheme different than the current remote scheme
 			const schemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
 			if (schemas.length && foldersToAdd.some(f => schemas.indexOf(f.uri.scheme) === -1)) {
-				return Promise.reject(new Error(nls.localize('differentSchemeRoots', "Workspace folders from different providers are not allowed in the same workspace.")));
+				throw new Error(nls.localize('differentSchemeRoots', "Workspace folders from different providers are not allowed in the same workspace."));
 			}
 		}
 

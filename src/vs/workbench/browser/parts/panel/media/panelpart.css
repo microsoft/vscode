@@ -12,6 +12,20 @@
 	z-index: initial;
 }
 
+.monaco-workbench.windows.chromium .part.panel,
+.monaco-workbench.linux.chromium .part.panel {
+	/*
+	 * Explicitly put the part onto its own layer to help Chrome to
+	 * render the content with LCD-anti-aliasing. By partioning the
+	 * workbench into multiple layers, we can ensure that a bad
+	 * behaving part is not making another part fallback to greyscale
+	 * rendering.
+	 *
+	 * macOS: does not render LCD-anti-aliased.
+	 */
+	transform: translate3d(0px, 0px, 0px);
+}
+
 .monaco-workbench .part.panel .title {
 	height: 35px;
 	display: flex;
@@ -43,24 +57,14 @@
 
 /** Panel Switcher */
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background-image: url('ellipsis-light.svg');
-	display: block;
-	height: 28px;
-	min-width: 28px;
+.monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.codicon-more {
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	margin-left: 0px;
 	margin-right: 0px;
-	background-size: 16px;
-	background-repeat: no-repeat;
-	background-position: center center;
-}
+	color: inherit !important;
 
-.vs-dark .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background-image: url('ellipsis-dark.svg');
-}
-
-.hc-black .monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background-image: url('ellipsis-hc.svg');
 }
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
@@ -110,7 +114,7 @@
 	text-align: center;
 	display: inline-block;
 	box-sizing: border-box;
-	}
+}
 
 /** Actions */
 
@@ -121,7 +125,8 @@
 .monaco-workbench .panel .monaco-action-bar .action-item .monaco-select-box {
 	cursor: pointer;
 	min-width: 110px;
-	margin-right: 10px;
+	min-height: 18px;
+	padding: 2px 23px 2px 8px;
 }
 
 /* Rotate icons when panel is on right */

@@ -14,6 +14,7 @@
 .repl .repl-tree .monaco-tl-contents {
 	user-select: text;
 	-webkit-user-select: text;
+	white-space: pre;
 }
 
 .repl .repl-tree.word-wrap .monaco-tl-contents {
@@ -36,6 +37,16 @@
 
 .repl .repl-tree .output.expression.value-and-source .value {
 	flex: 1;
+}
+
+.repl .repl-tree .monaco-tl-contents .arrow {
+	position:absolute;
+	left: 2px;
+	opacity: 0.3;
+}
+
+.vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
+	opacity: 0.45;
 }
 
 .repl .repl-tree .output.expression.value-and-source .source {

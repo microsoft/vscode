@@ -352,6 +352,12 @@ export const ACTIVITY_BAR_ACTIVE_BORDER = registerColor('activityBar.activeBorde
 	hc: null
 }, nls.localize('activityBarActiveBorder', "Activity bar border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_ACTIVE_FOCUS_BORDER = registerColor('activityBar.activeFocusBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('activityBarActiveFocusBorder', "Activity bar focus border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
 export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeBackground', {
 	dark: null,
 	light: null,
@@ -575,31 +581,31 @@ export const NOTIFICATIONS_ERROR_ICON_FOREGROUND = registerColor('notificationsE
 	dark: editorErrorForeground,
 	light: editorErrorForeground,
 	hc: editorErrorForeground
-}, nls.localize('notificationsErrorIconForeground', "The color used for the notification error icon."));
+}, nls.localize('notificationsErrorIconForeground', "The color used for the icon of error notifications. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_WARNING_ICON_FOREGROUND = registerColor('notificationsWarningIcon.foreground', {
 	dark: editorWarningForeground,
 	light: editorWarningForeground,
 	hc: editorWarningForeground
-}, nls.localize('notificationsWarningIconForeground', "The color used for the notification warning icon."));
+}, nls.localize('notificationsWarningIconForeground', "The color used for the icon of warning notifications. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_INFO_ICON_FOREGROUND = registerColor('notificationsInfoIcon.foreground', {
 	dark: editorInfoForeground,
 	light: editorInfoForeground,
 	hc: editorInfoForeground
-}, nls.localize('notificationsInfoIconForeground', "The color used for the notification info icon."));
+}, nls.localize('notificationsInfoIconForeground', "The color used for the icon of info notifications. Notifications slide in from the bottom right of the window."));
 
 export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
 	dark: null,
 	light: null,
 	hc: contrastBorder
-}, nls.localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the desktop client."));
+}, nls.localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the desktop client when using the custom title bar."));
 
 export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
 	dark: null,
 	light: null,
 	hc: contrastBorder
-}, nls.localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client."));
+}, nls.localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client when using the custom title bar."));
 
 /**
  * Base class for all themable workbench components.

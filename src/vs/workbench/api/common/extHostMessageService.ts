@@ -7,6 +7,7 @@ import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 function isMessageItem(item: any): item is vscode.MessageItem {
 	return item && item.title;
@@ -16,7 +17,10 @@ export class ExtHostMessageService {
 
 	private _proxy: MainThreadMessageServiceShape;
 
-	constructor(mainContext: IMainContext) {
+	constructor(
+		mainContext: IMainContext,
+		@ILogService private readonly _logService: ILogService
+	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadMessageService);
 	}
 
@@ -45,7 +49,7 @@ export class ExtHostMessageService {
 				let { title, isCloseAffordance } = command;
 				commands.push({ title, isCloseAffordance: !!isCloseAffordance, handle });
 			} else {
-				console.warn('Invalid message item:', command);
+				this._logService.warn('Invalid message item:', command);
 			}
 		}
 

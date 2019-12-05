@@ -9,14 +9,14 @@ import * as nls from 'vs/nls';
 import { sep } from 'vs/base/common/path';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
-import { SaveErrorHandler } from 'vs/workbench/contrib/files/browser/saveErrorHandler';
+import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,7 +27,6 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -38,6 +37,8 @@ import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerServi
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
+import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -73,7 +74,7 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 }
 
 // Register Viewlet
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	ExplorerViewlet,
 	VIEWLET_ID,
 	nls.localize('explore', "Explorer"),
@@ -92,21 +93,20 @@ const openViewletKb: IKeybindings = {
 // Register Action to Open Viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(
-	new SyncActionDescriptor(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
+	SyncActionDescriptor.create(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
 	'View: Show Explorer',
 	nls.localize('view', "View")
 );
 
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		BinaryFileEditor,
 		BinaryFileEditor.ID,
 		nls.localize('binaryFileEditor', "Binary File Editor")
 	),
 	[
-		new SyncDescriptor<EditorInput>(FileEditorInput),
-		new SyncDescriptor<EditorInput>(DataUriEditorInput)
+		new SyncDescriptor<EditorInput>(FileEditorInput)
 	]
 );
 
@@ -164,19 +164,22 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Register File Editor Tracker
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileEditorTracker, LifecyclePhase.Starting);
 
-// Register Save Error Handler
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SaveErrorHandler, LifecyclePhase.Starting);
+// Register Text File Save Error Handler
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextFileSaveErrorHandler, LifecyclePhase.Starting);
 
 // Register uri display for file uris
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
-// Workspace Watcher
+// Register Workspace Watcher
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceWatcher, LifecyclePhase.Restored);
+
+// Register Dirty Files Indicator
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesIndicator, LifecyclePhase.Starting);
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
-const hotExitConfiguration = platform.isNative ?
+const hotExitConfiguration: IConfigurationPropertySchema = platform.isNative ?
 	{
 		'type': 'string',
 		'scope': ConfigurationScope.APPLICATION,
@@ -339,10 +342,7 @@ configurationRegistry.registerConfiguration({
 });
 
 configurationRegistry.registerConfiguration({
-	id: 'editor',
-	order: 5,
-	title: nls.localize('editorConfigurationTitle', "Editor"),
-	type: 'object',
+	...editorConfigurationBaseNode,
 	properties: {
 		'editor.formatOnSave': {
 			'type': 'boolean',
@@ -423,7 +423,12 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('explorer.incrementalNaming', "Controls what naming strategy to use when a giving a new name to a duplicated explorer item on paste."),
 			default: 'simple'
-		}
+		},
+		'explorer.compactFolders': {
+			'type': 'boolean',
+			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
+			'default': true
+		},
 	}
 });
 

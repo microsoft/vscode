@@ -10,10 +10,10 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
+import { joinPath, dirname } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { startsWith } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -37,7 +37,6 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
-	private readonly throttledDelayer: ThrottledDelayer<void>;
 	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
@@ -53,23 +52,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	) {
 		super();
 		this.lastSyncSettingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncSettings.json');
-		this.throttledDelayer = this._register(new ThrottledDelayer<void>(500));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.settingsResource))(() => this.throttledDelayer.trigger(() => this.onDidChangeSettings())));
-	}
-
-	private async onDidChangeSettings(): Promise<void> {
-		const localFileContent = await this.getLocalFileContent();
-		const lastSyncData = await this.getLastSyncUserData();
-		if (localFileContent && lastSyncData) {
-			if (localFileContent.value.toString() !== lastSyncData.content) {
-				this._onDidChangeLocal.fire();
-				return;
-			}
-		}
-		if (!localFileContent || !lastSyncData) {
-			this._onDidChangeLocal.fire();
-			return;
-		}
+		this._register(this.fileService.watch(dirname(this.environmentService.settingsResource)));
+		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.settingsResource))(() => this._onDidChangeLocal.fire()));
 	}
 
 	private setStatus(status: SyncStatus): void {
@@ -80,7 +64,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	async sync(_continue?: boolean): Promise<boolean> {
-		if (!this.configurationService.getValue<boolean>('configurationSync.enableSettings')) {
+		if (!this.configurationService.getValue<boolean>('sync.enableSettings')) {
 			this.logService.trace('Settings: Skipping synchronizing settings as it is disabled.');
 			return false;
 		}
@@ -135,10 +119,9 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 	}
 
 	private async continueSync(): Promise<boolean> {
-		if (this.status !== SyncStatus.HasConflicts) {
-			return false;
+		if (this.status === SyncStatus.HasConflicts) {
+			await this.apply();
 		}
-		await this.apply();
 		return true;
 	}
 
@@ -153,7 +136,7 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			if (this.hasErrors(content)) {
 				const error = new Error(localize('errorInvalidSettings', "Unable to sync settings. Please resolve conflicts without any errors/warnings and try again."));
 				this.logService.error(error);
-				return Promise.reject(error);
+				throw error;
 			}
 
 			let { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged } = await this.syncPreviewResultPromise;
@@ -218,8 +201,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 			}
 
 			if (!lastSyncData // First time sync
-				|| lastSyncData.content !== localContent // Local has moved forwarded
-				|| lastSyncData.content !== remoteContent // Remote has moved forwarded
+				|| lastSyncData.content !== localContent // Local has forwarded
+				|| lastSyncData.content !== remoteContent // Remote has forwarded
 			) {
 				this.logService.trace('Settings: Merging remote settings with local settings...');
 				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, this.getIgnoredSettings());
@@ -252,10 +235,10 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		if (settingsContent) {
 			const setting = parse(settingsContent);
 			if (setting) {
-				value = setting['configurationSync.settingsToIgnore'];
+				value = setting['sync.ignoredSettings'];
 			}
 		} else {
-			value = this.configurationService.getValue<string[]>('configurationSync.settingsToIgnore');
+			value = this.configurationService.getValue<string[]>('sync.ignoredSettings');
 		}
 		const added: string[] = [], removed: string[] = [];
 		if (Array.isArray(value)) {

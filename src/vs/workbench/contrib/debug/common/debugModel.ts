@@ -157,6 +157,11 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.session = session;
 		try {
 			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			if (response && response.success === false) {
+				this.value = response.message || '';
+				return false;
+			}
+
 			if (response && response.body) {
 				this.value = response.body.result || '';
 				this.reference = response.body.variablesReference;
@@ -810,9 +815,9 @@ export class DebugModel implements IDebugModel {
 	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsActivated = true;
-	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent | undefined>;
-	private readonly _onDidChangeCallStack: Emitter<void>;
-	private readonly _onDidChangeWatchExpressions: Emitter<IExpression | undefined>;
+	private readonly _onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent | undefined>();
+	private readonly _onDidChangeCallStack = new Emitter<void>();
+	private readonly _onDidChangeWatchExpressions = new Emitter<IExpression | undefined>();
 
 	constructor(
 		private breakpoints: Breakpoint[],
@@ -824,9 +829,6 @@ export class DebugModel implements IDebugModel {
 	) {
 		this.sessions = [];
 		this.toDispose = [];
-		this._onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent>();
-		this._onDidChangeCallStack = new Emitter<void>();
-		this._onDidChangeWatchExpressions = new Emitter<IExpression>();
 	}
 
 	getId(): string {
@@ -1077,7 +1079,7 @@ export class DebugModel implements IDebugModel {
 				if (first.column && second.column) {
 					return first.column - second.column;
 				}
-				return -1;
+				return 1;
 			}
 
 			return first.lineNumber - second.lineNumber;
@@ -1093,6 +1095,9 @@ export class DebugModel implements IDebugModel {
 			}
 
 			element.enabled = enable;
+			if (enable) {
+				this.breakpointsActivated = true;
+			}
 
 			this._onDidChangeBreakpoints.fire({ changed: changed });
 		}
@@ -1119,6 +1124,9 @@ export class DebugModel implements IDebugModel {
 			}
 			dbp.enabled = enable;
 		});
+		if (enable) {
+			this.breakpointsActivated = true;
+		}
 
 		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}

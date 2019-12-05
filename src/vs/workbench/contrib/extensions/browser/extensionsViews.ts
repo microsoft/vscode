@@ -32,7 +32,7 @@ import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRe
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/contrib/experiments/common/experimentService';
@@ -47,6 +47,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -71,7 +72,7 @@ export interface ExtensionsListViewOptions extends IViewletViewOptions {
 
 class ExtensionListViewWarning extends Error { }
 
-export class ExtensionsListView extends ViewletPanel {
+export class ExtensionsListView extends ViewletPane {
 
 	protected readonly server: IExtensionManagementServer | undefined;
 	private bodyTemplate: {
@@ -104,7 +105,7 @@ export class ExtensionsListView extends ViewletPanel {
 		@IProductService protected readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title, showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: options.title, showActionsAlways: true }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.server = options.server;
 	}
 
@@ -124,11 +125,14 @@ export class ExtensionsListView extends ViewletPanel {
 		const delegate = new Delegate();
 		const extensionsViewState = new ExtensionsViewState();
 		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState);
-		this.list = this.instantiationService.createInstance(WorkbenchPagedList, 'Extensions', extensionsList, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance<typeof WorkbenchPagedList, WorkbenchPagedList<IExtension>>(WorkbenchPagedList, 'Extensions', extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
-			horizontalScrolling: false
+			horizontalScrolling: false,
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		});
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
 		this._register(this.list.onFocusChange(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));

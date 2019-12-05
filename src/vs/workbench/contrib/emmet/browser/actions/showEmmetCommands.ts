@@ -21,7 +21,7 @@ class ShowEmmetCommandsAction extends EditorAction {
 			label: nls.localize('showEmmetCommands', "Show Emmet Commands"),
 			alias: 'Show Emmet Commands',
 			precondition: EditorContextKeys.writable,
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '5_insert',
 				title: nls.localize({ key: 'miShowEmmetCommands', comment: ['&& denotes a mnemonic'] }, "E&&mmet..."),

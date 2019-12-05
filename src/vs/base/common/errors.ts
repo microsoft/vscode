@@ -195,7 +195,6 @@ export function getErrorMessage(err: any): string {
 	return String(err);
 }
 
-
 export class NotImplementedError extends Error {
 	constructor(message?: string) {
 		super('NotImplemented');

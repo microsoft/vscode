@@ -294,7 +294,7 @@ suite('SQLite Storage Library', () => {
 		return set;
 	}
 
-	async function testDBBasics(path: string, logError?: (error: Error) => void) {
+	async function testDBBasics(path: string, logError?: (error: Error | string) => void) {
 		let options!: ISQLiteStorageDatabaseOptions;
 		if (logError) {
 			options = {

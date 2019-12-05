@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { addClasses, addClass, removeClasses } from 'vs/base/browser/dom';
 import { runWhenIdle } from 'vs/base/common/async';
-import { getZoomLevel } from 'vs/base/browser/browser';
+import { getZoomLevel, isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -272,7 +272,7 @@ export class Workbench extends Layout {
 	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
 
 		// Restore (native: use storage service, web: use browser specific local storage)
-		const storedFontInfoRaw = isNative ? storageService.get('editorFontInfo', StorageScope.GLOBAL) : window.localStorage.getItem('editorFontInfo');
+		const storedFontInfoRaw = isNative ? storageService.get('editorFontInfo', StorageScope.GLOBAL) : window.localStorage.getItem('vscode.editorFontInfo');
 		if (storedFontInfoRaw) {
 			try {
 				const storedFontInfo = JSON.parse(storedFontInfoRaw);
@@ -299,7 +299,7 @@ export class Workbench extends Layout {
 			if (isNative) {
 				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL);
 			} else {
-				window.localStorage.setItem('editorFontInfo', serializedFontInfoRaw);
+				window.localStorage.setItem('vscode.editorFontInfo', serializedFontInfoRaw);
 			}
 		}
 	}
@@ -312,6 +312,7 @@ export class Workbench extends Layout {
 			'monaco-workbench',
 			platformClass,
 			isWeb ? 'web' : undefined,
+			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
 			...this.getLayoutClasses()
 		]);
 

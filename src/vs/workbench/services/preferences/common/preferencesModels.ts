@@ -1117,7 +1117,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 			patternRegex = new RegExp(prop.pattern);
 		}
 
-		const type = Array.isArray(prop.type) ? prop.type : [prop.type];
+		const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
 		const canBeType = (t: string) => type.indexOf(t) > -1;
 
 		const isNullable = canBeType('null');

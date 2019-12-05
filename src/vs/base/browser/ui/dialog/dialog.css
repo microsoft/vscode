@@ -27,12 +27,12 @@
 	min-width: 500px;
 	max-width: 90%;
 	min-height: 75px;
-	padding: 5px;
+	padding: 10px;
 }
 
 /** Dialog: Title Actions Row */
 .monaco-workbench .dialog-box .dialog-toolbar-row {
-	padding-right: 1px;
+	padding-bottom: 4px;
 }
 
 .monaco-workbench .dialog-box .action-label {
@@ -46,73 +46,19 @@
 }
 
 
-.monaco-workbench .dialog-box .dialog-close-action {
-	background: url('close-light.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-close-action,
-.hc-black .monaco-workbench .dialog-box .dialog-close-action {
-	background: url('close-dark.svg') center center no-repeat;
-}
-
 /** Dialog: Message Row */
 .monaco-workbench .dialog-box .dialog-message-row {
 	display: flex;
 	flex-grow: 1;
-	padding: 10px 15px 20px;
 	align-items: center;
+	padding: 0 10px;
 }
 
-.monaco-workbench .dialog-box .dialog-message-row .dialog-icon {
-	flex: 0 0 40px;
-	height: 40px;
+.monaco-workbench .dialog-box .dialog-message-row > .codicon {
+	flex: 0 0 48px;
+	height: 48px;
 	align-self: baseline;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 40px;
-}
-
-.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
-	background-image: url('pending.svg');
-}
-
-.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info {
-	background-image: url('info-light.svg');
-}
-
-.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning {
-	background-image: url('warning-light.svg');
-}
-
-.vs .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error {
-	background-image: url('error-light.svg');
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
-	background-image: url('pending-dark.svg');
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info,
-.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-info {
-	background-image: url('info-dark.svg');
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning,
-.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-warning {
-	background-image: url('warning-dark.svg');
-}
-
-.vs-dark .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error,
-.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-error {
-	background-image: url('error-dark.svg');
-}
-
-.hc-black .monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
-	background-image: url('pending-hc.svg');
-}
-
-.monaco-workbench .dialog-box .dialog-message-row .dialog-icon.icon-pending {
-	background-size: 30px;
+	font-size: 48px;
 }
 
 /** Dialog: Message Container */
@@ -121,7 +67,7 @@
 	flex-direction: column;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	padding-left: 20px;
+	padding-left: 24px;
 	user-select: text;
 	-webkit-user-select: text;
 	-ms-user-select: text;
@@ -136,7 +82,10 @@
 	flex: 1; /* let the message always grow */
 	white-space: normal;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
-	padding-bottom: 10px;
+	min-height: 48px; /* matches icon height */
+	margin-bottom: 8px;
+	display: flex;
+	align-items: center;
 }
 
 /** Dialog: Details */
@@ -156,6 +105,13 @@
 	display: flex;
 }
 
+.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row .dialog-checkbox-message {
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+}
+
 /** Dialog: Buttons Row */
 .monaco-workbench .dialog-box > .dialog-buttons-row {
 	display: flex;
@@ -168,6 +124,7 @@
 .monaco-workbench .dialog-box > .dialog-buttons-row {
 	display: flex;
 	white-space: nowrap;
+	padding: 20px 10px 10px;
 }
 
 /** Dialog: Buttons */
@@ -177,8 +134,8 @@
 }
 
 .monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	max-width: fit-content;
-	max-width: -moz-fit-content;
+	width: fit-content;
+	width: -moz-fit-content;
 	padding: 5px 10px;
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	overflow: hidden;

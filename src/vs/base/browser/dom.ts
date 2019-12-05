@@ -16,6 +16,7 @@ import * as platform from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -266,8 +267,40 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
+export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+};
+
+export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
+}
+
+export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_MOVE : EventType.MOUSE_MOVE, handler, useCapture);
+}
+
+export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
+}
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
+		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
+		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		while (toElement && toElement !== node) {
+			toElement = toElement.parentNode;
+		}
+		if (toElement === node) {
+			return;
+		}
+
+		handler(e);
+	});
+}
+
+export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
+	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
 		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
 		while (toElement && toElement !== node) {
@@ -428,7 +461,7 @@ export interface DOMEvent {
 }
 
 const MINIMUM_TIME_MS = 16;
-const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent, currentEvent: DOMEvent) {
+const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
 
@@ -475,6 +508,20 @@ export function getClientArea(element: HTMLElement): Dimension {
 	// Try with DOM clientWidth / clientHeight
 	if (element !== document.body) {
 		return new Dimension(element.clientWidth, element.clientHeight);
+	}
+
+	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
+	if (platform.isIOS && (<any>window).visualViewport) {
+		const width = (<any>window).visualViewport.width;
+		const height = (<any>window).visualViewport.height - (
+			browser.isStandalone
+				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
+				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
+				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
+				? (20 + 4) // + 4px for body margin
+				: 0
+		);
+		return new Dimension(width, height);
 	}
 
 	// Try innerWidth / innerHeight
@@ -852,6 +899,9 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
+	POINTER_UP: 'pointerup',
+	POINTER_DOWN: 'pointerdown',
+	POINTER_MOVE: 'pointermove',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
@@ -1029,6 +1079,11 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	Object.keys(attrs).forEach(name => {
 		const value = attrs![name];
+
+		if (typeof value === 'undefined') {
+			return;
+		}
+
 		if (/^on\w+$/.test(name)) {
 			(<any>result)[name] = value;
 		} else if (name === 'selected') {

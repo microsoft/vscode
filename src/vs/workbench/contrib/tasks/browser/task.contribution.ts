@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../common/media/task.contribution';
-
 import * as nls from 'vs/nls';
 
 import { QuickOpenHandler } from 'vs/workbench/contrib/tasks/browser/taskQuickOpen';
@@ -47,7 +45,7 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ManageAutomaticTaskRunning, ManageAutomaticTaskRunning.ID, ManageAutomaticTaskRunning.LABEL), 'Tasks: Manage Automatic Tasks in Folder', tasksCategory);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ManageAutomaticTaskRunning, ManageAutomaticTaskRunning.ID, ManageAutomaticTaskRunning.LABEL), 'Tasks: Manage Automatic Tasks in Folder', tasksCategory);
 
 export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
 	private runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
@@ -256,7 +254,7 @@ const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Q
 const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
+	QuickOpenHandlerDescriptor.create(
 		QuickOpenHandler,
 		QuickOpenHandler.ID,
 		'task ',
@@ -315,7 +313,7 @@ configurationRegistry.registerConfiguration({
 	type: 'object',
 	properties: {
 		'task.problemMatchers.neverPrompt': {
-			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never promp, or use a dictionary of task types to turn off prompting only for specific task types."),
+			markdownDescription: nls.localize('task.problemMatchers.neverPrompt', "Configures whether to show the problem matcher prompt when running a task. Set to `true` to never prompt, or use a dictionary of task types to turn off prompting only for specific task types."),
 			'oneOf': [
 				{
 					type: 'boolean',
@@ -338,8 +336,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'task.autoDetect': {
 			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions my provide settings to disabled auto detection."),
-			type: 'boolean',
-			default: true
+			type: 'string',
+			enum: ['on', 'off'],
+			default: 'on'
 		},
 		'task.slowProviderWarning': {
 			markdownDescription: nls.localize('task.slowProviderWarning', "Configures whether a warning is shown when a provider is slow"),

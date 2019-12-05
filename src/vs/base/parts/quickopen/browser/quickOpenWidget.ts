@@ -23,6 +23,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { StandardMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IThemable } from 'vs/base/common/styler';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -92,7 +93,7 @@ const defaultStyles = {
 
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
 
-export class QuickOpenWidget extends Disposable implements IModelProvider {
+export class QuickOpenWidget extends Disposable implements IModelProvider, IThemable {
 
 	private static readonly MAX_WIDTH = 600;			// Max total width of quick open widget
 	private static readonly MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
@@ -313,6 +314,16 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 				this.navigateInTree(keyboardEvent.keyCode);
 			}
+
+			// Support to open item with Enter still even in quick nav mode
+			else if (keyboardEvent.keyCode === KeyCode.Enter) {
+				DOM.EventHelper.stop(e, true);
+
+				const focus = this.tree.getFocus();
+				if (focus) {
+					this.elementSelected(focus, e);
+				}
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.treeContainer, DOM.EventType.KEY_UP, e => {
@@ -326,7 +337,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 			// Select element when keys are pressed that signal it
 			const quickNavKeys = this.quickNavigateConfiguration.keybindings;
-			const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some(k => {
+			const wasTriggerKeyPressed = quickNavKeys.some(k => {
 				const [firstPart, chordPart] = k.getParts();
 				if (chordPart) {
 					return false;

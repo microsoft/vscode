@@ -32,6 +32,7 @@
           ".js",
           ".es6",
           ".mjs",
+          ".cjs",
           ".pac"
         ],
         "filenames": [

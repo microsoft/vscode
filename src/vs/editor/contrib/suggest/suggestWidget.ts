@@ -172,7 +172,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		if (suggestion.kind === CompletionItemKind.Color && extractColor(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
-			data.iconContainer.className = 'icon customcolor';
+			data.iconContainer.className = 'icon hide';
 			data.colorspan.style.backgroundColor = color[0];
 
 		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
@@ -1072,6 +1072,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	getId(): string {
 		return SuggestWidget.ID;
+	}
+
+	isFrozen(): boolean {
+		return this.state === State.Frozen;
 	}
 
 	private updateListHeight(): number {

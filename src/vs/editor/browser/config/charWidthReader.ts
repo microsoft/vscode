@@ -124,7 +124,7 @@ class DomCharWidthReader {
 
 	private static _render(testElement: HTMLElement, request: CharWidthRequest): void {
 		if (request.chr === ' ') {
-			let htmlString = '&nbsp;';
+			let htmlString = '&#160;';
 			// Repeat character 256 (2^8) times
 			for (let i = 0; i < 8; i++) {
 				htmlString += htmlString;

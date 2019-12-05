@@ -10,9 +10,10 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { CustomEditoInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
+import { CustomEditorInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
 import './commands';
@@ -25,7 +26,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(CustomEditorContribution, LifecyclePhase.Starting);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+	EditorDescriptor.create(
 		WebviewEditor,
 		WebviewEditor.ID,
 		'Webview Editor',
@@ -34,15 +35,12 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 ]);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
-	CustomEditoInputFactory.ID,
-	CustomEditoInputFactory);
+	CustomEditorInputFactory.ID,
+	CustomEditorInputFactory);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		'id': 'workbench',
-		'order': 7,
-		'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
-		'type': 'object',
+		...workbenchConfigurationNodeBase,
 		'properties': {
 			[customEditorsAssociationsKey]: {
 				type: 'array',
@@ -60,7 +58,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						},
 						'filenamePattern': {
 							type: 'string',
-							description: nls.localize('editor.editorAssociations.filenamePattern', "Glob pattern the the editor should be used for."),
+							description: nls.localize('editor.editorAssociations.filenamePattern', "Glob pattern the editor should be used for."),
 						}
 					}
 				}

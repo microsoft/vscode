@@ -185,6 +185,8 @@ export interface API {
 	readonly repositories: Repository[];
 	readonly onDidOpenRepository: Event<Repository>;
 	readonly onDidCloseRepository: Event<Repository>;
+
+	toGitUri(uri: Uri, ref: string): Uri;
 }
 
 export interface GitExtension {

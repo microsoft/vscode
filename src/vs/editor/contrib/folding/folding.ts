@@ -423,7 +423,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 					if (iconClicked || isCollapsed) {
 						let toToggle = [region];
 						if (e.event.middleButton || e.event.shiftKey) {
-							toToggle.push(...foldingModel.getRegionsInside(region, r => r.isCollapsed === isCollapsed));
+							toToggle.push(...foldingModel.getRegionsInside(region, (r: FoldingRegion) => r.isCollapsed === isCollapsed));
 						}
 						foldingModel.toggleCollapseState(toToggle);
 						this.reveal({ lineNumber, column: 1 });

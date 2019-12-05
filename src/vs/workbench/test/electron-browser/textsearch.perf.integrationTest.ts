@@ -11,7 +11,7 @@ import { createSyncDescriptor } from 'vs/platform/instantiation/common/descripto
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'vscode-minimist';
 import * as path from 'vs/base/common/path';
@@ -34,6 +34,7 @@ import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 declare var __dirname: string;
 
@@ -63,12 +64,12 @@ suite.skip('TextSearch performance (integration)', () => {
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService)],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService())],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
-			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
+			[IUntitledTextEditorService, createSyncDescriptor(UntitledTextEditorService)],
 			[ISearchService, createSyncDescriptor(LocalSearchService)],
 			[ILogService, new NullLogService()]
 		));

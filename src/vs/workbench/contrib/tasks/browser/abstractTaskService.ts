@@ -90,6 +90,8 @@ export namespace ConfigureTaskAction {
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
+type TaskQuickPickEntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
+
 class ProblemReporter implements TaskConfig.IProblemReporter {
 
 	private _validationStatus: ValidationStatus;
@@ -295,9 +297,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.updateSetup(folderSetup);
 			this.updateWorkspaceTasks();
 		}));
-		this._register(Event.debounce(this.configurationService.onDidChangeConfiguration, () => {
-			return;
-		}, 1000)(() => {
+		this._register(this.configurationService.onDidChangeConfiguration(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
@@ -699,7 +699,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary> {
+	public run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
@@ -730,7 +730,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private isProvideTasksEnabled(): boolean {
 		const settingValue = this.configurationService.getValue('task.autoDetect');
-		return settingValue === true;
+		return settingValue === 'on';
 	}
 
 	private isProblemMatcherPromptEnabled(type?: string): boolean {
@@ -1234,7 +1234,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
 		return ProblemMatcherRegistry.onReady().then(() => {
-			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+			return this.editorService.saveAll().then((value) => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().run(task, resolver);
 				return this.handleExecuteResult(executeResult);
 			});
@@ -1343,7 +1343,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				setTimeout(() => {
 					if (!isDone) {
 						const settings: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.settings', "Settings"), run: () => this.preferencesService.openSettings(false, undefined) };
-						const disableAll: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.disableAll', "Disable All"), run: () => this.configurationService.updateValue('task.autoDetect', false) };
+						const disableAll: IPromptChoice = { label: nls.localize('TaskSystem.slowProvider.disableAll', "Disable All"), run: () => this.configurationService.updateValue('task.autoDetect', 'off') };
 						const dontShow: IPromptChoice = {
 							label: nls.localize('TaskSystem.slowProvider.dontShow', "Don't warn again for {0} tasks", type), run: () => {
 								if (!Types.isStringArray(settingValue)) {
@@ -1362,7 +1362,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private getGroupedTasks(type?: string): Promise<TaskMap> {
-		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), TaskDefinitionRegistry.onReady()]).then(() => {
+		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			let validTypes: IStringDictionary<boolean> = Object.create(null);
 			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
 			validTypes['shell'] = true;
@@ -1964,7 +1964,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			for (let task of tasks) {
 				let entry: TaskQuickPickEntry = TaskQuickPickEntry(task);
-				entry.buttons = [{ iconClass: 'quick-open-task-configure', tooltip: nls.localize('configureTask', "Configure Task") }];
+				entry.buttons = [{ iconClass: 'codicon-gear', tooltip: nls.localize('configureTask', "Configure Task") }];
 				if (selectedEntry && (task === selectedEntry.task)) {
 					entries.unshift(selectedEntry);
 				} else {
@@ -2022,17 +2022,32 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return entries;
 	}
 
-	private showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
+	private async showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
 		const tokenSource = new CancellationTokenSource();
 		const cancellationToken: CancellationToken = tokenSource.token;
-		let _createEntries = (): Promise<QuickPickInput<TaskQuickPickEntry>[]> => {
+		let _createEntries = new Promise<QuickPickInput<TaskQuickPickEntry>[]>((resolve) => {
 			if (Array.isArray(tasks)) {
-				return Promise.resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
+				resolve(this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
 			} else {
-				return tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry));
+				resolve(tasks.then((tasks) => this.createTaskQuickPickEntries(tasks, group, sort, selectedEntry)));
 			}
-		};
-		const pickEntries = _createEntries().then((entries) => {
+		});
+
+		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
+			await _createEntries;
+			resolve(false);
+		}), new Promise<boolean>((resolve) => {
+			const timer = setTimeout(() => {
+				clearTimeout(timer);
+				resolve(true);
+			}, 200);
+		})]);
+
+		if (!timeout && ((await _createEntries).length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
+			return (<TaskQuickPickEntry>(await _createEntries)[0]);
+		}
+
+		const pickEntries = _createEntries.then((entries) => {
 			if ((entries.length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
 				tokenSource.cancel();
 			} else if ((entries.length === 0) && defaultEntry) {
@@ -2149,7 +2164,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		ProblemMatcherRegistry.onReady().then(() => {
-			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+			return this.editorService.saveAll().then((value) => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().rerun();
 				if (executeResult) {
 					return this.handleExecuteResult(executeResult);
@@ -2448,8 +2463,33 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
+	private isTaskEntry(value: IQuickPickItem): value is IQuickPickItem & { task: Task } {
+		let candidate: IQuickPickItem & { task: Task } = value as any;
+		return candidate && !!candidate.task;
+	}
 
-	private runConfigureTasks(): void {
+	private configureTask(task: Task) {
+		if (ContributedTask.is(task)) {
+			this.customize(task, undefined, true);
+		} else if (CustomTask.is(task)) {
+			this.openConfig(task);
+		} else if (ConfiguringTask.is(task)) {
+			// Do nothing.
+		}
+	}
+
+	private handleSelection(selection: TaskQuickPickEntryType) {
+		if (!selection) {
+			return;
+		}
+		if (this.isTaskEntry(selection)) {
+			this.configureTask(selection.task);
+		} else {
+			this.openTaskFile(selection.folder.toResource('.vscode/tasks.json'));
+		}
+	}
+
+	private async runConfigureTasks(): Promise<void> {
 		if (!this.canRunCommand()) {
 			return undefined;
 		}
@@ -2460,21 +2500,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			taskPromise = Promise.resolve(new TaskMap());
 		}
 
-		let configureTask = (task: Task): void => {
-			if (ContributedTask.is(task)) {
-				this.customize(task, undefined, true);
-			} else if (CustomTask.is(task)) {
-				this.openConfig(task);
-			} else if (ConfiguringTask.is(task)) {
-				// Do nothing.
-			}
-		};
-
-		function isTaskEntry(value: IQuickPickItem): value is IQuickPickItem & { task: Task } {
-			let candidate: IQuickPickItem & { task: Task } = value as any;
-			return candidate && !!candidate.task;
-		}
-
 		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStat | undefined>>((folder) => {
 			return this.fileService.resolve(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
 		});
@@ -2483,13 +2508,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let openLabel = nls.localize('TaskService.openJsonFile', 'Open tasks.json file');
 		const tokenSource = new CancellationTokenSource();
 		const cancellationToken: CancellationToken = tokenSource.token;
-		type EntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
 		let entries = Promise.all(stats).then((stats) => {
 			return taskPromise.then((taskMap) => {
-				let entries: QuickPickInput<EntryType>[] = [];
+				let entries: QuickPickInput<TaskQuickPickEntryType>[] = [];
+				let needsCreateOrOpen: boolean = true;
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 					let tasks = taskMap.all();
-					let needsCreateOrOpen: boolean = true;
 					if (tasks.length > 0) {
 						tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
 						for (let task of tasks) {
@@ -2514,7 +2538,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						if (tasks.length > 0) {
 							tasks = tasks.slice().sort((a, b) => a._label.localeCompare(b._label));
 							for (let i = 0; i < tasks.length; i++) {
-								let entry: EntryType = { label: tasks[i]._label, task: tasks[i], description: folder.name };
+								let entry: TaskQuickPickEntryType = { label: tasks[i]._label, task: tasks[i], description: folder.name };
 								if (i === 0) {
 									entries.push({ type: 'separator', label: folder.name });
 								}
@@ -2522,19 +2546,37 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							}
 						} else {
 							let label = stats[index] !== undefined ? openLabel : createLabel;
-							let entry: EntryType = { label, folder: folder };
+							let entry: TaskQuickPickEntryType = { label, folder: folder };
 							entries.push({ type: 'separator', label: folder.name });
 							entries.push(entry);
 						}
 						index++;
 					}
 				}
-				if (entries.length === 1) {
+				if ((entries.length === 1) && !needsCreateOrOpen) {
 					tokenSource.cancel();
 				}
 				return entries;
 			});
 		});
+
+		const timeout: boolean = await Promise.race([new Promise<boolean>(async (resolve) => {
+			await entries;
+			resolve(false);
+		}), new Promise<boolean>((resolve) => {
+			const timer = setTimeout(() => {
+				clearTimeout(timer);
+				resolve(true);
+			}, 200);
+		})]);
+
+		if (!timeout && ((await entries).length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
+			const entry: any = <any>((await entries)[0]);
+			if (entry.task) {
+				this.handleSelection(entry);
+				return;
+			}
+		}
 
 		this.quickInputService.pick(entries,
 			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }, cancellationToken).
@@ -2543,17 +2585,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					// canceled when there's only one task
 					const task = (await entries)[0];
 					if ((<any>task).task) {
-						selection = <EntryType>task;
+						selection = <TaskQuickPickEntryType>task;
 					}
 				}
-				if (!selection) {
-					return;
-				}
-				if (isTaskEntry(selection)) {
-					configureTask(selection.task);
-				} else {
-					this.openTaskFile(selection.folder.toResource('.vscode/tasks.json'));
-				}
+				this.handleSelection(selection);
 			});
 	}
 

@@ -87,6 +87,10 @@ suite('AbstractKeybindingService', () => {
 		public _dumpDebugInfoJSON(): string {
 			return '';
 		}
+
+		public registerSchemaContribution() {
+			// noop
+		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;

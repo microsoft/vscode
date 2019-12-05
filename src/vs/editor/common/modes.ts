@@ -19,7 +19,6 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureR
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { keys } from 'vs/base/common/map';
 
 /**
  * Open ended enum at runtime
@@ -125,6 +124,8 @@ export const enum MetadataConsts {
 	FONT_STYLE_MASK = 0b00000000000000000011100000000000,
 	FOREGROUND_MASK = 0b00000000011111111100000000000000,
 	BACKGROUND_MASK = 0b11111111100000000000000000000000,
+
+	LANG_TTYPE_CMPL = 0b11111111111111111111100000000000,
 
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
@@ -547,6 +548,7 @@ export interface CodeAction {
 	diagnostics?: IMarkerData[];
 	kind?: string;
 	isPreferred?: boolean;
+	disabled?: string;
 }
 
 /**
@@ -937,12 +939,6 @@ export namespace SymbolKinds {
 	 */
 	export function fromString(value: string): SymbolKind | undefined {
 		return byName.get(value);
-	}
-	/**
-	 * @internal
-	 */
-	export function names(): readonly string[] {
-		return keys(byName);
 	}
 	/**
 	 * @internal
@@ -1451,14 +1447,6 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
-/**
- * @internal
- */
-export const enum WebviewContentState {
-	Readonly = 1,
-	Unchanged = 2,
-	Dirty = 3,
-}
 
 export interface CodeLens {
 	range: IRange;
@@ -1475,6 +1463,33 @@ export interface CodeLensProvider {
 	onDidChange?: Event<this>;
 	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
+}
+
+export interface SemanticTokensLegend {
+	readonly tokenTypes: string[];
+	readonly tokenModifiers: string[];
+}
+
+export interface SemanticTokens {
+	readonly resultId?: string;
+	readonly data: Uint32Array;
+}
+
+export interface SemanticTokensEdit {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly data?: Uint32Array;
+}
+
+export interface SemanticTokensEdits {
+	readonly resultId?: string;
+	readonly edits: SemanticTokensEdit[];
+}
+
+export interface SemanticTokensProvider {
+	getLegend(): SemanticTokensLegend;
+	provideSemanticTokens(model: model.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+	releaseSemanticTokens(resultId: string | undefined): void;
 }
 
 // --- feature registries ------
@@ -1578,6 +1593,11 @@ export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRange
  * @internal
  */
 export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
+
+/**
+ * @internal
+ */
+export const SemanticTokensProviderRegistry = new LanguageFeatureRegistry<SemanticTokensProvider>();
 
 /**
  * @internal
