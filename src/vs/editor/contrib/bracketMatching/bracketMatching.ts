@@ -334,7 +334,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 				let brackets = model.matchBracket(position);
 				let options = BracketMatchingController._DECORATION_OPTIONS_WITH_OVERVIEW_RULER;
 				if (!brackets && this._matchBrackets === 'always') {
-					brackets = model.findEnclosingBrackets(position);
+					brackets = model.findEnclosingBrackets(position, 20 /* give at most 20ms to compute */);
 					options = BracketMatchingController._DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER;
 				}
 				newData[newDataLen++] = new BracketsData(position, brackets, options);
