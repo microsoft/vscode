@@ -23,7 +23,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -173,7 +173,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		});
 	}
 
-	async changeFocusBetweenPreviewAndReferences() {
+	changeFocusBetweenPreviewAndReferences() {
 		if (!this._widget) {
 			// can be called while still resolving...
 			return;
@@ -291,22 +291,10 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'changeFocus',
+	id: 'changePeekFocus',
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	primary: KeyCode.F2,
-	when: ctxReferenceSearchVisible,
-	handler(accessor) {
-		withController(accessor, controller => {
-			controller.changeFocusBetweenPreviewAndReferences();
-		});
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'changeFocusFromEmbeddedEditor',
-	weight: KeybindingWeight.EditorContrib + 50,
-	primary: KeyCode.F2,
-	when: PeekContext.inPeekEditor,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.F2),
+	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
 	handler(accessor) {
 		withController(accessor, controller => {
 			controller.changeFocusBetweenPreviewAndReferences();
