@@ -15,7 +15,7 @@ import {
 	WorkspaceEdit
 } from 'vscode';
 
-export function activateMatchingTagPosition(
+export function activateMirrorCursor(
 	matchingTagPositionProvider: (document: TextDocument, position: Position) => Thenable<Position | null>,
 	supportedLanguages: { [id: string]: boolean },
 	configName: string
@@ -173,10 +173,19 @@ function shouldDoCleanupForHtmlAttributeInput(document: TextDocument, firstPos: 
 
 	const primaryBeforeSecondary = document.offsetAt(firstPos) < document.offsetAt(secondPos);
 
+	/**
+	 * Check two cases
+	 * <div |></div >
+	 * <div | id="a"></div >
+	 * Before 1st cursor: ` `
+	 * After  1st cursor: `>` or ` `
+	 * Before 2nd cursor: ` `
+	 * After  2nd cursor: `>`
+	 */
 	return (
 		primaryBeforeSecondary &&
 		charBeforePrimarySelection === ' ' &&
-		charAfterPrimarySelection === '>' &&
+		(charAfterPrimarySelection === '>' || charAfterPrimarySelection === ' ') &&
 		charBeforeSecondarySelection === ' ' &&
 		charAfterSecondarySelection === '>'
 	);

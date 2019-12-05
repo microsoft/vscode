@@ -14,7 +14,7 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
-import { activateMatchingTagPosition as activateMatchingTagSelection } from './matchingTag';
+import { activateMirrorCursor } from './mirrorCursor';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -118,7 +118,7 @@ export function activate(context: ExtensionContext) {
 			return client.sendRequest(MatchingTagPositionRequest.type, param);
 		};
 
-		disposable = activateMatchingTagSelection(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.mirrorCursorOnMatchingTag');
+		disposable = activateMirrorCursor(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.mirrorCursorOnMatchingTag');
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {
