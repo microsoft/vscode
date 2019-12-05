@@ -440,6 +440,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
 		this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+			this.reportFilteringUsed();
 			if (event.activeFile) {
 				this.refreshPanel();
 			} else if (event.filterText || event.excludedFiles || event.showWarnings || event.showErrors || event.showInfos) {
@@ -751,6 +752,26 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 
 	private getTelemetryData({ source, code }: IMarker): any {
 		return { source, code };
+	}
+
+	private reportFilteringUsed(): void {
+		const data = {
+			errors: this.filterAction.showErrors,
+			warnings: this.filterAction.showWarnings,
+			infos: this.filterAction.showInfos,
+			activeFile: this.filterAction.activeFile,
+			excludedFiles: this.filterAction.excludedFiles,
+		};
+		/* __GDPR__
+			"problems.filter" : {
+				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"activeFile": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"excludedFiles": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		this.telemetryService.publicLog('problems.filter', data);
 	}
 
 	protected saveState(): void {
