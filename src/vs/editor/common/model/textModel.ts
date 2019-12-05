@@ -2344,13 +2344,18 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public findEnclosingBrackets(_position: IPosition): [Range, Range] | null {
 		const position = this.validatePosition(_position);
 		const lineCount = this.getLineCount();
+		const savedCounts = new Map<number, number[]>();
 
 		let counts: number[] = [];
-		const resetCounts = (modeBrackets: RichEditBrackets | null) => {
-			counts = [];
-			for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
-				counts[i] = 0;
+		const resetCounts = (languageId: number, modeBrackets: RichEditBrackets | null) => {
+			if (!savedCounts.has(languageId)) {
+				let tmp = [];
+				for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
+					tmp[i] = 0;
+				}
+				savedCounts.set(languageId, tmp);
 			}
+			counts = savedCounts.get(languageId)!;
 		};
 		const searchInRange = (modeBrackets: RichEditBrackets, lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): [Range, Range] | null => {
 			while (true) {
@@ -2396,7 +2401,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				if (languageId !== tokenLanguageId) {
 					languageId = tokenLanguageId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
-					resetCounts(modeBrackets);
+					resetCounts(languageId, modeBrackets);
 				}
 			}
 
@@ -2415,7 +2420,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					}
 					languageId = tokenLanguageId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
-					resetCounts(modeBrackets);
+					resetCounts(languageId, modeBrackets);
 				}
 
 				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
