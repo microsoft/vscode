@@ -47,7 +47,7 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 			const prefix = `  ${lineNumber}: ${paddingStr}`;
 			const prefixOffset = prefix.length;
 
-			const line = (prefix + sourceLine);
+			const line = (prefix + sourceLine).replace(/\r?\n?$/, '');
 
 			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 
