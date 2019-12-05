@@ -116,7 +116,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	private _lastVersionId: number;
 	private _decorations: string[];
 	private readonly _updateBracketsSoon: RunOnceScheduler;
-	private _matchBrackets: boolean;
+	private _matchBrackets: 'never' | 'near' | 'always';
 
 	constructor(
 		editor: ICodeEditor
@@ -132,7 +132,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._updateBracketsSoon.schedule();
 		this._register(editor.onDidChangeCursorPosition((e) => {
 
-			if (!this._matchBrackets) {
+			if (this._matchBrackets === 'never') {
 				// Early exit if nothing needs to be done!
 				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
 				return;
@@ -153,12 +153,13 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			this._updateBracketsSoon.schedule();
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
-			this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
-			if (!this._matchBrackets && this._decorations.length > 0) {
-				// Remove existing decorations if bracket matching is off
+			if (e.hasChanged(EditorOption.matchBrackets)) {
+				this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
 				this._decorations = this._editor.deltaDecorations(this._decorations, []);
+				this._lastBracketsData = [];
+				this._lastVersionId = 0;
+				this._updateBracketsSoon.schedule();
 			}
-			this._updateBracketsSoon.schedule();
 		}));
 	}
 
@@ -262,7 +263,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	});
 
 	private _updateBrackets(): void {
-		if (!this._matchBrackets) {
+		if (this._matchBrackets === 'never') {
 			return;
 		}
 		this._recomputeBrackets();
@@ -332,7 +333,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			} else {
 				let brackets = model.matchBracket(position);
 				let options = BracketMatchingController._DECORATION_OPTIONS_WITH_OVERVIEW_RULER;
-				if (!brackets) {
+				if (!brackets && this._matchBrackets === 'always') {
 					brackets = model.findEnclosingBrackets(position);
 					options = BracketMatchingController._DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER;
 				}

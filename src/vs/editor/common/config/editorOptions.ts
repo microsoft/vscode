@@ -481,9 +481,9 @@ export interface IEditorOptions {
 	showFoldingControls?: 'always' | 'mouseover';
 	/**
 	 * Enable highlighting of matching brackets.
-	 * Defaults to true.
+	 * Defaults to 'always'.
 	 */
-	matchBrackets?: boolean;
+	matchBrackets?: 'never' | 'near' | 'always';
 	/**
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
@@ -3356,9 +3356,11 @@ export const EditorOptions = {
 		EditorOption.links, 'links', true,
 		{ description: nls.localize('links', "Controls whether the editor should detect links and make them clickable.") }
 	)),
-	matchBrackets: register(new EditorBooleanOption(
-		EditorOption.matchBrackets, 'matchBrackets', true,
-		{ description: nls.localize('matchBrackets', "Highlight matching brackets when one of them is selected.") }
+	matchBrackets: register(new EditorStringEnumOption(
+		EditorOption.matchBrackets, 'matchBrackets',
+		'always' as 'never' | 'near' | 'always',
+		['always', 'near', 'never'] as const,
+		{ description: nls.localize('matchBrackets', "Highlight matching brackets.") }
 	)),
 	minimap: register(new EditorMinimap()),
 	mouseStyle: register(new EditorStringEnumOption(
