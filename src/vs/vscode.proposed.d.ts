@@ -68,7 +68,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex - semantic tokens
+	//#region Semantic tokens: https://github.com/microsoft/vscode/issues/86415
 
 	export class SemanticTokensLegend {
 		public readonly tokenTypes: string[];
