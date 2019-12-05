@@ -843,9 +843,9 @@ export const minimapGutterDeletedBackground = registerColor('minimapGutter.delet
 }, nls.localize('minimapGutterDeletedBackground', "Minimap gutter background color for lines that are deleted."));
 
 const overviewRulerDefault = new Color(new RGBA(0, 122, 204, 0.6));
-export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
-export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
-export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
+export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: editorGutterModifiedBackground, light: editorGutterModifiedBackground, hc: editorGutterModifiedBackground }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
+export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: editorGutterAddedBackground, light: editorGutterAddedBackground, hc: editorGutterAddedBackground }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
+export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: editorGutterDeletedBackground, light: editorGutterDeletedBackground, hc: editorGutterDeletedBackground }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
 
 class DirtyDiffDecorator extends Disposable {
 
