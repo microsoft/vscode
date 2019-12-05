@@ -819,3 +819,18 @@ export function etag(stat: { mtime: number | undefined, size: number | undefined
 
 	return stat.mtime.toString(29) + stat.size.toString(31);
 }
+
+
+export function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
+	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
+		return Promise.resolve();
+	}
+	return new Promise((c, e) => {
+		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (e.scheme === file.scheme && e.added) {
+				disposable.dispose();
+				c();
+			}
+		});
+	});
+}
