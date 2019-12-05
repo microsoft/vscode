@@ -118,7 +118,7 @@ export function activate(context: ExtensionContext) {
 			return client.sendRequest(MatchingTagPositionRequest.type, param);
 		};
 
-		disposable = activateMatchingTagSelection(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.autoSelectingMatchingTags');
+		disposable = activateMatchingTagSelection(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.mirrorCursorOnMatchingTag');
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {

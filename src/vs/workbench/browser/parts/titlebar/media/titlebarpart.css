@@ -32,7 +32,7 @@
 	 */
 	transform: translate3d(0px, 0px, 0px);
 	position: relative;
-	z-index: 1000; /* move the entire titlebar above the workbench, except modals/dialogs */
+	z-index: 1500 !important; /* move the entire titlebar above the workbench, except modals/dialogs */
 }
 
 .monaco-workbench .part.titlebar > .titlebar-drag-region {

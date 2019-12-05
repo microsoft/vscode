@@ -90,16 +90,27 @@
                     "default": true,
                     "description": "%json.colorDecorators.enable.desc%",
                     "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
+                },
+                "json.maxItemsComputed": {
+                    "type": "number",
+                    "default": 5000,
+                    "description": "%json.maxItemsComputed.desc%"
                 }
             }
         },
         "configurationDefaults": {
             "[json]": {
-                "editor.quickSuggestions": {
-                    "strings": true
-                },
-                "editor.suggest.insertMode": "replace"
-            }
+              "editor.quickSuggestions": {
+                  "strings": true
+              },
+              "editor.suggest.insertMode": "replace"
+            },
+            "[jsonc]": {
+              "editor.quickSuggestions": {
+                  "strings": true
+              },
+              "editor.suggest.insertMode": "replace"
+          }
         }
     },
     "dependencies": {

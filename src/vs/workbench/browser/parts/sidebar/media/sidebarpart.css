@@ -15,10 +15,8 @@
 	 * macOS: does not render LCD-anti-aliased.
 	 */
 	transform: translate3d(0px, 0px, 0px);
-}
-
-.monaco-workbench .part.sidebar > .content {
-	overflow: hidden;
+	overflow: visible;
+	position: relative;
 }
 
 .monaco-workbench.nosidebar > .part.sidebar {

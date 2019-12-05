@@ -7,14 +7,17 @@ import * as vscode from 'vscode';
 import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
-const RESULT_LINE_REGEX = /^(\s+)(\d+):(\s+)(.*)$/;
+const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const SEARCH_RESULT_SELECTOR = { language: 'search-result' };
+const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
+const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
 
 let cachedLastParse: { version: number, parse: ParsedSearchResults } | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('searchResult.rerunSearch', () => vscode.commands.executeCommand('search.action.rerunEditorSearch')),
+		vscode.commands.registerCommand('searchResult.rerunSearchWithContext', () => vscode.commands.executeCommand('search.action.rerunEditorSearchWithContext')),
 
 		vscode.languages.registerDocumentSymbolProvider(SEARCH_RESULT_SELECTOR, {
 			provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentSymbol[] {
@@ -38,16 +41,16 @@ export function activate(context: vscode.ExtensionContext) {
 				const line = document.lineAt(position.line);
 				if (position.line > 3) { return []; }
 				if (position.character === 0 || (position.character === 1 && line.text === '#')) {
-					const header = Array.from({ length: 4 }).map((_, i) => document.lineAt(i).text);
+					const header = Array.from({ length: DIRECTIVES.length }).map((_, i) => document.lineAt(i).text);
 
-					return ['# Query:', '# Flags:', '# Including:', '# Excluding:']
+					return DIRECTIVES
 						.filter(suggestion => header.every(line => line.indexOf(suggestion) === -1))
 						.map(flag => ({ label: flag, insertText: (flag.slice(position.character)) + ' ' }));
 				}
 
 				if (line.text.indexOf('# Flags:') === -1) { return []; }
 
-				return ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch']
+				return FLAGS
 					.filter(flag => line.text.indexOf(flag) === -1)
 					.map(flag => ({ label: flag, insertText: flag + ' ' }));
 			}
@@ -63,7 +66,13 @@ export function activate(context: vscode.ExtensionContext) {
 					return [];
 				}
 
-				return [lineResult.location];
+				const translateRangeSidewaysBy = (r: vscode.Range, n: number) =>
+					r.with({ start: new vscode.Position(r.start.line, Math.max(0, n - r.start.character)), end: new vscode.Position(r.end.line, Math.max(0, n - r.end.character)) });
+
+				return [{
+					...lineResult.location,
+					targetSelectionRange: translateRangeSidewaysBy(lineResult.location.targetSelectionRange!, position.character - 1)
+				}];
 			}
 		}),
 
@@ -163,13 +172,14 @@ function parseSearchResults(document: vscode.TextDocument, token: vscode.Cancell
 
 		const resultLine = RESULT_LINE_REGEX.exec(line);
 		if (resultLine) {
-			const [, indentation, _lineNumber, resultIndentation] = resultLine;
+			const [, indentation, _lineNumber, seperator, resultIndentation] = resultLine;
 			const lineNumber = +_lineNumber - 1;
-			const resultStart = (indentation + _lineNumber + ':' + resultIndentation).length;
+			const resultStart = (indentation + _lineNumber + seperator + resultIndentation).length;
+			const metadataOffset = (indentation + _lineNumber + seperator).length;
 
 			const location: vscode.LocationLink = {
 				targetRange: new vscode.Range(Math.max(lineNumber - 3, 0), 0, lineNumber + 3, line.length),
-				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, line.length),
+				targetSelectionRange: new vscode.Range(lineNumber, metadataOffset, lineNumber, metadataOffset),
 				targetUri: currentTarget,
 				originSelectionRange: new vscode.Range(i, resultStart, i, line.length),
 			};

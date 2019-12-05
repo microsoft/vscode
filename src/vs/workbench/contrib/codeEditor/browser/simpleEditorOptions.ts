@@ -13,7 +13,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
-export function getSimpleEditorOptions(): IEditorOptions {
+export function getSimpleEditorOptions(fixedOverflowWidgets: boolean = true): IEditorOptions {
 	return {
 		wordWrap: 'on',
 		overviewRulerLanes: 0,
@@ -30,7 +30,7 @@ export function getSimpleEditorOptions(): IEditorOptions {
 		overviewRulerBorder: false,
 		scrollBeyondLastLine: false,
 		renderLineHighlight: 'none',
-		fixedOverflowWidgets: true,
+		fixedOverflowWidgets: fixedOverflowWidgets,
 		acceptSuggestionOnEnter: 'smart',
 		minimap: {
 			enabled: false

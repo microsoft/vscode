@@ -405,7 +405,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				else { return 'd'; }
 			},
 			provideResults: (query: string) => Query.suggestions(query)
-		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue }));
+		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue, fixedOverflowWidgets: false }));
 
 		if (this.searchBox.getValue()) {
 			this.triggerSearch();

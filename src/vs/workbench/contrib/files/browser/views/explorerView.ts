@@ -297,7 +297,6 @@ export class ExplorerView extends ViewletPane {
 
 		for (const stat of this.tree.getSelection()) {
 			const controller = this.renderer.getCompressedNavigationController(stat);
-
 			if (controller) {
 				selectedStats.push(...controller.items);
 			} else {
