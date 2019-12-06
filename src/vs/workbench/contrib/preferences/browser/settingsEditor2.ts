@@ -532,17 +532,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
 
-		const clearSearchContainer = $('span.clear-search');
-		clearSearchContainer.textContent = ' - ';
-
-		const clearSearch = DOM.append(clearSearchContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearch', 'Clear Search')));
-		this._register(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e, false);
-			this.clearSearchResults();
-		}));
-
-		DOM.append(this.noResultsMessage, clearSearchContainer);
-
 		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
 			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : null;
 		}));
