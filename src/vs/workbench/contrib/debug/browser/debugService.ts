@@ -987,8 +987,8 @@ export class DebugService implements IDebugService {
 		this.storeBreakpoints();
 	}
 
-	async addDataBreakpoint(label: string, dataId: string, canPersist: boolean): Promise<void> {
-		this.model.addDataBreakpoint(label, dataId, canPersist);
+	async addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined): Promise<void> {
+		this.model.addDataBreakpoint(label, dataId, canPersist, accessTypes);
 		await this.sendDataBreakpoints();
 
 		this.storeBreakpoints();
@@ -1100,7 +1100,7 @@ export class DebugService implements IDebugService {
 		let result: DataBreakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: any) => {
-				return new DataBreakpoint(dbp.label, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage);
+				return new DataBreakpoint(dbp.description, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage, dbp.accessTypes);
 			});
 		} catch (e) { }
 

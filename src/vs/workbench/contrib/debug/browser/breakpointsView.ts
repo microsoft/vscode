@@ -500,7 +500,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IBaseBrea
 
 	renderElement(dataBreakpoint: DataBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = dataBreakpoint;
-		data.name.textContent = dataBreakpoint.label;
+		data.name.textContent = dataBreakpoint.description;
 		const { className, message } = getBreakpointMessageAndClassName(this.debugService, dataBreakpoint);
 		data.icon.className = `codicon ${className}`;
 		data.icon.title = message ? message : '';
