@@ -1051,12 +1051,12 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 				}
 
 				if (prop.minItems && stringArrayValue.length < prop.minItems) {
-					message += nls.localize('validations.stringArrayMinItem', 'Array should have at least {0} items', prop.minItems);
+					message += nls.localize('validations.stringArrayMinItem', 'Array must have at least {0} items', prop.minItems);
 					message += '\n';
 				}
 
 				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
-					message += nls.localize('validations.stringArrayMaxItem', 'Array should have at most {0} items', prop.maxItems);
+					message += nls.localize('validations.stringArrayMaxItem', 'Array must have at most {0} items', prop.maxItems);
 					message += '\n';
 				}
 
