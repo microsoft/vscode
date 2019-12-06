@@ -8,7 +8,7 @@ import * as jsoncParser from 'jsonc-parser';
 
 export function activate(context: vscode.ExtensionContext): any {
 
-	const tokenTypes = ['types', 'structs', 'classes', 'interfaces', 'enums', 'parameterTypes', 'functions', 'variables'];
+	const tokenTypes = ['type', 'struct', 'class', 'interface', 'enum', 'parameterType', 'function', 'variable'];
 	const tokenModifiers = ['static', 'abstract', 'deprecated', 'declaration', 'documentation', 'member', 'async'];
 
 	const legend = new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
