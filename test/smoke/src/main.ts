@@ -37,7 +37,7 @@ import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.te
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 
-if (!/^v10/.test(process.version) || !/^v12/.test(process.version)) {
+if (!/^v10/.test(process.version) && !/^v12/.test(process.version)) {
 	console.error('Error: Smoketest must be run using Node 10/12. Currently running', process.version);
 	process.exit(1);
 }
