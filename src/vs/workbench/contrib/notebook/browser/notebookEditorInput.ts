@@ -25,6 +25,8 @@ export interface INotebook {
 
 
 export class NotebookEditorModel extends EditorModel {
+	private _notebook: INotebook | undefined;
+
 	constructor(
 		private readonly textModel: ITextModel
 	) {
@@ -32,9 +34,13 @@ export class NotebookEditorModel extends EditorModel {
 	}
 
 	public getNookbook(): INotebook {
+		if (this._notebook) {
+			return this._notebook;
+		}
+
 		let content = this.textModel.getValue();
-		let notebook: INotebook = JSON.parse(content);
-		return notebook;
+		this._notebook = JSON.parse(content);
+		return this._notebook!;
 	}
 }
 

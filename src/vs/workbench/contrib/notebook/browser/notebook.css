@@ -17,11 +17,38 @@
 	white-space: initial;
 }
 
-.cell.code {
+
+.cell.markdown {
 	transform: translate3d(0, 0, 0);
-	padding: 8px 0 8px 0;
+	padding: 8px 0 8px 24px;
 }
 
+.cell.code {
+	transform: translate3d(0, 0, 0);
+	padding: 8px 0 8px 24px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu {
+	position: absolute;
+	left: 0;
+	top: 8px;
+	visibility: hidden;
+	width: 16px;
+	margin: auto;
+	padding-left: 4px;
+}
+
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .menu {
+	visibility: visible;
+}
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu:hover {
+	cursor: pointer;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover {
+	border: 1px solid black;
+}
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-tree.focused.no-focused-item:focus:before,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list:not(.element-focused):focus:before {
