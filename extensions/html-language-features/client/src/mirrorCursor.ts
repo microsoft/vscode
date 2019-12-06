@@ -161,36 +161,6 @@ function isCharBeforeAndAfterPositionsRoughtlyEqual(document: TextDocument, firs
 	const charBeforeSecondarySelection = getCharBefore(document, secondPos);
 	const charAfterSecondarySelection = getCharAfter(document, secondPos);
 
-	/**
-	 * Special case for exiting
-	 * |<div>
-	 * |</div>
-	 */
-	if (
-		charBeforePrimarySelection === ' ' &&
-		charBeforeSecondarySelection === ' ' &&
-		charAfterPrimarySelection === '<' &&
-		charAfterSecondarySelection === '<'
-	) {
-		return false;
-	}
-	/**
-	 * Special case for exiting
-	 * |  <div>
-	 * |  </div>
-	 */
-	if (charBeforePrimarySelection === '\n' && charBeforeSecondarySelection === '\n') {
-		return false;
-	}
-	/**
-	 * Special case for exiting
-	 * <div>|
-	 * </div>|
-	 */
-	if (charAfterPrimarySelection === '\n' && charAfterSecondarySelection === '\n') {
-		return false;
-	}
-
 	// Exit mirror mode when cursor position no longer mirror
 	// Unless it's in the case of `<|></|>`
 	const charBeforeBothPositionRoughlyEqual =
