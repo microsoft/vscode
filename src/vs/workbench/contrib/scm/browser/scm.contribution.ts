@@ -81,6 +81,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.diffDecorations': {
 			type: 'string',
 			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],
+			enumDescriptions: [
+				localize('scm.diffDecorations.all', "Show the diff decorations in all available locations."),
+				localize('scm.diffDecorations.gutter', "Show the diff decorations only in the editor gutter."),
+				localize('scm.diffDecorations.overviewRuler', "Show the diff decorations only in the overview ruler."),
+				localize('scm.diffDecorations.minimap', "Show the diff decorations only in the minimap."),
+				localize('scm.diffDecorations.none', "Do not show the diff decorations.")
+			],
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},

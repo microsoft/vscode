@@ -4782,7 +4782,7 @@ declare module 'vscode' {
 		 *
 		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
 		 *
-		 * Where the icon-name is taken from the [octicon](https://octicons.github.com) icon set, e.g.
+		 * Where the icon-name is taken from the [codicon](https://microsoft.github.io/vscode-codicons/dist/codicon.html) icon set, e.g.
 		 * `light-bulb`, `thumbsup`, `zap` etc.
 		 */
 		text: string;
@@ -4925,7 +4925,7 @@ declare module 'vscode' {
 		 * The extension kind describes if an extension runs where the UI runs
 		 * or if an extension runs where the remote extension host runs. The extension kind
 		 * is defined in the `package.json`-file of extensions but can also be refined
-		 * via the the `remote.extensionKind`-setting. When no remote extension host exists,
+		 * via the `remote.extensionKind`-setting. When no remote extension host exists,
 		 * the value is [`ExtensionKind.UI`](#ExtensionKind.UI).
 		 */
 		extensionKind: ExtensionKind;
@@ -8085,6 +8085,172 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An event that is fired when files are going to be created.
+	 *
+	 * To make modifications to the workspace before the files are created,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillCreateEvent {
+
+		/**
+		 * The files that are going to be created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	/**
+	 * An event that is fired after files are created.
+	 */
+	export interface FileCreateEvent {
+
+		/**
+		 * The files that got created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+	}
+
+	/**
+	 * An event that is fired when files are going to be deleted.
+	 *
+	 * To make modifications to the workspace before the files are deleted,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillDeleteEvent {
+
+		/**
+		 * The files that are going to be deleted.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	/**
+	 * An event that is fired after files are deleted.
+	 */
+	export interface FileDeleteEvent {
+
+		/**
+		 * The files that got deleted.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+	}
+
+	/**
+	 * An event that is fired when files are going to be renamed.
+	 *
+	 * To make modifications to the workspace before the files are renamed,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillRenameEvent {
+
+		/**
+		 * The files that are going to be renamed.
+		 */
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	/**
+	 * An event that is fired after files are renamed.
+	 */
+	export interface FileRenameEvent {
+
+		/**
+		 * The files that got renamed.
+		 */
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+	}
+
+
+	/**
 	 * An event describing a change to the set of [workspace folders](#workspace.workspaceFolders).
 	 */
 	export interface WorkspaceFoldersChangeEvent {
@@ -8315,8 +8481,8 @@ declare module 'vscode' {
 		 *
 		 * All changes of a workspace edit are applied in the same order in which they have been added. If
 		 * multiple textual inserts are made at the same position, these strings appear in the resulting text
-		 * in the order the 'inserts' were made. Invalid sequences like 'delete file a' -> 'insert text in file a'
-		 * cause failure of the operation.
+		 * in the order the 'inserts' were made, unless that are interleaved with resource edits. Invalid sequences
+		 * like 'delete file a' -> 'insert text in file a' cause failure of the operation.
 		 *
 		 * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
 		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consecutive edits will
@@ -8432,6 +8598,76 @@ declare module 'vscode' {
 		 * An event that is emitted when a [text document](#TextDocument) is saved to disk.
 		 */
 		export const onDidSaveTextDocument: Event<TextDocument>;
+
+		/**
+		 * An event that is emitted when files are being created.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When this event is fired, edits to files thare are being created cannot be applied.
+		 */
+		export const onWillCreateFiles: Event<FileWillCreateEvent>;
+
+		/**
+		 * An event that is emitted when files have been created.
+		 *
+		 * *Note:* This event is triggered by user gestures, like creating a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 */
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+
+		/**
+		 * An event that is emitted when files are being deleted.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When deleting a folder with children only one event is fired.
+		 */
+		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
+
+		/**
+		 * An event that is emitted when files have been deleted.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When deleting a folder with children only one event is fired.
+		 */
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+
+		/**
+		 * An event that is emitted when files are being renamed.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
+		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When renaming a folder with children only one event is fired.
+		 */
+		export const onWillRenameFiles: Event<FileWillRenameEvent>;
+
+		/**
+		 * An event that is emitted when files have been renamed.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
+		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When renaming a folder with children only one event is fired.
+		 */
+		export const onDidRenameFiles: Event<FileRenameEvent>;
 
 		/**
 		 * Get a workspace configuration object.
@@ -9539,6 +9775,13 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolSource {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+	}
+
+	/**
 	 * Namespace for debug functionality.
 	 */
 	export namespace debug {
@@ -9644,6 +9887,19 @@ declare module 'vscode' {
 		 * @param breakpoints The breakpoints to remove.
 		 */
 		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
+
+		/**
+		 * Converts a "Source" descriptor object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
+		 * If the source descriptor is based on a path, a file Uri is returned.
+		 * If the source descriptor uses a reference number, a specific debug Uri (scheme 'debug') is constructed that requires a corresponding VS Code ContentProvider and a running debug session
+		 *
+		 * If the "Source" descriptor has insufficient information for creating the Uri, an error is thrown.
+		 *
+		 * @param source An object conforming to the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+		 * @param session An optional debug session that will be used when the source descriptor uses a reference number to load the contents from an active debug session.
+		 * @return A uri that can be used to load the contents of the source.
+		 */
+		export function asDebugSourceUri(source: DebugProtocolSource, session?: DebugSession): Uri;
 	}
 
 	/**

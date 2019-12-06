@@ -13,7 +13,7 @@ const global: any = self;
 // Set defaults for standalone editor
 (<any>EditorOptions.wrappingIndent).defaultValue = WrappingIndent.None;
 (<any>EditorOptions.glyphMargin).defaultValue = false;
-(<any>EditorOptions.autoIndent).defaultValue = false;
+(<any>EditorOptions.autoIndent).defaultValue = 'advanced';
 (<any>EditorOptions.overviewRulerLanes).defaultValue = 2;
 
 const api = createMonacoBaseAPI();

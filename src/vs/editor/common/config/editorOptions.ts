@@ -32,6 +32,18 @@ export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'bracket
 export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
 
 /**
+ * Configuration options for auto indentation in the editor
+ * @internal
+ */
+export const enum EditorAutoIndentStrategy {
+	None = 0,
+	Keep = 1,
+	Brackets = 2,
+	Advanced = 3,
+	Full = 4
+}
+
+/**
  * Configuration options for the editor.
  */
 export interface IEditorOptions {
@@ -320,6 +332,10 @@ export interface IEditorOptions {
 	 */
 	accessibilitySupport?: 'auto' | 'off' | 'on';
 	/**
+	 * Controls the number of lines in the editor that can be read out by a screen reader
+	 */
+	accessibilityPageSize?: number;
+	/**
 	 * Suggest options.
 	 */
 	suggest?: ISuggestOptions;
@@ -364,7 +380,7 @@ export interface IEditorOptions {
 	 * Enable auto indentation adjustment.
 	 * Defaults to false.
 	 */
-	autoIndent?: boolean;
+	autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 	/**
 	 * Enable format on type.
 	 * Defaults to false.
@@ -465,9 +481,9 @@ export interface IEditorOptions {
 	showFoldingControls?: 'always' | 'mouseover';
 	/**
 	 * Enable highlighting of matching brackets.
-	 * Defaults to true.
+	 * Defaults to 'always'.
 	 */
-	matchBrackets?: boolean;
+	matchBrackets?: 'never' | 'near' | 'always';
 	/**
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
@@ -910,6 +926,20 @@ class EditorEnumOption<K1 extends EditorOption, T extends string, V> extends Bas
 			return this.defaultValue;
 		}
 		return this._convert(<any>input);
+	}
+}
+
+//#endregion
+
+//#region autoIndent
+
+function _autoIndentFromString(autoIndent: 'none' | 'keep' | 'brackets' | 'advanced' | 'full'): EditorAutoIndentStrategy {
+	switch (autoIndent) {
+		case 'none': return EditorAutoIndentStrategy.None;
+		case 'keep': return EditorAutoIndentStrategy.Keep;
+		case 'brackets': return EditorAutoIndentStrategy.Brackets;
+		case 'advanced': return EditorAutoIndentStrategy.Advanced;
+		case 'full': return EditorAutoIndentStrategy.Full;
 	}
 }
 
@@ -2975,6 +3005,7 @@ export const enum EditorOption {
 	acceptSuggestionOnCommitCharacter,
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
+	accessibilityPageSize,
 	ariaLabel,
 	autoClosingBrackets,
 	autoClosingOvertype,
@@ -3102,6 +3133,8 @@ export const EditorOptions = {
 		}
 	)),
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
+	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
+		{ description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader. Warning: this has a performance implication for numbers larger than the default.") })),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
@@ -3146,9 +3179,21 @@ export const EditorOptions = {
 			description: nls.localize('autoClosingQuotes', "Controls whether the editor should automatically close quotes after the user adds an opening quote.")
 		}
 	)),
-	autoIndent: register(new EditorBooleanOption(
-		EditorOption.autoIndent, 'autoIndent', true,
-		{ description: nls.localize('autoIndent', "Controls whether the editor should automatically adjust the indentation when users type, paste or move lines. Extensions with indentation rules of the language must be available.") }
+	autoIndent: register(new EditorEnumOption(
+		EditorOption.autoIndent, 'autoIndent',
+		EditorAutoIndentStrategy.Full, 'full',
+		['none', 'keep', 'brackets', 'advanced', 'full'],
+		_autoIndentFromString,
+		{
+			enumDescriptions: [
+				nls.localize('editor.autoIndent.none', "The editor will not insert indentation automatically."),
+				nls.localize('editor.autoIndent.keep', "The editor will keep the current line's indentation."),
+				nls.localize('editor.autoIndent.brackets', "The editor will keep the current line's indentation and honor language defined brackets."),
+				nls.localize('editor.autoIndent.advanced', "The editor will keep the current line's indentation, honor language defined brackets and invoke special onEnterRules defined by languages."),
+				nls.localize('editor.autoIndent.full', "The editor will keep the current line's indentation, honor language defined brackets, invoke special onEnterRules defined by languages, and honor indentationRules defined by languages."),
+			],
+			description: nls.localize('autoIndent', "Controls whether the editor should automatically adjust the indentation when users type, paste, move or indent lines.")
+		}
 	)),
 	automaticLayout: register(new EditorBooleanOption(
 		EditorOption.automaticLayout, 'automaticLayout', false,
@@ -3311,9 +3356,11 @@ export const EditorOptions = {
 		EditorOption.links, 'links', true,
 		{ description: nls.localize('links', "Controls whether the editor should detect links and make them clickable.") }
 	)),
-	matchBrackets: register(new EditorBooleanOption(
-		EditorOption.matchBrackets, 'matchBrackets', true,
-		{ description: nls.localize('matchBrackets', "Highlight matching brackets when one of them is selected.") }
+	matchBrackets: register(new EditorStringEnumOption(
+		EditorOption.matchBrackets, 'matchBrackets',
+		'always' as 'never' | 'near' | 'always',
+		['always', 'near', 'never'] as const,
+		{ description: nls.localize('matchBrackets', "Highlight matching brackets.") }
 	)),
 	minimap: register(new EditorMinimap()),
 	mouseStyle: register(new EditorStringEnumOption(

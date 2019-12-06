@@ -15,7 +15,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { ExtensionsLabel, IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionsLabel, IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService, IExtensionRecommendation, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
@@ -73,31 +73,37 @@ export function toExtensionDescription(local: ILocalExtension): IExtensionDescri
 	};
 }
 
-const promptDownloadManually = (extension: IGalleryExtension | undefined, message: string, error: Error,
-	instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService, productService: IProductService) => {
-	if (!extension || error.name === INSTALL_ERROR_INCOMPATIBLE || error.name === INSTALL_ERROR_MALICIOUS || !productService.extensionsGallery) {
-		return Promise.reject(error);
-	} else {
-		const downloadUrl = `${productService.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
-		notificationService.prompt(Severity.Error, message, [{
-			label: localize('download', "Download Manually"),
-			run: () => openerService.open(URI.parse(downloadUrl)).then(() => {
-				notificationService.prompt(
-					Severity.Info,
-					localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', extension.identifier.id),
-					[{
-						label: InstallVSIXAction.LABEL,
-						run: () => {
-							const action = instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
-							action.run();
-							action.dispose();
-						}
-					}]
-				);
-			})
-		}]);
-		return Promise.resolve();
-	}
+const promptDownloadManually = (extension: IGalleryExtension | undefined, message: string, error: Error, instantiationService: IInstantiationService): Promise<any> => {
+	return instantiationService.invokeFunction(accessor => {
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+		const notificationService = accessor.get(INotificationService);
+		const dialogService = accessor.get(IDialogService);
+		const erorrsToShows = [INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_NOT_SUPPORTED];
+		if (!extension || erorrsToShows.indexOf(error.name) !== -1 || !productService.extensionsGallery) {
+			return dialogService.show(Severity.Error, error.message, []);
+		} else {
+			const downloadUrl = `${productService.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
+			notificationService.prompt(Severity.Error, message, [{
+				label: localize('download', "Download Manually"),
+				run: () => openerService.open(URI.parse(downloadUrl)).then(() => {
+					notificationService.prompt(
+						Severity.Info,
+						localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', extension.identifier.id),
+						[{
+							label: InstallVSIXAction.LABEL,
+							run: () => {
+								const action = instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
+								action.run();
+								action.dispose();
+							}
+						}]
+					);
+				})
+			}]);
+			return Promise.resolve();
+		}
+	});
 };
 
 function getRelativeDateLabel(date: Date): string {
@@ -160,7 +166,6 @@ export class InstallAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -257,7 +262,7 @@ export class InstallAction extends ExtensionAction {
 
 				console.error(err);
 
-				return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
+				return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService);
 			});
 	}
 
@@ -509,8 +514,6 @@ export class UpdateAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService
 	) {
 		super(`extensions.update`, '', UpdateAction.DisabledClass, false);
 		this.update();
@@ -557,7 +560,7 @@ export class UpdateAction extends ExtensionAction {
 
 			console.error(err);
 
-			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
+			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService);
 		});
 	}
 
@@ -748,8 +751,6 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService
 	) {
 		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL);
 		this.update();
@@ -778,7 +779,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 
 							console.error(err);
 
-							return promptDownloadManually(this.extension!.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", this.extension!.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
+							return promptDownloadManually(this.extension!.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", this.extension!.identifier.id), err, this.instantiationService);
 						});
 				}
 				return null;
@@ -1152,8 +1153,6 @@ export class UpdateAllAction extends Action {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label, '', false);
 
@@ -1177,7 +1176,7 @@ export class UpdateAllAction extends Action {
 
 			console.error(err);
 
-			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
+			return promptDownloadManually(extension.gallery, localize('failedToUpdate', "Failed to update \'{0}\'.", extension.identifier.id), err, this.instantiationService);
 		});
 	}
 }
@@ -1678,9 +1677,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		label: string = InstallWorkspaceRecommendedExtensionsAction.LABEL,
 		recommendations: IExtensionRecommendation[],
 		@IViewletService private readonly viewletService: IViewletService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -1724,7 +1721,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 			await this.extensionWorkbenchService.install(extension);
 		} catch (err) {
 			console.error(err);
-			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
+			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService);
 		}
 	}
 }
@@ -1739,11 +1736,8 @@ export class InstallRecommendedExtensionAction extends Action {
 	constructor(
 		extensionId: string,
 		@IViewletService private readonly viewletService: IViewletService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
-		@IProductService private readonly productService: IProductService
 	) {
 		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, undefined, false);
 		this.extensionId = extensionId;
@@ -1762,7 +1756,7 @@ export class InstallRecommendedExtensionAction extends Action {
 							return this.extensionWorkbenchService.install(extension)
 								.then(() => null, err => {
 									console.error(err);
-									return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService, this.notificationService, this.openerService, this.productService);
+									return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService);
 								});
 						}
 						return null;
@@ -2675,43 +2669,50 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 			!this.extension.local ||
 			!this.extension.server ||
 			!this._runningExtensions ||
-			!(this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) ||
 			this.extension.state !== ExtensionState.Installed
 		) {
 			return;
 		}
-		if (isLanguagePackExtension(this.extension.local.manifest)) {
-			if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
-				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
-				this.tooltip = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
-					? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it also there.", this.extensionManagementServerService.remoteExtensionManagementServer.label)
-					: localize('Install language pack also locally', "Install the language pack extension locally to enable it also there.");
-			}
-			return;
-		}
-		if (this.extension.enablementState === EnablementState.DisabledByExtensionKind) {
-			if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
-				this.class = `${SystemDisabledWarningAction.WARNING_CLASS}`;
-				const server = this.extensionManagementServerService.localExtensionManagementServer === this.extension.server ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer;
-				this.tooltip = localize('Install in other server to enable', "Install the extension on '{0}' to enable.", server.label);
+		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			if (isLanguagePackExtension(this.extension.local.manifest)) {
+				if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
+					this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+					this.tooltip = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
+						? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it also there.", this.extensionManagementServerService.remoteExtensionManagementServer.label)
+						: localize('Install language pack also locally', "Install the language pack extension locally to enable it also there.");
+				}
 				return;
 			}
 		}
-		const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))[0];
-		const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
-		if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
-			if (prefersExecuteOnWorkspace(this.extension.local!.manifest, this.productService, this.configurationService)) {
-				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
-				this.tooltip = localize('disabled locally', "Extension is enabled on '{0}' and disabled locally.", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+		if (this.extension.enablementState === EnablementState.DisabledByExtensionKind) {
+			if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
+				const server = this.extensionManagementServerService.localExtensionManagementServer === this.extension.server ? this.extensionManagementServerService.remoteExtensionManagementServer : this.extensionManagementServerService.localExtensionManagementServer;
+				this.class = `${SystemDisabledWarningAction.WARNING_CLASS}`;
+				if (server) {
+					this.tooltip = localize('Install in other server to enable', "Install the extension on '{0}' to enable.", server.label);
+				} else {
+					this.tooltip = localize('disabled because of extension kind', "This extension cannot be enabled in the remote server.");
+				}
+				return;
 			}
-			return;
 		}
-		if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
-			if (prefersExecuteOnUI(this.extension.local!.manifest, this.productService, this.configurationService)) {
-				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
-				this.tooltip = localize('disabled remotely', "Extension is enabled locally and disabled on '{0}'.", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			const runningExtension = this._runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))[0];
+			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(runningExtension.extensionLocation) : null;
+			if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
+				if (prefersExecuteOnWorkspace(this.extension.local!.manifest, this.productService, this.configurationService)) {
+					this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+					this.tooltip = localize('disabled locally', "Extension is enabled on '{0}' and disabled locally.", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+				}
+				return;
 			}
-			return;
+			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
+				if (prefersExecuteOnUI(this.extension.local!.manifest, this.productService, this.configurationService)) {
+					this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+					this.tooltip = localize('disabled remotely', "Extension is enabled locally and disabled on '{0}'.", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+				}
+				return;
+			}
 		}
 	}
 

@@ -119,6 +119,13 @@
 	padding: 0 20px 0 20px;
 }
 
+.explorer-viewlet .explorer-empty-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
 .explorer-viewlet .explorer-item.nonexistent-root {
 	opacity: 0.5;
 }

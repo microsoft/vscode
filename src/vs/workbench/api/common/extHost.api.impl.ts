@@ -351,9 +351,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
 				return extHostLanguageFeatures.registerOnTypeFormattingEditProvider(extension, checkSelector(selector), provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
 			},
-			registerSemanticColoringProvider(selector: vscode.DocumentSelector, provider: vscode.SemanticColoringProvider, legend: vscode.SemanticColoringLegend): vscode.Disposable {
+			registerSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.SemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
 				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerSemanticColoringProvider(extension, checkSelector(selector), provider, legend);
+				return extHostLanguageFeatures.registerSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
 			},
 			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, firstItem?: string | vscode.SignatureHelpProviderMetadata, ...remaining: string[]): vscode.Disposable {
 				if (typeof firstItem === 'object') {
@@ -699,27 +699,21 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLabelService.$registerResourceLabelFormatter(formatter);
 			},
 			onDidCreateFiles: (listener, thisArg, disposables) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidCreateFile(listener, thisArg, disposables);
 			},
 			onDidDeleteFiles: (listener, thisArg, disposables) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidDeleteFile(listener, thisArg, disposables);
 			},
 			onDidRenameFiles: (listener, thisArg, disposables) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			},
 			onWillCreateFiles: (listener: (e: vscode.FileWillCreateEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillCreateFileEvent(extension)(listener, thisArg, disposables);
 			},
 			onWillDeleteFiles: (listener: (e: vscode.FileWillDeleteEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillDeleteFileEvent(extension)(listener, thisArg, disposables);
 			},
 			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
 			}
 		};
@@ -789,8 +783,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			removeBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.removeBreakpoints(breakpoints);
 			},
-			asDebugSourceUri(source: vscode.DebugSource, session?: vscode.DebugSession): vscode.Uri {
-				checkProposedApiEnabled(extension);
+			asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri {
 				return extHostDebugService.asDebugSourceUri(source, session);
 			}
 		};
@@ -857,6 +850,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			DebugAdapterServer: extHostTypes.DebugAdapterServer,
+			DebugAdapterInlineImplementation: extHostTypes.DebugAdapterInlineImplementation,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
@@ -893,9 +887,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			RelativePattern: extHostTypes.RelativePattern,
 			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
-			SemanticColoring: extHostTypes.SemanticColoring,
-			SemanticColoringArea: extHostTypes.SemanticColoringArea,
-			SemanticColoringLegend: extHostTypes.SemanticColoringLegend,
+			SemanticTokensLegend: extHostTypes.SemanticTokensLegend,
+			SemanticTokensBuilder: extHostTypes.SemanticTokensBuilder,
+			SemanticTokens: extHostTypes.SemanticTokens,
+			SemanticTokensEdits: extHostTypes.SemanticTokensEdits,
+			SemanticTokensEdit: extHostTypes.SemanticTokensEdit,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
 			ShellExecution: extHostTypes.ShellExecution,

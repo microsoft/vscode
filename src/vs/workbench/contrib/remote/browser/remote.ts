@@ -44,6 +44,9 @@ import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService, HelpInformation } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { startsWith } from 'vs/base/common/strings';
+import { TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
+import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
 
 class HelpModel {
 	items: IHelpItem[] | undefined;
@@ -69,7 +72,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				openerService
+				openerService,
+				remoteExplorerService
 			));
 		}
 
@@ -86,7 +90,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				openerService
+				openerService,
+				remoteExplorerService
 			));
 		}
 
@@ -103,7 +108,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				openerService
+				openerService,
+				remoteExplorerService
 			));
 		}
 
@@ -120,7 +126,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				openerService
+				openerService,
+				remoteExplorerService
 			));
 		}
 
@@ -134,7 +141,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				commandService
+				commandService,
+				remoteExplorerService
 			));
 		}
 
@@ -155,14 +163,15 @@ abstract class HelpItemBase implements IHelpItem {
 		public label: string,
 		public values: { extensionDescription: IExtensionDescription, url?: string, remoteAuthority: string[] | undefined }[],
 		private quickInputService: IQuickInputService,
-		private environmentService: IWorkbenchEnvironmentService
+		private environmentService: IWorkbenchEnvironmentService,
+		private remoteExplorerService: IRemoteExplorerService
 	) {
 		iconClasses.push('remote-help-tree-node-item-icon');
 	}
 
 	async handleClick() {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		if (remoteAuthority) {
+		if (remoteAuthority && startsWith(remoteAuthority, this.remoteExplorerService.targetType)) {
 			for (let value of this.values) {
 				if (value.remoteAuthority) {
 					for (let authority of value.remoteAuthority) {
@@ -204,9 +213,10 @@ class HelpItem extends HelpItemBase {
 		values: { extensionDescription: IExtensionDescription; url: string, remoteAuthority: string[] | undefined }[],
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
-		private openerService: IOpenerService
+		private openerService: IOpenerService,
+		remoteExplorerService: IRemoteExplorerService
 	) {
-		super(iconClasses, label, values, quickInputService, environmentService);
+		super(iconClasses, label, values, quickInputService, environmentService, remoteExplorerService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
@@ -222,8 +232,9 @@ class IssueReporterItem extends HelpItemBase {
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
 		private commandService: ICommandService,
+		remoteExplorerService: IRemoteExplorerService
 	) {
-		super(iconClasses, label, values, quickInputService, environmentService);
+		super(iconClasses, label, values, quickInputService, environmentService, remoteExplorerService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
@@ -233,7 +244,7 @@ class IssueReporterItem extends HelpItemBase {
 
 class HelpAction extends Action {
 	static readonly ID = 'remote.explorer.help';
-	static readonly LABEL = nls.localize('remote.explorer.help', "Help and Feedback");
+	static readonly LABEL = nls.localize('remote.explorer.help', "Help, Documentation, and Feedback");
 	private helpModel: HelpModel;
 
 	constructor(id: string,
@@ -263,6 +274,7 @@ class HelpAction extends Action {
 
 export class RemoteViewlet extends FilterViewContainerViewlet {
 	private actions: IAction[] | undefined;
+	private tunnelPanelDescriptor: TunnelPanelDescriptor | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -274,7 +286,9 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 	}
@@ -285,7 +299,7 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchRemoteAction.ID) {
-			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(VIEW_CONTAINER)));
+			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(VIEW_CONTAINER), this.contextKeyService));
 		}
 
 		return super.getActionViewItem(action);
@@ -307,6 +321,17 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 	getTitle(): string {
 		const title = nls.localize('remote.explorer', "Remote Explorer");
 		return title;
+	}
+
+	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPane[] {
+		// Call to super MUST be first, since registering the additional view will cause this to be called again.
+		const panels: ViewletPane[] = super.onDidAddViews(added);
+		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && this.configurationService.getValue<boolean>('remote.forwardedPortsView.visible')) {
+			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
+			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+			viewsRegistry.registerViews([this.tunnelPanelDescriptor!], VIEW_CONTAINER);
+		}
+		return panels;
 	}
 }
 

@@ -5,47 +5,71 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 
-export interface ISemanticTokensFullAreaDto {
+export interface IFullSemanticTokensDto {
+	id: number;
 	type: 'full';
-	line: number;
 	data: Uint32Array;
 }
 
-export interface ISemanticTokensDeltaAreaDto {
-	type: 'delta';
-	line: number;
-	oldIndex: number;
-}
-
-export type ISemanticTokensAreaDto = ISemanticTokensFullAreaDto | ISemanticTokensDeltaAreaDto;
-
-export interface ISemanticTokensDto {
+export interface IDeltaSemanticTokensDto {
 	id: number;
-	areas: ISemanticTokensAreaDto[];
+	type: 'delta';
+	deltas: { start: number; deleteCount: number; data?: Uint32Array; }[];
 }
 
-const enum EncodedSemanticTokensAreaType {
+export type ISemanticTokensDto = IFullSemanticTokensDto | IDeltaSemanticTokensDto;
+
+const enum EncodedSemanticTokensType {
 	Full = 1,
 	Delta = 2
 }
 
 export function encodeSemanticTokensDto(semanticTokens: ISemanticTokensDto): VSBuffer {
-	const buff = VSBuffer.alloc(encodedSize(semanticTokens));
+	const buff = VSBuffer.alloc(encodedSize2(semanticTokens));
 	let offset = 0;
 	buff.writeUInt32BE(semanticTokens.id, offset); offset += 4;
-	buff.writeUInt32BE(semanticTokens.areas.length, offset); offset += 4;
-	for (let i = 0; i < semanticTokens.areas.length; i++) {
-		offset = encodeArea(semanticTokens.areas[i], buff, offset);
+	if (semanticTokens.type === 'full') {
+		buff.writeUInt8(EncodedSemanticTokensType.Full, offset); offset += 1;
+		buff.writeUInt32BE(semanticTokens.data.length, offset); offset += 4;
+		for (const uint of semanticTokens.data) {
+			buff.writeUInt32BE(uint, offset); offset += 4;
+		}
+	} else {
+		buff.writeUInt8(EncodedSemanticTokensType.Delta, offset); offset += 1;
+		buff.writeUInt32BE(semanticTokens.deltas.length, offset); offset += 4;
+		for (const delta of semanticTokens.deltas) {
+			buff.writeUInt32BE(delta.start, offset); offset += 4;
+			buff.writeUInt32BE(delta.deleteCount, offset); offset += 4;
+			if (delta.data) {
+				buff.writeUInt32BE(delta.data.length, offset); offset += 4;
+				for (const uint of delta.data) {
+					buff.writeUInt32BE(uint, offset); offset += 4;
+				}
+			} else {
+				buff.writeUInt32BE(0, offset); offset += 4;
+			}
+		}
 	}
 	return buff;
 }
 
-function encodedSize(semanticTokens: ISemanticTokensDto): number {
+function encodedSize2(semanticTokens: ISemanticTokensDto): number {
 	let result = 0;
-	result += 4; // etag
-	result += 4; // area count
-	for (let i = 0; i < semanticTokens.areas.length; i++) {
-		result += encodedAreaSize(semanticTokens.areas[i]);
+	result += 4; // id
+	result += 1; // type
+	if (semanticTokens.type === 'full') {
+		result += 4; // data length
+		result += semanticTokens.data.byteLength;
+	} else {
+		result += 4; // delta count
+		for (const delta of semanticTokens.deltas) {
+			result += 4; // start
+			result += 4; // deleteCount
+			result += 4; // data length
+			if (delta.data) {
+				result += delta.data.byteLength;
+			}
+		}
 	}
 	return result;
 }
@@ -53,84 +77,37 @@ function encodedSize(semanticTokens: ISemanticTokensDto): number {
 export function decodeSemanticTokensDto(buff: VSBuffer): ISemanticTokensDto {
 	let offset = 0;
 	const id = buff.readUInt32BE(offset); offset += 4;
-	const areasCount = buff.readUInt32BE(offset); offset += 4;
-	let areas: ISemanticTokensAreaDto[] = [];
-	for (let i = 0; i < areasCount; i++) {
-		offset = decodeArea(buff, offset, areas);
+	const type: EncodedSemanticTokensType = buff.readUInt8(offset); offset += 1;
+	if (type === EncodedSemanticTokensType.Full) {
+		const length = buff.readUInt32BE(offset); offset += 4;
+		const data = new Uint32Array(length);
+		for (let j = 0; j < length; j++) {
+			data[j] = buff.readUInt32BE(offset); offset += 4;
+		}
+		return {
+			id: id,
+			type: 'full',
+			data: data
+		};
+	}
+	const deltaCount = buff.readUInt32BE(offset); offset += 4;
+	let deltas: { start: number; deleteCount: number; data?: Uint32Array; }[] = [];
+	for (let i = 0; i < deltaCount; i++) {
+		const start = buff.readUInt32BE(offset); offset += 4;
+		const deleteCount = buff.readUInt32BE(offset); offset += 4;
+		const length = buff.readUInt32BE(offset); offset += 4;
+		let data: Uint32Array | undefined;
+		if (length > 0) {
+			data = new Uint32Array(length);
+			for (let j = 0; j < length; j++) {
+				data[j] = buff.readUInt32BE(offset); offset += 4;
+			}
+		}
+		deltas[i] = { start, deleteCount, data };
 	}
 	return {
 		id: id,
-		areas: areas
+		type: 'delta',
+		deltas: deltas
 	};
-}
-
-function encodeArea(area: ISemanticTokensAreaDto, buff: VSBuffer, offset: number): number {
-	buff.writeUInt8(area.type === 'full' ? EncodedSemanticTokensAreaType.Full : EncodedSemanticTokensAreaType.Delta, offset); offset += 1;
-	buff.writeUInt32BE(area.line + 1, offset); offset += 4;
-	if (area.type === 'full') {
-		const tokens = area.data;
-		const tokenCount = (tokens.length / 5) | 0;
-		buff.writeUInt32BE(tokenCount, offset); offset += 4;
-		// here we are explicitly iterating an writing the ints again to ensure writing the desired endianness.
-		for (let i = 0; i < tokenCount; i++) {
-			const tokenOffset = 5 * i;
-			buff.writeUInt32BE(tokens[tokenOffset], offset); offset += 4;
-			buff.writeUInt32BE(tokens[tokenOffset + 1], offset); offset += 4;
-			buff.writeUInt32BE(tokens[tokenOffset + 2], offset); offset += 4;
-			buff.writeUInt32BE(tokens[tokenOffset + 3], offset); offset += 4;
-			buff.writeUInt32BE(tokens[tokenOffset + 4], offset); offset += 4;
-		}
-		// buff.set(VSBuffer.wrap(uint8), offset); offset += area.data.byteLength;
-	} else {
-		buff.writeUInt32BE(area.oldIndex, offset); offset += 4;
-	}
-	return offset;
-}
-
-function encodedAreaSize(area: ISemanticTokensAreaDto): number {
-	let result = 0;
-	result += 1; // type
-	result += 4; // line
-	if (area.type === 'full') {
-		const tokens = area.data;
-		const tokenCount = (tokens.length / 5) | 0;
-		result += 4; // token count
-		result += tokenCount * 5 * 4;
-		return result;
-	} else {
-		result += 4; // old index
-		return result;
-	}
-}
-
-function decodeArea(buff: VSBuffer, offset: number, areas: ISemanticTokensAreaDto[]): number {
-	const type: EncodedSemanticTokensAreaType = buff.readUInt8(offset); offset += 1;
-	const line = buff.readUInt32BE(offset); offset += 4;
-	if (type === EncodedSemanticTokensAreaType.Full) {
-		// here we are explicitly iterating and reading the ints again to ensure reading the desired endianness.
-		const tokenCount = buff.readUInt32BE(offset); offset += 4;
-		const data = new Uint32Array(5 * tokenCount);
-		for (let i = 0; i < tokenCount; i++) {
-			const destOffset = 5 * i;
-			data[destOffset] = buff.readUInt32BE(offset); offset += 4;
-			data[destOffset + 1] = buff.readUInt32BE(offset); offset += 4;
-			data[destOffset + 2] = buff.readUInt32BE(offset); offset += 4;
-			data[destOffset + 3] = buff.readUInt32BE(offset); offset += 4;
-			data[destOffset + 4] = buff.readUInt32BE(offset); offset += 4;
-		}
-		areas.push({
-			type: 'full',
-			line: line,
-			data: data
-		});
-		return offset;
-	} else {
-		const oldIndex = buff.readUInt32BE(offset); offset += 4;
-		areas.push({
-			type: 'delta',
-			line: line,
-			oldIndex: oldIndex
-		});
-		return offset;
-	}
 }

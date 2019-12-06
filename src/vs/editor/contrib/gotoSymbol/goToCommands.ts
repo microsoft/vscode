@@ -152,7 +152,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 	private async _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean, highlight: boolean): Promise<ICodeEditor | undefined> {
 		// range is the target-selection-range when we have one
-		// and the the fallback is the 'full' range
+		// and the fallback is the 'full' range
 		let range: IRange | undefined = undefined;
 		if (isLocationLink(reference)) {
 			range = reference.targetSelectionRange;
@@ -588,11 +588,7 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 
 //#region --- REFERENCES
 
-class ReferencesAction extends SymbolNavigationAction {
-
-	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
-		return new ReferencesModel(await getReferencesAtPosition(model, position, token), nls.localize('ref.title', 'References'));
-	}
+abstract class ReferencesAction extends SymbolNavigationAction {
 
 	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info
@@ -642,6 +638,10 @@ registerEditorAction(class GoToReferencesAction extends ReferencesAction {
 			},
 		});
 	}
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getReferencesAtPosition(model, position, true, token), nls.localize('ref.title', 'References'));
+	}
 });
 
 registerEditorAction(class PeekReferencesAction extends ReferencesAction {
@@ -666,6 +666,10 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 				order: 6
 			}
 		});
+	}
+
+	protected async _getLocationModel(model: ITextModel, position: corePosition.Position, token: CancellationToken): Promise<ReferencesModel> {
+		return new ReferencesModel(await getReferencesAtPosition(model, position, false, token), nls.localize('ref.title', 'References'));
 	}
 });
 
@@ -764,7 +768,7 @@ CommandsRegistry.registerCommand({
 				return undefined;
 			}
 
-			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), token).then(references => new ReferencesModel(references, nls.localize('ref.title', 'References'))));
+			const references = createCancelablePromise(token => getReferencesAtPosition(control.getModel(), corePosition.Position.lift(position), false, token).then(references => new ReferencesModel(references, nls.localize('ref.title', 'References'))));
 			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 			return Promise.resolve(controller.toggleWidget(range, references, false));
 		});

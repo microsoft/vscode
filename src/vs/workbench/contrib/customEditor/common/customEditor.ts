@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import * as glob from 'vs/base/common/glob';
+import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, IEditor, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { EditorInput, IEditor, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
@@ -29,6 +31,7 @@ export interface ICustomEditorService {
 
 	readonly activeCustomEditor: ICustomEditor | undefined;
 
+	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
 	getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[];
 	getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[];
 
@@ -87,9 +90,35 @@ export interface CustomEditorSelector {
 	readonly filenamePattern?: string;
 }
 
-export interface CustomEditorInfo {
-	readonly id: string;
-	readonly displayName: string;
-	readonly priority: CustomEditorPriority;
-	readonly selector: readonly CustomEditorSelector[];
+export class CustomEditorInfo {
+
+	public readonly id: string;
+	public readonly displayName: string;
+	public readonly priority: CustomEditorPriority;
+	public readonly selector: readonly CustomEditorSelector[];
+
+	constructor(descriptor: {
+		readonly id: string;
+		readonly displayName: string;
+		readonly priority: CustomEditorPriority;
+		readonly selector: readonly CustomEditorSelector[];
+	}) {
+		this.id = descriptor.id;
+		this.displayName = descriptor.displayName;
+		this.priority = descriptor.priority;
+		this.selector = descriptor.selector;
+	}
+
+	matches(resource: URI): boolean {
+		return this.selector.some(selector => CustomEditorInfo.selectorMatches(selector, resource));
+	}
+
+	static selectorMatches(selector: CustomEditorSelector, resource: URI): boolean {
+		if (selector.filenamePattern) {
+			if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
+				return true;
+			}
+		}
+		return false;
+	}
 }

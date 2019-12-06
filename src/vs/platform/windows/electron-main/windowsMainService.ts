@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { basename, normalize, join, } from 'vs/base/common/path';
+import { basename, normalize, join, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
@@ -1108,8 +1108,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const remoteAuthority = options.remoteAuthority;
 
 		if (remoteAuthority) {
-			// assume it's a folder or workspace file
-
 			const first = anyPath.charCodeAt(0);
 			// make absolute
 			if (first !== CharCode.Slash) {
@@ -1121,11 +1119,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: anyPath });
 
-			if (hasWorkspaceFileExtension(anyPath)) {
-				if (forceOpenWorkspaceAsFile) {
+			// guess the file type: If it ends with a slash it's a folder. If it has a file extension, it's a file or a workspace. By defaults it's a folder.
+			if (anyPath.charCodeAt(anyPath.length - 1) !== CharCode.Slash) {
+				if (hasWorkspaceFileExtension(anyPath)) {
+					if (forceOpenWorkspaceAsFile) {
+						return { fileUri: uri, remoteAuthority };
+					}
+				} else if (posix.extname(anyPath).length > 0) {
 					return { fileUri: uri, remoteAuthority };
 				}
-				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
 			}
 			return { folderUri: uri, remoteAuthority };
 		}

@@ -369,12 +369,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// when window.devicePixelRatio changes.
 		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
 
-		let scaledCharWidth: number;
-		if (this._configHelper.config.rendererType === 'dom') {
-			scaledCharWidth = font.charWidth * window.devicePixelRatio;
-		} else {
-			scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
-		}
+		const scaledCharWidth = font.charWidth * window.devicePixelRatio + font.letterSpacing;
 		const newCols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
