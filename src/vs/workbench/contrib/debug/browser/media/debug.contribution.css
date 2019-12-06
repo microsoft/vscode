@@ -16,26 +16,10 @@
 	align-items: center;
 }
 
-/* overlapped icons */
-.inline-breakpoint-widget.codicon-debug-breakpoint-stackframe-dot::after {
-	position: absolute;
-	top: 0;
-	left: 0;
-	bottom: 0;
-	margin: auto;
-	display: table;
-}
-
-.codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe-focused::after {
-	position: absolute;
-}
-
-.inline-breakpoint-widget.codicon-debug-breakpoint-stackframe-dot::after {
-	content: "\eb8b";
-}
-
-.codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe-focused::after {
+.codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe-focused::after,
+.codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe::after {
 	content: "\eb8a";
+	position: absolute;
 }
 
 .monaco-editor .inline-breakpoint-widget.line-start {
