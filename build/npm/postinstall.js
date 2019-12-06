@@ -23,17 +23,14 @@ function yarnInstall(location, opts) {
 	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
 
 	console.log(`Installing dependencies in ${location}...`);
-	const oldConfigArch = process.env['npm_config_arch']
-	if (location.startsWith("remote") && oldConfigArch == "arm64") {
-		// Temporarily set remote arch to x86, because remote portion builds
+	if (location.startsWith("remote") && process.env["npm_config_arch"] == "arm64") {
+		// Temporarily set remote arch to x86, because the remote portion builds
 		// against node, which is not consistently supported on Windows on Arm
 		// (yet).
-		process.env["npm_config_arch"] = "ia32"
+		opts.npm_config_arch = "ia32"
 	}
 	console.log(`$ yarn ${args.join(' ')}`);
 	const result = cp.spawnSync(yarn, args, opts);
-	// Restore the architecture, if temporarily swapped.
-	process.env["npm_config_arch"] = oldConfigArch
 	if (result.error || result.status !== 0) {
 		process.exit(1);
 	}
