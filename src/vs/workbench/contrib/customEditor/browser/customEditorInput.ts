@@ -156,15 +156,17 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		});
 	}
 
-	public handleMove(_groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
+	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(uri)) {
 			const webview = assertIsDefined(this.takeOwnershipOfWebview());
-			return this.instantiationService.createInstance(CustomFileEditorInput,
+			const newInput = this.instantiationService.createInstance(CustomFileEditorInput,
 				uri,
 				this.viewType,
 				generateUuid(),
 				new Lazy(() => webview));
+			newInput.updateGroup(groupId);
+			return newInput;
 		}
 		return undefined;
 	}
