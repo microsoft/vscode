@@ -2271,7 +2271,7 @@ class EditorRulers extends SimpleEditorOption<EditorOption.rulers, number[]> {
 			for (let value of input) {
 				rulers.push(EditorIntOption.clampedInt(value, 0, 0, 10000));
 			}
-			rulers.sort();
+			rulers.sort((a, b) => a - b);
 			return rulers;
 		}
 		return this.defaultValue;
