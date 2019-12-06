@@ -133,20 +133,26 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		const hostExtensions = new Set<string>();
 		this._initData.hostExtensions.forEach((extensionId) => hostExtensions.add(ExtensionIdentifier.toKey(extensionId)));
 
-		this._activator = new ExtensionsActivator(this._registry, this._initData.resolvedExtensions, this._initData.hostExtensions, {
-			onExtensionActivationError: (extensionId: ExtensionIdentifier, error: ExtensionActivationError): void => {
-				this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, error);
-			},
+		this._activator = new ExtensionsActivator(
+			this._registry,
+			this._initData.resolvedExtensions,
+			this._initData.hostExtensions,
+			{
+				onExtensionActivationError: (extensionId: ExtensionIdentifier, error: ExtensionActivationError): void => {
+					this._mainThreadExtensionsProxy.$onExtensionActivationError(extensionId, error);
+				},
 
-			actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
-				if (hostExtensions.has(ExtensionIdentifier.toKey(extensionId))) {
-					await this._mainThreadExtensionsProxy.$activateExtension(extensionId, reason);
-					return new HostExtension();
+				actualActivateExtension: async (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension> => {
+					if (hostExtensions.has(ExtensionIdentifier.toKey(extensionId))) {
+						await this._mainThreadExtensionsProxy.$activateExtension(extensionId, reason);
+						return new HostExtension();
+					}
+					const extensionDescription = this._registry.getExtensionDescription(extensionId)!;
+					return this._activateExtension(extensionDescription, reason);
 				}
-				const extensionDescription = this._registry.getExtensionDescription(extensionId)!;
-				return this._activateExtension(extensionDescription, reason);
-			}
-		});
+			},
+			this._logService
+		);
 		this._extensionPathIndex = null;
 		this._resolvers = Object.create(null);
 		this._started = false;
@@ -405,7 +411,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	// Handle "eager" activation extensions
 	private _handleEagerExtensions(): Promise<void> {
 		this._activateByEvent('*', true).then(undefined, (err) => {
-			console.error(err);
+			this._logService.error(err);
 		});
 
 		this._disposables.add(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
@@ -467,7 +473,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 				// the file was found
 				return (
 					this._activateById(extensionId, { startup: true, extensionId, activationEvent: `workspaceContains:${fileName}` })
-						.then(undefined, err => console.error(err))
+						.then(undefined, err => this._logService.error(err))
 				);
 			}
 		}
@@ -488,7 +494,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		const timer = setTimeout(async () => {
 			tokenSource.cancel();
 			this._activateById(extensionId, { startup: true, extensionId, activationEvent: `workspaceContainsTimeout:${globPatterns.join(',')}` })
-				.then(undefined, err => console.error(err));
+				.then(undefined, err => this._logService.error(err));
 		}, AbstractExtHostExtensionService.WORKSPACE_CONTAINS_TIMEOUT);
 
 		let exists: boolean = false;
@@ -496,7 +502,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 			exists = await searchP;
 		} catch (err) {
 			if (!errors.isPromiseCanceledError(err)) {
-				console.error(err);
+				this._logService.error(err);
 			}
 		}
 
@@ -507,7 +513,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 			// a file was found matching one of the glob patterns
 			return (
 				this._activateById(extensionId, { startup: true, extensionId, activationEvent: `workspaceContains:${globPatterns.join(',')}` })
-					.then(undefined, err => console.error(err))
+					.then(undefined, err => this._logService.error(err))
 			);
 		}
 

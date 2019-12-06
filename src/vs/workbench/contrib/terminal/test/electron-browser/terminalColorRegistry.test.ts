@@ -19,7 +19,10 @@ function getMockTheme(type: ThemeType): ITheme {
 		label: '',
 		type: type,
 		getColor: (colorId: ColorIdentifier): Color | undefined => themingRegistry.resolveDefaultColor(colorId, theme),
-		defines: () => true
+		defines: () => true,
+		getTokenStyleMetadata: () => undefined,
+		tokenColorMap: []
+
 	};
 	return theme;
 }

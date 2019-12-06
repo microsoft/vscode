@@ -18,7 +18,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -233,6 +233,41 @@ suite('ConfigurationEditingService', () => {
 				const parsed = json.parse(contents);
 				assert.deepEqual(Object.keys(parsed), ['my.super.setting']);
 				assert.equal(parsed['my.super.setting'], 'my.super.value');
+			});
+	});
+
+	test('write overridable settings to user settings', () => {
+		const key = '[language]';
+		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
+		return testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key, value })
+			.then(() => {
+				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.deepEqual(parsed[key], value);
+			});
+	});
+
+	test('write overridable settings to workspace settings', () => {
+		const key = '[language]';
+		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
+		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key, value })
+			.then(() => {
+				const target = path.join(workspaceDir, FOLDER_SETTINGS_PATH);
+				const contents = fs.readFileSync(target).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.deepEqual(parsed[key], value);
+			});
+	});
+
+	test('write overridable settings to workspace folder settings', () => {
+		const key = '[language]';
+		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
+		const folderSettingsFile = path.join(workspaceDir, FOLDER_SETTINGS_PATH);
+		return testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE_FOLDER, { key, value }, { scopes: { resource: URI.file(folderSettingsFile) } })
+			.then(() => {
+				const contents = fs.readFileSync(folderSettingsFile).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.deepEqual(parsed[key], value);
 			});
 	});
 

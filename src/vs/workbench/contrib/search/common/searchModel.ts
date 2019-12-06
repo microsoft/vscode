@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -28,6 +28,7 @@ import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { memoize } from 'vs/base/common/decorators';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class Match {
 
@@ -196,6 +197,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
+	private _context: Map<number, string> = new Map();
+	public get context(): Map<number, string> {
+		return new Map(this._context);
+	}
+
 	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions | undefined, private _maxResults: number | undefined, private _parent: FolderMatch, private rawMatch: IFileMatch,
 		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService
 	) {
@@ -220,6 +226,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 					textSearchResultToMatches(rawMatch, this)
 						.forEach(m => this.add(m));
 				});
+
+			this.addContext(this.rawMatch.results);
 		}
 	}
 
@@ -374,6 +382,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return getBaseLabel(this.resource);
 	}
 
+	addContext(results: ITextSearchResult[] | undefined) {
+		if (!results) { return; }
+
+		results
+			.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
+			.forEach(context => this._context.set(context.lineNumber, context.text));
+	}
+
 	add(match: Match, trigger?: boolean) {
 		this._matches.set(match.id(), match);
 		if (trigger) {
@@ -478,6 +494,8 @@ export class FolderMatch extends Disposable {
 							.forEach(m => existingFileMatch.add(m));
 					});
 				updated.push(existingFileMatch);
+
+				existingFileMatch.addContext(rawFileMatch.results);
 			} else {
 				const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
@@ -638,6 +656,7 @@ export class SearchResult extends Disposable {
 	private _query: ITextQuery | null = null;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
+	private disposePastResults: () => void = () => { };
 
 	constructor(
 		private _searchModel: SearchModel,
@@ -657,8 +676,15 @@ export class SearchResult extends Disposable {
 	}
 
 	set query(query: ITextQuery | null) {
-		// When updating the query we could change the roots, so ensure we clean up the old roots first.
-		this.clear();
+		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
+		const oldFolderMatches = this.folderMatches();
+		new Promise(resolve => this.disposePastResults = resolve)
+			.then(() => oldFolderMatches.forEach(match => match.clear()))
+			.then(() => oldFolderMatches.forEach(match => match.dispose()));
+
+		this._rangeHighlightDecorations.removeHighlightRange();
+		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatchWithResource>();
+
 		if (!query) {
 			return;
 		}
@@ -714,7 +740,8 @@ export class SearchResult extends Disposable {
 			}
 		});
 
-		this._otherFilesMatch!.add(other, silent);
+		this._otherFilesMatch?.add(other, silent);
+		this.disposePastResults();
 	}
 
 	clear(): void {
@@ -883,6 +910,7 @@ export class SearchResult extends Disposable {
 	}
 
 	dispose(): void {
+		this.disposePastResults();
 		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();
 		super.dispose();
@@ -897,6 +925,8 @@ export class SearchModel extends Disposable {
 	private _replaceString: string | null = null;
 	private _replacePattern: ReplacePattern | null = null;
 	private _preserveCase: boolean = false;
+	private _startStreamDelay: Promise<void> = Promise.resolve();
+	private _resultQueue: IFileMatch[] = [];
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
@@ -906,6 +936,7 @@ export class SearchModel extends Disposable {
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -951,12 +982,19 @@ export class SearchModel extends Disposable {
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.cancelSearch();
 
+
 		this._searchQuery = query;
-		this.searchResult.clear();
+		if (!this.searchConfig.searchOnType) {
+			this.searchResult.clear();
+		}
+
 		this._searchResult.query = this._searchQuery;
 
 		const progressEmitter = new Emitter<void>();
 		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
+
+		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
+		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
 		const currentRequest = this.searchService.textSearch(this._searchQuery, this.currentCancelTokenSource.token, p => {
@@ -1001,6 +1039,9 @@ export class SearchModel extends Disposable {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
 
+		this._searchResult.add(this._resultQueue);
+		this._resultQueue = [];
+
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 
@@ -1019,7 +1060,8 @@ export class SearchModel extends Disposable {
 				"options": { "${inline}": [ "${IPatternInfo}" ] },
 				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"searchOnTypeEnabled" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.telemetryService.publicLog('searchResultsShown', {
@@ -1028,7 +1070,8 @@ export class SearchModel extends Disposable {
 			options,
 			duration,
 			type: stats && stats.type,
-			scheme
+			scheme,
+			searchOnTypeEnabled: this.searchConfig.searchOnType
 		});
 		return completed;
 	}
@@ -1039,10 +1082,19 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchProgress(p: ISearchProgressItem): void {
+	private async onSearchProgress(p: ISearchProgressItem) {
 		if ((<IFileMatch>p).resource) {
-			this._searchResult.add([<IFileMatch>p], true);
+			this._resultQueue.push(<IFileMatch>p);
+			await this._startStreamDelay;
+			if (this._resultQueue.length) {
+				this._searchResult.add(this._resultQueue, true);
+				this._resultQueue = [];
+			}
 		}
+	}
+
+	private get searchConfig() {
+		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 
 	cancelSearch(): boolean {

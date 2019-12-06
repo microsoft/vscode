@@ -184,23 +184,16 @@ export function getCwd(
 	logService?: ILogService
 ): string {
 	if (shell.cwd) {
-		return (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
+		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
+		const resolved = _resolveCwd(unresolved, lastActiveWorkspace, configurationResolverService);
+		return resolved || unresolved;
 	}
 
 	let cwd: string | undefined;
 
 	if (!shell.ignoreConfigurationCwd && customCwd) {
 		if (configurationResolverService) {
-			try {
-				customCwd = configurationResolverService.resolve(lastActiveWorkspace, customCwd);
-			} catch (e) {
-				// There was an issue resolving a variable, log the error in the console and
-				// fallback to the default.
-				if (logService) {
-					logService.error('Could not resolve terminal.integrated.cwd', e);
-				}
-				customCwd = undefined;
-			}
+			customCwd = _resolveCwd(customCwd, lastActiveWorkspace, configurationResolverService, logService);
 		}
 		if (customCwd) {
 			if (path.isAbsolute(customCwd)) {
@@ -217,6 +210,18 @@ export function getCwd(
 	}
 
 	return _sanitizeCwd(cwd);
+}
+
+function _resolveCwd(cwd: string, lastActiveWorkspace: IWorkspaceFolder | undefined, configurationResolverService: IConfigurationResolverService | undefined, logService?: ILogService): string | undefined {
+	if (configurationResolverService) {
+		try {
+			return configurationResolverService.resolve(lastActiveWorkspace, cwd);
+		} catch (e) {
+			logService?.error('Could not resolve terminal cwd', e);
+			return undefined;
+		}
+	}
+	return cwd;
 }
 
 function _sanitizeCwd(cwd: string): string {

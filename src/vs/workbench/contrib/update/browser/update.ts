@@ -29,6 +29,7 @@ import { FalseContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
+import product from 'vs/platform/product/common/product';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
@@ -100,6 +101,7 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 
 	static readonly ID = ShowCurrentReleaseNotesActionId;
 	static readonly LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
+	static readonly AVAILABE = !!product.releaseNotesUrl;
 
 	constructor(
 		id = ShowCurrentReleaseNotesAction.ID,
@@ -236,18 +238,20 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		let badge: IBadge | undefined = undefined;
 		let clazz: string | undefined;
+		let priority: number | undefined = undefined;
 
 		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
 		} else if (state.type === StateType.CheckingForUpdates || state.type === StateType.Downloading || state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
 			clazz = 'progress-badge';
+			priority = 1;
 		}
 
 		this.badgeDisposable.clear();
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz);
+			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
 		}
 
 		this.state = state;

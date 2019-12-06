@@ -158,7 +158,7 @@ export class ConfigurationEditingService {
 	writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
 		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
-			.then(() => null,
+			.then(() => { },
 				error => {
 					if (!options.donotNotifyError) {
 						this.onError(error, operation, options.scopes);
@@ -436,7 +436,7 @@ export class ConfigurationEditingService {
 		}
 
 		if (target === EditableConfigurationTarget.WORKSPACE) {
-			if (!operation.workspaceStandAloneConfigurationKey) {
+			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 				if (configurationProperties[operation.key].scope === ConfigurationScope.APPLICATION) {
 					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
@@ -452,7 +452,7 @@ export class ConfigurationEditingService {
 				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET, target, operation);
 			}
 
-			if (!operation.workspaceStandAloneConfigurationKey) {
+			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 				if (configurationProperties[operation.key].scope !== ConfigurationScope.RESOURCE) {
 					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION, target, operation);

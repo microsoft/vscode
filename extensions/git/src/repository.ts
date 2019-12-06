@@ -1278,10 +1278,6 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
-	async cleanUpCommitEditMessage(editMessage: string): Promise<string> {
-		return this.repository.cleanupCommitEditMessage(editMessage);
-	}
-
 	async ignore(files: Uri[]): Promise<void> {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;

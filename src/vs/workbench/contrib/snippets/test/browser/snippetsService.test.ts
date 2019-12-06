@@ -84,7 +84,7 @@ suite('SnippetsService', function () {
 			assert.equal(result.incomplete, undefined);
 			assert.equal(result.suggestions.length, 1);
 			assert.equal(result.suggestions[0].label, 'bar');
-			assert.equal((result.suggestions[0].range as any).startColumn, 1);
+			assert.equal((result.suggestions[0].range as any).insert.startColumn, 1);
 			assert.equal(result.suggestions[0].insertText, 'barCodeSnippet');
 		});
 	});
@@ -117,10 +117,10 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 2);
 			assert.equal(result.suggestions[0].label, 'bar');
 			assert.equal(result.suggestions[0].insertText, 's1');
-			assert.equal((result.suggestions[0].range as any).startColumn, 1);
+			assert.equal((result.suggestions[0].range as any).insert.startColumn, 1);
 			assert.equal(result.suggestions[1].label, 'bar-bar');
 			assert.equal(result.suggestions[1].insertText, 's2');
-			assert.equal((result.suggestions[1].range as any).startColumn, 1);
+			assert.equal((result.suggestions[1].range as any).insert.startColumn, 1);
 		});
 
 		await provider.provideCompletionItems(model, new Position(1, 5), context)!.then(result => {
@@ -128,7 +128,7 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 1);
 			assert.equal(result.suggestions[0].label, 'bar-bar');
 			assert.equal(result.suggestions[0].insertText, 's2');
-			assert.equal((result.suggestions[0].range as any).startColumn, 1);
+			assert.equal((result.suggestions[0].range as any).insert.startColumn, 1);
 		});
 
 		await provider.provideCompletionItems(model, new Position(1, 6), context)!.then(result => {
@@ -136,10 +136,10 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 2);
 			assert.equal(result.suggestions[0].label, 'bar');
 			assert.equal(result.suggestions[0].insertText, 's1');
-			assert.equal((result.suggestions[0].range as any).startColumn, 5);
+			assert.equal((result.suggestions[0].range as any).insert.startColumn, 5);
 			assert.equal(result.suggestions[1].label, 'bar-bar');
 			assert.equal(result.suggestions[1].insertText, 's2');
-			assert.equal((result.suggestions[1].range as any).startColumn, 1);
+			assert.equal((result.suggestions[1].range as any).insert.startColumn, 1);
 		});
 	});
 
@@ -165,14 +165,14 @@ suite('SnippetsService', function () {
 			return provider.provideCompletionItems(model, new Position(1, 4), context)!;
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
-			assert.equal((result.suggestions[0].range as any).startColumn, 2);
+			assert.equal((result.suggestions[0].range as any).insert.startColumn, 2);
 			model.dispose();
 
 			model = TextModel.createFromString('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
 			return provider.provideCompletionItems(model, new Position(1, 4), context)!;
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
-			assert.equal((result.suggestions[0].range as any).startColumn, 2);
+			assert.equal((result.suggestions[0].range as any).insert.startColumn, 2);
 			model.dispose();
 		});
 	});
@@ -400,13 +400,43 @@ suite('SnippetsService', function () {
 
 		assert.equal(result.suggestions.length, 1);
 		let [first] = result.suggestions;
-		assert.equal((first.range as any).startColumn, 2);
+		assert.equal((first.range as any).insert.startColumn, 2);
 
 		model = TextModel.createFromString('1', undefined, modeService.getLanguageIdentifier('fooLang'));
 		result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
 
 		assert.equal(result.suggestions.length, 1);
 		[first] = result.suggestions;
-		assert.equal((first.range as any).startColumn, 1);
+		assert.equal((first.range as any).insert.startColumn, 1);
+	});
+
+	test('Snippet replace range', async function () {
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'notWordTest',
+			'not word',
+			'',
+			'not word snippet',
+			'',
+			SnippetSource.User
+		)]);
+
+		const provider = new SnippetCompletionProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString('not wordFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
+
+		assert.equal(result.suggestions.length, 1);
+		let [first] = result.suggestions;
+		assert.equal((first.range as any).insert.endColumn, 3);
+		assert.equal((first.range as any).replace.endColumn, 9);
+
+		model = TextModel.createFromString('not woFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+		result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
+
+		assert.equal(result.suggestions.length, 1);
+		[first] = result.suggestions;
+		assert.equal((first.range as any).insert.endColumn, 3);
+		assert.equal((first.range as any).replace.endColumn, 3);
 	});
 });

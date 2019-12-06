@@ -15,11 +15,19 @@ import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } fr
 
 const localize = nls.loadMessageBundle();
 
-class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public constructor(
+		protected client: ITypeScriptServiceClient,
+		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+		private modeId: string
+	) {
+		super(client, _cachedResponse);
+	}
+
 	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
-		const response = await this.client.execute('references', args, token, { lowPriority: true });
+		const response = await this.client.execute('references', args, token, { lowPriority: true, cancelOnResourceChange: codeLens.document });
 		if (response.type !== 'response' || !response.body) {
 			codeLens.command = response.type === 'cancelled'
 				? TypeScriptBaseCodeLensProvider.cancelledCommand
@@ -59,10 +67,16 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 		}
 
 		switch (item.kind) {
+			case PConst.Kind.function:
+				const showOnAllFunctions = vscode.workspace.getConfiguration(this.modeId).get<boolean>('referencesCodeLens.showOnAllFunctions');
+				if (showOnAllFunctions) {
+					return getSymbolRange(document, item);
+				}
+			// fallthrough
+
 			case PConst.Kind.const:
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
-			case PConst.Kind.function:
 				// Only show references for exported variables
 				if (!item.kindModifiers.match(/\bexport\b/)) {
 					break;
@@ -98,6 +112,6 @@ export function register(
 ) {
 	return new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
 		return vscode.languages.registerCodeLensProvider(selector,
-			new TypeScriptReferencesCodeLensProvider(client, cachedResponse));
+			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, modeId));
 	});
 }

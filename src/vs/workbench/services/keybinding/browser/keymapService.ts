@@ -335,6 +335,10 @@ export class BrowserKeyboardMapperFactoryBase {
 			return true;
 		}
 
+		if (standardKeyboardEvent.browserEvent.key === 'Dead' || standardKeyboardEvent.browserEvent.isComposing) {
+			return true;
+		}
+
 		const mapping = currentKeymap.mapping[standardKeyboardEvent.code];
 
 		if (!mapping) {

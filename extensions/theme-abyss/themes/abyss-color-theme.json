@@ -252,6 +252,9 @@
 	],
 	"colors": {
 
+		"editor.background": "#000c18",
+		"editor.foreground": "#6688cc",
+
 		// Base
 		// "foreground": "",
 		"focusBorder": "#596F99",
@@ -295,8 +298,6 @@
 		"scrollbarSlider.hoverBackground": "#3B3F5188",
 
 		// Editor
-		"editor.background": "#000c18",
-		// "editor.foreground": "#6688cc",
 		"editorWidget.background": "#262641",
 		"editorCursor.foreground": "#ddbb88",
 		"editorWhitespace.foreground": "#103050",

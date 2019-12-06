@@ -26,7 +26,6 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry: { enableCrashReporter: boolean };
 	workbench: { list: { horizontalScrolling: boolean } };
 	debug: { console: { wordWrap: boolean } };
-	configurationSync: { enableAuth: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -39,7 +38,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private enableCrashReporter: boolean | undefined;
 	private treeHorizontalScrolling: boolean | undefined;
 	private debugConsoleWordWrap: boolean | undefined;
-	private enableConfigSyncAuth: boolean | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -105,12 +103,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				this.enableCrashReporter = config.telemetry.enableCrashReporter;
 				changed = true;
 			}
-		}
-
-		// Configuration Sync Auth
-		if (typeof config.configurationSync?.enableAuth === 'boolean' && config.configurationSync.enableAuth !== this.enableConfigSyncAuth) {
-			this.enableConfigSyncAuth = config.configurationSync.enableAuth;
-			changed = true;
 		}
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)

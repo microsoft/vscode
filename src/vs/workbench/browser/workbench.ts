@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { addClasses, addClass, removeClasses } from 'vs/base/browser/dom';
 import { runWhenIdle } from 'vs/base/common/async';
-import { getZoomLevel } from 'vs/base/browser/browser';
+import { getZoomLevel, isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -312,6 +312,7 @@ export class Workbench extends Layout {
 			'monaco-workbench',
 			platformClass,
 			isWeb ? 'web' : undefined,
+			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
 			...this.getLayoutClasses()
 		]);
 

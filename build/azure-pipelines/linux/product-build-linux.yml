@@ -120,6 +120,32 @@ steps:
 
 - script: |
     set -e
+    yarn gulp "vscode-linux-x64-build-deb"
+    yarn gulp "vscode-linux-x64-build-rpm"
+    yarn gulp "vscode-linux-x64-prepare-snap"
+  displayName: Build packages
+
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '.build/linux/rpm/x86_64'
+    Pattern: '*.rpm'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-450779-Pgp",
+          "operationSetCode": "LinuxSign",
+          "parameters": [ ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]
+    SessionTimeout: 120
+  displayName: Codesign rpm
+
+- script: |
+    set -e
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \

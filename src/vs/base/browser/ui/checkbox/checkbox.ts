@@ -113,6 +113,8 @@ export class Checkbox extends Widget {
 			ev.preventDefault();
 		});
 
+		this.ignoreGesture(this.domNode);
+
 		this.onkeydown(this.domNode, (keyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
 				this.checked = !this._checked;

@@ -25,7 +25,8 @@
 		"onCommand:markdown.showSource",
 		"onCommand:markdown.showPreviewSecuritySelector",
 		"onCommand:markdown.api.render",
-		"onWebviewPanel:markdown.preview"
+		"onWebviewPanel:markdown.preview",
+		"onWebviewEditor:vscode.markdown.preview.editor"
 	],
 	"contributes": {
 		"commands": [
@@ -307,6 +308,18 @@
 		],
 		"markdown.previewScripts": [
 			"./media/index.js"
+		],
+		"webviewEditors": [
+			{
+				"viewType": "vscode.markdown.preview.editor",
+				"displayName": "(Experimental) VS Code Markdown Preview",
+				"priority": "option",
+				"selector": [
+					{
+						"filenamePattern": "*.md"
+					}
+				]
+			}
 		]
 	},
 	"scripts": {
@@ -332,7 +345,7 @@
 		"mocha-junit-reporter": "^1.17.0",
 		"mocha-multi-reporters": "^1.1.7",
 		"ts-loader": "^6.2.1",
-		"typescript": "^3.6.4",
+		"typescript": "^3.7.2",
 		"vscode": "^1.1.10",
 		"webpack": "^4.41.2",
 		"webpack-cli": "^3.3.0"

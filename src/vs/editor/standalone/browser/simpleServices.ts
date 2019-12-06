@@ -31,7 +31,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeyboardEvent, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -99,7 +99,12 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: undefined;
 
+	private readonly modelService: IModelService | undefined;
 	private editor?: editorCommon.IEditor;
+
+	constructor(modelService: IModelService | undefined) {
+		this.modelService = modelService;
+	}
 
 	public setEditor(editor: editorCommon.IEditor): void {
 		this.editor = editor;
@@ -132,7 +137,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
-		let model = editor.getModel();
+		let model = this.modelService ? this.modelService.getModel(resource) : editor.getModel();
 		if (model && model.uri.toString() !== resource.toString()) {
 			return null;
 		}
@@ -408,6 +413,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	public _dumpDebugInfoJSON(): string {
 		return '';
+	}
+
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
+		// noop
 	}
 }
 

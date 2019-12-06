@@ -18,7 +18,28 @@ export class BrowserClipboardService implements IClipboardService {
 			return; // TODO@sbatten
 		}
 
-		return navigator.clipboard.writeText(text);
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			return navigator.clipboard.writeText(text);
+		} else {
+			const activeElement = <HTMLElement>document.activeElement;
+			const newTextarea = document.createElement('textarea');
+			newTextarea.className = 'clipboard-copy';
+			newTextarea.style.visibility = 'false';
+			newTextarea.style.height = '1px';
+			newTextarea.style.width = '1px';
+			newTextarea.setAttribute('aria-hidden', 'true');
+			newTextarea.style.position = 'absolute';
+			newTextarea.style.top = '-1000';
+			newTextarea.style.left = '-1000';
+			document.body.appendChild(newTextarea);
+			newTextarea.value = text;
+			newTextarea.focus();
+			newTextarea.select();
+			document.execCommand('copy');
+			activeElement.focus();
+			document.body.removeChild(newTextarea);
+		}
+		return;
 	}
 
 	async readText(type?: string): Promise<string> {

@@ -22,6 +22,10 @@
 	font-weight: bold;
 }
 
+.runtime-extensions-editor .extension .desc .msg .codicon {
+	vertical-align: middle;
+}
+
 .runtime-extensions-editor .extension .time {
 	padding: 4px;
 	text-align: right;

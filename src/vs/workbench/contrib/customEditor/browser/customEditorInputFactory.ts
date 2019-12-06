@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UnownedDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -12,7 +11,7 @@ import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { Lazy } from 'vs/base/common/lazy';
 
-export class CustomEditoInputFactory extends WebviewEditorInputFactory {
+export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 
 	public static readonly ID = CustomFileEditorInput.typeId;
 
@@ -48,7 +47,7 @@ export class CustomEditoInputFactory extends WebviewEditorInputFactory {
 				location: data.extensionLocation,
 				id: data.extensionId
 			} : undefined, data.group);
-			return new UnownedDisposable(webviewInput.webview);
+			return webviewInput.webview;
 		});
 
 		const customInput = this._instantiationService.createInstance(CustomFileEditorInput, URI.from((data as any).editorResource), data.viewType, id, webview);

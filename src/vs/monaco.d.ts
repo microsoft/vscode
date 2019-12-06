@@ -802,6 +802,12 @@ declare namespace monaco {
 
 declare namespace monaco.editor {
 
+	export interface IDiffNavigator {
+		canNavigate(): boolean;
+		next(): void;
+		previous(): void;
+		dispose(): void;
+	}
 
 	/**
 	 * Create a new editor under `domElement`.
@@ -823,13 +829,6 @@ declare namespace monaco.editor {
 	 * The editor will read the size of `domElement`.
 	 */
 	export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
-
-	export interface IDiffNavigator {
-		canNavigate(): boolean;
-		next(): void;
-		previous(): void;
-		dispose(): void;
-	}
 
 	export interface IDiffNavigatorOptions {
 		readonly followsCaret?: boolean;
@@ -1193,7 +1192,8 @@ declare namespace monaco.editor {
 	 * Position in the minimap to render the decoration.
 	 */
 	export enum MinimapPosition {
-		Inline = 1
+		Inline = 1,
+		Gutter = 2
 	}
 
 	export interface IDecorationOptions {
@@ -2597,8 +2597,8 @@ declare namespace monaco.editor {
 		 */
 		fontLigatures?: boolean | string;
 		/**
-		 * Disable the use of `will-change` for the editor margin and lines layers.
-		 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
+		 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
+		 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
 		 * Defaults to false.
 		 */
 		disableLayerHinting?: boolean;
@@ -2731,6 +2731,10 @@ declare namespace monaco.editor {
 		 */
 		accessibilitySupport?: 'auto' | 'off' | 'on';
 		/**
+		 * Controls the number of lines in the editor that can be read out by a screen reader
+		 */
+		accessibilityPageSize?: number;
+		/**
 		 * Suggest options.
 		 */
 		suggest?: ISuggestOptions;
@@ -2775,7 +2779,7 @@ declare namespace monaco.editor {
 		 * Enable auto indentation adjustment.
 		 * Defaults to false.
 		 */
-		autoIndent?: boolean;
+		autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 		/**
 		 * Enable format on type.
 		 * Defaults to false.
@@ -2876,9 +2880,9 @@ declare namespace monaco.editor {
 		showFoldingControls?: 'always' | 'mouseover';
 		/**
 		 * Enable highlighting of matching brackets.
-		 * Defaults to true.
+		 * Defaults to 'always'.
 		 */
-		matchBrackets?: boolean;
+		matchBrackets?: 'never' | 'near' | 'always';
 		/**
 		 * Enable rendering of whitespace.
 		 * Defaults to none.
@@ -3060,14 +3064,23 @@ declare namespace monaco.editor {
 
 	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
+	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
+
 	/**
 	 * Configuration options for go to location
 	 */
 	export interface IGotoLocationOptions {
-		/**
-		 * Control how goto-command work when having multiple results.
-		 */
-		multiple?: 'peek' | 'gotoAndPeek' | 'goto';
+		multiple?: GoToLocationValues;
+		multipleDefinitions?: GoToLocationValues;
+		multipleTypeDefinitions?: GoToLocationValues;
+		multipleDeclarations?: GoToLocationValues;
+		multipleImplementations?: GoToLocationValues;
+		multipleReferences?: GoToLocationValues;
+		alternativeDefinitionCommand?: string;
+		alternativeTypeDefinitionCommand?: string;
+		alternativeDeclarationCommand?: string;
+		alternativeImplementationCommand?: string;
+		alternativeReferenceCommand?: string;
 	}
 
 	export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
@@ -3389,7 +3402,11 @@ declare namespace monaco.editor {
 		/**
 		 * Overwrite word ends on accept. Default to false.
 		 */
-		overwriteOnAccept?: boolean;
+		insertMode?: 'insert' | 'replace';
+		/**
+		 * Show a highlight when suggestion replaces or keep text after the cursor. Defaults to false.
+		 */
+		insertHighlight?: boolean;
 		/**
 		 * Enable graceful matching. Defaults to true.
 		 */
@@ -4226,6 +4243,10 @@ declare namespace monaco.editor {
 		 * If the diff computation is not finished or the model is missing, will return null.
 		 */
 		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
+		/**
+		 * Update the editor's options after the editor has been created.
+		 */
+		updateOptions(newOptions: IDiffEditorOptions): void;
 	}
 
 	export class FontInfo extends BareFontInfo {
@@ -4966,6 +4987,7 @@ declare namespace monaco.languages {
 		diagnostics?: editor.IMarkerData[];
 		kind?: string;
 		isPreferred?: boolean;
+		disabled?: string;
 	}
 
 	export interface CodeActionList extends IDisposable {
@@ -5551,6 +5573,33 @@ declare namespace monaco.languages {
 		onDidChange?: IEvent<this>;
 		provideCodeLenses(model: editor.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
 		resolveCodeLens?(model: editor.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
+	}
+
+	export interface SemanticTokensLegend {
+		readonly tokenTypes: string[];
+		readonly tokenModifiers: string[];
+	}
+
+	export interface SemanticTokens {
+		readonly resultId?: string;
+		readonly data: Uint32Array;
+	}
+
+	export interface SemanticTokensEdit {
+		readonly start: number;
+		readonly deleteCount: number;
+		readonly data?: Uint32Array;
+	}
+
+	export interface SemanticTokensEdits {
+		readonly resultId?: string;
+		readonly edits: SemanticTokensEdit[];
+	}
+
+	export interface SemanticTokensProvider {
+		getLegend(): SemanticTokensLegend;
+		provideSemanticTokens(model: editor.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+		releaseSemanticTokens(resultId: string | undefined): void;
 	}
 
 	export interface ILanguageExtensionPoint {

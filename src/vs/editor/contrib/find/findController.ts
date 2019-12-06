@@ -455,7 +455,7 @@ export class StartFindAction extends EditorAction {
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '3_find',
 				title: nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"),
@@ -701,7 +701,7 @@ export class StartFindReplaceAction extends EditorAction {
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '3_find',
 				title: nls.localize({ key: 'miReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"),

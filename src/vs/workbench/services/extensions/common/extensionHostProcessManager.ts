@@ -22,7 +22,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledResourceInput } from 'vs/workbench/common/editor';
+import { IUntitledTextResourceInput } from 'vs/workbench/common/editor';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
@@ -185,7 +185,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol, logger);
 		this._register(this._extensionHostProcessRPCProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
-			remoteAuthority: this._remoteAuthority! /* TODO: sandy081, remove not-null assertion */,
+			remoteAuthority: this._remoteAuthority! /* TODO: alexdima, remove not-null assertion */,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol!.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol!.set(identifier, instance),
 			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._extensionHostProcessRPCProtocol!.assertRegistered(identifiers),
@@ -403,10 +403,13 @@ export class MeasureExtHostLatencyAction extends Action {
 
 	public async run(): Promise<any> {
 		const measurements = await Promise.all(getLatencyTestProviders().map(provider => provider.measure()));
-		this._editorService.openEditor({ contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } } as IUntitledResourceInput);
+		this._editorService.openEditor({ contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } } as IUntitledTextResourceInput);
 	}
 
-	private static _print(m: ExtHostLatencyResult): string {
+	private static _print(m: ExtHostLatencyResult | null): string {
+		if (!m) {
+			return '';
+		}
 		return `${m.remoteAuthority ? `Authority: ${m.remoteAuthority}\n` : ``}Roundtrip latency: ${m.latency.toFixed(3)}ms\nUp: ${MeasureExtHostLatencyAction._printSpeed(m.up)}\nDown: ${MeasureExtHostLatencyAction._printSpeed(m.down)}\n`;
 	}
 
@@ -422,4 +425,4 @@ export class MeasureExtHostLatencyAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MeasureExtHostLatencyAction, MeasureExtHostLatencyAction.ID, MeasureExtHostLatencyAction.LABEL), 'Developer: Measure Extension Host Latency', nls.localize('developer', "Developer"));
+registry.registerWorkbenchAction(SyncActionDescriptor.create(MeasureExtHostLatencyAction, MeasureExtHostLatencyAction.ID, MeasureExtHostLatencyAction.LABEL), 'Developer: Measure Extension Host Latency', nls.localize('developer', "Developer"));

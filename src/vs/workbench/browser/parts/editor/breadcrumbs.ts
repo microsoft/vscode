@@ -170,131 +170,157 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'breadcrumbs.showFiles': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.file', "When enabled breadcrumbs show `file`-symbols.")
 		},
 		'breadcrumbs.showModules': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.module', "When enabled breadcrumbs show `module`-symbols.")
 		},
 		'breadcrumbs.showNamespaces': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.namespace', "When enabled breadcrumbs show `namespace`-symbols.")
 		},
 		'breadcrumbs.showPackages': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.package', "When enabled breadcrumbs show `package`-symbols.")
 		},
 		'breadcrumbs.showClasses': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.class', "When enabled breadcrumbs show `class`-symbols.")
 		},
 		'breadcrumbs.showMethods': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.method', "When enabled breadcrumbs show `method`-symbols.")
 		},
 		'breadcrumbs.showProperties': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.property', "When enabled breadcrumbs show `property`-symbols.")
 		},
 		'breadcrumbs.showFields': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.field', "When enabled breadcrumbs show `field`-symbols.")
 		},
 		'breadcrumbs.showConstructors': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.constructor', "When enabled breadcrumbs show `constructor`-symbols.")
 		},
 		'breadcrumbs.showEnums': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.enum', "When enabled breadcrumbs show `enum`-symbols.")
 		},
 		'breadcrumbs.showInterfaces': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.interface', "When enabled breadcrumbs show `interface`-symbols.")
 		},
 		'breadcrumbs.showFunctions': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.function', "When enabled breadcrumbs show `function`-symbols.")
 		},
 		'breadcrumbs.showVariables': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.variable', "When enabled breadcrumbs show `variable`-symbols.")
 		},
 		'breadcrumbs.showConstants': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.constant', "When enabled breadcrumbs show `constant`-symbols.")
 		},
 		'breadcrumbs.showStrings': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.string', "When enabled breadcrumbs show `string`-symbols.")
 		},
 		'breadcrumbs.showNumbers': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.number', "When enabled breadcrumbs show `number`-symbols.")
 		},
 		'breadcrumbs.showBooleans': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.boolean', "When enabled breadcrumbs show `boolean`-symbols.")
 		},
 		'breadcrumbs.showArrays': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.array', "When enabled breadcrumbs show `array`-symbols.")
 		},
 		'breadcrumbs.showObjects': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.object', "When enabled breadcrumbs show `object`-symbols.")
 		},
 		'breadcrumbs.showKeys': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.key', "When enabled breadcrumbs show `key`-symbols.")
 		},
 		'breadcrumbs.showNull': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.null', "When enabled breadcrumbs show `null`-symbols.")
 		},
 		'breadcrumbs.showEnumMembers': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.enumMember', "When enabled breadcrumbs show `enumMember`-symbols.")
 		},
 		'breadcrumbs.showStructs': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.struct', "When enabled breadcrumbs show `struct`-symbols.")
 		},
 		'breadcrumbs.showEvents': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.event', "When enabled breadcrumbs show `event`-symbols.")
 		},
 		'breadcrumbs.showOperators': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.operator', "When enabled breadcrumbs show `operator`-symbols.")
 		},
 		'breadcrumbs.showTypeParameters': {
 			type: 'boolean',
 			default: true,
+			overridable: true,
 			markdownDescription: localize('filteredTypes.typeParameter', "When enabled breadcrumbs show `typeParameter`-symbols.")
 		}
 	}

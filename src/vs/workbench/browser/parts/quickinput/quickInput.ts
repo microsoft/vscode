@@ -343,6 +343,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnDescription = false;
 	private _matchOnDetail = false;
 	private _matchOnLabel = true;
+	private _sortByLabel = true;
 	private _autoFocusOnList = true;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
@@ -433,6 +434,16 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this._matchOnLabel = matchOnLabel;
 		this.update();
 	}
+
+	get sortByLabel() {
+		return this._sortByLabel;
+	}
+
+	set sortByLabel(sortByLabel: boolean) {
+		this._sortByLabel = sortByLabel;
+		this.update();
+	}
+
 
 	get autoFocusOnList() {
 		return this._autoFocusOnList;
@@ -661,7 +672,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 			// Select element when keys are pressed that signal it
 			const quickNavKeys = this.quickNavigate.keybindings;
-			const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some(k => {
+			const wasTriggerKeyPressed = quickNavKeys.some(k => {
 				const [firstPart, chordPart] = k.getParts();
 				if (chordPart) {
 					return false;
@@ -699,10 +710,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	protected update() {
-		super.update();
 		if (!this.visible) {
 			return;
 		}
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage, customButton: this.customButton } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
+		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
 		}
@@ -761,9 +773,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
+		this.ui.list.sortByLabel = this.sortByLabel;
 		this.ui.setComboboxAccessibility(true);
 		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
-		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true, message: !!this.validationMessage } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true, message: !!this.validationMessage, customButton: this.customButton, ok: this.ok });
 	}
 }
 
@@ -857,10 +869,11 @@ class InputBox extends QuickInput implements IInputBox {
 	}
 
 	protected update() {
-		super.update();
 		if (!this.visible) {
 			return;
 		}
+		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
+		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
 		}
@@ -882,7 +895,6 @@ class InputBox extends QuickInput implements IInputBox {
 			this.ui.message.textContent = this.validationMessage;
 			this.showMessageDecoration(Severity.Error);
 		}
-		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
 	}
 }
 
@@ -895,6 +907,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private idPrefix = 'quickInput_'; // Constant since there is still only one.
 	private ui: QuickInputUI | undefined;
+	private dimension?: dom.Dimension;
 	private comboboxAccessibility = false;
 	private enabled = true;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
@@ -925,6 +938,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
 		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
 		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
+		this.layout(this.layoutService.dimension);
 		this.registerKeyModsListeners();
 	}
 
@@ -1377,6 +1391,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		ui.list.matchOnDescription = false;
 		ui.list.matchOnDetail = false;
 		ui.list.matchOnLabel = true;
+		ui.list.sortByLabel = true;
 		ui.ignoreFocusOut = false;
 		this.setComboboxAccessibility(false);
 		ui.inputBox.removeAttribute('aria-label');
@@ -1498,6 +1513,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	layout(dimension: dom.Dimension): void {
+		this.dimension = dimension;
 		this.updateLayout();
 	}
 
@@ -1512,7 +1528,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			style.marginLeft = '-' + (width / 2) + 'px';
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout();
+			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
 		}
 	}
 

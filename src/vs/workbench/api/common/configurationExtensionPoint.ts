@@ -309,7 +309,9 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			$ref: 'vscode://schemas/extensions'
 		},
 		'remoteAuthority': {
-			type: 'string'
+			type: 'string',
+			doNotSuggest: true,
+			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located. Only used by unsaved remote workspaces."),
 		}
 	},
 	additionalProperties: false,
