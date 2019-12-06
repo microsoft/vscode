@@ -87,9 +87,22 @@ export function activateMirrorCursor(
 			}
 		}
 
+		const exitMirrorMode = () => {
+			inMirrorMode = false;
+			window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
+		};
+
 		if (cursors.length === 2 && inMirrorMode) {
-			// Check two cases
 			if (event.selections[0].isEmpty && event.selections[1].isEmpty) {
+				if (
+					prevCursors.length === 2 &&
+					event.selections[0].anchor.line !== prevCursors[0].anchor.line &&
+					event.selections[1].anchor.line !== prevCursors[0].anchor.line
+				) {
+					exitMirrorMode();
+					return;
+				}
+
 				const charBeforeAndAfterPositionsRoughtlyEqual = isCharBeforeAndAfterPositionsRoughtlyEqual(
 					event.textEditor.document,
 					event.selections[0].anchor,
@@ -97,8 +110,7 @@ export function activateMirrorCursor(
 				);
 
 				if (!charBeforeAndAfterPositionsRoughtlyEqual) {
-					inMirrorMode = false;
-					window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
+					exitMirrorMode();
 					return;
 				} else {
 					// Need to cleanup in the case of <div |></div |>
@@ -109,11 +121,10 @@ export function activateMirrorCursor(
 							event.selections[1].anchor
 						)
 					) {
-						inMirrorMode = false;
 						const cleanupEdit = new WorkspaceEdit();
 						const cleanupRange = new Range(event.selections[1].anchor.translate(0, -1), event.selections[1].anchor);
 						cleanupEdit.replace(event.textEditor.document.uri, cleanupRange, '');
-						window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
+						exitMirrorMode();
 						workspace.applyEdit(cleanupEdit);
 					}
 				}
