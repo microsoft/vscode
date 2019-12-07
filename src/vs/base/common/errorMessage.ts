@@ -8,15 +8,23 @@ import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 
 function exceptionToErrorMessage(exception: any, verbose: boolean): string {
+	function getDefaultErrorMessage() {
+		return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+	}
+
 	if (exception.message || exception.stack || exception.stacktrace) {
 		if (verbose && (exception.stack || exception.stacktrace)) {
-			return nls.localize('stackTrace.format', "{0}: {1}", detectSystemErrorMessage(exception), stackToString(exception.stack) || stackToString(exception.stacktrace));
+			let errorMessage = detectSystemErrorMessage(exception);
+			if (errorMessage === undefined || errorMessage === null || errorMessage === '') {
+				errorMessage = getDefaultErrorMessage();
+			}
+			return nls.localize('stackTrace.format', "{0}: {1}", errorMessage, stackToString(exception.stack) || stackToString(exception.stacktrace));
 		}
 
 		return detectSystemErrorMessage(exception);
 	}
 
-	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+	return getDefaultErrorMessage();
 }
 
 function stackToString(stack: string[] | string | undefined): string | undefined {
