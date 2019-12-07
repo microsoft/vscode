@@ -67,6 +67,10 @@ export abstract class Pane extends Disposable implements IView {
 		return this.header;
 	}
 
+	get draggableElementTextContent(): string {
+		return this.draggableElement.textContent || '';
+	}
+
 	get dropTargetElement(): HTMLElement {
 		return this.element;
 	}
@@ -276,10 +280,10 @@ class PaneDraggable extends Disposable {
 
 		if (isFirefox) {
 			// Firefox: requires to set a text data transfer to get going
-			e.dataTransfer?.setData(DataTransfers.TEXT, this.pane.draggableElement.textContent || '');
+			e.dataTransfer?.setData(DataTransfers.TEXT, this.pane.draggableElementTextContent);
 		}
 
-		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.pane.draggableElement.textContent || ''));
+		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.pane.draggableElementTextContent));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
 		setTimeout(() => document.body.removeChild(dragImage), 0);
 

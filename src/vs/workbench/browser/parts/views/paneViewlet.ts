@@ -74,6 +74,10 @@ export abstract class ViewletPane extends Pane implements IView {
 	private titleContainer?: HTMLElement;
 	protected twistiesContainer?: HTMLElement;
 
+	get draggableElementTextContent(): string {
+		return this.title;
+	}
+
 	constructor(
 		options: IViewletPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
