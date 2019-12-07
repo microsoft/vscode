@@ -30,6 +30,7 @@ export class StartView extends ViewletPane {
 	static ID = 'workbench.debug.startView';
 	static LABEL = localize('start', "Start");
 
+	private container!: HTMLElement;
 	private debugButton!: Button;
 	private runButton!: Button;
 	private firstMessageContainer!: HTMLElement;
@@ -132,6 +133,8 @@ export class StartView extends ViewletPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		this.container = container;
+
 		this.firstMessageContainer = $('.top-section');
 		container.appendChild(this.firstMessageContainer);
 
@@ -161,6 +164,10 @@ export class StartView extends ViewletPane {
 	}
 
 	focus(): void {
-		this.runButton.focus();
+		if (this.runButton.enabled) {
+			this.runButton.focus();
+		} else {
+			(this.container.querySelector('span.click') as HTMLElement).focus();
+		}
 	}
 }
