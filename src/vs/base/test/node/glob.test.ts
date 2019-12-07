@@ -731,6 +731,16 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expr, 'bar.js', hasSibling), null);
 	});
 
+	test.only('expressions with include patterns', function () {
+		let expr = {
+			'**/*.exclude': true,
+			'**/donot.exclude': false
+		};
+
+		assert.strictEqual(glob.match(expr, 'a.exclude'), '**/*.exclude');
+		assert.strictEqual(glob.match(expr, 'donot.exclude'), null);
+	});
+
 	test('expression with multipe basename globs', function () {
 		let expr = {
 			'**/bar': true,
@@ -791,7 +801,6 @@ suite('Glob', () => {
 			'**/foo': true,
 			'{**/bar,**/baz}': true,
 			'{**/bar2/,**/baz2/}': true,
-			'**/bulb': false
 		})), ['foo', 'bar', 'baz', 'bar2', 'baz2']);
 		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse({
 			'**/foo': { when: '$(basename).zip' },
@@ -810,7 +819,6 @@ suite('Glob', () => {
 		testOptimizationForBasenames({
 			'**/foo/**': true,
 			'{**/bar/**,**/baz/**}': true,
-			'**/bulb/**': false
 		}, ['foo', 'bar', 'baz'], [
 			['bar/foo', '**/foo/**'],
 			['foo/bar', '{**/bar/**,**/baz/**}'],
@@ -891,7 +899,6 @@ suite('Glob', () => {
 			// '{**/bar2/foo/,**/baz2/foo/}': true,
 			'**/bulb': true,
 			'**/bulb2': true,
-			'**/bulb/foo': false
 		});
 		assert.deepStrictEqual(glob.getPathTerms(parsed), ['*/foo/bar', '*/foo2/bar2']);
 		assert.deepStrictEqual(glob.getBasenameTerms(parsed), ['bulb', 'bulb2']);
@@ -915,7 +922,6 @@ suite('Glob', () => {
 			'**/foo/bar/**': true,
 			// Not supported
 			// '{**/bar/bar/**,**/baz/bar/**}': true,
-			'**/bulb/bar/**': false
 		}, ['*/foo/bar'], [
 			[nativeSep('bar/foo/bar'), '**/foo/bar/**'],
 			// Not supported

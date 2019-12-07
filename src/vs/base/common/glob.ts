@@ -526,6 +526,50 @@ export function getPathTerms(patternOrExpression: ParsedPattern | ParsedExpressi
 }
 
 function parsedExpression(expression: IExpression, options: IGlobOptions): ParsedExpression {
+	const exclude: IExpression = {};
+	const include: IExpression = {};
+
+	for (let key of Object.getOwnPropertyNames(expression)) {
+		if (expression[key] === false) {
+			include[key] = true;
+		} else {
+			exclude[key] = expression[key];
+		}
+	}
+
+	const excludeExpr = parsedSameValueExpression(exclude, options);
+	if (Object.getOwnPropertyNames(include).length === 0) {
+		return excludeExpr;
+	}
+	const includeExpr = parsedSameValueExpression(include, options);
+	return function (path: string, basename: string, hasSibling?: (name: string) => boolean | Promise<boolean>) {
+		const excludeMatch = excludeExpr(path, basename, hasSibling);
+		if (excludeMatch instanceof Promise) {
+			return (async (): Promise<string | null> => {
+				const excludeMatchResult = await excludeMatch;
+				if (excludeMatchResult === null) {
+					return excludeMatchResult;
+				}
+				const includeMatchResult = await includeExpr(path, basename, hasSibling);
+				if (includeMatchResult !== null) {
+					return null;
+				}
+				return excludeMatchResult;
+			})();
+		}
+
+		if (excludeMatch === null) {
+			return null;
+		}
+		const includeMatch = includeExpr(path, basename, hasSibling);
+		if (includeMatch !== null) {
+			return null;
+		}
+		return excludeMatch;
+	};
+}
+
+function parsedSameValueExpression(expression: IExpression, options: IGlobOptions): ParsedExpression {
 	const parsedPatterns = aggregateBasenameMatches(Object.getOwnPropertyNames(expression)
 		.map(pattern => parseExpressionPattern(pattern, expression[pattern], options))
 		.filter(pattern => pattern !== NULL));
