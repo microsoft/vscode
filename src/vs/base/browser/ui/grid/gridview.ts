@@ -392,6 +392,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		const child = this._removeChild(from);
 		this._addChild(child, to);
+
+		this.updateChildrenSashResetEvent();
 	}
 
 	swapChildren(from: number, to: number): void {
@@ -471,9 +473,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.childrenChangeDisposable.dispose();
 		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
 
-		const onDidChildrenSashReset = Event.any(...this.children.map((c, i) => Event.map(c.onDidSashReset, location => [i, ...location])));
-		this.childrenSashResetDisposable.dispose();
-		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
+		this.updateChildrenSashResetEvent();
 
 		this._onDidChange.fire(undefined);
 	}
@@ -525,6 +525,12 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 			otherFirstChild.linkedHeightNode = otherFirstChild.linkedWidthNode = undefined;
 			otherSecondChild.linkedHeightNode = otherSecondChild.linkedWidthNode = undefined;
 		});
+	}
+
+	private updateChildrenSashResetEvent(): void {
+		const onDidChildrenSashReset = Event.any(...this.children.map((c, i) => Event.map(c.onDidSashReset, location => [i, ...location])));
+		this.childrenSashResetDisposable.dispose();
+		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 	}
 
 	dispose(): void {
