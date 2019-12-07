@@ -82,15 +82,61 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
 	}
 }
 
-export class MarkdownCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
-	static readonly TEMPLATE_ID = 'markdown_cell';
-	private disposables: Map<ICell, IDisposable> = new Map();
-
+class AbstractCellRenderer {
 	constructor(
 		private handler: NotebookHandler,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
-	) {
+		private contextMenuService: IContextMenuService
+	) { }
 
+	showContextMenu(element: ICell, x: number, y: number) {
+		const actions: Action[] = [];
+		const insertAbove = new Action(
+			'workbench.notebook.code.insertCellAbove',
+			'Insert Code Cell Above',
+			undefined,
+			true,
+			async () => {
+				this.handler.insertEmptyNotebookCell(element, 'above');
+			}
+		);
+
+		const insertBelow = new Action(
+			'workbench.notebook.code.insertCellBelow',
+			'Insert Code Cell Below',
+			undefined,
+			true,
+			async () => {
+				this.handler.insertEmptyNotebookCell(element, 'below');
+			}
+		);
+
+		actions.push(insertAbove);
+		actions.push(insertBelow);
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => {
+				return {
+					x,
+					y
+				};
+			},
+			getActions: () => {
+				return actions;
+			},
+			autoSelectFirstItem: true
+		});
+	}
+}
+
+export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
+	static readonly TEMPLATE_ID = 'markdown_cell';
+	private disposables: Map<HTMLElement, IDisposable> = new Map();
+
+	constructor(
+		handler: NotebookHandler,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super(handler, contextMenuService);
 	}
 
 	get templateId() {
@@ -116,85 +162,44 @@ export class MarkdownCellRenderer implements IListRenderer<ICell, CellRenderTemp
 
 	renderElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		templateData.cellContainer.innerHTML = marked(element.source.join(''), { renderer: templateData.renderer });
-
-		let listener = DOM.addStandardDisposableListener(templateData.menuContainer, 'mousedown', e => {
-			const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer);
-			// let pad = Math.floor(lineHeight / 3);
-			e.preventDefault();
-
-			const actions: Action[] = [];
-			const insertAbove = new Action(
-				'workbench.notebook.md.insertCellAbove',
-				'Insert Cell Above',
-				undefined,
-				true,
-				async () => {
-					this.handler.insertEmptyNotebookCell(element, 'above');
-				}
-			);
-
-			const insertBelow = new Action(
-				'workbench.notebook.md.insertCellBelow',
-				'Insert Cell Below',
-				undefined,
-				true,
-				async () => {
-					this.handler.insertEmptyNotebookCell(element, 'below');
-				}
-			);
-
-			actions.push(insertAbove);
-			actions.push(insertBelow);
-
-			const showContextMenu = (x: number, y: number) => {
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => {
-						return {
-							x,
-							y
-						};
-					},
-					getActions: () => {
-						return actions;
-					},
-					autoSelectFirstItem: true
-				});
-			};
-
-			showContextMenu(e.posx, top + height);
-		});
-		this.disposables.set(element, listener);
-	}
-
-	disposeElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		let disposable = this.disposables.get(element);
+		let disposable = this.disposables.get(templateData.menuContainer);
 
 		if (disposable) {
 			disposable.dispose();
-			this.disposables.delete(element);
+			this.disposables.delete(templateData.menuContainer);
 		}
-	}
 
+		let listener = DOM.addStandardDisposableListener(templateData.menuContainer, 'mousedown', e => {
+			const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer);
+			e.preventDefault();
+
+			this.showContextMenu(element, e.posx, top + height);
+		});
+
+		this.disposables.set(templateData.menuContainer, listener);
+	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
 		// throw nerendererw Error('Method not implemented.');
 	}
 }
 
-export class CodeCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
+export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private editorOptions: IEditorOptions;
 	private widgetOptions: ICodeEditorWidgetOptions;
 	private disposables: Map<ICell, IDisposable> = new Map();
 
 	constructor(
-		private handler: NotebookHandler,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		handler: NotebookHandler,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
+		super(handler, contextMenuService);
+
 		const language = 'python';
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
 		this.editorOptions = {
@@ -259,51 +264,9 @@ export class CodeCellRenderer implements IListRenderer<ICell, CellRenderTemplate
 
 		let listener = DOM.addStandardDisposableListener(templateData.menuContainer, 'mousedown', e => {
 			const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer);
-			// let pad = Math.floor(lineHeight / 3);
 			e.preventDefault();
 
-			const actions: Action[] = [];
-			const insertAbove = new Action(
-				'workbench.notebook.code.insertCellAbove',
-				'Insert Cell Above',
-				undefined,
-				true,
-				async () => {
-					// await this._clipboardService.writeText(diff.originalContent[currentLineNumberOffset]);
-					this.handler.insertEmptyNotebookCell(element, 'above');
-				}
-			);
-
-			const insertBelow = new Action(
-				'workbench.notebook.code.insertCellBelow',
-				'Insert Cell Below',
-				undefined,
-				true,
-				async () => {
-					// await this._clipboardService.writeText(diff.originalContent[currentLineNumberOffset]);
-					this.handler.insertEmptyNotebookCell(element, 'below');
-				}
-			);
-
-			actions.push(insertAbove);
-			actions.push(insertBelow);
-
-			const showContextMenu = (x: number, y: number) => {
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => {
-						return {
-							x,
-							y
-						};
-					},
-					getActions: () => {
-						return actions;
-					},
-					autoSelectFirstItem: true
-				});
-			};
-
-			showContextMenu(e.posx, top + height);
+			this.showContextMenu(element, e.posx, top + height);
 		});
 
 		this.disposables.set(element, listener);
@@ -405,8 +368,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 					listFocusForeground: foreground,
 					listHoverForeground: foreground,
 					listHoverBackground: editorBackground,
-					listHoverOutline: editorBackground,
-					listFocusOutline: editorBackground,
+					listHoverOutline: focusBorder,
+					listFocusOutline: focusBorder,
 					listInactiveSelectionBackground: editorBackground,
 					listInactiveSelectionForeground: foreground,
 					listInactiveFocusBackground: editorBackground,

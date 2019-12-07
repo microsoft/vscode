@@ -46,10 +46,6 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover {
-	border: 1px solid black;
-}
-
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-tree.focused.no-focused-item:focus:before,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list:not(.element-focused):focus:before {
 	outline: none !important;
