@@ -11,7 +11,7 @@ import { Workbench } from 'vs/workbench/browser/workbench';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { onUnexpectedError, errorHandler } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -137,15 +137,6 @@ class DesktopMain extends Disposable {
 
 		// Logging
 		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
-
-		// Diagnostics to make extension errors more visible
-		errorHandler.addExternalErrorListener(e => {
-			if (e.stack) {
-				console.log(e.stack);
-			} else {
-				console.log('Error occured: ', e);
-			}
-		});
 	}
 
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {

@@ -15,11 +15,10 @@ export interface ErrorListenerUnbind {
 export class ErrorHandler {
 	private unexpectedErrorHandler: (e: any) => void;
 	private listeners: ErrorListenerCallback[];
-	private externalErrorListeners: ErrorListenerCallback[];
 
 	constructor() {
+
 		this.listeners = [];
-		this.externalErrorListeners = [];
 
 		this.unexpectedErrorHandler = function (e: any) {
 			setTimeout(() => {
@@ -33,28 +32,21 @@ export class ErrorHandler {
 	}
 
 	public addListener(listener: ErrorListenerCallback): ErrorListenerUnbind {
-		return this._addListener(this.listeners, listener);
-	}
+		this.listeners.push(listener);
 
-	public addExternalErrorListener(listener: ErrorListenerCallback): ErrorListenerUnbind {
-		return this._addListener(this.externalErrorListeners, listener);
-	}
-
-	public _addListener(listeners: ErrorListenerCallback[], listener: ErrorListenerCallback): ErrorListenerUnbind {
-		listeners.push(listener);
 		return () => {
-			this._removeListener(listeners, listener);
+			this._removeListener(listener);
 		};
 	}
 
-	private emit(listeners: ErrorListenerCallback[], e: any): void {
-		listeners.forEach((listener) => {
+	private emit(e: any): void {
+		this.listeners.forEach((listener) => {
 			listener(e);
 		});
 	}
 
-	private _removeListener(listeners: ErrorListenerCallback[], listener: ErrorListenerCallback): void {
-		listeners.splice(listeners.indexOf(listener), 1);
+	private _removeListener(listener: ErrorListenerCallback): void {
+		this.listeners.splice(this.listeners.indexOf(listener), 1);
 	}
 
 	public setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
@@ -67,12 +59,12 @@ export class ErrorHandler {
 
 	public onUnexpectedError(e: any): void {
 		this.unexpectedErrorHandler(e);
-		this.emit(this.listeners, e);
+		this.emit(e);
 	}
 
+	// For external errors, we don't want the listeners to be called
 	public onUnexpectedExternalError(e: any): void {
 		this.unexpectedErrorHandler(e);
-		this.emit(this.externalErrorListeners, e);
 	}
 }
 

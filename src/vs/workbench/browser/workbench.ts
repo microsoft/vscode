@@ -79,7 +79,16 @@ export class Workbench extends Layout {
 		});
 
 		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
+		setUnexpectedErrorHandler(error => {
+			this.handleUnexpectedError(error, logService);
+
+			// print error to console to make debugging easier
+			if (error.stack) {
+				console.log(error.stack);
+			} else {
+				console.log('Error occured: ', error);
+			}
+		});
 
 		// Inform user about loading issues from the loader
 		interface AnnotatedLoadingError extends Error {
