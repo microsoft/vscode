@@ -189,8 +189,13 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 	public runCommand(accessor: ServicesAccessor): void {
 		const editorService = accessor.get<IEditorService>(IEditorService);
-		const activeEditor = editorService.activeEditor;
+		const activeControl = editorService.activeControl;
+		if (!activeControl) {
+			return;
+		}
 
+		const activeGroup = activeControl.group;
+		const activeEditor = activeControl.input;
 		if (!activeEditor) {
 			return;
 		}
@@ -206,7 +211,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		const activeCustomEditor = customEditorService.activeCustomEditor;
 		let toggleView = 'default';
 		if (!activeCustomEditor) {
-			if (viewIDs && viewIDs.length === 1) {
+			if (viewIDs && viewIDs.length) {
 				toggleView = viewIDs[0].id;
 			}
 			else {
@@ -214,57 +219,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			}
 		}
 
-		customEditorService.openWith(targetResource, toggleView, undefined);
-	}
-}).register();
-
-(new class SaveCustomEditorCommand extends Command {
-	public static readonly ID = 'editor.action.customEditor.save';
-
-	constructor() {
-		super({
-			id: SaveCustomEditorCommand.ID,
-			precondition: CONTEXT_HAS_CUSTOM_EDITORS,
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public runCommand(accessor: ServicesAccessor): void {
-		const editorService = accessor.get<IEditorService>(IEditorService);
-
-		const activeEditor = editorService.activeEditor;
-		if (!activeEditor) {
-			return;
-		}
-
-		const activeControl = editorService.activeControl;
-		if (!activeControl) {
-			return;
-		}
-		editorService.save({ groupId: activeControl.group.id, editor: activeEditor });
-
-		const targetResource = activeEditor.getResource();
-		if (!targetResource) {
-			return;
-		}
-
-		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
-		const viewIDs = customEditorService.getContributedCustomEditors(targetResource);
-
-		let customView: string | undefined;
-		if (viewIDs && viewIDs.length === 1) {
-			customView = viewIDs[0].id;
-		}
-		else {
-			return;
-		}
-
-		const activeCustomEditor = customEditorService.activeCustomEditor;
-		if (!activeCustomEditor) {
-			customEditorService.openWith(targetResource, customView, undefined);
-		}
+		activeEditor.dispose();
+		customEditorService.openWith(targetResource, toggleView, undefined, activeGroup);
 	}
 }).register();
