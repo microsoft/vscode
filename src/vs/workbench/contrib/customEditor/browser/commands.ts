@@ -172,3 +172,99 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		model.redo();
 	}
 }).register();
+
+(new class ToggleCustomEditorCommand extends Command {
+	public static readonly ID = 'editor.action.customEditor.toggle';
+
+	constructor() {
+		super({
+			id: ToggleCustomEditorCommand.ID,
+			precondition: CONTEXT_HAS_CUSTOM_EDITORS,
+			kbOpts: {
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_E,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public runCommand(accessor: ServicesAccessor): void {
+		const editorService = accessor.get<IEditorService>(IEditorService);
+		const activeEditor = editorService.activeEditor;
+
+		if (!activeEditor) {
+			return;
+		}
+
+		const targetResource = activeEditor.getResource();
+		if (!targetResource) {
+			return;
+		}
+
+		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
+		const viewIDs = customEditorService.getContributedCustomEditors(targetResource);
+
+		const activeCustomEditor = customEditorService.activeCustomEditor;
+		let toggleView = 'default';
+		if (!activeCustomEditor) {
+			if (viewIDs && viewIDs.length === 1) {
+				toggleView = viewIDs[0].id;
+			}
+			else {
+				return;
+			}
+		}
+
+		customEditorService.openWith(targetResource, toggleView, undefined);
+	}
+}).register();
+
+(new class SaveCustomEditorCommand extends Command {
+	public static readonly ID = 'editor.action.customEditor.save';
+
+	constructor() {
+		super({
+			id: SaveCustomEditorCommand.ID,
+			precondition: CONTEXT_HAS_CUSTOM_EDITORS,
+			kbOpts: {
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public runCommand(accessor: ServicesAccessor): void {
+		const editorService = accessor.get<IEditorService>(IEditorService);
+
+		const activeEditor = editorService.activeEditor;
+		if (!activeEditor) {
+			return;
+		}
+
+		const activeControl = editorService.activeControl;
+		if (!activeControl) {
+			return;
+		}
+		editorService.save({ groupId: activeControl.group.id, editor: activeEditor });
+
+		const targetResource = activeEditor.getResource();
+		if (!targetResource) {
+			return;
+		}
+
+		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
+		const viewIDs = customEditorService.getContributedCustomEditors(targetResource);
+
+		let customView: string | undefined;
+		if (viewIDs && viewIDs.length === 1) {
+			customView = viewIDs[0].id;
+		}
+		else {
+			return;
+		}
+
+		const activeCustomEditor = customEditorService.activeCustomEditor;
+		if (!activeCustomEditor) {
+			customEditorService.openWith(targetResource, customView, undefined);
+		}
+	}
+}).register();
