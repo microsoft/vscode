@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as nls from 'vs/nls';
-import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITerminalInstance, Direction, ITerminalTab, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const SPLIT_PANE_MIN_SIZE = 120;
-const TERMINAL_MIN_USEFUL_SIZE = 250;
 
 class SplitPaneContainer extends Disposable {
 	private _height: number;
@@ -369,18 +369,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this.terminalInstances.forEach(i => i.setVisible(visible));
 	}
 
-	public split(
-		terminalFocusContextKey: IContextKey<boolean>,
-		configHelper: ITerminalConfigHelper,
-		shellLaunchConfig: IShellLaunchConfig
-	): ITerminalInstance | undefined {
+	public split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		if (!this._container) {
 			throw new Error('Cannot split terminal that has not been attached');
 		}
-		const newTerminalSize = ((this._panelPosition === Position.BOTTOM ? this._container.clientWidth : this._container.clientHeight) / (this._terminalInstances.length + 1));
-		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
-			return undefined;
-		}
+
 		const instance = this._terminalService.createInstance(undefined, shellLaunchConfig);
 		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
 		this._initInstanceListeners(instance);

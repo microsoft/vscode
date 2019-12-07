@@ -27,7 +27,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 
 class InspectTMScopesController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.inspectTMScopes';
+	public static readonly ID = 'editor.contrib.inspectTMScopes';
 
 	public static get(editor: ICodeEditor): InspectTMScopesController {
 		return editor.getContribution<InspectTMScopesController>(InspectTMScopesController.ID);
@@ -58,10 +58,6 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
 		this._register(this._editor.onDidChangeModelLanguage((e) => this.stop()));
 		this._register(this._editor.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
-	}
-
-	public getId(): string {
-		return InspectTMScopesController.ID;
 	}
 
 	public dispose(): void {
@@ -178,7 +174,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	private readonly _notificationService: INotificationService;
 	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
-	private readonly _grammar: Promise<IGrammar>;
+	private readonly _grammar: Promise<IGrammar | null>;
 
 	constructor(
 		editor: IActiveCodeEditor,
@@ -216,7 +212,12 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
 		this._grammar.then(
-			(grammar) => this._compute(grammar, position),
+			(grammar) => {
+				if (!grammar) {
+					throw new Error(`Could not find grammar for language!`);
+				}
+				this._compute(grammar, position);
+			},
 			(err) => {
 				this._notificationService.warn(err);
 				setTimeout(() => {
@@ -374,7 +375,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerEditorContribution(InspectTMScopesController);
+registerEditorContribution(InspectTMScopesController.ID, InspectTMScopesController);
 registerEditorAction(InspectTMScopes);
 
 registerThemingParticipant((theme, collector) => {

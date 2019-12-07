@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { sep, posix, normalize } from 'vs/base/common/path';
+import { sep, posix, normalize, win32 } from 'vs/base/common/path';
 import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual, basename, relativePath } from 'vs/base/common/resources';
-import { CharCode } from 'vs/base/common/charCode';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
@@ -44,7 +43,7 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			}
 
 			if (hasMultipleRoots) {
-				const rootName = (baseResource && baseResource.name) ? baseResource.name : basename(baseResource.uri);
+				const rootName = baseResource.name ? baseResource.name : basename(baseResource.uri);
 				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
 			}
 
@@ -283,7 +282,7 @@ interface ISegment {
  * @param value string to which templating is applied
  * @param values the values of the templates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator | null } = Object.create(null)): string {
+export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null } = Object.create(null)): string {
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
@@ -388,11 +387,12 @@ export function unmnemonicLabel(label: string): string {
  * Splits a path in name and parent path, supporting both '/' and '\'
  */
 export function splitName(fullPath: string): { name: string, parentPath: string } {
-	for (let i = fullPath.length - 1; i >= 1; i--) {
-		const code = fullPath.charCodeAt(i);
-		if (code === CharCode.Slash || code === CharCode.Backslash) {
-			return { parentPath: fullPath.substr(0, i), name: fullPath.substr(i + 1) };
-		}
+	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
+	const name = p.basename(fullPath);
+	const parentPath = p.dirname(fullPath);
+	if (name.length) {
+		return { name, parentPath };
 	}
-	return { parentPath: '', name: fullPath };
+	// only the root segment
+	return { name: parentPath, parentPath: '' };
 }

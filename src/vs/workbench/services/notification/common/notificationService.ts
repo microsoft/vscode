@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
@@ -17,13 +17,14 @@ export class NotificationService extends Disposable implements INotificationServ
 	_serviceBrand: undefined;
 
 	private _model: INotificationsModel = this._register(new NotificationsModel());
-
-	get model(): INotificationsModel {
-		return this._model;
-	}
+	get model(): INotificationsModel { return this._model; }
 
 	constructor(@IStorageService private readonly storageService: IStorageService) {
 		super();
+	}
+
+	setFilter(filter: NotificationsFilter): void {
+		this._model.setFilter(filter);
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
@@ -109,7 +110,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
-		if (options && options.neverShowAgain) {
+		if (options?.neverShowAgain) {
 			const scope = options.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
 
 			// If the user already picked to not show the notification
@@ -162,7 +163,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Show notification with actions
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		handle = this.notify({ severity, message, actions, sticky: options && options.sticky, silent: options && options.silent });
+		handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
 
 		Event.once(handle.onDidClose)(() => {
 

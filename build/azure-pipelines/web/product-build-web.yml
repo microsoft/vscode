@@ -21,11 +21,11 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "10.15.1"
+    versionSpec: "12.13.0"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.10.1"
+    versionSpec: "1.x"
 
 - task: AzureKeyVault@1
   displayName: 'Azure Key Vault: Get Secrets'

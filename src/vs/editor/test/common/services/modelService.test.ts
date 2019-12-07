@@ -16,6 +16,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 const GENERATE_TESTS = false;
 
@@ -27,7 +28,7 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService());
 	});
 
 	teardown(() => {
@@ -365,7 +366,7 @@ assertComputeEdits(file1, file2);
 	}
 }
 
-class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
 	_serviceBrand: undefined;
 
@@ -375,11 +376,9 @@ class TestTextResourcePropertiesService implements ITextResourcePropertiesServic
 	}
 
 	getEOL(resource: URI, language?: string): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files', { overrideIdentifier: language, resource });
-		if (filesConfiguration && filesConfiguration.eol) {
-			if (filesConfiguration.eol !== 'auto') {
-				return filesConfiguration.eol;
-			}
+		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
+		if (eol && eol !== 'auto') {
+			return eol;
 		}
 		return (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n';
 	}

@@ -11,6 +11,14 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 
 export class SortLinesCommand implements editorCommon.ICommand {
 
+	private static _COLLATOR: Intl.Collator | null = null;
+	public static getCollator(): Intl.Collator {
+		if (!SortLinesCommand._COLLATOR) {
+			SortLinesCommand._COLLATOR = new Intl.Collator();
+		}
+		return SortLinesCommand._COLLATOR;
+	}
+
 	private readonly selection: Selection;
 	private readonly descending: boolean;
 	private selectionId: string | null;
@@ -76,9 +84,7 @@ function getSortData(model: ITextModel, selection: Selection, descending: boolea
 	}
 
 	let sorted = linesToSort.slice(0);
-	sorted.sort((a, b) => {
-		return a.toLowerCase().localeCompare(b.toLowerCase());
-	});
+	sorted.sort(SortLinesCommand.getCollator().compare);
 
 	// If descending, reverse the order.
 	if (descending === true) {

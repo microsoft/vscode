@@ -7,6 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -96,6 +97,11 @@ export interface IStorageService {
 	 * Log the contents of the storage to the console.
 	 */
 	logStorage(): void;
+
+	/**
+	 * Migrate the storage contents to another workspace.
+	 */
+	migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
 }
 
 export const enum StorageScope {
@@ -204,6 +210,10 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 
 	logStorage(): void {
 		logStorage(this.globalCache, this.workspaceCache, 'inMemory', 'inMemory');
+	}
+
+	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
+		// not supported
 	}
 }
 

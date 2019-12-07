@@ -6,7 +6,7 @@
 import 'vs/css!./media/gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,12 +20,12 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
-import { PeekViewWidget } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
+import { PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
 import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class MessageWidget {
 
@@ -37,7 +37,7 @@ class MessageWidget {
 	private readonly _relatedBlock: HTMLDivElement;
 	private readonly _scrollable: ScrollableElement;
 	private readonly _relatedDiagnostics = new WeakMap<HTMLElement, IRelatedInformation>();
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables: DisposableStore = new DisposableStore();
 
 	constructor(parent: HTMLElement, editor: ICodeEditor, onRelatedInformation: (related: IRelatedInformation) => void) {
 		this._editor = editor;
@@ -53,7 +53,7 @@ class MessageWidget {
 
 		this._relatedBlock = document.createElement('div');
 		domNode.appendChild(this._relatedBlock);
-		this._disposables.push(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
+		this._disposables.add(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
 			event.preventDefault();
 			const related = this._relatedDiagnostics.get(event.target);
 			if (related) {
@@ -69,11 +69,11 @@ class MessageWidget {
 			verticalScrollbarSize: 3
 		});
 		parent.appendChild(this._scrollable.getDomNode());
-		this._disposables.push(this._scrollable.onScroll(e => {
+		this._disposables.add(this._scrollable.onScroll(e => {
 			domNode.style.left = `-${e.scrollLeft}px`;
 			domNode.style.top = `-${e.scrollTop}px`;
 		}));
-		this._disposables.push(this._scrollable);
+		this._disposables.add(this._scrollable);
 	}
 
 	dispose(): void {
@@ -122,7 +122,7 @@ class MessageWidget {
 		this._editor.applyFontInfo(this._relatedBlock);
 		if (isNonEmptyArray(relatedInformation)) {
 			const relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
-			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * 0.66)}px`;
+			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getOption(EditorOption.lineHeight) * 0.66)}px`;
 			this._lines += 1;
 
 			for (const related of relatedInformation) {
@@ -146,7 +146,7 @@ class MessageWidget {
 			}
 		}
 
-		const fontInfo = this._editor.getConfiguration().fontInfo;
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
 		const scrollHeight = fontInfo.lineHeight * this._lines;
 		this._scrollable.setScrollDimensions({ scrollWidth, scrollHeight });
@@ -172,7 +172,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 	private readonly _callOnDispose = new DisposableStore();
 	private _severity: MarkerSeverity;
 	private _backgroundColor?: Color;
-	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
+	private readonly _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
 	private _heightInPixel!: number;
 
 	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
@@ -282,7 +282,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 				: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
 			this.setTitle(basename(model.uri), detail);
 		}
-		this._icon.className = SeverityIcon.className(MarkerSeverity.toSeverity(this._severity));
+		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
 		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
 	}

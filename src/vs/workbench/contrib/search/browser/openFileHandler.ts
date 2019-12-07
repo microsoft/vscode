@@ -8,10 +8,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { untildify } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
-import { isAbsolute } from 'vs/base/common/path';
-import { basename, dirname } from 'vs/base/common/resources';
+import { basename, dirname, toLocalResource } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -33,6 +31,8 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { IFileQuery, IFileSearchStats, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
@@ -50,7 +50,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private resource: URI,
 		private name: string,
 		private description: string,
-		private icon: string,
+		private icon: string | undefined,
 		@IEditorService editorService: IEditorService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
@@ -78,7 +78,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.description;
 	}
 
-	getIcon(): string {
+	getIcon(): string | undefined {
 		return this.icon;
 	}
 
@@ -114,7 +114,7 @@ export interface IOpenFileOptions {
 export class OpenFileHandler extends QuickOpenHandler {
 	private options: IOpenFileOptions | undefined;
 	private queryBuilder: QueryBuilder;
-	private cacheState: CacheState;
+	private cacheState: CacheState | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -122,8 +122,10 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
 	) {
 		super();
 
@@ -143,7 +145,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		}
 
 		// Do find results
-		return this.doFindResults(query, token, this.cacheState.cacheKey, maxSortedResults);
+		return this.doFindResults(query, token, this.cacheState ? this.cacheState.cacheKey : undefined, maxSortedResults);
 	}
 
 	private async doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): Promise<FileQuickOpenModel> {
@@ -186,15 +188,13 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private async getAbsolutePathResult(query: IPreparedQuery): Promise<URI | undefined> {
 		const detildifiedQuery = untildify(query.original, this.environmentService.userHome);
-		if (isAbsolute(detildifiedQuery)) {
-			const workspaceFolders = this.contextService.getWorkspace().folders;
-			const resource = workspaceFolders[0] && workspaceFolders[0].uri.scheme !== Schemas.file ?
-				workspaceFolders[0].uri.with({ path: detildifiedQuery }) :
-				URI.file(detildifiedQuery);
+		if ((await this.remotePathService.path).isAbsolute(detildifiedQuery)) {
+			const resource = toLocalResource(
+				await this.remotePathService.fileURI(detildifiedQuery),
+				this.workbenchEnvironmentService.configuration.remoteAuthority);
 
 			try {
 				const stat = await this.fileService.resolve(resource);
-
 				return stat.isDirectory ? undefined : resource;
 			} catch (error) {
 				// ignore
@@ -246,7 +246,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	get isCacheLoaded(): boolean {
-		return this.cacheState && this.cacheState.isLoaded;
+		return !!this.cacheState && this.cacheState.isLoaded;
 	}
 
 	getGroupLabel(): string {
@@ -279,14 +279,14 @@ export class CacheState {
 	private loadingPhase = LoadingPhase.Created;
 	private promise: Promise<void> | undefined;
 
-	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState | null) {
+	constructor(cacheQuery: (cacheKey: string) => IFileQuery, private doLoad: (query: IFileQuery) => Promise<any>, private doDispose: (cacheKey: string) => Promise<void>, private previous: CacheState | undefined) {
 		this.query = cacheQuery(this._cacheKey);
 		if (this.previous) {
 			const current = objects.assign({}, this.query, { cacheKey: null });
 			const previous = objects.assign({}, this.previous.query, { cacheKey: null });
 			if (!objects.equals(current, previous)) {
 				this.previous.dispose();
-				this.previous = null;
+				this.previous = undefined;
 			}
 		}
 	}
@@ -315,7 +315,7 @@ export class CacheState {
 				this.loadingPhase = LoadingPhase.Loaded;
 				if (this.previous) {
 					this.previous.dispose();
-					this.previous = null;
+					this.previous = undefined;
 				}
 			}, err => {
 				this.loadingPhase = LoadingPhase.Errored;
@@ -337,7 +337,7 @@ export class CacheState {
 		}
 		if (this.previous) {
 			this.previous.dispose();
-			this.previous = null;
+			this.previous = undefined;
 		}
 	}
 }

@@ -5,7 +5,10 @@
 			"type": "npm",
 			"script": "watch",
 			"label": "Build VS Code",
-			"group": "build",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
@@ -30,15 +33,15 @@
 		},
 		{
 			"type": "npm",
-			"script": "strict-initialization-watch",
-			"label": "TS - Strict Initialization",
+			"script": "strict-function-types-watch",
+			"label": "TS - Strict Function Types",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
 			},
 			"problemMatcher": {
 				"base": "$tsc-watch",
-				"owner": "typescript-strict-initialization",
+				"owner": "typescript-function-types",
 				"applyTo": "allDocuments"
 			}
 		},
@@ -73,8 +76,8 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "gulp",
-			"task": "electron",
+			"type": "npm",
+			"script": "electron",
 			"label": "Download electron"
 		},
 		{
@@ -82,6 +85,24 @@
 			"task": "hygiene",
 			"problemMatcher": []
 		},
-
+		{
+			"type": "shell",
+			"command": "yarn web -- --no-launch",
+			"label": "Run web",
+			"isBackground": true,
+			// This section to make error go away when launching the debug config
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "never"
+			}
+		},
 	]
 }

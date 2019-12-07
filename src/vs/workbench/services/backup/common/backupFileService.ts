@@ -113,7 +113,7 @@ export class BackupFileService implements IBackupFileService {
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@IFileService protected fileService: IFileService
 	) {
-		this.initialize();
+		this.impl = this.initialize();
 	}
 
 	protected hashPath(resource: URI): string {
@@ -122,13 +122,13 @@ export class BackupFileService implements IBackupFileService {
 		return hash(str).toString(16);
 	}
 
-	private initialize(): void {
+	private initialize(): IBackupFileService {
 		const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
 		if (backupWorkspaceResource) {
-			this.impl = new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService);
-		} else {
-			this.impl = new InMemoryBackupFileService(this.hashPath);
+			return new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService);
 		}
+
+		return new InMemoryBackupFileService(this.hashPath);
 	}
 
 	reinitialize(): void {
@@ -429,13 +429,13 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return Promise.resolve();
 	}
 
-	resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
+	async resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
-			return Promise.resolve({ value: createTextBufferFactoryFromSnapshot(snapshot) });
+			return { value: createTextBufferFactoryFromSnapshot(snapshot) };
 		}
 
-		return Promise.reject('Unexpected backup resource to resolve');
+		throw new Error('Unexpected backup resource to resolve');
 	}
 
 	getWorkspaceFileBackups(): Promise<URI[]> {

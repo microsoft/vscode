@@ -160,9 +160,7 @@ export class CommentService extends Disposable implements ICommentService {
 			return this._commentMenus.get(owner)!;
 		}
 
-		let controller = this._commentControls.get(owner);
-
-		let menu = this.instantiationService.createInstance(CommentMenus, controller!);
+		let menu = this.instantiationService.createInstance(CommentMenus);
 		this._commentMenus.set(owner, menu);
 		return menu;
 	}

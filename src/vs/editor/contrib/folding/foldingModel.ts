@@ -28,7 +28,7 @@ export class FoldingModel {
 	private _editorDecorationIds: string[];
 	private _isInitialized: boolean;
 
-	private _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
+	private readonly _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
 	public readonly onDidChange: Event<FoldingModelChangeEvent> = this._updateEventEmitter.event;
 
 	public get regions(): FoldingRegions { return this._regions; }
@@ -204,7 +204,7 @@ export class FoldingModel {
 		return null;
 	}
 
-	getRegionsInside(region: FoldingRegion | null, filter?: (r: FoldingRegion, level?: number) => boolean): FoldingRegion[] {
+	getRegionsInside(region: FoldingRegion | null, filter?: RegionFilter | RegionFilterWithLevel): FoldingRegion[] {
 		let result: FoldingRegion[] = [];
 		let index = region ? region.regionIndex + 1 : 0;
 		let endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
@@ -229,7 +229,7 @@ export class FoldingModel {
 			for (let i = index, len = this._regions.length; i < len; i++) {
 				let current = this._regions.toRegion(i);
 				if (this._regions.getStartLineNumber(i) < endLineNumber) {
-					if (!filter || filter(current)) {
+					if (!filter || (filter as RegionFilter)(current)) {
 						result.push(current);
 					}
 				} else {
@@ -242,6 +242,30 @@ export class FoldingModel {
 
 }
 
+type RegionFilter = (r: FoldingRegion) => boolean;
+type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
+
+
+/**
+ * Collapse or expand the regions at the given locations
+ * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
+ * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
+ */
+export function toggleCollapseState(foldingModel: FoldingModel, levels: number, lineNumbers: number[]) {
+	let toToggle: FoldingRegion[] = [];
+	for (let lineNumber of lineNumbers) {
+		let region = foldingModel.getRegionAtLine(lineNumber);
+		if (region) {
+			const doCollapse = !region.isCollapsed;
+			toToggle.push(region);
+			if (levels > 1) {
+				let regionsInside = foldingModel.getRegionsInside(region, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
+				toToggle.push(...regionsInside);
+			}
+		}
+	}
+	foldingModel.toggleCollapseState(toToggle);
+}
 
 
 /**

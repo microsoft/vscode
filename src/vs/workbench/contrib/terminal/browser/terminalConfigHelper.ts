@@ -10,7 +10,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
-import { Terminal as XTermTerminal } from 'xterm';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -20,7 +19,8 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -129,7 +129,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(xterm?: XTermTerminal, excludeDimensions?: boolean): ITerminalFont {
+	public getFont(xtermCore?: XTermCore, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
@@ -161,15 +161,15 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		}
 
 		// Get the character dimensions from xterm if it's available
-		if (xterm) {
-			if (xterm._core._charSizeService && xterm._core._charSizeService.width && xterm._core._charSizeService.height) {
+		if (xtermCore) {
+			if (xtermCore._charSizeService && xtermCore._charSizeService.width && xtermCore._charSizeService.height) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xterm._core._charSizeService.height,
-					charWidth: xterm._core._charSizeService.width
+					charHeight: xtermCore._charSizeService.height,
+					charWidth: xtermCore._charSizeService.width
 				};
 			}
 		}
@@ -297,7 +297,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 					],
 					{
 						sticky: true,
-						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.WORKSPACE },
+						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.GLOBAL },
 						onCancel: () => {
 							/* __GDPR__
 								"terminalLaunchRecommendation:popup" : {

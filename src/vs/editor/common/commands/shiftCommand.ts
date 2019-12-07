@@ -11,6 +11,7 @@ import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -18,6 +19,7 @@ export interface IShiftCommandOpts {
 	indentSize: number;
 	insertSpaces: boolean;
 	useTabStops: boolean;
+	autoIndent: EditorAutoIndentStrategy;
 }
 
 const repeatCache: { [str: string]: string[]; } = Object.create(null);
@@ -137,7 +139,7 @@ export class ShiftCommand implements ICommand {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
 						if (model.isCheapToTokenize(lineNumber - 1)) {
-							let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+							let enterAction = LanguageConfigurationRegistry.getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)));
 							if (enterAction) {
 								extraSpaces = previousLineExtraSpaces;
 								if (enterAction.appendText) {
@@ -179,7 +181,7 @@ export class ShiftCommand implements ICommand {
 				}
 
 				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent);
-				if (lineNumber === startLine) {
+				if (lineNumber === startLine && !this._selection.isEmpty()) {
 					// Force the startColumn to stay put because we're inserting after it
 					this._selectionStartColumnStaysPut = (this._selection.startColumn <= indentationEndIndex + 1);
 				}
@@ -226,7 +228,7 @@ export class ShiftCommand implements ICommand {
 					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
 				} else {
 					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, 1), oneIndent);
-					if (lineNumber === startLine) {
+					if (lineNumber === startLine && !this._selection.isEmpty()) {
 						// Force the startColumn to stay put because we're inserting after it
 						this._selectionStartColumnStaysPut = (this._selection.startColumn === 1);
 					}

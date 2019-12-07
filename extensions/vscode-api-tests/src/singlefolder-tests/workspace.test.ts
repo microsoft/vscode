@@ -897,4 +897,42 @@ suite('workspace-namespace', () => {
 			await delay(10);
 		}
 	}
+
+	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
+		const file1 = await createRandomFile();
+		const file2 = await createRandomFile();
+		let we = new vscode.WorkspaceEdit();
+		we.insert(file1, new vscode.Position(0, 0), 'import1;');
+
+		const file2Name = basename(file2.fsPath);
+		const file2NewUri = vscode.Uri.parse(file2.toString().replace(file2Name, `new/${file2Name}`));
+		we.renameFile(file2, file2NewUri);
+
+		we.insert(file1, new vscode.Position(0, 0), 'import2;');
+		await vscode.workspace.applyEdit(we);
+
+		const document = await vscode.workspace.openTextDocument(file1);
+		// const expected = 'import1;import2;';
+		const expected2 = 'import2;import1;';
+		assert.equal(document.getText(), expected2);
+	});
+
+	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
+		const file1 = await createRandomFile();
+		const file2 = await createRandomFile();
+		let we = new vscode.WorkspaceEdit();
+		we.insert(file1, new vscode.Position(0, 0), 'import1;');
+		we.insert(file1, new vscode.Position(0, 0), 'import2;');
+
+		const file2Name = basename(file2.fsPath);
+		const file2NewUri = vscode.Uri.parse(file2.toString().replace(file2Name, `new/${file2Name}`));
+		we.renameFile(file2, file2NewUri);
+
+		await vscode.workspace.applyEdit(we);
+
+		const document = await vscode.workspace.openTextDocument(file1);
+		const expected = 'import1;import2;';
+		// const expected2 = 'import2;import1;';
+		assert.equal(document.getText(), expected);
+	});
 });

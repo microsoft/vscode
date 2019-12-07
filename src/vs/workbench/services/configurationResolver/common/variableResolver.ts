@@ -27,19 +27,29 @@ export interface IVariableResolveContext {
 
 export class AbstractVariableResolverService implements IConfigurationResolverService {
 
-	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
+	static readonly VARIABLE_REGEXP = /\$\{(.*?)\}/g;
+	static readonly VARIABLE_REGEXP_SINGLE = /\$\{(.*?)\}/;
 
 	_serviceBrand: undefined;
 
-	constructor(
-		private _context: IVariableResolveContext,
-		private _envVariables: IProcessEnvironment
-	) {
-		if (isWindows && _envVariables) {
-			this._envVariables = Object.create(null);
-			Object.keys(_envVariables).forEach(key => {
-				this._envVariables[key.toLowerCase()] = _envVariables[key];
-			});
+	private _context: IVariableResolveContext;
+	private _envVariables?: IProcessEnvironment;
+	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
+
+
+	constructor(_context: IVariableResolveContext, _envVariables?: IProcessEnvironment) {
+		this._context = _context;
+		if (_envVariables) {
+			if (isWindows) {
+				// windows env variables are case insensitive
+				const ev: IProcessEnvironment = Object.create(null);
+				this._envVariables = ev;
+				Object.keys(_envVariables).forEach(key => {
+					ev[key.toLowerCase()] = _envVariables[key];
+				});
+			} else {
+				this._envVariables = _envVariables;
+			}
 		}
 	}
 
@@ -88,6 +98,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 	public resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
 		throw new Error('resolveWithInteraction not implemented.');
+	}
+
+	public contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void {
+		if (this._contributedVariables.has(variable)) {
+			throw new Error('Variable ' + variable + ' is contributed twice.');
+		} else {
+			this._contributedVariables.set(variable, resolution);
+		}
 	}
 
 	private recursiveResolve(folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
@@ -169,14 +187,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			case 'env':
 				if (argument) {
-					if (isWindows) {
-						argument = argument.toLowerCase();
+					if (this._envVariables) {
+						const env = this._envVariables[isWindows ? argument.toLowerCase() : argument];
+						if (types.isString(env)) {
+							return env;
+						}
 					}
-					const env = this._envVariables[argument];
-					if (types.isString(env)) {
-						return env;
-					}
-					// For `env` we should do the same as a normal shell does - evaluates missing envs to an empty string #46436
+					// For `env` we should do the same as a normal shell does - evaluates undefined envs to an empty string #46436
 					return '';
 				}
 				throw new Error(localize('missingEnvVarName', "'{0}' can not be resolved because no environment variable name is given.", match));
@@ -265,15 +282,19 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return match;
 
 					default:
-						return match;
+						try {
+							return this.resolveFromMap(match, variable, commandValueMapping, undefined);
+						} catch (error) {
+							return match;
+						}
 				}
 			}
 		}
 	}
 
-	private resolveFromMap(match: string, argument: string | undefined, commandValueMapping: IStringDictionary<string> | undefined, prefix: string): string {
+	private resolveFromMap(match: string, argument: string | undefined, commandValueMapping: IStringDictionary<string> | undefined, prefix: string | undefined): string {
 		if (argument && commandValueMapping) {
-			const v = commandValueMapping[prefix + ':' + argument];
+			const v = (prefix === undefined) ? commandValueMapping[argument] : commandValueMapping[prefix + ':' + argument];
 			if (typeof v === 'string') {
 				return v;
 			}

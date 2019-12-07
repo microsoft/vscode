@@ -1,31 +1,34 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "10.15.1"
+    versionSpec: "12.13.0"
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.x"
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
     keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-    vstsFeed: '$(ArtifactFeed)'
-- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-  inputs:
-    versionSpec: "1.10.1"
+    vstsFeed: 'vscode-build-cache'
 - script: |
-    yarn --frozen-lockfile
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
   displayName: Install Dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
     keyfile: '.yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
-    vstsFeed: '$(ArtifactFeed)'
+    vstsFeed: 'vscode-build-cache'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 - script: |
-    yarn gulp electron-x64
+    yarn electron x64
   displayName: Download Electron
 - script: |
-    yarn gulp hygiene
+    yarn gulp hygiene --skip-tslint
   displayName: Run Hygiene Checks
+- script: |
+    yarn gulp tslint
+  displayName: Run TSLint Checks
 - script: |
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks

@@ -40,19 +40,14 @@
 	transform: scale(1.272019649, 1.272019649); /* 1.272019649 = √φ */
 }
 
-.monaco-action-bar .action-item .icon {
+.monaco-action-bar .action-item .icon,
+.monaco-action-bar .action-item .codicon {
 	display: inline-block;
 }
 
 .monaco-action-bar .action-label {
 	font-size: 11px;
 	margin-right: 4px;
-}
-
-.monaco-action-bar .action-label.octicon {
-	font-size: 15px;
-	line-height: 35px;
-	text-align: center;
 }
 
 .monaco-action-bar .action-item.disabled .action-label,
@@ -95,4 +90,5 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	margin-right: 10px;
 }

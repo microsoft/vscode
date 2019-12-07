@@ -5,6 +5,7 @@
 
 import 'vs/css!./walkThroughPart';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -26,7 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Event } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -37,6 +38,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Dimension, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { domEvent } from 'vs/base/browser/event';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -58,11 +60,11 @@ export class WalkThroughPart extends BaseEditor {
 
 	private readonly disposables = new DisposableStore();
 	private contentDisposables: IDisposable[] = [];
-	private content: HTMLDivElement;
-	private scrollbar: DomScrollableElement;
+	private content!: HTMLDivElement;
+	private scrollbar!: DomScrollableElement;
 	private editorFocus: IContextKey<boolean>;
-	private lastFocus: HTMLElement;
-	private size: Dimension;
+	private lastFocus: HTMLElement | undefined;
+	private size: Dimension | undefined;
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
 
 	constructor(
@@ -110,6 +112,14 @@ export class WalkThroughPart extends BaseEditor {
 			const height = scrollDimensions.height;
 			this.input.relativeScrollPosition(scrollTop / scrollHeight, (scrollTop + height) / scrollHeight);
 		}
+	}
+
+	private onTouchChange(event: GestureEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - event.translationY });
 	}
 
 	private addEventListener<K extends keyof HTMLElementEventMap, E extends HTMLElement>(element: E, type: K, listener: (this: E, ev: HTMLElementEventMap[K]) => any, useCapture?: boolean): IDisposable;
@@ -251,7 +261,7 @@ export class WalkThroughPart extends BaseEditor {
 		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
-	setInput(input: WalkThroughInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	setInput(input: WalkThroughInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
@@ -312,7 +322,7 @@ export class WalkThroughPart extends BaseEditor {
 					this.contentDisposables.push(editor);
 
 					const updateHeight = (initial: boolean) => {
-						const lineHeight = editor.getConfiguration().lineHeight;
+						const lineHeight = editor.getOption(EditorOption.lineHeight);
 						const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
 						if (div.style.height !== height) {
 							div.style.height = height;
@@ -329,7 +339,7 @@ export class WalkThroughPart extends BaseEditor {
 						if (innerContent) {
 							const targetTop = div.getBoundingClientRect().top;
 							const containerTop = innerContent.getBoundingClientRect().top;
-							const lineHeight = editor.getConfiguration().lineHeight;
+							const lineHeight = editor.getOption(EditorOption.lineHeight);
 							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
 							const lineBottom = lineTop + lineHeight;
 							const scrollDimensions = this.scrollbar.getScrollDimensions();
@@ -396,6 +406,8 @@ export class WalkThroughPart extends BaseEditor {
 				this.scrollbar.scanDomNode();
 				this.loadTextEditorViewState(input);
 				this.updatedScrollPosition();
+				this.contentDisposables.push(Gesture.addTarget(innerContent));
+				this.contentDisposables.push(domEvent(innerContent, TouchEventType.Change)(this.onTouchChange, this, this.disposables));
 			});
 	}
 

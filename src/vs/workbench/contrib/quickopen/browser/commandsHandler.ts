@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as arrays from 'vs/base/common/arrays';
-import * as types from 'vs/base/common/types';
+import { localize } from 'vs/nls';
+import { distinct } from 'vs/base/common/arrays';
+import { withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Language } from 'vs/base/common/platform';
 import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -32,27 +32,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
+import { isFirefox } from 'vs/base/browser/browser';
 
 export const ALL_COMMANDS_PREFIX = '>';
-
-let lastCommandPaletteInput: string;
-let commandHistory: LRUCache<string, number>;
-let commandCounter = 1;
 
 interface ISerializedCommandHistory {
 	usesLRU?: boolean;
 	entries: { key: string; value: number }[];
-}
-
-function resolveCommandHistory(configurationService: IConfigurationService): number {
-	const config = <IWorkbenchQuickOpenConfiguration>configurationService.getValue();
-
-	let commandHistory = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.history;
-	if (typeof commandHistory !== 'number') {
-		commandHistory = CommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
-	}
-
-	return commandHistory;
 }
 
 class CommandsHistory extends Disposable {
@@ -62,7 +48,10 @@ class CommandsHistory extends Disposable {
 	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
 	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
 
-	private commandHistoryLength: number;
+	private static cache: LRUCache<string, number> | undefined;
+	private static counter = 1;
+
+	private configuredCommandsHistoryLength = 0;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -81,10 +70,10 @@ class CommandsHistory extends Disposable {
 	}
 
 	private updateConfiguration(): void {
-		this.commandHistoryLength = resolveCommandHistory(this.configurationService);
+		this.configuredCommandsHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
 
-		if (commandHistory && commandHistory.limit !== this.commandHistoryLength) {
-			commandHistory.limit = this.commandHistoryLength;
+		if (CommandsHistory.cache && CommandsHistory.cache.limit !== this.configuredCommandsHistoryLength) {
+			CommandsHistory.cache.limit = this.configuredCommandsHistoryLength;
 
 			CommandsHistory.saveState(this.storageService);
 		}
@@ -101,7 +90,7 @@ class CommandsHistory extends Disposable {
 			}
 		}
 
-		commandHistory = new LRUCache<string, number>(this.commandHistoryLength, 1);
+		const cache = CommandsHistory.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
 		if (serializedCache) {
 			let entries: { key: string; value: number }[];
 			if (serializedCache.usesLRU) {
@@ -109,35 +98,64 @@ class CommandsHistory extends Disposable {
 			} else {
 				entries = serializedCache.entries.sort((a, b) => a.value - b.value);
 			}
-			entries.forEach(entry => commandHistory.set(entry.key, entry.value));
+			entries.forEach(entry => cache.set(entry.key, entry.value));
 		}
 
-		commandCounter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, commandCounter);
+		CommandsHistory.counter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.GLOBAL, CommandsHistory.counter);
 	}
 
 	push(commandId: string): void {
-		commandHistory.set(commandId, commandCounter++); // set counter to command
+		if (!CommandsHistory.cache) {
+			return;
+		}
+
+		CommandsHistory.cache.set(commandId, CommandsHistory.counter++); // set counter to command
 
 		CommandsHistory.saveState(this.storageService);
 	}
 
 	peek(commandId: string): number | undefined {
-		return commandHistory.peek(commandId);
+		return CommandsHistory.cache?.peek(commandId);
 	}
 
 	static saveState(storageService: IStorageService): void {
+		if (!CommandsHistory.cache) {
+			return;
+		}
+
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
-		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
+		CommandsHistory.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
 		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.GLOBAL);
-		storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter, StorageScope.GLOBAL);
+		storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.GLOBAL);
+	}
+
+	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {
+		const config = <IWorkbenchQuickOpenConfiguration>configurationService.getValue();
+
+		const configuredCommandHistoryLength = config.workbench?.commandPalette?.history;
+		if (typeof configuredCommandHistoryLength === 'number') {
+			return configuredCommandHistoryLength;
+		}
+
+		return CommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
+	}
+
+	static clearHistory(configurationService: IConfigurationService, storageService: IStorageService): void {
+		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(configurationService);
+		CommandsHistory.cache = new LRUCache<string, number>(commandHistoryLength);
+		CommandsHistory.counter = 1;
+
+		CommandsHistory.saveState(storageService);
 	}
 }
+
+let lastCommandPaletteInput: string | undefined = undefined;
 
 export class ShowAllCommandsAction extends Action {
 
 	static readonly ID = 'workbench.action.showCommands';
-	static readonly LABEL = nls.localize('showTriggerActions', "Show All Commands");
+	static readonly LABEL = localize('showTriggerActions', "Show All Commands");
 
 	constructor(
 		id: string,
@@ -150,7 +168,7 @@ export class ShowAllCommandsAction extends Action {
 
 	run(): Promise<void> {
 		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
-		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
+		const restoreInput = config.workbench?.commandPalette?.preserveInput === true;
 
 		// Show with last command palette input if any and configured
 		let value = ALL_COMMANDS_PREFIX;
@@ -167,7 +185,7 @@ export class ShowAllCommandsAction extends Action {
 export class ClearCommandHistoryAction extends Action {
 
 	static readonly ID = 'workbench.action.clearCommandHistory';
-	static readonly LABEL = nls.localize('clearCommandHistory', "Clear Command History");
+	static readonly LABEL = localize('clearCommandHistory', "Clear Command History");
 
 	constructor(
 		id: string,
@@ -179,12 +197,9 @@ export class ClearCommandHistoryAction extends Action {
 	}
 
 	run(): Promise<void> {
-		const commandHistoryLength = resolveCommandHistory(this.configurationService);
+		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
 		if (commandHistoryLength > 0) {
-			commandHistory = new LRUCache<string, number>(commandHistoryLength);
-			commandCounter = 1;
-
-			CommandsHistory.saveState(this.storageService);
+			CommandsHistory.clearHistory(this.configurationService, this.storageService);
 		}
 
 		return Promise.resolve(undefined);
@@ -196,10 +211,10 @@ class CommandPaletteEditorAction extends EditorAction {
 	constructor() {
 		super({
 			id: ShowAllCommandsAction.ID,
-			label: nls.localize('showCommands.label', "Command Palette..."),
+			label: localize('showCommands.label', "Command Palette..."),
 			alias: 'Command Palette',
 			precondition: undefined,
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'z_commands',
 				order: 1
 			}
@@ -217,17 +232,17 @@ class CommandPaletteEditorAction extends EditorAction {
 }
 
 abstract class BaseCommandEntry extends QuickOpenEntryGroup {
-	private description: string;
-	private alias: string;
+	private description: string | undefined;
+	private alias: string | undefined;
 	private labelLowercase: string;
 	private readonly keybindingAriaLabel?: string;
 
 	constructor(
 		private commandId: string,
-		private keybinding: ResolvedKeybinding,
+		private keybinding: ResolvedKeybinding | undefined,
 		private label: string,
-		alias: string,
-		highlights: { label: IHighlight[], alias?: IHighlight[] },
+		alias: string | undefined,
+		highlights: { label: IHighlight[] | null, alias: IHighlight[] | null },
 		private onBeforeRun: (commandId: string) => void,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService protected telemetryService: ITelemetryService
@@ -240,10 +255,10 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		if (this.label !== alias) {
 			this.alias = alias;
 		} else {
-			highlights.alias = undefined;
+			highlights.alias = null;
 		}
 
-		this.setHighlights(highlights.label, undefined, highlights.alias);
+		this.setHighlights(withNullAsUndefined(highlights.label), undefined, withNullAsUndefined(highlights.alias));
 	}
 
 	getCommandId(): string {
@@ -258,7 +273,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		return this.labelLowercase;
 	}
 
-	getDescription(): string {
+	getDescription(): string | undefined {
 		return this.description;
 	}
 
@@ -266,20 +281,20 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		this.description = description;
 	}
 
-	getKeybinding(): ResolvedKeybinding {
+	getKeybinding(): ResolvedKeybinding | undefined {
 		return this.keybinding;
 	}
 
-	getDetail(): string {
+	getDetail(): string | undefined {
 		return this.alias;
 	}
 
 	getAriaLabel(): string {
 		if (this.keybindingAriaLabel) {
-			return nls.localize('entryAriaLabelWithKey', "{0}, {1}, commands", this.getLabel(), this.keybindingAriaLabel);
+			return localize('entryAriaLabelWithKey', "{0}, {1}, commands", this.getLabel(), this.keybindingAriaLabel);
 		}
 
-		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
+		return localize('entryAriaLabel', "{0}, commands", this.getLabel());
 	}
 
 	run(mode: Mode, context: IEntryRunContext): boolean {
@@ -299,8 +314,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		// Indicate onBeforeRun
 		this.onBeforeRun(this.commandId);
 
-		// Use a timeout to give the quick open widget a chance to close itself first
-		setTimeout(async () => {
+		const commandRunner = (async () => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'quick open' });
@@ -319,9 +333,18 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 					this.onError(error);
 				}
 			} else {
-				this.notificationService.info(nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
+				this.notificationService.info(localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
-		}, 50);
+		});
+
+		// Use a timeout to give the quick open widget a chance to close itself first
+		// Firefox: since the browser is quite picky for certain commands, we do not
+		// use a timeout (https://github.com/microsoft/vscode/issues/83288)
+		if (!isFirefox) {
+			setTimeout(() => commandRunner(), 50);
+		} else {
+			commandRunner();
+		}
 	}
 
 	private onError(error?: Error): void {
@@ -329,7 +352,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 			return;
 		}
 
-		this.notificationService.error(error || nls.localize('canNotRun', "Command '{0}' resulted in an error.", this.label));
+		this.notificationService.error(error || localize('canNotRun', "Command '{0}' resulted in an error.", this.label));
 	}
 }
 
@@ -337,10 +360,10 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 
 	constructor(
 		commandId: string,
-		keybinding: ResolvedKeybinding,
+		keybinding: ResolvedKeybinding | undefined,
 		label: string,
-		meta: string,
-		highlights: { label: IHighlight[], alias: IHighlight[] },
+		meta: string | undefined,
+		highlights: { label: IHighlight[] | null, alias: IHighlight[] | null },
 		private action: IEditorAction,
 		onBeforeRun: (commandId: string) => void,
 		@INotificationService notificationService: INotificationService,
@@ -358,10 +381,10 @@ class ActionCommandEntry extends BaseCommandEntry {
 
 	constructor(
 		commandId: string,
-		keybinding: ResolvedKeybinding,
+		keybinding: ResolvedKeybinding | undefined,
 		label: string,
-		alias: string,
-		highlights: { label: IHighlight[], alias: IHighlight[] },
+		alias: string | undefined,
+		highlights: { label: IHighlight[] | null, alias: IHighlight[] | null },
 		private action: Action,
 		onBeforeRun: (commandId: string) => void,
 		@INotificationService notificationService: INotificationService,
@@ -381,13 +404,13 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 
 	static readonly ID = 'workbench.picker.commands';
 
-	private commandHistoryEnabled: boolean;
+	private commandHistoryEnabled: boolean | undefined;
 	private readonly commandsHistory: CommandsHistory;
 
 	private readonly disposables = new DisposableStore();
 	private readonly disposeOnClose = new DisposableStore();
 
-	private waitedForExtensionsRegistered: boolean;
+	private waitedForExtensionsRegistered: boolean | undefined;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -408,7 +431,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 	}
 
 	private updateConfiguration(): void {
-		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
+		this.commandHistoryEnabled = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService) > 0;
 	}
 
 	async getResults(searchValue: string, token: CancellationToken): Promise<QuickOpenModel> {
@@ -439,7 +462,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 		// Editor Actions
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		let editorActions: IEditorAction[] = [];
-		if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
+		if (activeTextEditorWidget && isFunction(activeTextEditorWidget.getSupportedActions)) {
 			editorActions = activeTextEditorWidget.getSupportedActions();
 		}
 
@@ -456,7 +479,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 		let entries = [...editorEntries, ...commandEntries];
 
 		// Remove duplicates
-		entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
+		entries = distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
 
 		// Handle label clashes
 		const commandLabels = new Set<string>();
@@ -494,12 +517,12 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 		// only if we have recently used commands in the result set
 		const firstEntry = entries[0];
 		if (firstEntry && this.commandsHistory.peek(firstEntry.getCommandId())) {
-			firstEntry.setGroupLabel(nls.localize('recentlyUsed', "recently used"));
+			firstEntry.setGroupLabel(localize('recentlyUsed', "recently used"));
 			for (let i = 1; i < entries.length; i++) {
 				const entry = entries[i];
 				if (!this.commandsHistory.peek(entry.getCommandId())) {
 					entry.setShowBorder(true);
-					entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
+					entry.setGroupLabel(localize('morecCommands', "other commands"));
 					break;
 				}
 			}
@@ -520,7 +543,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 			if (label) {
 
 				// Alias for non default languages
-				const alias = !Language.isDefaultVariant() ? action.alias : null;
+				const alias = !Language.isDefaultVariant() ? action.alias : undefined;
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
@@ -547,15 +570,15 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 			let category, label = title;
 			if (action.item.category) {
 				category = typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
-				label = nls.localize('cat.title', "{0}: {1}", category, title);
+				label = localize('cat.title', "{0}: {1}", category, title);
 			}
 
 			if (label) {
 				const labelHighlights = wordFilter(searchValue, label);
 
 				// Add an 'alias' in original language when running in different locale
-				const aliasTitle = (!Language.isDefaultVariant() && typeof action.item.title !== 'string') ? action.item.title.original : null;
-				const aliasCategory = (!Language.isDefaultVariant() && category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : null;
+				const aliasTitle = (!Language.isDefaultVariant() && typeof action.item.title !== 'string') ? action.item.title.original : undefined;
+				const aliasCategory = (!Language.isDefaultVariant() && category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : undefined;
 				let alias;
 				if (aliasTitle && category) {
 					alias = aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}`;
@@ -590,7 +613,7 @@ export class CommandsHandler extends QuickOpenHandler implements IDisposable {
 	}
 
 	getEmptyLabel(searchString: string): string {
-		return nls.localize('noCommandsMatching', "No commands matching");
+		return localize('noCommandsMatching', "No commands matching");
 	}
 
 	onClose(canceled: boolean): void {

@@ -9,11 +9,13 @@ import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/brows
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Constants } from 'vs/editor/common/core/uint';
+import { Constants } from 'vs/base/common/uint';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 class Coordinate {
 	_coordinateBrand: void;
@@ -207,10 +209,13 @@ class Widget {
 		this.allowEditorOverflow = this._actual.allowEditorOverflow || false;
 		this.suppressMouseDown = this._actual.suppressMouseDown || false;
 
-		this._fixedOverflowWidgets = this._context.configuration.editor.viewInfo.fixedOverflowWidgets;
-		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
+		this._contentWidth = layoutInfo.contentWidth;
+		this._contentLeft = layoutInfo.contentLeft;
+		this._lineHeight = options.get(EditorOption.lineHeight);
 
 		this._position = null;
 		this._range = null;
@@ -230,12 +235,12 @@ class Widget {
 	}
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
-		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.layoutInfo) {
-			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		const options = this._context.configuration.options;
+		this._lineHeight = options.get(EditorOption.lineHeight);
+		if (e.hasChanged(EditorOption.layoutInfo)) {
+			const layoutInfo = options.get(EditorOption.layoutInfo);
+			this._contentLeft = layoutInfo.contentLeft;
+			this._contentWidth = layoutInfo.contentWidth;
 			this._maxWidth = this._getMaxWidth();
 		}
 	}
@@ -375,7 +380,7 @@ class Widget {
 			belowLeft = absoluteBelowLeft;
 		}
 
-		return { fitsAbove, aboveTop, aboveLeft, fitsBelow, belowTop, belowLeft };
+		return { fitsAbove, aboveTop: Math.max(aboveTop, TOP_PADDING), aboveLeft, fitsBelow, belowTop, belowLeft };
 	}
 
 	private _prepareRenderWidgetAtExactPositionOverflowing(topLeft: Coordinate): Coordinate {

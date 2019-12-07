@@ -89,8 +89,8 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 			options.host,
 			options.port,
 			`reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`,
-			(err: any, socket: ISocket) => {
-				if (err) {
+			(err: any, socket: ISocket | undefined) => {
+				if (err || !socket) {
 					options.logService.error(`${logPrefix} socketFactory.connect() failed. Error:`);
 					options.logService.error(err);
 					e(err);

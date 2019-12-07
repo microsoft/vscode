@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDebugAdapter } from 'vs/workbench/contrib/debug/common/debug';
+import { timeout } from 'vs/base/common/async';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -17,13 +18,11 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	private requestCallback: ((request: DebugProtocol.Request) => void) | undefined;
 	private eventCallback: ((request: DebugProtocol.Event) => void) | undefined;
 	private messageCallback: ((message: DebugProtocol.ProtocolMessage) => void) | undefined;
-	protected readonly _onError: Emitter<Error>;
-	protected readonly _onExit: Emitter<number | null>;
+	protected readonly _onError = new Emitter<Error>();
+	protected readonly _onExit = new Emitter<number | null>();
 
 	constructor() {
 		this.sequence = 1;
-		this._onError = new Emitter<Error>();
-		this._onExit = new Emitter<number>();
 	}
 
 	abstract startSession(): Promise<void>;
@@ -70,7 +69,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		}
 	}
 
-	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void {
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): number {
 		const request: any = {
 			command: command
 		};
@@ -100,6 +99,8 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 			// store callback for this request
 			this.pendingRequests.set(request.seq, clb);
 		}
+
+		return request.seq;
 	}
 
 	acceptMessage(message: DebugProtocol.ProtocolMessage): void {
@@ -136,25 +137,33 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		this.sendMessage(message);
 	}
 
-	protected cancelPending() {
-		const pending = this.pendingRequests;
-		this.pendingRequests.clear();
-		setTimeout(_ => {
-			pending.forEach((callback, request_seq) => {
-				const err: DebugProtocol.Response = {
-					type: 'response',
-					seq: 0,
-					request_seq,
-					success: false,
-					command: 'canceled',
-					message: 'canceled'
-				};
-				callback(err);
-			});
-		}, 1000);
+	protected async cancelPendingRequests(): Promise<void> {
+		if (this.pendingRequests.size === 0) {
+			return Promise.resolve();
+		}
+
+		const pending = new Map<number, (e: DebugProtocol.Response) => void>();
+		this.pendingRequests.forEach((value, key) => pending.set(key, value));
+		await timeout(500);
+		pending.forEach((callback, request_seq) => {
+			const err: DebugProtocol.Response = {
+				type: 'response',
+				seq: 0,
+				request_seq,
+				success: false,
+				command: 'canceled',
+				message: 'canceled'
+			};
+			callback(err);
+			this.pendingRequests.delete(request_seq);
+		});
+	}
+
+	getPendingRequestIds(): number[] {
+		return Array.from(this.pendingRequests.keys());
 	}
 
 	dispose(): void {
-		this.cancelPending();
+		// noop
 	}
 }

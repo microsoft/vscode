@@ -51,7 +51,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -65,17 +65,17 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		rating: 4,
 		ratingCount: 100
 	}, {
-			dependencies: ['pub.1'],
-		}, {
-			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-			coreTranslations: []
-		}),
+		dependencies: ['pub.1'],
+	}, {
+		manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+		readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+		changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+		download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
+		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		coreTranslations: []
+	}),
 	aGalleryExtension('MockExtension2', {
 		displayName: 'Mock Extension 2',
 		version: '1.5',
@@ -87,17 +87,17 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		rating: 4,
 		ratingCount: 100
 	}, {
-			dependencies: ['pub.1', 'pub.2'],
-		}, {
-			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
-			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
-			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
-			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
-			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
-			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
-			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
-			coreTranslations: []
-		})
+		dependencies: ['pub.1', 'pub.2'],
+	}, {
+		manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+		readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+		changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+		download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
+		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		coreTranslations: []
+	})
 ];
 
 const mockExtensionLocal = [
@@ -206,7 +206,7 @@ suite('ExtensionsTipsService Test', () => {
 			...{
 				extensionTips: {
 					'ms-vscode.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
-					'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6,**/.babelrc}',
+					'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
 					'lukehoban.Go': '**/*.go'
 				},
 				extensionImportantTips: {
@@ -235,7 +235,7 @@ suite('ExtensionsTipsService Test', () => {
 	});
 
 	setup(() => {
-		instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{ extensionDevelopmentPath: false });
+		instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage<IGalleryExtension>(...mockExtensionGallery));
@@ -305,7 +305,6 @@ suite('ExtensionsTipsService Test', () => {
 	function testNoPromptOrRecommendationsForValidRecommendations(recommendations: string[]) {
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
-			assert.equal(!testObject.loadWorkspaceConfigPromise, true);
 			assert.ok(!prompted);
 
 			return testObject.getWorkspaceRecommendations().then(() => {
@@ -502,6 +501,7 @@ suite('ExtensionsTipsService Test', () => {
 		const ignoredExtensionId = 'Some.Extension';
 		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
 			get: (a: string, b: StorageScope, c?: boolean) => a === 'extensionsAssistant/ignored_recommendations' ? '["ms-vscode.vscode"]' : c,
+			getBoolean: (a: string, b: StorageScope, c: boolean) => c,
 			store: (...args: any[]) => {
 				storageSetterTarget(...args);
 			}
@@ -520,7 +520,7 @@ suite('ExtensionsTipsService Test', () => {
 
 	test('ExtensionTipsService: Get file based recommendations from storage (old format)', () => {
 		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "ms-vscode.vscode-typescript-tslint-plugin"]';
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{ get: (a: string, b: StorageScope, c?: string) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
+		instantiationService.stub(IStorageService, <Partial<IStorageService>>{ get: (a: string, b: StorageScope, c?: string) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c, getBoolean: (a: string, b: StorageScope, c: boolean) => c });
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
@@ -539,7 +539,7 @@ suite('ExtensionsTipsService Test', () => {
 		const now = Date.now();
 		const tenDaysOld = 10 * milliSecondsInADay;
 		const storedRecommendations = `{"ms-vscode.csharp": ${now}, "ms-python.python": ${now}, "ms-vscode.vscode-typescript-tslint-plugin": ${now}, "lukehoban.Go": ${tenDaysOld}}`;
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{ get: (a: string, b: StorageScope, c?: string) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
+		instantiationService.stub(IStorageService, <Partial<IStorageService>>{ get: (a: string, b: StorageScope, c?: string) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c, getBoolean: (a: string, b: StorageScope, c: boolean) => c });
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);

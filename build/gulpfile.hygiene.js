@@ -17,6 +17,7 @@ const vfs = require('vinyl-fs');
 const path = require('path');
 const fs = require('fs');
 const pall = require('p-all');
+const task = require('./lib/task');
 
 /**
  * Hygiene works by creating cascading subsets of all our files and
@@ -57,6 +58,7 @@ const indentationFilter = [
 	'!test/assert.js',
 
 	// except specific folders
+	'!test/automation/out/**',
 	'!test/smoke/out/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
@@ -69,7 +71,7 @@ const indentationFilter = [
 	'!**/yarn-error.log',
 
 	// except multiple specific folders
-	'!**/octicons/**',
+	'!**/codicon/**',
 	'!**/fixtures/**',
 	'!**/lib/**',
 	'!extensions/**/out/**',
@@ -112,6 +114,7 @@ const copyrightFilter = [
 	'!**/*.opts',
 	'!**/*.disabled',
 	'!**/*.code-workspace',
+	'!**/*.js.map',
 	'!**/promise-polyfill/polyfill.js',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
@@ -122,6 +125,7 @@ const copyrightFilter = [
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/editor/test/node/classification/typescript-test.ts',
+	'!scripts/code-web.js'
 ];
 
 const eslintFilter = [
@@ -152,6 +156,7 @@ const tslintCoreFilter = [
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'!extensions/**/*.ts',
+	'!test/automation/**',
 	'!test/smoke/**',
 	...tslintBaseFilter
 ];
@@ -160,6 +165,7 @@ const tslintExtensionsFilter = [
 	'extensions/**/*.ts',
 	'!src/**/*.ts',
 	'!test/**/*.ts',
+	'test/automation/**/*.ts',
 	...tslintBaseFilter
 ];
 
@@ -201,6 +207,33 @@ gulp.task('tslint', () => {
 			.pipe(gulptslint.default.report({ emitError: true }))
 	]).pipe(es.through());
 });
+
+function checkPackageJSON(actualPath) {
+	const actual = require(path.join(__dirname, '..', actualPath));
+	const rootPackageJSON = require('../package.json');
+
+	for (let depName in actual.dependencies) {
+		const depVersion = actual.dependencies[depName];
+		const rootDepVersion = rootPackageJSON.dependencies[depName];
+		if (!rootDepVersion) {
+			// missing in root is allowed
+			continue;
+		}
+		if (depVersion !== rootDepVersion) {
+			this.emit('error', `The dependency ${depName} in '${actualPath}' (${depVersion}) is different than in the root package.json (${rootDepVersion})`);
+		}
+	}
+}
+
+const checkPackageJSONTask = task.define('check-package-json', () => {
+	return gulp.src('package.json')
+		.pipe(es.through(function() {
+			checkPackageJSON.call(this, 'remote/package.json');
+			checkPackageJSON.call(this, 'remote/web/package.json');
+		}));
+});
+gulp.task(checkPackageJSONTask);
+
 
 function hygiene(some) {
 	let errorCount = 0;
@@ -294,7 +327,12 @@ function hygiene(some) {
 	let input;
 
 	if (Array.isArray(some) || typeof some === 'string' || !some) {
-		input = vfs.src(some || all, { base: '.', follow: true, allowEmpty: true });
+		const options = { base: '.', follow: true, allowEmpty: true };
+		if (some) {
+			input = vfs.src(some, options).pipe(filter(all)); // split this up to not unnecessarily filter all a second time
+		} else {
+			input = vfs.src(all, options);
+		}
 	} else {
 		input = some;
 	}
@@ -311,10 +349,13 @@ function hygiene(some) {
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights);
 
-	const typescript = result
+	let typescript = result
 		.pipe(filter(tslintHygieneFilter))
-		.pipe(formatting)
-		.pipe(tsl);
+		.pipe(formatting);
+
+	if (!process.argv.some(arg => arg === '--skip-tslint')) {
+		typescript = typescript.pipe(tsl);
+	}
 
 	const javascript = result
 		.pipe(filter(eslintFilter))
@@ -387,7 +428,7 @@ function createGitIndexVinyls(paths) {
 		.then(r => r.filter(p => !!p));
 }
 
-gulp.task('hygiene', () => hygiene());
+gulp.task('hygiene', task.series(checkPackageJSONTask, () => hygiene()));
 
 // this allows us to run hygiene as a git pre-commit hook
 if (require.main === module) {

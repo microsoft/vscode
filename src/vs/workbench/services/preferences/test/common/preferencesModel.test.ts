@@ -291,7 +291,7 @@ suite('Preferences Model test', () => {
 			arr.rejects([]).withMessage('Array must have at least 1 items');
 			arr.accepts(['a']);
 			arr.accepts(['a', 'a']);
-			arr.rejects(['a', 'a', 'a']).withMessage('Array must have less than 2 items');
+			arr.rejects(['a', 'a', 'a']).withMessage('Array must have at most 2 items');
 		}
 	});
 
@@ -312,7 +312,7 @@ suite('Preferences Model test', () => {
 	test('min-max and enum', () => {
 		const arr = new ArrayTester({ type: 'array', items: { type: 'string', enum: ['a', 'b'] }, minItems: 1, maxItems: 2 });
 
-		arr.rejects(['a', 'b', 'c']).withMessage('Array must have less than 2 items');
+		arr.rejects(['a', 'b', 'c']).withMessage('Array must have at most 2 items');
 		arr.rejects(['a', 'b', 'c']).withMessage(`Value 'c' is not one of`);
 	});
 
@@ -327,5 +327,11 @@ suite('Preferences Model test', () => {
 		const arr = new ArrayTester({ type: 'array', items: { type: 'string', pattern: '^(hello)*$', patternErrorMessage: 'err: must be friendly' } });
 
 		arr.rejects(['a']).withMessage(`err: must be friendly`);
+	});
+
+	test('uniqueItems', () => {
+		const arr = new ArrayTester({ type: 'array', items: { type: 'string' }, uniqueItems: true });
+
+		arr.rejects(['a', 'a']).withMessage(`Array has duplicate items`);
 	});
 });

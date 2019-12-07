@@ -483,11 +483,11 @@ function selectionEqual(selection: Selection, posLineNumber: number, posColumn: 
 		positionLineNumber: selection.positionLineNumber,
 		positionColumn: selection.positionColumn
 	}, {
-			selectionStartLineNumber: selLineNumber,
-			selectionStartColumn: selColumn,
-			positionLineNumber: posLineNumber,
-			positionColumn: posColumn
-		}, 'selection equal');
+		selectionStartLineNumber: selLineNumber,
+		selectionStartColumn: selColumn,
+		positionLineNumber: posLineNumber,
+		positionColumn: posColumn
+	}, 'selection equal');
 }
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {

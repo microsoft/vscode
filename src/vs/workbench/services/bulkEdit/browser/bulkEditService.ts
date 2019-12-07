@@ -23,6 +23,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 abstract class Recording {
 
@@ -225,17 +226,18 @@ class BulkEditModel implements IDisposable {
 	}
 }
 
-export type Edit = ResourceFileEdit | ResourceTextEdit;
+type Edit = ResourceFileEdit | ResourceTextEdit;
 
-export class BulkEdit {
+class BulkEdit {
 
-	private _edits: Edit[] = [];
-	private _editor: ICodeEditor | undefined;
-	private _progress: IProgress<IProgressStep>;
+	private readonly _edits: Edit[] = [];
+	private readonly _editor: ICodeEditor | undefined;
+	private readonly _progress: IProgress<IProgressStep>;
 
 	constructor(
 		editor: ICodeEditor | undefined,
 		progress: IProgress<IProgressStep> | undefined,
+		edits: Edit[],
 		@ILogService private readonly _logService: ILogService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
@@ -245,14 +247,7 @@ export class BulkEdit {
 	) {
 		this._editor = editor;
 		this._progress = progress || emptyProgress;
-	}
-
-	add(edits: Edit[] | Edit): void {
-		if (Array.isArray(edits)) {
-			this._edits.push(...edits);
-		} else {
-			this._edits.push(edits);
-		}
+		this._edits = edits;
 	}
 
 	ariaMessage(): string {
@@ -414,12 +409,15 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		if (codeEditor && codeEditor.getConfiguration().readOnly) {
+		if (codeEditor && codeEditor.getOption(EditorOption.readOnly)) {
 			// If the code editor is readonly still allow bulk edits to be applied #68549
 			codeEditor = undefined;
 		}
-		const bulkEdit = new BulkEdit(codeEditor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService);
-		bulkEdit.add(edits);
+		const bulkEdit = new BulkEdit(
+			codeEditor, options.progress, edits,
+			this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService
+		);
+
 
 		return bulkEdit.perform().then(() => {
 			return { ariaSummary: bulkEdit.ariaMessage() };

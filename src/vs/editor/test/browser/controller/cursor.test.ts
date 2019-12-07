@@ -711,7 +711,7 @@ suite('Editor Controller - Cursor', () => {
 				position: new Position(4, 4),
 				viewPosition: new Position(4, 4),
 				mouseColumn: 15,
-				setAnchorIfNotSet: false
+				doColumnSelect: true
 			});
 
 			let expectedSelections = [
@@ -722,6 +722,45 @@ suite('Editor Controller - Cursor', () => {
 			];
 
 			assertCursor(cursor, expectedSelections);
+
+		});
+	});
+
+	test('grapheme breaking', () => {
+		withTestCodeEditor([
+			'abcabc',
+			'ãããããã',
+			'辻󠄀辻󠄀辻󠄀',
+			'பு',
+		], {}, (editor, cursor) => {
+
+			cursor.setSelections('test', [new Selection(2, 1, 2, 1)]);
+			moveRight(cursor);
+			assertCursor(cursor, new Position(2, 3));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(2, 1));
+
+			cursor.setSelections('test', [new Selection(3, 1, 3, 1)]);
+			moveRight(cursor);
+			assertCursor(cursor, new Position(3, 4));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(3, 1));
+
+			cursor.setSelections('test', [new Selection(4, 1, 4, 1)]);
+			moveRight(cursor);
+			assertCursor(cursor, new Position(4, 3));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(4, 1));
+
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			moveDown(cursor);
+			assertCursor(cursor, new Position(2, 5));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(3, 4));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(2, 5));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, 3));
 
 		});
 	});
@@ -747,7 +786,7 @@ suite('Editor Controller - Cursor', () => {
 			position: new Position(4, 1),
 			viewPosition: new Position(4, 1),
 			mouseColumn: 1,
-			setAnchorIfNotSet: false
+			doColumnSelect: true
 		});
 
 		assertCursor(cursor, [
@@ -787,7 +826,7 @@ suite('Editor Controller - Cursor', () => {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1,
-			setAnchorIfNotSet: false
+			doColumnSelect: true
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -806,7 +845,7 @@ suite('Editor Controller - Cursor', () => {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1,
-			setAnchorIfNotSet: false
+			doColumnSelect: true
 		});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 1),
@@ -1494,6 +1533,25 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #74722: Pasting whole line does not replace selection', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line sel 2',
+				'line3'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 6, 2, 9)]);
+
+			cursorCommand(cursor, H.Paste, { text: 'line1\n', pasteOnNewLine: true });
+
+			assert.equal(model.getLineContent(1), 'line1');
+			assert.equal(model.getLineContent(2), 'line line1');
+			assert.equal(model.getLineContent(3), ' 2');
+			assert.equal(model.getLineContent(4), 'line3');
+		});
+	});
+
 	test('issue #4996: Multiple cursor paste pastes contents of all cursors', () => {
 		usingCursor({
 			text: [
@@ -1562,6 +1620,37 @@ suite('Editor Controller - Regression tests', () => {
 				'bbb',
 				'ccc',
 				'',
+			].join('\n'));
+		});
+	});
+
+	test('issue #43722: Multiline paste doesn\'t work anymore', () => {
+		usingCursor({
+			text: [
+				'test',
+				'test',
+				'test',
+				'test'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+				new Selection(4, 1, 4, 5),
+			]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'aaa\r\nbbb\r\nccc\r\nddd\r\n',
+				pasteOnNewLine: false,
+				multicursorText: null
+			});
+
+			assert.equal(model.getValue(), [
+				'aaa',
+				'bbb',
+				'ccc',
+				'ddd',
 			].join('\n'));
 		});
 	});
@@ -2541,7 +2630,37 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(5, 1));
+			assertCursor(cursor, new Position(4, 1));
+		});
+
+		model.dispose();
+	});
+
+	test('issue #40695: maintain cursor position when copying lines using ctrl+c, ctrl+v', () => {
+		let model = createTextModel(
+			[
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        return 3;',
+				'    }',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			editor.setSelections([new Selection(4, 10, 4, 10)]);
+			cursorCommand(cursor, H.Paste, { text: '        // I\'m gonna copy this line\n', pasteOnNewLine: true });
+
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        // Another line',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(5, 10));
 		});
 
 		model.dispose();
@@ -2715,7 +2834,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2738,7 +2857,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 2, false);
 			assertCursor(cursor, new Selection(2, 2, 2, 2));
@@ -2757,7 +2876,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 15, false);
 			assertCursor(cursor, new Selection(2, 15, 2, 15));
@@ -2777,7 +2896,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 14, false);
 			assertCursor(cursor, new Selection(2, 14, 2, 14));
@@ -2805,7 +2924,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 2, 11, false);
 			assertCursor(cursor, new Selection(2, 11, 2, 11));
 
@@ -2829,7 +2948,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 13, false);
 			assertCursor(cursor, new Selection(3, 13, 3, 13));
@@ -2965,7 +3084,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 4, false);
 			assertCursor(cursor, new Selection(5, 4, 5, 4));
@@ -3435,7 +3554,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			rubyMode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 4, 7, false);
 			assertCursor(cursor, new Selection(4, 7, 4, 7));
 
@@ -3496,7 +3615,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -3545,7 +3664,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
 			moveTo(cursor, 7, 6, false);
 			assertCursor(cursor, new Selection(7, 6, 7, 6));
 
@@ -3609,7 +3728,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
 			moveTo(cursor, 8, 1, false);
 			assertCursor(cursor, new Selection(8, 1, 8, 1));
 
@@ -3672,7 +3791,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 3, 19, false);
 			assertCursor(cursor, new Selection(3, 19, 3, 19));
 
@@ -4791,6 +4910,61 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #53357: Over typing ignores characters after backslash', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'console.log();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [new Selection(1, 13, 1, 13)]);
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'\');');
+
+			cursorCommand(cursor, H.Type, { text: 'it' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\');');
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\');');
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(), 'console.log(\'it\\\'\'\');');
+		});
+		mode.dispose();
+	});
+
+	test('issue #84998: Overtyping Brackets doesn\'t work after backslash', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				''
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1)]);
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), '\\');
+
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.equal(model.getValue(), '\\()');
+
+			cursorCommand(cursor, H.Type, { text: 'abc' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc)');
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc\\)');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc\\)');
+		});
+		mode.dispose();
+	});
+
 	test('issue #2773: Accents (´`¨^, others?) are inserted in the wrong position (Mac)', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -4880,6 +5054,26 @@ suite('autoClosingPairs', () => {
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
 
 			assert.equal(model.getValue(), 'abc\'');
+		});
+		mode.dispose();
+	});
+
+	test('issue #82701: auto close does not execute when IME is canceled via backspace', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'{}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
+
+			// Typing a + backspace
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: 'a' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+			assert.equal(model.getValue(), '{}');
 		});
 		mode.dispose();
 	});

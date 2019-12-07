@@ -29,7 +29,7 @@ import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/ed
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor } from 'vs/workbench/common/editor';
-import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -121,7 +121,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			name: EmptyView.NAME,
 			ctorDescriptor: { ctor: EmptyView },
 			order: 1,
-			canToggleVisibility: false
+			canToggleVisibility: true,
 		};
 	}
 
@@ -177,7 +177,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 		DOM.addClass(parent, 'explorer-viewlet');
 	}
 
-	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {
+	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPane {
 		if (viewDescriptor.id === ExplorerView.ID) {
 			// Create a delegating editor service for the explorer to be able to delay the refresh in the opened
 			// editors view above. This is a workaround for being able to double click on a file to make it pinned
@@ -230,10 +230,6 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 		return <OpenEditorsView>this.getView(OpenEditorsView.ID);
 	}
 
-	public getEmptyView(): EmptyView {
-		return <EmptyView>this.getView(EmptyView.ID);
-	}
-
 	public setVisible(visible: boolean): void {
 		this.viewletVisibleContextKey.set(visible);
 		super.setVisible(visible);
@@ -241,7 +237,7 @@ export class ExplorerViewlet extends ViewContainerViewlet {
 
 	focus(): void {
 		const explorerView = this.getView(ExplorerView.ID);
-		if (explorerView && explorerView.isExpanded()) {
+		if (explorerView?.isExpanded()) {
 			explorerView.focus();
 		} else {
 			super.focus();

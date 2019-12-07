@@ -148,8 +148,9 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
             }
         });
     }
-    result = result.replace(/export default/g, 'export');
-    result = result.replace(/export declare/g, 'export');
+    result = result.replace(/export default /g, 'export ');
+    result = result.replace(/export declare /g, 'export ');
+    result = result.replace(/declare /g, '');
     if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
         result = result.replace(/const enum/, 'enum');
         enums.push(result);
@@ -515,7 +516,7 @@ class DeclarationResolver {
             'file.ts': fileContents
         };
         const service = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, fileMap, {}));
-        const text = service.getEmitOutput('file.ts', true).outputFiles[0].text;
+        const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
         return new CacheEntry(ts.createSourceFile(fileName, text, ts.ScriptTarget.ES5), mtime);
     }
 }

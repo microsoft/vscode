@@ -37,7 +37,7 @@
 	flex: 1;
 }
 
-.quick-input-titlebar .monaco-action-bar .action-label.icon {
+.quick-input-titlebar .monaco-action-bar .action-label.codicon {
 	margin: 0;
 	width: 19px;
 	height: 100%;
@@ -182,6 +182,10 @@
 	align-items: center;
 }
 
+.quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon {
+	vertical-align: sub;
+}
+
 .quick-input-list .quick-input-list-rows .monaco-highlighted-label span {
 	opacity: 1;
 }
@@ -212,23 +216,22 @@
 	overflow: visible;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar .action-label.icon {
+.quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
 	margin: 0;
 	width: 19px;
 	height: 100%;
-	background-position: center;
-	background-repeat: no-repeat;
+	vertical-align: middle;
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {
 	margin-top: 1px;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar ul:first-child .action-label.icon {
+.quick-input-list .quick-input-list-entry-action-bar ul:first-child .action-label.codicon {
 	margin-left: 2px;
 }
 
-.quick-input-list .quick-input-list-entry-action-bar ul:last-child .action-label.icon {
+.quick-input-list .quick-input-list-entry-action-bar ul:last-child .action-label.codicon {
 	margin-right: 8px;
 }
 

@@ -6,7 +6,7 @@
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, removeNode, isAncestor } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, removeClasses, addClass, addClasses, removeNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -75,7 +75,8 @@ export class Dialog extends Disposable {
 
 		if (this.options.detail) {
 			const messageElement = messageContainer.appendChild($('.dialog-message'));
-			messageElement.innerText = this.message;
+			const messageTextElement = messageElement.appendChild($('.dialog-message-text'));
+			messageTextElement.innerText = this.message;
 		}
 
 		this.messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
@@ -84,15 +85,14 @@ export class Dialog extends Disposable {
 		if (this.options.checkboxLabel) {
 			const checkboxRowElement = messageContainer.appendChild($('.dialog-checkbox-row'));
 
-			this.checkbox = this._register(new SimpleCheckbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
+			const checkbox = this.checkbox = this._register(new SimpleCheckbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
 
-			checkboxRowElement.appendChild(this.checkbox.domNode);
+			checkboxRowElement.appendChild(checkbox.domNode);
 
 			const checkboxMessageElement = checkboxRowElement.appendChild($('.dialog-checkbox-message'));
 			checkboxMessageElement.innerText = this.options.checkboxLabel;
+			this._register(addDisposableListener(checkboxMessageElement, EventType.CLICK, () => checkbox.checked = !checkbox.checked));
 		}
-
-
 
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
@@ -144,7 +144,9 @@ export class Dialog extends Disposable {
 				let eventHandled = false;
 				if (evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
 					if (!this.checkboxHasFocus && focusedButton === 0) {
-						this.checkbox!.domNode.focus();
+						if (this.checkbox) {
+							this.checkbox.domNode.focus();
+						}
 						this.checkboxHasFocus = true;
 					} else {
 						focusedButton = (this.checkboxHasFocus ? 0 : focusedButton) + buttonGroup.buttons.length - 1;
@@ -156,7 +158,9 @@ export class Dialog extends Disposable {
 					eventHandled = true;
 				} else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
 					if (!this.checkboxHasFocus && focusedButton === buttonGroup.buttons.length - 1) {
-						this.checkbox!.domNode.focus();
+						if (this.checkbox) {
+							this.checkbox.domNode.focus();
+						}
 						this.checkboxHasFocus = true;
 					} else {
 						focusedButton = this.checkboxHasFocus ? 0 : focusedButton + 1;
@@ -196,29 +200,30 @@ export class Dialog extends Disposable {
 				}
 			}));
 
-			removeClasses(this.iconElement, 'icon-error', 'icon-warning', 'icon-info');
+			addClass(this.iconElement, 'codicon');
+			removeClasses(this.iconElement, 'codicon-alert', 'codicon-warning', 'codicon-info');
 
 			switch (this.options.type) {
 				case 'error':
-					addClass(this.iconElement, 'icon-error');
+					addClass(this.iconElement, 'codicon-error');
 					break;
 				case 'warning':
-					addClass(this.iconElement, 'icon-warning');
+					addClass(this.iconElement, 'codicon-warning');
 					break;
 				case 'pending':
-					addClass(this.iconElement, 'icon-pending');
+					addClasses(this.iconElement, 'codicon-loading', 'codicon-animation-spin');
 					break;
 				case 'none':
 				case 'info':
 				case 'question':
 				default:
-					addClass(this.iconElement, 'icon-info');
+					addClass(this.iconElement, 'codicon-info');
 					break;
 			}
 
 			const actionBar = new ActionBar(this.toolbarContainer, {});
 
-			const action = new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), 'dialog-close-action', true, () => {
+			const action = new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), 'codicon codicon-close', true, () => {
 				resolve({ button: this.options.cancelId || 0, checkboxChecked: this.checkbox ? this.checkbox.checked : undefined });
 				return Promise.resolve();
 			});
@@ -239,10 +244,10 @@ export class Dialog extends Disposable {
 		if (this.styles) {
 			const style = this.styles;
 
-			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : null;
-			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : null;
-			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : null;
-			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : null;
+			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : '';
+			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : '';
+			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
+			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
 
 			if (this.element) {
 				this.element.style.color = fgColor;

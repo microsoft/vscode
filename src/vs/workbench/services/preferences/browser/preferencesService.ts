@@ -51,11 +51,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private readonly _onDispose = this._register(new Emitter<void>());
 
 	private _defaultUserSettingsUriCounter = 0;
-	private _defaultUserSettingsContentModel: DefaultSettings;
+	private _defaultUserSettingsContentModel: DefaultSettings | undefined;
 	private _defaultWorkspaceSettingsUriCounter = 0;
-	private _defaultWorkspaceSettingsContentModel: DefaultSettings;
+	private _defaultWorkspaceSettingsContentModel: DefaultSettings | undefined;
 	private _defaultFolderSettingsUriCounter = 0;
-	private _defaultFolderSettingsContentModel: DefaultSettings;
+	private _defaultFolderSettingsContentModel: DefaultSettings | undefined;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -214,7 +214,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private openSettings2(options?: ISettingsEditorOptions): Promise<IEditor> {
 		const input = this.settingsEditor2Input;
-		return this.editorService.openEditor(input, options)
+		return this.editorService.openEditor(input, options ? SettingsEditorOptions.create(options) : undefined)
 			.then(() => this.editorGroupService.activeGroup.activeControl!);
 	}
 
@@ -557,7 +557,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.textFileService.read(workspaceConfig)
 				.then(content => {
 					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
-						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(undefined, () => { });
+						return this.jsonEditingService.write(resource, [{ key: 'settings', value: {} }], true).then(undefined, () => { });
 					}
 					return undefined;
 				});

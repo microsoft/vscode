@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -19,15 +19,102 @@ import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
+
+//#region --- NEW world
+
+export class ApiCommandArgument<V, O = V> {
+
+	static readonly Uri = new ApiCommandArgument<URI>('uri', 'Uri of a text document', v => URI.isUri(v), v => v);
+	static readonly Position = new ApiCommandArgument<types.Position, IPosition>('position', 'A position in a text document', v => types.Position.isPosition(v), typeConverters.Position.from);
+
+	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof types.CallHierarchyItem, typeConverters.CallHierarchyItem.to);
+
+	constructor(
+		readonly name: string,
+		readonly description: string,
+		readonly validate: (v: V) => boolean,
+		readonly convert: (v: V) => O
+	) { }
+}
+
+export class ApiCommandResult<V, O = V> {
+
+	constructor(
+		readonly description: string,
+		readonly convert: (v: V) => O
+	) { }
+}
+
+export class ApiCommand {
+
+	constructor(
+		readonly id: string,
+		readonly internalId: string,
+		readonly description: string,
+		readonly args: ApiCommandArgument<any, any>[],
+		readonly result: ApiCommandResult<any, any>
+	) { }
+
+	register(commands: ExtHostCommands): IDisposable {
+
+		return commands.registerCommand(false, this.id, async (...apiArgs) => {
+
+			const internalArgs = this.args.map((arg, i) => {
+				if (!arg.validate(apiArgs[i])) {
+					throw new Error(`Invalid argument '${arg.name}' when running '${this.id}', receieved: ${apiArgs[i]}`);
+				}
+				return arg.convert(apiArgs[i]);
+			});
+
+			const internalResult = await commands.executeCommand(this.internalId, ...internalArgs);
+			return this.result.convert(internalResult);
+		}, undefined, this._getCommandHandlerDesc());
+	}
+
+	private _getCommandHandlerDesc(): ICommandHandlerDescription {
+		return {
+			description: this.description,
+			args: this.args,
+			returns: this.result.description
+		};
+	}
+}
+
+
+const newCommands: ApiCommand[] = [
+	new ApiCommand(
+		'vscode.prepareCallHierarchy', '_executePrepareCallHierarchy', 'Prepare call hierarchy at a position inside a document',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<ICallHierarchyItemDto[], types.CallHierarchyItem[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyItem.to))
+	),
+	new ApiCommand(
+		'vscode.provideIncomingCalls', '_executeProvideIncomingCalls', 'Compute incoming calls for an item',
+		[ApiCommandArgument.CallHierarchyItem],
+		new ApiCommandResult<IIncomingCallDto[], types.CallHierarchyIncomingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyIncomingCall.to))
+	),
+	new ApiCommand(
+		'vscode.provideOutgoingCalls', '_executeProvideOutgoingCalls', 'Compute outgoing calls for an item',
+		[ApiCommandArgument.CallHierarchyItem],
+		new ApiCommandResult<IOutgoingCallDto[], types.CallHierarchyOutgoingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyOutgoingCall.to))
+	),
+];
+
+
+//#endregion
+
+
+//#region OLD world
 
 export class ExtHostApiCommands {
 
 	static register(commands: ExtHostCommands) {
+		newCommands.forEach(command => command.register(commands));
 		return new ExtHostApiCommands(commands).registerCommands();
 	}
 
 	private _commands: ExtHostCommands;
-	private _disposables: IDisposable[] = [];
+	private readonly _disposables = new DisposableStore();
 
 	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
@@ -223,7 +310,7 @@ export class ExtHostApiCommands {
 		this._register(OpenFolderAPICommand.ID, adjustHandler(OpenFolderAPICommand.execute), {
 			description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
 			args: [
-				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || value instanceof URI },
+				{ name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder', constraint: (value: any) => value === undefined || URI.isUri(value) },
 				{ name: 'options', description: '(optional) Options. Object with the following properties: `forceNewWindow `: Whether to open the folder/workspace in a new window or the same. Defaults to opening in the same window. `noRecentEntry`: Whether the opened URI will appear in the \'Open Recent\' list. Defaults to true. Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.', constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean' }
 			]
 		});
@@ -272,7 +359,7 @@ export class ExtHostApiCommands {
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
 		const disposable = this._commands.registerCommand(false, id, handler, this, description);
-		this._disposables.push(disposable);
+		this._disposables.add(disposable);
 	}
 
 	/**
@@ -433,7 +520,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range }): Promise<types.ColorPresentation[]> {
+	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range; }): Promise<types.ColorPresentation[]> {
 		const args = {
 			resource: context.uri,
 			color: typeConverters.Color.from(color),

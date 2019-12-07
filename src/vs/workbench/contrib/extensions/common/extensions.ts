@@ -23,7 +23,7 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 
 export interface IExtensionsViewlet extends IViewlet {
-	search(text: string): void;
+	search(text: string, refresh?: boolean): void;
 }
 
 export const enum ExtensionState {

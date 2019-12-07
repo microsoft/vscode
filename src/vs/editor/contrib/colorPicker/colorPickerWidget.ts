@@ -32,7 +32,7 @@ export class ColorPickerHeader extends Disposable {
 		this.pickedColorNode = dom.append(this.domNode, $('.picked-color'));
 
 		const colorBox = dom.append(this.domNode, $('.original-color'));
-		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor);
+		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
 
 		this.backgroundColor = themeService.getTheme().getColor(editorHoverBackground) || Color.white;
 		this._register(registerThemingParticipant((theme, collector) => {
@@ -46,12 +46,12 @@ export class ColorPickerHeader extends Disposable {
 		}));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this._register(model.onDidChangePresentation(this.onDidChangePresentation, this));
-		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color);
+		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
 		dom.toggleClass(this.pickedColorNode, 'light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 	}
 
 	private onDidChangeColor(color: Color): void {
-		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color);
+		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color) || '';
 		dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
 		this.onDidChangePresentation();
 	}
@@ -127,10 +127,10 @@ class SaturationBox extends Disposable {
 	private height!: number;
 
 	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
-	private _onDidChange = new Emitter<{ s: number, v: number }>();
+	private readonly _onDidChange = new Emitter<{ s: number, v: number }>();
 	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
 
-	private _onColorFlushed = new Emitter<void>();
+	private readonly _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
 	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
@@ -150,7 +150,7 @@ class SaturationBox extends Disposable {
 
 		this.layout();
 
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
 		this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
 		this.monitor = null;
 	}
@@ -165,7 +165,7 @@ class SaturationBox extends Disposable {
 
 		this.monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
+		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			if (this.monitor) {
@@ -237,10 +237,10 @@ abstract class Strip extends Disposable {
 	protected slider: HTMLElement;
 	private height!: number;
 
-	private _onDidChange = new Emitter<number>();
+	private readonly _onDidChange = new Emitter<number>();
 	readonly onDidChange: Event<number> = this._onDidChange.event;
 
-	private _onColorFlushed = new Emitter<void>();
+	private readonly _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
 	constructor(container: HTMLElement, protected model: ColorPickerModel) {
@@ -250,7 +250,7 @@ abstract class Strip extends Disposable {
 		this.slider = dom.append(this.domNode, $('.slider'));
 		this.slider.style.top = `0px`;
 
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
 		this.layout();
 	}
 
@@ -272,7 +272,7 @@ abstract class Strip extends Disposable {
 
 		monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
+		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			monitor.stopMonitoring(true);

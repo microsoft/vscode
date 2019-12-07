@@ -121,7 +121,7 @@ function loadSourcemaps() {
             return;
         }
         if (!f.contents) {
-            cb(new Error('empty file'));
+            cb(undefined, f);
             return;
         }
         const contents = f.contents.toString('utf8');
@@ -166,22 +166,50 @@ function stripSourceMappingURL() {
 }
 exports.stripSourceMappingURL = stripSourceMappingURL;
 function rimraf(dir) {
-    let retries = 0;
-    const retry = (cb) => {
-        _rimraf(dir, { maxBusyTries: 1 }, (err) => {
-            if (!err) {
-                return cb();
-            }
-            if (err.code === 'ENOTEMPTY' && ++retries < 5) {
-                return setTimeout(() => retry(cb), 10);
-            }
-            return cb(err);
-        });
-    };
-    retry.taskName = `clean-${path.basename(dir).toLowerCase()}`;
-    return retry;
+    const result = () => new Promise((c, e) => {
+        let retries = 0;
+        const retry = () => {
+            _rimraf(dir, { maxBusyTries: 1 }, (err) => {
+                if (!err) {
+                    return c();
+                }
+                if (err.code === 'ENOTEMPTY' && ++retries < 5) {
+                    return setTimeout(() => retry(), 10);
+                }
+                return e(err);
+            });
+        };
+        retry();
+    });
+    result.taskName = `clean-${path.basename(dir).toLowerCase()}`;
+    return result;
 }
 exports.rimraf = rimraf;
+function _rreaddir(dirPath, prepend, result) {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            _rreaddir(path.join(dirPath, entry.name), `${prepend}/${entry.name}`, result);
+        }
+        else {
+            result.push(`${prepend}/${entry.name}`);
+        }
+    }
+}
+function rreddir(dirPath) {
+    let result = [];
+    _rreaddir(dirPath, '', result);
+    return result;
+}
+exports.rreddir = rreddir;
+function ensureDir(dirPath) {
+    if (fs.existsSync(dirPath)) {
+        return;
+    }
+    ensureDir(path.dirname(dirPath));
+    fs.mkdirSync(dirPath);
+}
+exports.ensureDir = ensureDir;
 function getVersion(root) {
     let version = process.env['BUILD_SOURCEVERSION'];
     if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
@@ -219,3 +247,10 @@ function versionStringToNumber(versionStr) {
     return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
 }
 exports.versionStringToNumber = versionStringToNumber;
+function streamToPromise(stream) {
+    return new Promise((c, e) => {
+        stream.on('error', err => e(err));
+        stream.on('end', () => c());
+    });
+}
+exports.streamToPromise = streamToPromise;

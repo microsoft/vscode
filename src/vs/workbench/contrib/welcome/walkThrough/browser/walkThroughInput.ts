@@ -10,6 +10,7 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -78,7 +79,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.telemetryFrom;
 	}
 
-	getTelemetryDescriptor(): { [key: string]: unknown } {
+	getTelemetryDescriptor(): { [key: string]: unknown; } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
 		/* __GDPR__FRAGMENT__
@@ -130,7 +131,7 @@ export class WalkThroughInput extends EditorInput {
 			let otherResourceEditorInput = <WalkThroughInput>otherInput;
 
 			// Compare by properties
-			return otherResourceEditorInput.options.resource.toString() === this.options.resource.toString();
+			return isEqual(otherResourceEditorInput.options.resource, this.options.resource);
 		}
 
 		return false;

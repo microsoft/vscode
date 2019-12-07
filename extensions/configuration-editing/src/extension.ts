@@ -4,22 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getLocation, parse, visit } from 'jsonc-parser';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SettingsDocument } from './settingsDocumentHelper';
 const localize = nls.loadMessageBundle();
-
-const fadedDecoration = vscode.window.createTextEditorDecorationType({
-	light: {
-		color: '#757575'
-	},
-	dark: {
-		color: '#878787'
-	}
-});
-
-let pendingLaunchJsonDecoration: NodeJS.Timer;
 
 export function activate(context: vscode.ExtensionContext): void {
 	//settings.json suggestions
@@ -33,18 +21,6 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// task.json variable suggestions
 	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
-
-	// launch.json decorations
-	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
-	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
-		if (vscode.window.activeTextEditor && event.document === vscode.window.activeTextEditor.document) {
-			if (pendingLaunchJsonDecoration) {
-				clearTimeout(pendingLaunchJsonDecoration);
-			}
-			pendingLaunchJsonDecoration = setTimeout(() => updateLaunchJsonDecorations(vscode.window.activeTextEditor), 1000);
-		}
-	}, null, context.subscriptions));
-	updateLaunchJsonDecorations(vscode.window.activeTextEditor);
 }
 
 function registerSettingsCompletions(): vscode.Disposable {
@@ -75,7 +51,8 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 					{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") },
 					{ label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") },
 					{ label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
-					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") }
+					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") },
+					{ label: 'defaultBuildTask', detail: localize('defaultBuildTask', "The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
 				].map(variable => ({
 					label: '${' + variable.label + '}',
 					range: new vscode.Range(startPosition, position),
@@ -150,39 +127,6 @@ function provideInstalledExtensionProposals(extensionsContent: IExtensionsConten
 		}
 	}
 	return undefined;
-}
-
-function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined): void {
-	if (!editor || path.basename(editor.document.fileName) !== 'launch.json') {
-		return;
-	}
-
-	const ranges: vscode.Range[] = [];
-	let addPropertyAndValue = false;
-	let depthInArray = 0;
-	visit(editor.document.getText(), {
-		onObjectProperty: (property, offset, length) => {
-			// Decorate attributes which are unlikely to be edited by the user.
-			// Only decorate "configurations" if it is not inside an array (compounds have a configurations property which should not be decorated).
-			addPropertyAndValue = property === 'version' || property === 'type' || property === 'request' || property === 'compounds' || (property === 'configurations' && depthInArray === 0);
-			if (addPropertyAndValue) {
-				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
-			}
-		},
-		onLiteralValue: (_value, offset, length) => {
-			if (addPropertyAndValue) {
-				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
-			}
-		},
-		onArrayBegin: (_offset: number, _length: number) => {
-			depthInArray++;
-		},
-		onArrayEnd: (_offset: number, _length: number) => {
-			depthInArray--;
-		}
-	});
-
-	editor.setDecorations(fadedDecoration, ranges);
 }
 
 vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'jsonc' }, {

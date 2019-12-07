@@ -25,6 +25,8 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 		case PConst.Kind.localVariable: return vscode.SymbolKind.Variable;
 		case PConst.Kind.function: return vscode.SymbolKind.Function;
 		case PConst.Kind.localFunction: return vscode.SymbolKind.Function;
+		case PConst.Kind.constructSignature: return vscode.SymbolKind.Constructor;
+		case PConst.Kind.constructorImplementation: return vscode.SymbolKind.Constructor;
 	}
 	return vscode.SymbolKind.Variable;
 };
@@ -64,12 +66,13 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		const children = new Set(item.childItems || []);
 		for (const span of item.spans) {
 			const range = typeConverters.Range.fromTextSpan(span);
+			const selectionRange = item.nameSpan ? typeConverters.Range.fromTextSpan(item.nameSpan) : range;
 			const symbolInfo = new vscode.DocumentSymbol(
 				item.text,
 				'',
 				getSymbolKind(item.kind),
 				range,
-				range);
+				range.contains(selectionRange) ? selectionRange : range);
 
 			for (const child of children) {
 				if (child.spans.some(span => !!range.intersection(typeConverters.Range.fromTextSpan(span)))) {

@@ -13,13 +13,13 @@ import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/mode
 import * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { IWorkspaceEditDto, IResourceTextEditDto, IResourceFileEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -67,9 +67,9 @@ export namespace Selection {
 export namespace Range {
 
 	export function from(range: undefined): undefined;
-	export function from(range: RangeLike): IRange;
-	export function from(range: RangeLike | undefined): IRange | undefined;
-	export function from(range: RangeLike | undefined): IRange | undefined {
+	export function from(range: RangeLike): editorRange.IRange;
+	export function from(range: RangeLike | undefined): editorRange.IRange | undefined;
+	export function from(range: RangeLike | undefined): editorRange.IRange | undefined {
 		if (!range) {
 			return undefined;
 		}
@@ -83,9 +83,9 @@ export namespace Range {
 	}
 
 	export function to(range: undefined): types.Range;
-	export function to(range: IRange): types.Range;
-	export function to(range: IRange | undefined): types.Range | undefined;
-	export function to(range: IRange | undefined): types.Range | undefined {
+	export function to(range: editorRange.IRange): types.Range;
+	export function to(range: editorRange.IRange | undefined): types.Range | undefined;
+	export function to(range: editorRange.IRange | undefined): types.Range | undefined {
 		if (!range) {
 			return undefined;
 		}
@@ -254,7 +254,7 @@ export namespace MarkdownString {
 		}
 
 		// extract uris into a separate object
-		const resUris: { [href: string]: UriComponents } = Object.create(null);
+		const resUris: { [href: string]: UriComponents; } = Object.create(null);
 		res.uris = resUris;
 
 		const collectUri = (href: string): string => {
@@ -276,35 +276,40 @@ export namespace MarkdownString {
 		return res;
 	}
 
-	function _uriMassage(part: string, bucket: { [n: string]: UriComponents }): string {
+	function _uriMassage(part: string, bucket: { [n: string]: UriComponents; }): string {
 		if (!part) {
 			return part;
 		}
 		let data: any;
 		try {
-			data = parse(decodeURIComponent(part));
+			data = parse(part);
 		} catch (e) {
 			// ignore
 		}
 		if (!data) {
 			return part;
 		}
+		let changed = false;
 		data = cloneAndChange(data, value => {
-			if (value instanceof URI) {
+			if (URI.isUri(value)) {
 				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
+				changed = true;
 				return key;
 			} else {
 				return undefined;
 			}
 		});
-		return encodeURIComponent(JSON.stringify(data));
+
+		if (!changed) {
+			return part;
+		}
+
+		return JSON.stringify(data);
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		const ret = new htmlContent.MarkdownString(value.value);
-		ret.isTrusted = value.isTrusted;
-		return ret;
+		return new htmlContent.MarkdownString(value.value, value.isTrusted);
 	}
 
 	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
@@ -473,8 +478,8 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): IWorkspaceEditDto {
-		const result: IWorkspaceEditDto = {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): extHostProtocol.IWorkspaceEditDto {
+		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
 		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
@@ -482,28 +487,28 @@ export namespace WorkspaceEdit {
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
 				const doc = documents && uri ? documents.getDocument(uri) : undefined;
-				result.edits.push(<IResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
+				result.edits.push(<extHostProtocol.IResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
-				result.edits.push(<IResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
+				result.edits.push(<extHostProtocol.IResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
 			}
 		}
 		return result;
 	}
 
-	export function to(value: IWorkspaceEditDto) {
+	export function to(value: extHostProtocol.IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			if (Array.isArray((<IResourceTextEditDto>edit).edits)) {
+			if (Array.isArray((<extHostProtocol.IResourceTextEditDto>edit).edits)) {
 				result.set(
-					URI.revive((<IResourceTextEditDto>edit).resource),
-					<types.TextEdit[]>(<IResourceTextEditDto>edit).edits.map(TextEdit.to)
+					URI.revive((<extHostProtocol.IResourceTextEditDto>edit).resource),
+					<types.TextEdit[]>(<extHostProtocol.IResourceTextEditDto>edit).edits.map(TextEdit.to)
 				);
 			} else {
 				result.renameFile(
-					URI.revive((<IResourceFileEditDto>edit).oldUri!),
-					URI.revive((<IResourceFileEditDto>edit).newUri!),
-					(<IResourceFileEditDto>edit).options
+					URI.revive((<extHostProtocol.IResourceFileEditDto>edit).oldUri!),
+					URI.revive((<extHostProtocol.IResourceFileEditDto>edit).newUri!),
+					(<extHostProtocol.IResourceFileEditDto>edit).options
 				);
 			}
 		}
@@ -514,7 +519,7 @@ export namespace WorkspaceEdit {
 
 export namespace SymbolKind {
 
-	const _fromMapping: { [kind: number]: modes.SymbolKind } = Object.create(null);
+	const _fromMapping: { [kind: number]: modes.SymbolKind; } = Object.create(null);
 	_fromMapping[types.SymbolKind.File] = modes.SymbolKind.File;
 	_fromMapping[types.SymbolKind.Module] = modes.SymbolKind.Module;
 	_fromMapping[types.SymbolKind.Namespace] = modes.SymbolKind.Namespace;
@@ -625,6 +630,46 @@ export namespace DocumentSymbol {
 		return result;
 	}
 }
+
+export namespace CallHierarchyItem {
+
+	export function to(item: extHostProtocol.ICallHierarchyItemDto): types.CallHierarchyItem {
+		const result = new types.CallHierarchyItem(
+			SymbolKind.to(item.kind),
+			item.name,
+			item.detail || '',
+			URI.revive(item.uri),
+			Range.to(item.range),
+			Range.to(item.selectionRange)
+		);
+
+		result._sessionId = item._sessionId;
+		result._itemId = item._itemId;
+
+		return result;
+	}
+}
+
+export namespace CallHierarchyIncomingCall {
+
+	export function to(item: extHostProtocol.IIncomingCallDto): types.CallHierarchyIncomingCall {
+		return new types.CallHierarchyIncomingCall(
+			CallHierarchyItem.to(item.from),
+			item.fromRanges.map(r => Range.to(r))
+		);
+	}
+}
+
+export namespace CallHierarchyOutgoingCall {
+
+	export function to(item: extHostProtocol.IOutgoingCallDto): types.CallHierarchyOutgoingCall {
+		return new types.CallHierarchyOutgoingCall(
+			CallHierarchyItem.to(item.to),
+			item.fromRanges.map(r => Range.to(r))
+		);
+	}
+}
+
 
 export namespace location {
 	export function from(value: vscode.Location): modes.Location {
@@ -796,14 +841,15 @@ export namespace CompletionItem {
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
-		result.range = Range.to(suggestion.range);
+		result.range = editorRange.Range.isIRange(suggestion.range) ? Range.to(suggestion.range) : undefined;
+		result.range2 = editorRange.Range.isIRange(suggestion.range) ? undefined : { inserting: Range.to(suggestion.range.insert), replacing: Range.to(suggestion.range.replace) };
 		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
 		// 'inserText'-logic
 		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
-			result.textEdit = new types.TextEdit(result.range, result.insertText);
+			result.textEdit = result.range instanceof types.Range ? new types.TextEdit(result.range, result.insertText) : undefined;
 		}
 		// TODO additionalEdits, command
 
@@ -832,7 +878,7 @@ export namespace SignatureInformation {
 		return {
 			label: info.label,
 			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined,
-			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
+			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.from) : []
 		};
 	}
 
@@ -840,7 +886,7 @@ export namespace SignatureInformation {
 		return {
 			label: info.label,
 			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation,
-			parameters: info.parameters && info.parameters.map(ParameterInformation.to)
+			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.to) : []
 		};
 	}
 }
@@ -851,7 +897,7 @@ export namespace SignatureHelp {
 		return {
 			activeSignature: help.activeSignature,
 			activeParameter: help.activeParameter,
-			signatures: help.signatures && help.signatures.map(SignatureInformation.from)
+			signatures: Array.isArray(help.signatures) ? help.signatures.map(SignatureInformation.from) : [],
 		};
 	}
 
@@ -859,7 +905,7 @@ export namespace SignatureHelp {
 		return {
 			activeSignature: help.activeSignature,
 			activeParameter: help.activeParameter,
-			signatures: help.signatures && help.signatures.map(SignatureInformation.to)
+			signatures: Array.isArray(help.signatures) ? help.signatures.map(SignatureInformation.to) : [],
 		};
 	}
 }

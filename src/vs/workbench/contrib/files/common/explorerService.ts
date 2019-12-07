@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService, IEditableData, IFilesConfiguration, SortOrder, SortOrderConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, IFilesConfiguration, SortOrder, SortOrderConfiguration, IContextProvider } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
@@ -18,12 +18,13 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IExpression } from 'vs/base/common/glob';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditableData } from 'vs/workbench/common/views';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
 	const scope = root ? { resource: root } : undefined;
 	const configuration = scope ? configurationService.getValue<IFilesConfiguration>(scope) : configurationService.getValue<IFilesConfiguration>();
 
-	return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
+	return configuration?.files?.exclude || Object.create(null);
 }
 
 export class ExplorerService implements IExplorerService {
@@ -31,16 +32,17 @@ export class ExplorerService implements IExplorerService {
 
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
-	private _onDidChangeRoots = new Emitter<void>();
-	private _onDidChangeItem = new Emitter<{ item?: ExplorerItem, recursive: boolean }>();
-	private _onDidChangeEditable = new Emitter<ExplorerItem>();
-	private _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
-	private _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
+	private readonly _onDidChangeRoots = new Emitter<void>();
+	private readonly _onDidChangeItem = new Emitter<{ item?: ExplorerItem, recursive: boolean }>();
+	private readonly _onDidChangeEditable = new Emitter<ExplorerItem>();
+	private readonly _onDidSelectResource = new Emitter<{ resource?: URI, reveal?: boolean }>();
+	private readonly _onDidCopyItems = new Emitter<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>();
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
 	private fileSystemProviderSchemes = new Set<string>();
+	private contextProvider: IContextProvider | undefined;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -48,7 +50,7 @@ export class ExplorerService implements IExplorerService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IClipboardService private clipboardService: IClipboardService,
-		@IEditorService private editorService: IEditorService
+		@IEditorService private editorService: IEditorService,
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 	}
@@ -79,6 +81,18 @@ export class ExplorerService implements IExplorerService {
 
 	get sortOrder(): SortOrder {
 		return this._sortOrder;
+	}
+
+	registerContextProvider(contextProvider: IContextProvider): void {
+		this.contextProvider = contextProvider;
+	}
+
+	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+		if (!this.contextProvider) {
+			return [];
+		}
+
+		return this.contextProvider.getContext(respectMultiSelection);
 	}
 
 	// Memoized locals
@@ -140,6 +154,10 @@ export class ExplorerService implements IExplorerService {
 		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
 	}
 
+	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined {
+		return this.editable;
+	}
+
 	getEditableData(stat: ExplorerItem): IEditableData | undefined {
 		return this.editable && this.editable.stat === stat ? this.editable.data : undefined;
 	}
@@ -169,7 +187,7 @@ export class ExplorerService implements IExplorerService {
 			const stat = await this.fileService.resolve(rootUri, options);
 
 			// Convert to model
-			const modelStat = ExplorerItem.create(stat, undefined, options.resolveTo);
+			const modelStat = ExplorerItem.create(this.fileService, stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 			const item = root.find(resource);
@@ -213,11 +231,11 @@ export class ExplorerService implements IExplorerService {
 					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolve(p.resource, { resolveMetadata });
 					thenable.then(stat => {
 						if (stat) {
-							const modelStat = ExplorerItem.create(stat, p.parent);
+							const modelStat = ExplorerItem.create(this.fileService, stat, p.parent);
 							ExplorerItem.mergeLocalWithDisk(modelStat, p);
 						}
 
-						const childElement = ExplorerItem.create(addedElement, p.parent);
+						const childElement = ExplorerItem.create(this.fileService, addedElement, p.parent);
 						// Make sure to remove any previous version of the file if any
 						p.removeChild(childElement);
 						p.addChild(childElement);
@@ -373,7 +391,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+		const configSortOrder = configuration?.explorer?.sortOrder || 'default';
 		if (this._sortOrder !== configSortOrder) {
 			const shouldRefresh = this._sortOrder !== undefined;
 			this._sortOrder = configSortOrder;

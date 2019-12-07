@@ -24,7 +24,7 @@ export class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, token);
 
 		await input.resolve();
@@ -43,7 +43,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	resolve(): Promise<IEditorModel | null> { return Promise.resolve(null); }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
-	getEncoding(): string { return null!; }
+	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }
 	setMode(mode: string) { }
 	setPreferredMode(mode: string) { }
@@ -60,8 +60,6 @@ suite('EditorGroupsService', () => {
 		}
 
 		class TestEditorInputFactory implements IEditorInputFactory {
-
-			constructor() { }
 
 			serialize(editorInput: EditorInput): string {
 				const testEditorInput = <TestEditorInput>editorInput;
@@ -80,7 +78,7 @@ suite('EditorGroupsService', () => {
 		}
 
 		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).registerEditorInputFactory('testEditorInputForGroupsService', TestEditorInputFactory);
-		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForGroupsService', 'My Test File Editor'), [new SyncDescriptor(TestEditorInput)]);
+		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(EditorDescriptor.create(TestEditorControl, 'MyTestEditorForGroupsService', 'My Test File Editor'), [new SyncDescriptor(TestEditorInput)]);
 	}
 
 	registerTestEditorInput();
@@ -442,8 +440,8 @@ suite('EditorGroupsService', () => {
 		assert.equal(editorWillOpenCounter, 2);
 		assert.equal(editorDidOpenCounter, 2);
 		assert.equal(activeEditorChangeCounter, 1);
-		assert.equal(group.getEditor(0), input);
-		assert.equal(group.getEditor(1), inputInactive);
+		assert.equal(group.getEditorByIndex(0), input);
+		assert.equal(group.getEditorByIndex(1), inputInactive);
 		assert.equal(group.getIndexOfEditor(input), 0);
 		assert.equal(group.getIndexOfEditor(inputInactive), 1);
 
@@ -493,8 +491,8 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(group.count, 2);
-		assert.equal(group.getEditor(0), input);
-		assert.equal(group.getEditor(1), inputInactive);
+		assert.equal(group.getEditorByIndex(0), input);
+		assert.equal(group.getEditorByIndex(1), inputInactive);
 
 		await group.closeEditors([input, inputInactive]);
 		assert.equal(group.isEmpty, true);
@@ -512,13 +510,13 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]);
 		assert.equal(group.count, 3);
-		assert.equal(group.getEditor(0), input1);
-		assert.equal(group.getEditor(1), input2);
-		assert.equal(group.getEditor(2), input3);
+		assert.equal(group.getEditorByIndex(0), input1);
+		assert.equal(group.getEditorByIndex(1), input2);
+		assert.equal(group.getEditorByIndex(2), input3);
 
 		await group.closeEditors({ except: input2 });
 		assert.equal(group.count, 1);
-		assert.equal(group.getEditor(0), input2);
+		assert.equal(group.getEditorByIndex(0), input2);
 		part.dispose();
 	});
 
@@ -533,9 +531,9 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]);
 		assert.equal(group.count, 3);
-		assert.equal(group.getEditor(0), input1);
-		assert.equal(group.getEditor(1), input2);
-		assert.equal(group.getEditor(2), input3);
+		assert.equal(group.getEditorByIndex(0), input1);
+		assert.equal(group.getEditorByIndex(1), input2);
+		assert.equal(group.getEditorByIndex(2), input3);
 
 		await group.closeEditors({ savedOnly: true });
 		assert.equal(group.count, 0);
@@ -553,14 +551,14 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]);
 		assert.equal(group.count, 3);
-		assert.equal(group.getEditor(0), input1);
-		assert.equal(group.getEditor(1), input2);
-		assert.equal(group.getEditor(2), input3);
+		assert.equal(group.getEditorByIndex(0), input1);
+		assert.equal(group.getEditorByIndex(1), input2);
+		assert.equal(group.getEditorByIndex(2), input3);
 
 		await group.closeEditors({ direction: CloseDirection.RIGHT, except: input2 });
 		assert.equal(group.count, 2);
-		assert.equal(group.getEditor(0), input1);
-		assert.equal(group.getEditor(1), input2);
+		assert.equal(group.getEditorByIndex(0), input1);
+		assert.equal(group.getEditorByIndex(1), input2);
 		part.dispose();
 	});
 
@@ -575,14 +573,14 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditors([{ editor: input1, options: { pinned: true } }, { editor: input2, options: { pinned: true } }, { editor: input3 }]);
 		assert.equal(group.count, 3);
-		assert.equal(group.getEditor(0), input1);
-		assert.equal(group.getEditor(1), input2);
-		assert.equal(group.getEditor(2), input3);
+		assert.equal(group.getEditorByIndex(0), input1);
+		assert.equal(group.getEditorByIndex(1), input2);
+		assert.equal(group.getEditorByIndex(2), input3);
 
 		await group.closeEditors({ direction: CloseDirection.LEFT, except: input2 });
 		assert.equal(group.count, 2);
-		assert.equal(group.getEditor(0), input2);
-		assert.equal(group.getEditor(1), input3);
+		assert.equal(group.getEditorByIndex(0), input2);
+		assert.equal(group.getEditorByIndex(1), input3);
 		part.dispose();
 	});
 
@@ -596,8 +594,8 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(group.count, 2);
-		assert.equal(group.getEditor(0), input);
-		assert.equal(group.getEditor(1), inputInactive);
+		assert.equal(group.getEditorByIndex(0), input);
+		assert.equal(group.getEditorByIndex(1), inputInactive);
 
 		await group.closeAllEditors();
 		assert.equal(group.isEmpty, true);
@@ -622,12 +620,12 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(group.count, 2);
-		assert.equal(group.getEditor(0), input);
-		assert.equal(group.getEditor(1), inputInactive);
+		assert.equal(group.getEditorByIndex(0), input);
+		assert.equal(group.getEditorByIndex(1), inputInactive);
 		group.moveEditor(inputInactive, group, { index: 0 });
 		assert.equal(editorMoveCounter, 1);
-		assert.equal(group.getEditor(0), inputInactive);
-		assert.equal(group.getEditor(1), input);
+		assert.equal(group.getEditorByIndex(0), inputInactive);
+		assert.equal(group.getEditorByIndex(1), input);
 		editorGroupChangeListener.dispose();
 		part.dispose();
 	});
@@ -644,13 +642,13 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(group.count, 2);
-		assert.equal(group.getEditor(0), input);
-		assert.equal(group.getEditor(1), inputInactive);
+		assert.equal(group.getEditorByIndex(0), input);
+		assert.equal(group.getEditorByIndex(1), inputInactive);
 		group.moveEditor(inputInactive, rightGroup, { index: 0 });
 		assert.equal(group.count, 1);
-		assert.equal(group.getEditor(0), input);
+		assert.equal(group.getEditorByIndex(0), input);
 		assert.equal(rightGroup.count, 1);
-		assert.equal(rightGroup.getEditor(0), inputInactive);
+		assert.equal(rightGroup.getEditorByIndex(0), inputInactive);
 		part.dispose();
 	});
 
@@ -666,14 +664,14 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
 		assert.equal(group.count, 2);
-		assert.equal(group.getEditor(0), input);
-		assert.equal(group.getEditor(1), inputInactive);
+		assert.equal(group.getEditorByIndex(0), input);
+		assert.equal(group.getEditorByIndex(1), inputInactive);
 		group.copyEditor(inputInactive, rightGroup, { index: 0 });
 		assert.equal(group.count, 2);
-		assert.equal(group.getEditor(0), input);
-		assert.equal(group.getEditor(1), inputInactive);
+		assert.equal(group.getEditorByIndex(0), input);
+		assert.equal(group.getEditorByIndex(1), inputInactive);
 		assert.equal(rightGroup.count, 1);
-		assert.equal(rightGroup.getEditor(0), inputInactive);
+		assert.equal(rightGroup.getEditorByIndex(0), inputInactive);
 		part.dispose();
 	});
 
@@ -687,11 +685,11 @@ suite('EditorGroupsService', () => {
 
 		await group.openEditor(input);
 		assert.equal(group.count, 1);
-		assert.equal(group.getEditor(0), input);
+		assert.equal(group.getEditorByIndex(0), input);
 
 		await group.replaceEditors([{ editor: input, replacement: inputInactive }]);
 		assert.equal(group.count, 1);
-		assert.equal(group.getEditor(0), inputInactive);
+		assert.equal(group.getEditorByIndex(0), inputInactive);
 		part.dispose();
 	});
 

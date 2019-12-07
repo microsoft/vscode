@@ -8,12 +8,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { request } from 'vs/base/parts/request/browser/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 /**
  * This service exposes the `request` API, while using the global
  * or configured proxy settings.
  */
-export class RequestService {
+export class RequestService implements IRequestService {
 
 	_serviceBrand: undefined;
 
@@ -31,5 +32,9 @@ export class RequestService {
 		}
 
 		return request(options, token);
+	}
+
+	async resolveProxy(url: string): Promise<string | undefined> {
+		return undefined; // not implemented in the web
 	}
 }

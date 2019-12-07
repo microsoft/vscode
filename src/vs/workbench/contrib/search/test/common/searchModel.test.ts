@@ -21,14 +21,14 @@ import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import * as process from 'vs/base/common/process';
 
 const nullEvent = new class {
-	id: number;
-	topic: string;
-	name: string;
-	description: string;
+	id: number = -1;
+	topic!: string;
+	name!: string;
+	description!: string;
 	data: any;
 
-	startTime: Date;
-	stopTime: Date;
+	startTime!: Date;
+	stopTime!: Date;
 
 	stop(): void {
 		return;
@@ -70,6 +70,10 @@ suite('SearchModel', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(ISearchService, {});
 		instantiationService.stub(ISearchService, 'textSearch', Promise.resolve({ results: [] }));
+
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true });
+		instantiationService.stub(IConfigurationService, config);
 	});
 
 	teardown(() => {

@@ -25,7 +25,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { FileMatch, FolderMatch, Match, RenderableMatch, SearchModel, BaseFolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
@@ -63,7 +63,7 @@ export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 	}
 
 	getTemplateId(element: RenderableMatch): string {
-		if (element instanceof BaseFolderMatch) {
+		if (element instanceof FolderMatch) {
 			return FolderMatchRenderer.TEMPLATE_ID;
 		} else if (element instanceof FileMatch) {
 			return FileMatchRenderer.TEMPLATE_ID;
@@ -114,7 +114,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 
 	renderElement(node: ITreeNode<FolderMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
 		const folderMatch = node.element;
-		if (folderMatch.hasResource()) {
+		if (folderMatch.resource) {
 			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource);
 			if (workspaceFolder && resources.isEqual(workspaceFolder.uri, folderMatch.resource)) {
 				templateData.label.setFile(folderMatch.resource, { fileKind: FileKind.ROOT_FOLDER, hidePath: true });
@@ -309,8 +309,8 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 	}
 
 	getAriaLabel(element: RenderableMatch): string | null {
-		if (element instanceof BaseFolderMatch) {
-			return element.hasResource() ?
+		if (element instanceof FolderMatch) {
+			return element.resource ?
 				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", element.count(), element.name()) :
 				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", element.count());
 		}

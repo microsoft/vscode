@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { connectRemoteAgentExtensionHost, IRemoteExtensionHostStartParams, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
@@ -25,7 +25,7 @@ import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
 export interface IInitDataProvider {
@@ -215,6 +215,7 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 				logLevel: this._logService.getLevel(),
 				logsLocation: remoteExtensionHostData.extensionHostLogsPath,
 				autoStart: true,
+				uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
 			};
 			return r;
 		});
@@ -222,6 +223,10 @@ export class RemoteExtensionHostClient extends Disposable implements IExtensionH
 
 	getInspectPort(): number | undefined {
 		return undefined;
+	}
+
+	enableInspectPort(): Promise<boolean> {
+		return Promise.resolve(false);
 	}
 
 	dispose(): void {

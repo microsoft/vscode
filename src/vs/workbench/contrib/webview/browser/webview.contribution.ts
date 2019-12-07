@@ -18,20 +18,20 @@ import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from '../browser/webviewEditor';
-import { WebviewEditorInput } from '../browser/webviewEditorInput';
-import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
+import { WebviewInput } from '../browser/webviewEditorInput';
+import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
 
-(Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
+(Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(EditorDescriptor.create(
 	WebviewEditor,
 	WebviewEditor.ID,
 	localize('webview.editor.label', "webview editor")),
-	[new SyncDescriptor(WebviewEditorInput)]);
+	[new SyncDescriptor(WebviewInput)]);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
 	WebviewEditorInputFactory.ID,
 	WebviewEditorInputFactory);
 
-registerSingleton(IWebviewEditorService, WebviewEditorService, true);
+registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
@@ -85,6 +85,6 @@ function registerWebViewCommands(editorId: string): void {
 registerWebViewCommands(WebviewEditor.ID);
 
 actionRegistry.registerWorkbenchAction(
-	new SyncActionDescriptor(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
+	SyncActionDescriptor.create(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
 	'Reload Webviews',
 	webviewDeveloperCategory);

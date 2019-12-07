@@ -20,6 +20,7 @@ import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { dispose } from 'vs/base/common/lifecycle';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -37,6 +38,18 @@ export class CursorStateChangedEvent {
 	 */
 	readonly selections: Selection[];
 	/**
+	 * The new model version id that `selections` apply to.
+	 */
+	readonly modelVersionId: number;
+	/**
+	 * The old selections.
+	 */
+	readonly oldSelections: Selection[] | null;
+	/**
+	 * The model version id the that `oldSelections` apply to.
+	 */
+	readonly oldModelVersionId: number;
+	/**
 	 * Source of the call that caused the event.
 	 */
 	readonly source: string;
@@ -45,8 +58,11 @@ export class CursorStateChangedEvent {
 	 */
 	readonly reason: CursorChangeReason;
 
-	constructor(selections: Selection[], source: string, reason: CursorChangeReason) {
+	constructor(selections: Selection[], modelVersionId: number, oldSelections: Selection[] | null, oldModelVersionId: number, source: string, reason: CursorChangeReason) {
 		this.selections = selections;
+		this.modelVersionId = modelVersionId;
+		this.oldSelections = oldSelections;
+		this.oldModelVersionId = oldModelVersionId;
 		this.source = source;
 		this.reason = reason;
 	}
@@ -152,7 +168,7 @@ class AutoClosedAction {
 
 export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
-	public static MAX_CURSOR_COUNT = 10000;
+	public static readonly MAX_CURSOR_COUNT = 10000;
 
 	private readonly _onDidReachMaxCursorCount: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidReachMaxCursorCount: Event<void> = this._onDidReachMaxCursorCount.event;
@@ -172,6 +188,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	private _isHandling: boolean;
 	private _isDoingComposition: boolean;
+	private _selectionsWhenCompositionStarted: Selection[] | null;
 	private _columnSelectData: IColumnSelectData | null;
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
@@ -187,6 +204,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		this._isHandling = false;
 		this._isDoingComposition = false;
+		this._selectionsWhenCompositionStarted = null;
 		this._columnSelectData = null;
 		this._autoClosedActions = [];
 		this._prevEditOperationType = EditOperationType.Other;
@@ -295,12 +313,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._columnSelectData = columnSelectData;
 	}
 
-	public reveal(horizontal: boolean, target: RevealTarget, scrollType: editorCommon.ScrollType): void {
-		this._revealRange(target, viewEvents.VerticalRevealType.Simple, horizontal, scrollType);
+	public reveal(source: string, horizontal: boolean, target: RevealTarget, scrollType: editorCommon.ScrollType): void {
+		this._revealRange(source, target, viewEvents.VerticalRevealType.Simple, horizontal, scrollType);
 	}
 
-	public revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: editorCommon.ScrollType) {
-		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal, scrollType);
+	public revealRange(source: string, revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: editorCommon.ScrollType) {
+		this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
@@ -371,7 +389,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 
 		this.setStates('restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
-		this.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Immediate);
+		this.reveal('restoreState', true, RevealTarget.Primary, editorCommon.ScrollType.Immediate);
 	}
 
 	private _onModelContentChanged(hadFlushEvent: boolean): void {
@@ -399,7 +417,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return this._columnSelectData;
 		}
 		const primaryCursor = this._cursors.getPrimaryCursor();
-		const primaryPos = primaryCursor.viewState.position;
+		const primaryPos = primaryCursor.viewState.selectionStart.getStartPosition();
 		const viewLineNumber = primaryPos.lineNumber;
 		const viewVisualColumn = CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos);
 		return {
@@ -423,7 +441,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		return this._cursors.getPrimaryCursor().modelState.position;
 	}
 
-	public setSelections(source: string, selections: ISelection[]): void {
+	public setSelections(source: string, selections: readonly ISelection[]): void {
 		this.setStates(source, CursorChangeReason.NotSet, CursorState.fromModelSelections(selections));
 	}
 
@@ -537,13 +555,15 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			|| oldState.cursorState.length !== newState.cursorState.length
 			|| newState.cursorState.some((newCursorState, i) => !newCursorState.modelState.equals(oldState.cursorState[i].modelState))
 		) {
-			this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+			const oldSelections = oldState ? oldState.cursorState.map(s => s.modelState.selection) : null;
+			const oldModelVersionId = oldState ? oldState.modelVersionId : 0;
+			this._onDidChange.fire(new CursorStateChangedEvent(selections, newState.modelVersionId, oldSelections, oldModelVersionId, source || 'keyboard', reason));
 		}
 
 		return true;
 	}
 
-	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	private _revealRange(source: string, revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
 		const viewPositions = this._cursors.getViewPositions();
 
 		let viewPosition = viewPositions[0];
@@ -568,13 +588,13 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal, scrollType);
+		this.emitCursorRevealRange(source, viewRange, verticalType, revealHorizontal, scrollType);
 	}
 
-	public emitCursorRevealRange(viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
+	public emitCursorRevealRange(source: string, viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
 		try {
 			const eventsCollector = this._beginEmit();
-			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal, scrollType));
+			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, verticalType, revealHorizontal, scrollType));
 		} finally {
 			this._endEmit();
 		}
@@ -666,6 +686,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		if (handlerId === H.CompositionStart) {
 			this._isDoingComposition = true;
+			this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
 			return;
 		}
 
@@ -673,7 +694,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this._isDoingComposition = false;
 		}
 
-		if (this._configuration.editor.readOnly) {
+		if (this._configuration.options.get(EditorOption.readOnly)) {
 			// All the remaining handlers will try to edit the model,
 			// but we cannot edit when read only...
 			this._onDidAttemptReadOnlyEdit.fire(undefined);
@@ -748,7 +769,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._validateAutoClosedActions();
 
 		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
-			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+			this._revealRange(source, RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 		}
 	}
 
@@ -756,7 +777,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (!this._isDoingComposition && source === 'keyboard') {
 			// composition finishes, let's check if we need to auto complete if necessary.
 			const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters));
+			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
+			this._selectionsWhenCompositionStarted = null;
 		}
 	}
 
@@ -764,19 +786,17 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (!this._isDoingComposition && source === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
-			for (let i = 0, len = text.length; i < len; i++) {
-				let charCode = text.charCodeAt(i);
-				let chr: string;
-				if (strings.isHighSurrogate(charCode) && i + 1 < len) {
-					chr = text.charAt(i) + text.charAt(i + 1);
-					i++;
-				} else {
-					chr = text.charAt(i);
-				}
+			const len = text.length;
+			let offset = 0;
+			while (offset < len) {
+				const charLength = strings.nextCharLength(text, offset);
+				const chr = text.substr(offset, charLength);
 
 				// Here we must interpret each typed character individually
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
 				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
+
+				offset += charLength;
 			}
 
 		} else {

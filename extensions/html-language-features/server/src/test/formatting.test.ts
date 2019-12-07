@@ -8,10 +8,9 @@ import * as fs from 'fs';
 
 import * as assert from 'assert';
 import { getLanguageModes } from '../modes/languageModes';
-import { TextDocument, Range, FormattingOptions } from 'vscode-languageserver-types';
+import { TextDocument, Range, FormattingOptions, ClientCapabilities } from 'vscode-html-languageservice';
 
 import { format } from '../modes/formatting';
-import { ClientCapabilities } from 'vscode-html-languageservice';
 
 suite('HTML Embedded Formatting', () => {
 
@@ -20,7 +19,7 @@ suite('HTML Embedded Formatting', () => {
 			settings: options,
 			folders: [{ name: 'foo', uri: 'test://foo' }]
 		};
-		var languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
+		let languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
 
 		let rangeStartOffset = value.indexOf('|');
 		let rangeEndOffset;
@@ -46,8 +45,8 @@ suite('HTML Embedded Formatting', () => {
 	}
 
 	function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): void {
-		let input = fs.readFileSync(path.join(__dirname, 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
-		let expected = fs.readFileSync(path.join(__dirname, 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
+		let input = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
+		let expected = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
 		assertFormat(input, expected, options, formatOptions, expectedPath);
 	}
 

@@ -18,6 +18,22 @@ export interface Iterator<T> {
 	next(): IteratorResult<T>;
 }
 
+interface NativeIteratorYieldResult<TYield> {
+	done?: false;
+	value: TYield;
+}
+
+interface NativeIteratorReturnResult<TReturn> {
+	done: true;
+	value: TReturn;
+}
+
+type NativeIteratorResult<T, TReturn = any> = NativeIteratorYieldResult<T> | NativeIteratorReturnResult<TReturn>;
+
+export interface NativeIterator<T> {
+	next(): NativeIteratorResult<T>;
+}
+
 export module Iterator {
 	const _empty: Iterator<any> = {
 		next() {
@@ -44,7 +60,7 @@ export module Iterator {
 		};
 	}
 
-	export function fromArray<T>(array: T[], index = 0, length = array.length): Iterator<T> {
+	export function fromArray<T>(array: ReadonlyArray<T>, index = 0, length = array.length): Iterator<T> {
 		return {
 			next(): IteratorResult<T> {
 				if (index >= length) {
@@ -52,6 +68,20 @@ export module Iterator {
 				}
 
 				return { done: false, value: array[index++] };
+			}
+		};
+	}
+
+	export function fromNativeIterator<T>(it: NativeIterator<T>): Iterator<T> {
+		return {
+			next(): IteratorResult<T> {
+				const result = it.next();
+
+				if (result.done) {
+					return FIN;
+				}
+
+				return { done: false, value: result.value };
 			}
 		};
 	}
@@ -142,13 +172,28 @@ export module Iterator {
 			}
 		};
 	}
+
+	export function chain<T>(iterator: Iterator<T>): ChainableIterator<T> {
+		return new ChainableIterator(iterator);
+	}
+}
+
+export class ChainableIterator<T> implements Iterator<T> {
+
+	constructor(private it: Iterator<T>) { }
+
+	next(): IteratorResult<T> { return this.it.next(); }
+	map<R>(fn: (t: T) => R): ChainableIterator<R> { return new ChainableIterator(Iterator.map(this.it, fn)); }
+	filter(fn: (t: T) => boolean): ChainableIterator<T> { return new ChainableIterator(Iterator.filter(this.it, fn)); }
 }
 
 export type ISequence<T> = Iterator<T> | T[];
 
-export function getSequenceIterator<T>(arg: Iterator<T> | T[]): Iterator<T> {
+export function getSequenceIterator<T>(arg: ISequence<T> | undefined): Iterator<T> {
 	if (Array.isArray(arg)) {
 		return Iterator.fromArray(arg);
+	} else if (!arg) {
+		return Iterator.empty();
 	} else {
 		return arg;
 	}
@@ -160,12 +205,12 @@ export interface INextIterator<T> {
 
 export class ArrayIterator<T> implements INextIterator<T> {
 
-	private items: T[];
+	private readonly items: readonly T[];
 	protected start: number;
 	protected end: number;
 	protected index: number;
 
-	constructor(items: T[], start: number = 0, end: number = items.length, index = start - 1) {
+	constructor(items: readonly T[], start: number = 0, end: number = items.length, index = start - 1) {
 		this.items = items;
 		this.start = start;
 		this.end = end;
@@ -193,7 +238,7 @@ export class ArrayIterator<T> implements INextIterator<T> {
 
 export class ArrayNavigator<T> extends ArrayIterator<T> implements INavigator<T> {
 
-	constructor(items: T[], start: number = 0, end: number = items.length, index = start - 1) {
+	constructor(items: readonly T[], start: number = 0, end: number = items.length, index = start - 1) {
 		super(items, start, end, index);
 	}
 
@@ -241,7 +286,7 @@ export interface INavigator<T> extends INextIterator<T> {
 
 export class MappedNavigator<T, R> extends MappedIterator<T, R> implements INavigator<R> {
 
-	constructor(protected navigator: INavigator<T>, fn: (item: T) => R) {
+	constructor(protected navigator: INavigator<T>, fn: (item: T | null) => R) {
 		super(navigator, fn);
 	}
 

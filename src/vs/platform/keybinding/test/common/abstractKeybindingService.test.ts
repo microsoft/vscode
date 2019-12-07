@@ -15,6 +15,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { INotification, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 function createContext(ctx: any) {
 	return {
@@ -86,6 +87,10 @@ suite('AbstractKeybindingService', () => {
 		public _dumpDebugInfoJSON(): string {
 			return '';
 		}
+
+		public registerSchemaContribution() {
+			// noop
+		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
@@ -119,8 +124,8 @@ suite('AbstractKeybindingService', () => {
 
 			let commandService: ICommandService = {
 				_serviceBrand: undefined,
-				onWillExecuteCommand: () => ({ dispose: () => { } }),
-				onDidExecuteCommand: () => ({ dispose: () => { } }),
+				onWillExecuteCommand: () => Disposable.None,
+				onDidExecuteCommand: () => Disposable.None,
 				executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
 					executeCommandCalls.push({
 						commandId: commandId,
@@ -158,7 +163,8 @@ suite('AbstractKeybindingService', () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
-				}
+				},
+				setFilter() { }
 			};
 
 			let resolver = new KeybindingResolver(items, []);

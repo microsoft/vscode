@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { coalesce } from '../utils/arrays';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 
@@ -33,9 +34,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 			return;
 		}
 
-		return response.body
-			.map(span => this.convertOutliningSpan(span, document))
-			.filter(foldingRange => !!foldingRange) as vscode.FoldingRange[];
+		return coalesce(response.body.map(span => this.convertOutliningSpan(span, document)));
 	}
 
 	private convertOutliningSpan(
@@ -55,7 +54,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 
 		const start = range.start.line;
 		// workaround for #47240
-		const end = (range.end.character > 0 && new Set(['}', ']']).has(document.getText(new vscode.Range(range.end.translate(0, -1), range.end))))
+		const end = (range.end.character > 0 && ['}', ']'].includes(document.getText(new vscode.Range(range.end.translate(0, -1), range.end))))
 			? Math.max(range.end.line - 1, range.start.line)
 			: range.end.line;
 

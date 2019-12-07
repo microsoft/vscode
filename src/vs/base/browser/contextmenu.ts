@@ -10,10 +10,10 @@ import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface IContextMenuEvent {
-	shiftKey?: boolean;
-	ctrlKey?: boolean;
-	altKey?: boolean;
-	metaKey?: boolean;
+	readonly shiftKey?: boolean;
+	readonly ctrlKey?: boolean;
+	readonly altKey?: boolean;
+	readonly metaKey?: boolean;
 }
 
 export class ContextSubMenu extends SubmenuAction {
@@ -25,6 +25,7 @@ export class ContextSubMenu extends SubmenuAction {
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
 	getActions(): ReadonlyArray<IAction | ContextSubMenu>;
+	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
 	getActionViewItem?(action: IAction): IActionViewItem | undefined;
 	getActionsContext?(event?: IContextMenuEvent): any;
 	getKeyBinding?(action: IAction): ResolvedKeybinding | undefined;

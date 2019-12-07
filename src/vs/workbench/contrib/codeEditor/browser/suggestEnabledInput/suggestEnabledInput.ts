@@ -27,11 +27,13 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IStyleOverrides, IThemable, attachStyler } from 'vs/platform/theme/common/styler';
+import { IStyleOverrides, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { IThemable } from 'vs/base/common/styler';
 
 interface SuggestResultsProvider {
 	/**
@@ -80,7 +82,7 @@ export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
 }
 
 type ISuggestEnabledInputStyles = {
-	[P in keyof ISuggestEnabledInputStyleOverrides]: Color;
+	[P in keyof ISuggestEnabledInputStyleOverrides]: Color | undefined;
 };
 
 export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
@@ -94,13 +96,13 @@ export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeServi
 
 export class SuggestEnabledInput extends Widget implements IThemable {
 
-	private _onShouldFocusResults = new Emitter<void>();
+	private readonly _onShouldFocusResults = new Emitter<void>();
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
 
-	private _onEnter = new Emitter<void>();
+	private readonly _onEnter = new Emitter<void>();
 	readonly onEnter: Event<void> = this._onEnter.event;
 
-	private _onInputDidChange = new Emitter<string | undefined>();
+	private readonly _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
 	private readonly inputWidget: CodeEditorWidget;
@@ -130,7 +132,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
 			{
-				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
+				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+					SuggestController.ID,
+					SnippetController2.ID,
+					ContextMenuController.ID,
+					MenuPreventer.ID,
+					SelectionClipboardContributionID,
+				]),
 				isSimpleWidget: true,
 			});
 		this._register(this.inputWidget);
@@ -216,7 +224,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 
 	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+		this.placeholderText.style.backgroundColor =
+			this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
 		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
 		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
 
@@ -228,7 +237,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : null;
+			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : '';
 		}
 	}
 
@@ -240,9 +249,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}
 	}
 
+	public onHide(): void {
+		this.inputWidget.onHide();
+	}
+
 	public layout(dimension: Dimension): void {
 		this.inputWidget.layout(dimension);
-		this.placeholderText.style.width = `${dimension.width}px`;
+		this.placeholderText.style.width = `${dimension.width - 2}px`;
 	}
 
 	private selectAll(): void {
@@ -274,6 +287,12 @@ registerThemingParticipant((theme, collector) => {
 	if (inputForegroundColor) {
 		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
 	}
+
+	const backgroundColor = theme.getColor(inputBackground);
+	if (backgroundColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+		collector.addRule(`.suggest-input-container .monaco-editor { background-color: ${backgroundColor}; } `);
+	}
 });
 
 
@@ -290,6 +309,7 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		ariaLabel: ariaLabel || '',
 
 		snippetSuggestions: 'none',
-		suggest: { filterGraceful: false, showIcons: false }
+		suggest: { filterGraceful: false, showIcons: false },
+		autoClosingBrackets: 'never'
 	};
 }

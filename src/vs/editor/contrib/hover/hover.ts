@@ -7,11 +7,11 @@ import 'vs/css!./hover';
 import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -21,34 +21,35 @@ import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHov
 import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 
 export class ModesHoverController implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.hover';
+	public static readonly ID = 'editor.contrib.hover';
 
 	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
-	private _contentWidget: ModesContentHoverWidget | null;
-	private _glyphWidget: ModesGlyphHoverWidget | null;
+	private readonly _contentWidget = new MutableDisposable<ModesContentHoverWidget>();
+	private readonly _glyphWidget = new MutableDisposable<ModesGlyphHoverWidget>();
 
 	get contentWidget(): ModesContentHoverWidget {
-		if (!this._contentWidget) {
+		if (!this._contentWidget.value) {
 			this._createHoverWidgets();
 		}
-		return this._contentWidget!;
+		return this._contentWidget.value!;
 	}
 
 	get glyphWidget(): ModesGlyphHoverWidget {
-		if (!this._glyphWidget) {
+		if (!this._glyphWidget.value) {
 			this._createHoverWidgets();
 		}
-		return this._glyphWidget!;
+		return this._glyphWidget.value!;
 	}
 
 	private _isMouseDown: boolean;
@@ -69,13 +70,11 @@ export class ModesHoverController implements IEditorContribution {
 	) {
 		this._isMouseDown = false;
 		this._hoverClicked = false;
-		this._contentWidget = null;
-		this._glyphWidget = null;
 
 		this._hookEvents();
 
-		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
-			if (e.contribInfo) {
+		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.hover)) {
 				this._hideWidgets();
 				this._unhookEvents();
 				this._hookEvents();
@@ -86,7 +85,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _hookEvents(): void {
 		const hideWidgetsEventHandler = () => this._hideWidgets();
 
-		const hoverOpts = this._editor.getConfiguration().contribInfo.hover;
+		const hoverOpts = this._editor.getOption(EditorOption.hover);
 		this._isHoverEnabled = hoverOpts.enabled;
 		this._isHoverSticky = hoverOpts.sticky;
 		if (this._isHoverEnabled) {
@@ -147,7 +146,6 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		// const this._editor.getConfiguration().contribInfo.hover.sticky;
 		let targetType = mouseEvent.target.type;
 
 		if (this._isMouseDown && this._hoverClicked && this.contentWidget.isColorPickerVisible()) {
@@ -165,7 +163,7 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (targetType === MouseTargetType.CONTENT_EMPTY) {
-			const epsilon = this._editor.getConfiguration().fontInfo.typicalHalfwidthCharacterWidth / 2;
+			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
 			const data = <IEmptyContentData>mouseEvent.target.detail;
 			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
 				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
@@ -198,38 +196,29 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		if (!this._glyphWidget || !this._contentWidget || (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible())) {
+		if (!this._glyphWidget.value || !this._contentWidget.value || (this._isMouseDown && this._hoverClicked && this._contentWidget.value.isColorPickerVisible())) {
 			return;
 		}
 
-		this._glyphWidget!.hide();
-		this._contentWidget.hide();
+		this._glyphWidget.value.hide();
+		this._contentWidget.value.hide();
 	}
 
 	private _createHoverWidgets() {
-		this._contentWidget = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._themeService, this._keybindingService, this._modeService, this._openerService);
-		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
+		this._contentWidget.value = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._themeService, this._keybindingService, this._modeService, this._openerService);
+		this._glyphWidget.value = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
 		this.contentWidget.startShowingAt(range, mode, focus);
 	}
 
-	public getId(): string {
-		return ModesHoverController.ID;
-	}
-
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
 		this._didChangeConfigurationHandler.dispose();
-
-		if (this._glyphWidget) {
-			this._glyphWidget.dispose();
-		}
-		if (this._contentWidget) {
-			this._contentWidget.dispose();
-		}
+		this._glyphWidget.dispose();
+		this._contentWidget.dispose();
 	}
 }
 
@@ -265,13 +254,55 @@ class ShowHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled;
+		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 		controller.showContentHover(range, HoverStartMode.Immediate, focus);
 	}
 }
 
-registerEditorContribution(ModesHoverController);
+class ShowDefinitionPreviewHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.showDefinitionPreviewHover',
+			label: nls.localize({
+				key: 'showDefinitionPreviewHover',
+				comment: [
+					'Label for action that will trigger the showing of definition preview hover in the editor.',
+					'This allows for users to show the definition preview hover without using the mouse.'
+				]
+			}, "Show Definition Preview Hover"),
+			alias: 'Show Definition Preview Hover',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		const position = editor.getPosition();
+
+		if (!position) {
+			return;
+		}
+
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		const goto = GotoDefinitionAtPositionEditorContribution.get(editor);
+		const promise = goto.startFindDefinitionFromCursor(position);
+		if (promise) {
+			promise.then(() => {
+				controller.showContentHover(range, HoverStartMode.Immediate, true);
+			});
+		} else {
+			controller.showContentHover(range, HoverStartMode.Immediate, true);
+		}
+	}
+}
+
+registerEditorContribution(ModesHoverController.ID, ModesHoverController);
 registerEditorAction(ShowHoverAction);
+registerEditorAction(ShowDefinitionPreviewHoverAction);
 
 // theming
 registerThemingParticipant((theme, collector) => {
@@ -293,6 +324,10 @@ registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .monaco-editor-hover a { color: ${link}; }`);
+	}
+	const hoverForeground = theme.getColor(editorHoverForeground);
+	if (hoverForeground) {
+		collector.addRule(`.monaco-editor .monaco-editor-hover { color: ${hoverForeground}; }`);
 	}
 	const actionsBackground = theme.getColor(editorHoverStatusBarBackground);
 	if (actionsBackground) {

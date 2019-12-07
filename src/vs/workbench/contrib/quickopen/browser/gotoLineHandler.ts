@@ -16,7 +16,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IRange } from 'vs/editor/common/core/range';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -50,8 +50,9 @@ export class GotoLineAction extends QuickOpenAction {
 		let restoreOptions: IEditorOptions | null = null;
 
 		if (isCodeEditor(activeTextEditorWidget)) {
-			const config = activeTextEditorWidget.getConfiguration();
-			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
+			const options = activeTextEditorWidget.getOptions();
+			const lineNumbers = options.get(EditorOption.lineNumbers);
+			if (lineNumbers.renderType === RenderLineNumbersType.Relative) {
 				activeTextEditorWidget.updateOptions({
 					lineNumbers: 'on'
 				});

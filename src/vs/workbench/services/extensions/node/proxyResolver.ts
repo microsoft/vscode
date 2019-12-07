@@ -343,9 +343,13 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 				return original.apply(null, arguments as unknown as any[]);
 			}
 
-			const optionsPatched = options.agent instanceof ProxyAgent;
+			const originalAgent = options.agent;
+			if (originalAgent === true) {
+				throw new Error('Unexpected agent option: true');
+			}
+			const optionsPatched = originalAgent instanceof ProxyAgent;
 			const config = onRequest && ((<any>options)._vscodeProxySupport || /* LS */ (<any>options)._vscodeSystemProxy) || proxySetting.config;
-			const useProxySettings = !optionsPatched && (config === 'override' || config === 'on' && !options.agent);
+			const useProxySettings = !optionsPatched && (config === 'override' || config === 'on' && originalAgent === undefined);
 			const useSystemCertificates = !optionsPatched && certSetting.config && originals === https && !(options as https.RequestOptions).ca;
 
 			if (useProxySettings || useSystemCertificates) {
@@ -367,7 +371,7 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 				options.agent = new ProxyAgent({
 					resolveProxy: resolveProxy.bind(undefined, { useProxySettings, useSystemCertificates }),
 					defaultPort: originals === https ? 443 : 80,
-					originalAgent: options.agent
+					originalAgent
 				});
 				return original(options, callback);
 			}
@@ -469,26 +473,26 @@ async function readCaCertificates() {
 }
 
 async function readWindowsCaCertificates() {
-	// Not using await to work around minifier bug (https://github.com/microsoft/vscode/issues/79044).
-	return import('vscode-windows-ca-certs')
-		.then(winCA => {
-			let ders: any[] = [];
-			const store = winCA();
-			try {
-				let der: any;
-				while (der = store.next()) {
-					ders.push(der);
-				}
-			} finally {
-				store.done();
-			}
+	const winCA = await new Promise<any>((resolve, reject) => {
+		require(['vscode-windows-ca-certs'], resolve, reject);
+	});
 
-			const certs = new Set(ders.map(derToPem));
-			return {
-				certs: Array.from(certs),
-				append: true
-			};
-		});
+	let ders: any[] = [];
+	const store = winCA();
+	try {
+		let der: any;
+		while (der = store.next()) {
+			ders.push(der);
+		}
+	} finally {
+		store.done();
+	}
+
+	const certs = new Set(ders.map(derToPem));
+	return {
+		certs: Array.from(certs),
+		append: true
+	};
 }
 
 async function readMacCaCertificates() {

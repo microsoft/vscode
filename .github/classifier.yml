@@ -18,124 +18,124 @@
             assignees: [ weinand ],
             assignLabel: false
         },
-        diff-editor: : {
+        diff-editor: {
             assignees: [],
             assignLabel: false
         },
         dropdown: [],
-        editor: : {
+        editor: {
             assignees: [],
             assignLabel: false
         },
-        editor-1000-limit: : {
+        editor-1000-limit: {
             assignees: [],
             assignLabel: false
         },
-        editor-autoclosing: : {
+        editor-autoclosing: {
             assignees: [],
             assignLabel: false
         },
-        editor-autoindent: : {
+        editor-autoindent: {
             assignees: [],
             assignLabel: false
         },
-        editor-brackets: : {
+        editor-brackets: {
             assignees: [],
             assignLabel: false
         },
-        editor-clipboard: : {
+        editor-clipboard: {
             assignees: [],
             assignLabel: false
         },
-        editor-code-actions: : {
+        editor-code-actions: {
             assignees: [],
             assignLabel: false
         },
-        editor-code-lens: : {
+        editor-code-lens: {
             assignees: [],
             assignLabel: false
         },
-        editor-color-picker: : {
+        editor-color-picker: {
             assignees: [],
             assignLabel: false
         },
-        editor-colors: : {
+        editor-colors: {
             assignees: [],
             assignLabel: false
         },
-        editor-columnselect: : {
+        editor-columnselect: {
             assignees: [],
             assignLabel: false
         },
-        editor-commands: : {
+        editor-commands: {
             assignees: [],
             assignLabel: false
         },
-        editor-contrib: : {
+        editor-contrib: {
             assignees: [],
             assignLabel: false
         },
-        editor-drag-and-drop: : {
+        editor-drag-and-drop: {
             assignees: [],
             assignLabel: false
         },
-        editor-find: : {
+        editor-find: {
             assignees: [],
             assignLabel: false
         },
-        editor-folding: : {
+        editor-folding: {
             assignees: [],
             assignLabel: false
         },
-        editor-hover: : {
+        editor-hover: {
             assignees: [],
             assignLabel: false
         },
-        editor-ime: : {
+        editor-ime: {
             assignees: [],
             assignLabel: false
         },
-        editor-input: : {
+        editor-input: {
             assignees: [],
             assignLabel: false
         },
-        editor-ligatures: : {
+        editor-ligatures: {
             assignees: [],
             assignLabel: false
         },
-        editor-links: : {
+        editor-links: {
             assignees: [],
             assignLabel: false
         },
-        editor-minimap: : {
+        editor-minimap: {
             assignees: [],
             assignLabel: false
         },
-        editor-multicursor: : {
+        editor-multicursor: {
             assignees: [],
             assignLabel: false
         },
-        editor-parameter-hints: : {
+        editor-parameter-hints: {
             assignees: [],
             assignLabel: false
         },
-        editor-rendering: : {
+        editor-rendering: {
             assignees: [],
             assignLabel: false
         },
-        editor-smooth: : {
+        editor-smooth: {
             assignees: [],
             assignLabel: false
         },
-        editor-symbols: : {
+        editor-symbols: {
             assignees: [],
             assignLabel: false
         },
-        editor-textbuffer: : {
+        editor-textbuffer: {
             assignees: [],
             assignLabel: false
         },
-        editor-wrapping: : {
+        editor-wrapping: {
             assignees: [],
             assignLabel: false
         },
@@ -144,6 +144,7 @@
         explorer-custom: [],
         extension-host: [],
         extensions: [],
+        extensions-development: [ octref ],
         file-decorations: [],
         file-encoding: {
             assignees: [],
@@ -174,11 +175,11 @@
         issue-reporter: [ RMacfarlane ],
         javascript: [ mjbvz ],
         json: [],
-        keyboard-layout: : {
+        keyboard-layout: {
             assignees: [],
             assignLabel: false
         },
-        keybindings: : {
+        keybindings: {
             assignees: [],
             assignLabel: false
         },

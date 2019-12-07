@@ -27,7 +27,7 @@ export class ReplacePattern {
 		} else {
 			searchPatternInfo = arg2;
 			parseParameters = !!searchPatternInfo.isRegExp;
-			this._regExp = strings.createRegExp(searchPatternInfo.pattern, !!searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false });
+			this._regExp = strings.createRegExp(searchPatternInfo.pattern, !!searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false, unicode: true });
 		}
 
 		if (parseParameters) {
@@ -61,9 +61,9 @@ export class ReplacePattern {
 		if (match) {
 			if (this.hasParameters) {
 				if (match[0] === text) {
-					return text.replace(this._regExp, this.pattern);
+					return text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
 				}
-				let replaceString = text.replace(this._regExp, this.pattern);
+				let replaceString = text.replace(this._regExp, this.buildReplaceString(match, preserveCase));
 				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
 			}
 			return this.buildReplaceString(match, preserveCase);

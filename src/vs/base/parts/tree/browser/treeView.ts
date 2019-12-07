@@ -154,7 +154,7 @@ export class ViewItem implements IViewItem {
 	}
 
 	set loading(value: boolean) {
-		value ? this.addClass('loading') : this.removeClass('loading');
+		value ? this.addClass('codicon-loading') : this.removeClass('codicon-loading');
 	}
 
 	set draggable(value: boolean) {
@@ -265,7 +265,7 @@ export class ViewItem implements IViewItem {
 			}
 
 			if (this.context.horizontalScrolling) {
-				this.element.style.width = 'fit-content';
+				this.element.style.width = Browser.isFirefox ? '-moz-fit-content' : 'fit-content';
 			}
 
 			try {
@@ -289,7 +289,7 @@ export class ViewItem implements IViewItem {
 
 		const style = window.getComputedStyle(this.element);
 		const paddingLeft = parseFloat(style.paddingLeft!);
-		this.element.style.width = 'fit-content';
+		this.element.style.width = Browser.isFirefox ? '-moz-fit-content' : 'fit-content';
 		this.width = DOM.getContentWidth(this.element) + paddingLeft;
 		this.element.style.width = '';
 	}
@@ -398,8 +398,8 @@ function reactionEquals(one: _.IDragOverReaction, other: _.IDragOverReaction | n
 
 export class TreeView extends HeightMap {
 
-	static BINDING = 'monaco-tree-row';
-	static LOADING_DECORATION_DELAY = 800;
+	static readonly BINDING = 'monaco-tree-row';
+	static readonly LOADING_DECORATION_DELAY = 800;
 
 	private static counter: number = 0;
 	private instance: number;
@@ -437,6 +437,7 @@ export class TreeView extends HeightMap {
 	private shouldInvalidateDropReaction: boolean;
 	private currentDropTargets: ViewItem[] | null = null;
 	private currentDropDisposable: Lifecycle.IDisposable = Lifecycle.Disposable.None;
+	private gestureDisposable: Lifecycle.IDisposable = Lifecycle.Disposable.None;
 	private dragAndDropScrollInterval: number | null = null;
 	private dragAndDropScrollTimeout: number | null = null;
 	private dragAndDropMouseY: number | null = null;
@@ -523,7 +524,7 @@ export class TreeView extends HeightMap {
 			this.wrapper.style.msTouchAction = 'none';
 			this.wrapper.style.msContentZooming = 'none';
 		} else {
-			Touch.Gesture.addTarget(this.wrapper);
+			this.gestureDisposable = Touch.Gesture.addTarget(this.wrapper);
 		}
 
 		this.rowsContainer = document.createElement('div');
@@ -924,16 +925,15 @@ export class TreeView extends HeightMap {
 			if (!skipDiff) {
 				const lcs = new Diff.LcsDiff(
 					{
-						getLength: () => previousChildrenIds.length,
-						getElementAtIndex: (i: number) => previousChildrenIds[i]
-					}, {
-						getLength: () => afterModelItems.length,
-						getElementAtIndex: (i: number) => afterModelItems[i].id
+						getElements: () => previousChildrenIds
+					},
+					{
+						getElements: () => afterModelItems.map(item => item.id)
 					},
 					null
 				);
 
-				diff = lcs.ComputeDiff(false);
+				diff = lcs.ComputeDiff(false).changes;
 
 				// this means that the result of the diff algorithm would result
 				// in inserting items that were already registered. this can only
@@ -1675,6 +1675,7 @@ export class TreeView extends HeightMap {
 		if (this.context.cache) {
 			this.context.cache.dispose();
 		}
+		this.gestureDisposable.dispose();
 
 		super.dispose();
 	}

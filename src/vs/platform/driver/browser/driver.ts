@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
 
 class BrowserWindowDriver extends BaseWindowDriver {
@@ -21,7 +21,5 @@ class BrowserWindowDriver extends BaseWindowDriver {
 export async function registerWindowDriver(): Promise<IDisposable> {
 	(<any>window).driver = new BrowserWindowDriver();
 
-	return toDisposable(() => {
-		return { dispose: () => { } };
-	});
+	return Disposable.None;
 }

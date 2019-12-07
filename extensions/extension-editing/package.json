@@ -54,6 +54,6 @@
 	},
 	"devDependencies": {
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "^10.14.8"
+		"@types/node": "^12.11.7"
 	}
 }

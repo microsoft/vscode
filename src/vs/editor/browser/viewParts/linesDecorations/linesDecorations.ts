@@ -8,6 +8,8 @@ import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/gl
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 export class LinesDecorationsOverlay extends DedupOverlay {
 
@@ -20,8 +22,10 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
-		this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
-		this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._decorationsLeft = layoutInfo.decorationsLeft;
+		this._decorationsWidth = layoutInfo.decorationsWidth;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -35,10 +39,10 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.layoutInfo) {
-			this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
-			this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
-		}
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._decorationsLeft = layoutInfo.decorationsLeft;
+		this._decorationsWidth = layoutInfo.decorationsWidth;
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {

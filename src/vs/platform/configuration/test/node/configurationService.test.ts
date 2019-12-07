@@ -14,6 +14,8 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { testFile } from 'vs/base/test/node/utils';
 import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Event } from 'vs/base/common/event';
 
 suite('ConfigurationService - Node', () => {
 
@@ -94,10 +96,11 @@ suite('ConfigurationService - Node', () => {
 		const service = new ConfigurationService(URI.file(res.testFile));
 		await service.initialize();
 		return new Promise((c, e) => {
-			const disposable = service.onDidChangeConfiguration(() => {
+			const disposable = Event.filter(service.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(async (e) => {
 				disposable.dispose();
 				assert.equal(service.getValue('foo'), 'bar');
 				service.dispose();
+				await res.cleanUp();
 				c();
 			});
 			fs.writeFileSync(res.testFile, '{ "foo": "bar" }');

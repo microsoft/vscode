@@ -17,6 +17,7 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { relative } from 'vs/base/common/path';
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.view.search';
@@ -132,6 +133,7 @@ export interface IPatternInfo {
 	isWordMatch?: boolean;
 	wordSeparators?: string;
 	isMultiline?: boolean;
+	isUnicode?: boolean;
 	isCaseSensitive?: boolean;
 }
 
@@ -251,7 +253,10 @@ export class TextSearchMatch implements ITextSearchMatch {
 	constructor(text: string, range: ISearchRange | ISearchRange[], previewOptions?: ITextSearchPreviewOptions) {
 		this.ranges = range;
 
-		if (previewOptions && previewOptions.matchLines === 1 && (!Array.isArray(range) || range.length === 1)) {
+		// Trim preview if this is one match and a single-line match with a preview requested.
+		// Otherwise send the full text, like for replace or for showing multiple previews.
+		// TODO this is fishy.
+		if (previewOptions && previewOptions.matchLines === 1 && (!Array.isArray(range) || range.length === 1) && isSingleLineRange(range)) {
 			const oneRange = Array.isArray(range) ? range[0] : range;
 
 			// 1 line preview requested
@@ -272,13 +277,18 @@ export class TextSearchMatch implements ITextSearchMatch {
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
-			// n line, no preview requested, or multiple matches in the preview
 			this.preview = {
 				text,
 				matches: mapArrayOrNot(range, r => new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn))
 			};
 		}
 	}
+}
+
+function isSingleLineRange(range: ISearchRange | ISearchRange[]): boolean {
+	return Array.isArray(range) ?
+		range[0].startLineNumber === range[0].endLineNumber :
+		range.startLineNumber === range.endLineNumber;
 }
 
 export class SearchRange implements ISearchRange {
@@ -319,6 +329,10 @@ export interface ISearchConfigurationProperties {
 	actionsPosition: 'auto' | 'right';
 	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
+	searchOnType: boolean;
+	searchOnTypeDebouncePeriod: number;
+	enableSearchEditorPreview: boolean;
+	searchEditorPreviewForceAbsolutePaths: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
@@ -362,7 +376,8 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 		return !!queryProps.folderQueries && queryProps.folderQueries.every(fq => {
 			const searchPath = fq.folder.fsPath;
 			if (extpath.isEqualOrParent(fsPath, searchPath)) {
-				return !fq.includePattern || !!glob.match(fq.includePattern, fsPath);
+				const relPath = relative(searchPath, fsPath);
+				return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
 			} else {
 				return false;
 			}
@@ -516,7 +531,7 @@ export class QueryGlobTester {
 	private _excludeExpression: glob.IExpression;
 	private _parsedExcludeExpression: glob.ParsedExpression;
 
-	private _parsedIncludeExpression: glob.ParsedExpression;
+	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
 
 	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
 		this._excludeExpression = {

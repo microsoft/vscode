@@ -7,140 +7,206 @@ import * as minimist from 'vscode-minimist';
 import * as os from 'os';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { join } from 'vs/base/common/path';
-import { writeFileSync } from 'vs/base/node/pfs';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
  */
-
 const helpCategories = {
 	o: localize('optionsUpperCase', "Options"),
 	e: localize('extensionsManagement', "Extensions Management"),
 	t: localize('troubleshooting', "Troubleshooting")
 };
 
-export interface Option {
-	id: keyof ParsedArgs;
-	type: 'boolean' | 'string';
+export interface Option<OptionType> {
+	type: OptionType;
 	alias?: string;
 	deprecates?: string; // old deprecated id
 	args?: string | string[];
 	description?: string;
 	cat?: keyof typeof helpCategories;
 }
-//_urls
-export const options: Option[] = [
-	{ id: 'diff', type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
-	{ id: 'add', type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
-	{ id: 'goto', type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
-	{ id: 'new-window', type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
-	{ id: 'reuse-window', type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
-	{ id: 'wait', type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
-	{ id: 'locale', type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
-	{ id: 'user-data-dir', type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
-	{ id: 'version', type: 'boolean', cat: 'o', alias: 'v', description: localize('version', "Print version.") },
-	{ id: 'help', type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
-	{ id: 'telemetry', type: 'boolean', cat: 'o', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
-	{ id: 'folder-uri', type: 'string', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
-	{ id: 'file-uri', type: 'string', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
 
-	{ id: 'extensions-dir', type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
-	{ id: 'list-extensions', type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
-	{ id: 'show-versions', type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
-	{ id: 'category', type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extension.") },
-	{ id: 'install-extension', type: 'string', cat: 'e', args: 'extension-id | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
-	{ id: 'uninstall-extension', type: 'string', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
-	{ id: 'enable-proposed-api', type: 'string', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
+export type OptionDescriptions<T> = {
+	[P in keyof T]: Option<OptionTypeName<T[P]>>;
+};
 
-	{ id: 'verbose', type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
-	{ id: 'log', type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
-	{ id: 'status', type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
-	{ id: 'prof-startup', type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
-	{ id: 'disable-extensions', type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
-	{ id: 'disable-extension', type: 'string', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
+type OptionTypeName<T> =
+	T extends boolean ? 'boolean' :
+	T extends string ? 'string' :
+	T extends string[] ? 'string[]' :
+	T extends undefined ? 'undefined' :
+	'unknown';
 
-	{ id: 'inspect-extensions', type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
-	{ id: 'inspect-brk-extensions', type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
-	{ id: 'disable-gpu', type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
-	{ id: 'max-memory', type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
+export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
+	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
+	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
+	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
+	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
+	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
+	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
+	'waitMarkerFilePath': { type: 'string' },
+	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
+	'user-data-dir': { type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
+	'version': { type: 'boolean', cat: 'o', alias: 'v', description: localize('version', "Print version.") },
+	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
+	'telemetry': { type: 'boolean', cat: 'o', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
+	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri', description: localize('folderUri', "Opens a window with given folder uri(s)") },
+	'file-uri': { type: 'string[]', cat: 'o', args: 'uri', description: localize('fileUri', "Opens a window with given file uri(s)") },
 
-	{ id: 'remote', type: 'string' },
-	{ id: 'locate-extension', type: 'string' },
-	{ id: 'extensionDevelopmentPath', type: 'string' },
-	{ id: 'extensionTestsPath', type: 'string' },
-	{ id: 'extension-development-confirm-save', type: 'boolean' },
-	{ id: 'debugId', type: 'string' },
-	{ id: 'inspect-search', type: 'string', deprecates: 'debugSearch' },
-	{ id: 'inspect-brk-search', type: 'string', deprecates: 'debugBrkSearch' },
-	{ id: 'export-default-configuration', type: 'string' },
-	{ id: 'install-source', type: 'string' },
-	{ id: 'driver', type: 'string' },
-	{ id: 'logExtensionHostCommunication', type: 'boolean' },
-	{ id: 'skip-getting-started', type: 'boolean' },
-	{ id: 'skip-release-notes', type: 'boolean' },
-	{ id: 'sticky-quickopen', type: 'boolean' },
-	{ id: 'disable-restore-windows', type: 'boolean' },
-	{ id: 'disable-telemetry', type: 'boolean' },
-	{ id: 'disable-updates', type: 'boolean' },
-	{ id: 'disable-crash-reporter', type: 'boolean' },
-	{ id: 'skip-add-to-recently-opened', type: 'boolean' },
-	{ id: 'unity-launch', type: 'boolean' },
-	{ id: 'open-url', type: 'boolean' },
-	{ id: 'file-write', type: 'boolean' },
-	{ id: 'file-chmod', type: 'boolean' },
-	{ id: 'driver-verbose', type: 'boolean' },
-	{ id: 'force', type: 'boolean' },
-	{ id: 'trace-category-filter', type: 'string' },
-	{ id: 'trace-options', type: 'string' },
-	{ id: '_', type: 'string' },
+	'extensions-dir': { type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
+	'builtin-extensions-dir': { type: 'string' },
+	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
+	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
+	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extension.") },
+	'install-extension': { type: 'string[]', cat: 'e', args: 'extension-id | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
+	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
+	'enable-proposed-api': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
-	{ id: 'js-flags', type: 'string' }, // chrome js flags
-	{ id: 'nolazy', type: 'boolean' }, // node inspect
-];
+	'verbose': { type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
+	'log': { type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
+	'status': { type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
+	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
+	'prof-append-timers': { type: 'string' },
+	'prof-startup-prefix': { type: 'string' },
+	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
+	'disable-extension': { type: 'string[]', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
 
-export function parseArgs(args: string[], isOptionSupported = (_: Option) => true): ParsedArgs {
+	'inspect-extensions': { type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
+	'inspect-brk-extensions': { type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
+	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
+	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
+
+	'remote': { type: 'string' },
+	'locate-extension': { type: 'string[]' },
+	'extensionDevelopmentPath': { type: 'string[]' },
+	'extensionTestsPath': { type: 'string' },
+	'extension-development-confirm-save': { type: 'boolean' },
+	'debugId': { type: 'string' },
+	'inspect-search': { type: 'string', deprecates: 'debugSearch' },
+	'inspect-brk-search': { type: 'string', deprecates: 'debugBrkSearch' },
+	'export-default-configuration': { type: 'string' },
+	'install-source': { type: 'string' },
+	'driver': { type: 'string' },
+	'logExtensionHostCommunication': { type: 'boolean' },
+	'skip-getting-started': { type: 'boolean' },
+	'skip-release-notes': { type: 'boolean' },
+	'sticky-quickopen': { type: 'boolean' },
+	'disable-restore-windows': { type: 'boolean' },
+	'disable-telemetry': { type: 'boolean' },
+	'disable-updates': { type: 'boolean' },
+	'disable-crash-reporter': { type: 'boolean' },
+	'disable-user-env-probe': { type: 'boolean' },
+	'skip-add-to-recently-opened': { type: 'boolean' },
+	'unity-launch': { type: 'boolean' },
+	'open-url': { type: 'boolean' },
+	'file-write': { type: 'boolean' },
+	'file-chmod': { type: 'boolean' },
+	'driver-verbose': { type: 'boolean' },
+	'force': { type: 'boolean' },
+	'trace': { type: 'boolean' },
+	'trace-category-filter': { type: 'string' },
+	'trace-options': { type: 'string' },
+	'force-user-env': { type: 'boolean' },
+
+	// chromium flags
+	'no-proxy-server': { type: 'boolean' },
+	'proxy-server': { type: 'string' },
+	'proxy-bypass-list': { type: 'string' },
+	'proxy-pac-url': { type: 'string' },
+	'js-flags': { type: 'string' }, // chrome js flags
+	'inspect': { type: 'string' },
+	'inspect-brk': { type: 'string' },
+	'nolazy': { type: 'boolean' }, // node inspect
+	'force-device-scale-factor': { type: 'string' },
+	'force-renderer-accessibility': { type: 'boolean' },
+	'_urls': { type: 'string[]' },
+
+	_: { type: 'string[]' } // main arguments
+};
+
+export interface ErrorReporter {
+	onUnknownOption(id: string): void;
+	onMultipleValues(id: string, usedValue: string): void;
+}
+
+const ignoringReporter: ErrorReporter = {
+	onUnknownOption: () => { },
+	onMultipleValues: () => { }
+};
+
+export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
 	const alias: { [key: string]: string } = {};
 	const string: string[] = [];
 	const boolean: string[] = [];
-	for (let o of options) {
-		if (isOptionSupported(o)) {
-			if (o.alias) {
-				alias[o.id] = o.alias;
-			}
+	for (let optionId in options) {
+		if (optionId[0] === '_') {
+			continue;
 		}
 
-		if (o.type === 'string') {
-			string.push(o.id);
+		const o = options[optionId];
+		if (o.alias) {
+			alias[optionId] = o.alias;
+		}
+
+		if (o.type === 'string' || o.type === 'string[]') {
+			string.push(optionId);
 			if (o.deprecates) {
 				string.push(o.deprecates);
 			}
 		} else if (o.type === 'boolean') {
-			boolean.push(o.id);
+			boolean.push(optionId);
 			if (o.deprecates) {
 				boolean.push(o.deprecates);
 			}
 		}
 	}
-	// remote aliases to avoid confusion
+	// remove aliases to avoid confusion
 	const parsedArgs = minimist(args, { string, boolean, alias });
-	for (const o of options) {
+
+	const cleanedArgs: any = {};
+
+	// https://github.com/microsoft/vscode/issues/58177
+	cleanedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+	delete parsedArgs._;
+
+	for (let optionId in options) {
+		const o = options[optionId];
 		if (o.alias) {
 			delete parsedArgs[o.alias];
 		}
-		if (o.deprecates && parsedArgs.hasOwnProperty(o.deprecates) && !parsedArgs[o.id]) {
-			parsedArgs[o.id] = parsedArgs[o.deprecates];
+
+		let val = parsedArgs[optionId];
+		if (o.deprecates && parsedArgs.hasOwnProperty(o.deprecates)) {
+			if (!val) {
+				val = parsedArgs[o.deprecates];
+			}
 			delete parsedArgs[o.deprecates];
 		}
+
+		if (typeof val !== 'undefined') {
+			if (o.type === 'string[]') {
+				if (val && !Array.isArray(val)) {
+					val = [val];
+				}
+			} else if (o.type === 'string') {
+				if (Array.isArray(val)) {
+					val = val.pop(); // take the last
+					errorReporter.onMultipleValues(optionId, val);
+				}
+			}
+			cleanedArgs[optionId] = val;
+		}
+		delete parsedArgs[optionId];
 	}
 
-	// https://github.com/microsoft/vscode/issues/58177
-	parsedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+	for (let key in parsedArgs) {
+		errorReporter.onUnknownOption(key);
+	}
 
-	return parsedArgs;
+	return cleanedArgs;
 }
 
-function formatUsage(option: Option) {
+function formatUsage(optionId: string, option: Option<any>) {
 	let args = '';
 	if (option.args) {
 		if (Array.isArray(option.args)) {
@@ -150,30 +216,37 @@ function formatUsage(option: Option) {
 		}
 	}
 	if (option.alias) {
-		return `-${option.alias} --${option.id}${args}`;
+		return `-${option.alias} --${optionId}${args}`;
 	}
-	return `--${option.id}${args}`;
+	return `--${optionId}${args}`;
 }
 
 // exported only for testing
-export function formatOptions(docOptions: Option[], columns: number): string[] {
-	let usageTexts = docOptions.map(formatUsage);
-	let argLength = Math.max.apply(null, usageTexts.map(k => k.length)) + 2/*left padding*/ + 1/*right padding*/;
+export function formatOptions(options: OptionDescriptions<any>, columns: number): string[] {
+	let maxLength = 0;
+	let usageTexts: [string, string][] = [];
+	for (const optionId in options) {
+		const o = options[optionId];
+		const usageText = formatUsage(optionId, o);
+		maxLength = Math.max(maxLength, usageText.length);
+		usageTexts.push([usageText, o.description!]);
+	}
+	let argLength = maxLength + 2/*left padding*/ + 1/*right padding*/;
 	if (columns - argLength < 25) {
 		// Use a condensed version on narrow terminals
-		return docOptions.reduce<string[]>((r, o, i) => r.concat([`  ${usageTexts[i]}`, `      ${o.description}`]), []);
+		return usageTexts.reduce<string[]>((r, ut) => r.concat([`  ${ut[0]}`, `      ${ut[1]}`]), []);
 	}
 	let descriptionColumns = columns - argLength - 1;
 	let result: string[] = [];
-	docOptions.forEach((o, i) => {
-		let usage = usageTexts[i];
-		let wrappedDescription = wrapText(o.description!, descriptionColumns);
+	for (const ut of usageTexts) {
+		let usage = ut[0];
+		let wrappedDescription = wrapText(ut[1], descriptionColumns);
 		let keyPadding = indent(argLength - usage.length - 2/*left padding*/);
 		result.push('  ' + usage + keyPadding + wrappedDescription[0]);
 		for (let i = 1; i < wrappedDescription.length; i++) {
 			result.push(indent(argLength) + wrappedDescription[i]);
 		}
-	});
+	}
 	return result;
 }
 
@@ -192,7 +265,7 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, isOptionSupported = (_: Option) => true, isPipeSupported = true): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, isPipeSupported = true): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 
 	let help = [`${productName} ${version}`];
@@ -207,11 +280,23 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 		}
 		help.push('');
 	}
-	for (let helpCategoryKey in helpCategories) {
+	const optionsByCategory: { [P in keyof typeof helpCategories]?: OptionDescriptions<any> } = {};
+	for (const optionId in options) {
+		const o = options[optionId];
+		if (o.description && o.cat) {
+			let optionsByCat = optionsByCategory[o.cat];
+			if (!optionsByCat) {
+				optionsByCategory[o.cat] = optionsByCat = {};
+			}
+			optionsByCat[optionId] = o;
+		}
+	}
+
+	for (let helpCategoryKey in optionsByCategory) {
 		const key = <keyof typeof helpCategories>helpCategoryKey;
 
-		let categoryOptions = options.filter(o => !!o.description && o.cat === key && isOptionSupported(o));
-		if (categoryOptions.length) {
+		let categoryOptions = optionsByCategory[key];
+		if (categoryOptions) {
 			help.push(helpCategories[key]);
 			help.push(...formatOptions(categoryOptions, columns));
 			help.push('');
@@ -224,60 +309,3 @@ export function buildVersionMessage(version: string | undefined, commit: string 
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
 
-/**
- * Converts an argument into an array
- * @param arg a argument value. Can be undefined, an entry or an array
- */
-export function asArray(arg: string | string[] | undefined): string[] {
-	if (arg) {
-		if (Array.isArray(arg)) {
-			return arg;
-		}
-		return [arg];
-	}
-	return [];
-}
-
-/**
- * Returns whether an argument is present.
- */
-export function hasArgs(arg: string | string[] | undefined): boolean {
-	if (arg) {
-		if (Array.isArray(arg)) {
-			return !!arg.length;
-		}
-		return true;
-	}
-	return false;
-}
-
-export function addArg(argv: string[], ...args: string[]): string[] {
-	const endOfArgsMarkerIndex = argv.indexOf('--');
-	if (endOfArgsMarkerIndex === -1) {
-		argv.push(...args);
-	} else {
-		// if the we have an argument "--" (end of argument marker)
-		// we cannot add arguments at the end. rather, we add
-		// arguments before the "--" marker.
-		argv.splice(endOfArgsMarkerIndex, 0, ...args);
-	}
-
-	return argv;
-}
-
-export function createWaitMarkerFile(verbose?: boolean): string | undefined {
-	const randomWaitMarkerPath = join(os.tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
-
-	try {
-		writeFileSync(randomWaitMarkerPath, '');
-		if (verbose) {
-			console.log(`Marker file for --wait created: ${randomWaitMarkerPath}`);
-		}
-		return randomWaitMarkerPath;
-	} catch (err) {
-		if (verbose) {
-			console.error(`Failed to create marker file for --wait: ${err}`);
-		}
-		return undefined;
-	}
-}

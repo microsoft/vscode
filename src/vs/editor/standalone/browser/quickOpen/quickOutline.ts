@@ -15,7 +15,7 @@ import { ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editor
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentSymbol, DocumentSymbolProviderRegistry, symbolKindToCssClass } from 'vs/editor/common/modes';
+import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKinds } from 'vs/editor/common/modes';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import { BaseEditorQuickOpenAction, IDecorator } from 'vs/editor/standalone/browser/quickOpen/editorQuickOpen';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -121,7 +121,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'navigation',
 				order: 3
 			}
@@ -198,7 +198,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				}
 
 				// Add
-				results.push(this.symbolEntry(label, symbolKindToCssClass(element.kind), description, element.range, highlights, editor, controller));
+				results.push(this.symbolEntry(label, SymbolKinds.toCssClassName(element.kind), description, element.range, highlights, editor, controller));
 			}
 		}
 
