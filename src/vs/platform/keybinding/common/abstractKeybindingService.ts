@@ -17,6 +17,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 interface CurrentChord {
 	keypress: string;
@@ -193,14 +194,41 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 				shouldPreventDefault = true;
 			}
 			if (typeof resolveResult.commandArgs === 'undefined') {
-				this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
+				this._commandService.executeCommand(resolveResult.commandId).then(() => this._afterExecutedCommand(resolveResult.commandId), err => this._notificationService.warn(err));
 			} else {
-				this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
+				this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(() => this._afterExecutedCommand(resolveResult.commandId), err => this._notificationService.warn(err));
 			}
 			this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: resolveResult.commandId, from: 'keybinding' });
 		}
 
 		return shouldPreventDefault;
+	}
+
+	private _afterExecutedCommand(commandId: string | null): void {
+		// Showing executed command in status bar
+		if (commandId) {
+			const menuAction = MenuRegistry.getCommand(commandId);
+			let label: string = '';
+
+			if (menuAction) {
+				if (menuAction.category) {
+					if (typeof menuAction.category === 'object') {
+						label = `${menuAction.category.value} : `;
+					} else {
+						label = `${menuAction.category}`;
+					}
+				}
+
+				if (typeof menuAction.title === 'object') {
+					label += menuAction.title.value;
+				} else {
+					label += menuAction.title;
+				}
+
+				this._notificationService.status(label, { hideAfter: 3000 });
+			}
+		}
+
 	}
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
