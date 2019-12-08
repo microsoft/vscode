@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult, SearchSortOrder, SearchSortOrderConfiguration } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -29,6 +29,8 @@ import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/c
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class Match {
 
@@ -188,6 +190,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
+	private _fileStat?: IFileStatWithMetadata;
 	private _model: ITextModel | null = null;
 	private _modelListener: IDisposable | null = null;
 	private _matches: Map<string, Match>;
@@ -406,6 +409,19 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 	}
 
+	async resolveFileStat(fileService: IFileService): Promise<void> {
+		this._fileStat = await fileService.resolve(this.resource, { resolveMetadata: true });
+		return Promise.resolve();
+	}
+
+	public get fileStat(): IFileStatWithMetadata | undefined {
+		return this._fileStat;
+	}
+
+	public set fileStat(stat: IFileStatWithMetadata | undefined) {
+		this._fileStat = stat;
+	}
+
 	dispose(): void {
 		this.setSelectedMatch(null);
 		this.unbindModel();
@@ -418,6 +434,7 @@ export interface IChangeEvent {
 	elements: FileMatch[];
 	added?: boolean;
 	removed?: boolean;
+	modified?: boolean;
 }
 
 export class FolderMatch extends Disposable {
@@ -628,13 +645,31 @@ export class FolderMatchWithResource extends FolderMatch {
  * Compares instances of the same match type. Different match types should not be siblings
  * and their sort order is undefined.
  */
-export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
+export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = 'default'): number {
 	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
 		return elementA.index() - elementB.index();
 	}
 
 	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
-		return elementA.resource.fsPath.localeCompare(elementB.resource.fsPath) || elementA.name().localeCompare(elementB.name());
+		switch (sortOrder) {
+			case SearchSortOrderConfiguration.COUNT_DESCENDING:
+				return elementB.count() - elementA.count();
+			case SearchSortOrderConfiguration.COUNT_ASCENDING:
+				return elementA.count() - elementB.count();
+			case SearchSortOrderConfiguration.TYPE:
+				return compareFileExtensions(elementA.name(), elementB.name());
+			case SearchSortOrderConfiguration.FILES_ONLY:
+				return compareFileNames(elementA.name(), elementB.name());
+			case SearchSortOrderConfiguration.MODIFIED:
+				const fileStatA = elementA.fileStat;
+				const fileStatB = elementB.fileStat;
+				if (fileStatA && fileStatB) {
+					return fileStatB.mtime - fileStatA.mtime;
+				}
+			// Fall through otherwise
+			default:
+				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
+		}
 	}
 
 	if (elementA instanceof Match && elementB instanceof Match) {

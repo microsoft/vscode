@@ -80,6 +80,20 @@ suite('Search - Viewlet', () => {
 		assert(searchMatchComparer(lineMatch2, lineMatch3) === 0);
 	});
 
+	test('Advanced Comparer', () => {
+		let fileMatch1 = aFileMatch('C:\\with\\path\\foo10');
+		let fileMatch2 = aFileMatch('C:\\with\\path2\\foo1');
+		let fileMatch3 = aFileMatch('C:\\with\\path2\\bar.a');
+		let fileMatch4 = aFileMatch('C:\\with\\path2\\bar.b');
+
+		// By default, path < path2
+		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
+		// By filenames, foo10 > foo1
+		assert(searchMatchComparer(fileMatch1, fileMatch2, 'filesOnly') > 0);
+		// By type, bar.a < bar.b
+		assert(searchMatchComparer(fileMatch3, fileMatch4, 'type') < 0);
+	});
+
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		let rawMatch: IFileMatch = {
 			resource: uri.file('C:\\' + path),
