@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID, IColorCustomizations, CUSTOM_EDITOR_TOKENSTYLES_SETTING, IExperimentalTokenStyleCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID, IColorCustomizations, CUSTOM_EDITOR_TOKENSTYLES_SETTING, IExperimentalTokenStyleCustomizations, FAVOURITE_THEMES_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -669,6 +669,17 @@ const colorCustomizationsSchema: IConfigurationPropertySchema = {
 	}]
 };
 
+const favouriteThemesSchema: IConfigurationPropertySchema = {
+	type: 'array',
+	description: nls.localize('favouriteThemes', "Specifies the color themes to change between quickly."),
+	items: colorThemeSettingSchema,
+	default: [],
+	defaultSnippets: [{
+		body: [
+		]
+	}]
+};
+
 const themeSettingsConfiguration: IConfigurationNode = {
 	id: 'workbench',
 	order: 7.1,
@@ -676,7 +687,8 @@ const themeSettingsConfiguration: IConfigurationNode = {
 	properties: {
 		[COLOR_THEME_SETTING]: colorThemeSettingSchema,
 		[ICON_THEME_SETTING]: iconThemeSettingSchema,
-		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema
+		[CUSTOM_WORKBENCH_COLORS_SETTING]: colorCustomizationsSchema,
+		[FAVOURITE_THEMES_SETTING]: favouriteThemesSchema,
 	}
 };
 configurationRegistry.registerConfiguration(themeSettingsConfiguration);

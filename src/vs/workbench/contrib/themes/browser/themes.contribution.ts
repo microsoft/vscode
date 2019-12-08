@@ -10,7 +10,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IColorTheme, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IColorTheme, IFileIconTheme, FAVOURITE_THEMES_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -119,19 +119,18 @@ export class ToggleThemeModeAction extends Action {
 		label: string,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
 		return this.themeService.getColorThemes().then(themes => {
+			const favouriteThemes = this.configurationService.getValue<string[]>(FAVOURITE_THEMES_SETTING);
 
 			const currentTheme = this.themeService.getColorTheme();
 
-			const sameExtensionThemes = themes.filter((theme) => theme.extensionData &&
-				currentTheme.extensionData &&
-				theme.extensionData.extensionId === currentTheme.extensionData.extensionId
-			).sort((theme1, theme2) => {
+			const sameExtensionThemes = themes.filter((theme) => favouriteThemes.filter(favTheme => favTheme === theme.settingsId).length).sort((theme1, theme2) => {
 				if (theme1.id < theme2.id) {
 					return -1;
 				}
@@ -142,17 +141,12 @@ export class ToggleThemeModeAction extends Action {
 				return 0;
 			});
 
-			if (sameExtensionThemes.length === 1) {
-				this.notificationService.error(localize('themes.toggleThemeMode.error.noExtra', 'Can not find an extra theme from the extension.'));
+			if (sameExtensionThemes.length <= 1) {
+				this.notificationService.error(localize('themes.toggleThemeMode.error.noFavourite', 'Can not find favourite themes setting.'));
 				return;
 			}
 
-			const indexOfCurrentTheme = sameExtensionThemes.map(theme => theme.id).indexOf(currentTheme.id);
-
-			if (indexOfCurrentTheme === -1) {
-				this.notificationService.error(localize('themes.toggleThemeMode.error.noExtension', 'Current theme is not installed from an extension'));
-				return;
-			}
+			let indexOfCurrentTheme = sameExtensionThemes.map(theme => theme.id).indexOf(currentTheme.id);
 
 			const nextTheme = sameExtensionThemes[indexOfCurrentTheme + 1 >= sameExtensionThemes.length ? 0 : indexOfCurrentTheme + 1];
 
