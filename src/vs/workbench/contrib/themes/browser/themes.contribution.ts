@@ -22,6 +22,7 @@ import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeServic
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class SelectColorThemeAction extends Action {
 
@@ -104,6 +105,58 @@ export class SelectColorThemeAction extends Action {
 				});
 				quickpick.show();
 			});
+		});
+	}
+}
+
+export class ToggleThemeModeAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleThemeMode';
+	static readonly LABEL = localize('toggleThemeMode.label', "Toggle Theme Mode");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@INotificationService private readonly notificationService: INotificationService,
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<void> {
+		return this.themeService.getColorThemes().then(themes => {
+
+			const currentTheme = this.themeService.getColorTheme();
+
+			const sameExtensionThemes = themes.filter((theme) => theme.extensionData &&
+				currentTheme.extensionData &&
+				theme.extensionData.extensionId === currentTheme.extensionData.extensionId
+			).sort((theme1, theme2) => {
+				if (theme1.id < theme2.id) {
+					return -1;
+				}
+				if (theme1.id > theme2.id) {
+					return 1;
+				}
+
+				return 0;
+			});
+
+			if (sameExtensionThemes.length === 1) {
+				this.notificationService.error(localize('themes.toggleThemeMode.error.noExtra', 'Can not find an extra theme from the extension.'));
+				return;
+			}
+
+			const indexOfCurrentTheme = sameExtensionThemes.map(theme => theme.id).indexOf(currentTheme.id);
+
+			if (indexOfCurrentTheme === -1) {
+				this.notificationService.error(localize('themes.toggleThemeMode.error.noExtension', 'Current theme is not installed from an extension'));
+				return;
+			}
+
+			const nextTheme = sameExtensionThemes[indexOfCurrentTheme + 1 >= sameExtensionThemes.length ? 0 : indexOfCurrentTheme + 1];
+
+			this.themeService.setColorTheme(nextTheme.id, undefined);
 		});
 	}
 }
@@ -291,6 +344,8 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkb
 const iconThemeDescriptor = SyncActionDescriptor.create(SelectIconThemeAction, SelectIconThemeAction.ID, SelectIconThemeAction.LABEL);
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(iconThemeDescriptor, 'Preferences: File Icon Theme', category);
 
+const themeModeDescriptor = SyncActionDescriptor.create(ToggleThemeModeAction, ToggleThemeModeAction.ID, ToggleThemeModeAction.LABEL);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(themeModeDescriptor, 'Preferences: Toggle Theme Mode', category);
 
 const developerCategory = localize('developer', "Developer");
 
