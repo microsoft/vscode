@@ -109,10 +109,10 @@ export class SelectColorThemeAction extends Action {
 	}
 }
 
-export class ToggleThemeModeAction extends Action {
+export class ToggleFavouriteThemeAction extends Action {
 
-	static readonly ID = 'workbench.action.toggleThemeMode';
-	static readonly LABEL = localize('toggleThemeMode.label', "Toggle Theme Mode");
+	static readonly ID = 'workbench.action.toggleFavouriteTheme';
+	static readonly LABEL = localize('toggleFavouriteTheme.label', "Toggle Favourite Theme");
 
 	constructor(
 		id: string,
@@ -142,7 +142,7 @@ export class ToggleThemeModeAction extends Action {
 			});
 
 			if (sameExtensionThemes.length <= 1) {
-				this.notificationService.error(localize('themes.toggleThemeMode.error.noFavourite', 'Can not find favourite themes setting.'));
+				this.notificationService.error(localize('themes.toggleFavouriteTheme.error.noFavourite', 'Can not find favourite themes setting.'));
 				return;
 			}
 
@@ -338,8 +338,8 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkb
 const iconThemeDescriptor = SyncActionDescriptor.create(SelectIconThemeAction, SelectIconThemeAction.ID, SelectIconThemeAction.LABEL);
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(iconThemeDescriptor, 'Preferences: File Icon Theme', category);
 
-const themeModeDescriptor = SyncActionDescriptor.create(ToggleThemeModeAction, ToggleThemeModeAction.ID, ToggleThemeModeAction.LABEL);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(themeModeDescriptor, 'Preferences: Toggle Theme Mode', category);
+const favouriteThemeDescriptor = SyncActionDescriptor.create(ToggleFavouriteThemeAction, ToggleFavouriteThemeAction.ID, ToggleFavouriteThemeAction.LABEL);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(favouriteThemeDescriptor, 'Toggle Favourite Theme', category);
 
 const developerCategory = localize('developer', "Developer");
 
