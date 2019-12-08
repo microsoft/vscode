@@ -44,6 +44,10 @@ namespace SchemaAssociationNotification {
 	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
 }
 
+namespace ResultLimitReachedNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/resultLimitReached');
+}
+
 interface IPackageInfo {
 	name: string;
 	version: string;
@@ -270,6 +274,12 @@ export function activate(context: ExtensionContext) {
 		updateFormatterRegistration();
 		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
 		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
+
+
+		client.onNotification(ResultLimitReachedNotification.type, message => {
+			window.showInformationMessage(`${message}\nUse setting 'json.maxItemsComputed' to configure the limit.`);
+		});
+
 	});
 
 	let languageConfiguration: LanguageConfiguration = {
@@ -351,6 +361,8 @@ function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 function getSettings(): Settings {
 	let httpSettings = workspace.getConfiguration('http');
 
+	let resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get('json.maxItemsComputed')))) || 5000;
+
 	let settings: Settings = {
 		http: {
 			proxy: httpSettings.get('proxy'),
@@ -358,7 +370,7 @@ function getSettings(): Settings {
 		},
 		json: {
 			schemas: [],
-			resultLimit: 5000
+			resultLimit
 		}
 	};
 	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);

@@ -185,7 +185,7 @@ export class VariablesView extends ViewletPane {
 				if (dataid) {
 					actions.push(new Separator());
 					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, () => {
-						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist);
+						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist, response.accessTypes);
 					}));
 				}
 			}

@@ -84,7 +84,7 @@ class OpenDebugPanelAction extends TogglePanelAction {
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	DebugViewlet,
 	VIEWLET_ID,
-	nls.localize('debugAndRun', "Debug And Run"),
+	nls.localize('debugAndRun', "Debug and Run"),
 	'codicon-debug',
 	3
 ));

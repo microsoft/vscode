@@ -1,5 +1,5 @@
 {
-	"$schema": "http://json-schema.org/schema#",
+	"$schema": "http://json-schema.org/draft-07/schema#",
 	"description": "Configures an attached to container",
 	"allowComments": true,
 	"type": "object",
@@ -17,6 +17,10 @@
 					"items": {
 						"type": "integer"
 					}
+				},
+				"settings": {
+					"$ref": "vscode://schemas/settings/machine",
+					"description": "Machine specific settings that should be copied into the container."
 				},
 				"remoteEnv": {
 					"type": "object",

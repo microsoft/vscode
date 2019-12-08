@@ -297,6 +297,13 @@ export class ExplorerView extends ViewletPane {
 
 		for (const stat of this.tree.getSelection()) {
 			const controller = this.renderer.getCompressedNavigationController(stat);
+			if (controller && focusedStat && controller === this.compressedNavigationController) {
+				if (stat === focusedStat) {
+					selectedStats.push(stat);
+				}
+				// Ignore stats which are selected but are part of the same compact node as the focused stat
+				continue;
+			}
 
 			if (controller) {
 				selectedStats.push(...controller.items);

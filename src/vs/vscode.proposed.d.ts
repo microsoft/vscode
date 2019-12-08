@@ -68,7 +68,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex - semantic tokens
+	//#region Semantic tokens: https://github.com/microsoft/vscode/issues/86415
 
 	export class SemanticTokensLegend {
 		public readonly tokenTypes: string[];
@@ -84,6 +84,12 @@ declare module 'vscode' {
 	}
 
 	export class SemanticTokens {
+		/**
+		 * The result id of the tokens.
+		 *
+		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
+		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
+		 */
 		readonly resultId?: string;
 		readonly data: Uint32Array;
 
@@ -91,6 +97,12 @@ declare module 'vscode' {
 	}
 
 	export class SemanticTokensEdits {
+		/**
+		 * The result id of the tokens.
+		 *
+		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
+		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
+		 */
 		readonly resultId?: string;
 		readonly edits: SemanticTokensEdit[];
 
@@ -107,6 +119,11 @@ declare module 'vscode' {
 
 	export interface SemanticTokensRequestOptions {
 		readonly ranges?: readonly Range[];
+		/**
+		 * The previous result id that the editor still holds in memory.
+		 *
+		 * Only when this is set it is safe for a `SemanticTokensProvider` to return `SemanticTokensEdits`.
+		 */
 		readonly previousResultId?: string;
 	}
 
@@ -144,8 +161,8 @@ declare module 'vscode' {
 		 * ```
 		 *
 		 * 2. The first transformation is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
-		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Token modifiers are a set and they are looked up by a bitmap,
-		 * so a `tokenModifier` value of `6` is first viewed as a bitmap `0b110`, so it will mean `[tokenModifiers[1], tokenModifiers[2]]` because
+		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Multiple token modifiers can be set by using bit flags,
+		 * so a `tokenModifier` value of `6` is first viewed as binary `0b110`, which means `[tokenModifiers[1], tokenModifiers[2]]` because
 		 * bits 1 and 2 are set. Using this legend, the tokens now are:
 		 * ```
 		 *  [ { line: 2, startChar:  5, length: 3, tokenType: 1, tokenModifiers: 6 }, // 6 is 0b110
@@ -191,7 +208,13 @@ declare module 'vscode' {
 		 *     [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
 		 * ```
 		 *
-		 * A smart tokens provider can compute a diff from the previous result to the new result
+		 * A smart tokens provider can return a `resultId` to `SemanticTokens`. Then, if the editor still has in memory the previous
+		 * result, the editor will pass in options the previous result id at `SemanticTokensRequestOptions.previousResultId`. Only when
+		 * the editor passes in the previous result id, it is safe and smart for a smart tokens provider can compute a diff from the
+		 * previous result to the new result.
+		 *
+		 * *NOTE*: It is illegal to return `SemanticTokensEdits` if `options.previousResultId` is not set!
+		 *
 		 * ```
 		 *    [  2,5,3,1,6,  0,5,4,2,0,              3,2,7,3,0 ]
 		 *    [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
@@ -253,7 +276,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Rob: search provider
+	//#region TextSearchProvider: https://github.com/microsoft/vscode/issues/59921
 
 	/**
 	 * The parameters of a query for text search.
@@ -398,32 +421,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The parameters of a query for file search.
-	 */
-	export interface FileSearchQuery {
-		/**
-		 * The search pattern to match against file paths.
-		 */
-		pattern: string;
-	}
-
-	/**
-	 * Options that apply to file search.
-	 */
-	export interface FileSearchOptions extends SearchOptions {
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults?: number;
-
-		/**
-		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
-		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
-		 */
-		session?: CancellationToken;
-	}
-
-	/**
 	 * A preview of the text result.
 	 */
 	export interface TextSearchMatchPreview {
@@ -483,6 +480,50 @@ declare module 'vscode' {
 	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
+	 * A TextSearchProvider provides search results for text results inside files in the workspace.
+	 */
+	export interface TextSearchProvider {
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+	}
+
+	//#endregion
+
+	//#region FileSearchProvider: https://github.com/microsoft/vscode/issues/73524
+
+	/**
+	 * The parameters of a query for file search.
+	 */
+	export interface FileSearchQuery {
+		/**
+		 * The search pattern to match against file paths.
+		 */
+		pattern: string;
+	}
+
+	/**
+	 * Options that apply to file search.
+	 */
+	export interface FileSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults?: number;
+
+		/**
+		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
+		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 */
+		session?: CancellationToken;
+	}
+
+	/**
 	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
 	 *
 	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
@@ -501,19 +542,33 @@ declare module 'vscode' {
 		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
-	/**
-	 * A TextSearchProvider provides search results for text results inside files in the workspace.
-	 */
-	export interface TextSearchProvider {
+	export namespace workspace {
 		/**
-		 * Provide results that match the given text pattern.
-		 * @param query The parameters for this query.
-		 * @param options A set of options to consider while searching.
-		 * @param progress A progress callback that must be invoked for all results.
-		 * @param token A cancellation token.
+		 * Register a search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
+
+		/**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
 	}
+
+	//#endregion
+
+	//#region findTextInFiles: https://github.com/microsoft/vscode/issues/59924
 
 	/**
 	 * Options that can be set on a findTextInFiles search.
@@ -579,28 +634,6 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
-		/**
-		 * Register a search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
-
-		/**
-		 * Register a text search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
-
 		/**
 		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
@@ -729,7 +762,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Rob, Matt: logging
+	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
 
 	/**
 	 * The severity level of a log message
@@ -949,247 +982,6 @@ declare module 'vscode' {
 		exclusive?: boolean;
 	}
 
-	//#endregion
-
-	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
-
-	/**
-	 * An event that is fired when files are going to be created.
-	 *
-	 * To make modifications to the workspace before the files are created,
-	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
-	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
-	 */
-	export interface FileWillCreateEvent {
-
-		/**
-		 * The files that are going to be created.
-		 */
-		readonly files: ReadonlyArray<Uri>;
-
-		/**
-		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
-		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
-		 *
-		 * ```ts
-		 * workspace.onWillCreateFiles(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
-		 *
-		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
-		 * })
-		 * ```
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
-
-		/**
-		 * Allows to pause the event until the provided thenable resolves.
-		 *
-		 * *Note:* This function can only be called during event dispatch.
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<any>): void;
-	}
-
-	/**
-	 * An event that is fired after files are created.
-	 */
-	export interface FileCreateEvent {
-
-		/**
-		 * The files that got created.
-		 */
-		readonly files: ReadonlyArray<Uri>;
-	}
-
-	/**
-	 * An event that is fired when files are going to be deleted.
-	 *
-	 * To make modifications to the workspace before the files are deleted,
-	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
-	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
-	 */
-	export interface FileWillDeleteEvent {
-
-		/**
-		 * The files that are going to be deleted.
-		 */
-		readonly files: ReadonlyArray<Uri>;
-
-		/**
-		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
-		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
-		 *
-		 * ```ts
-		 * workspace.onWillCreateFiles(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
-		 *
-		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
-		 * })
-		 * ```
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
-
-		/**
-		 * Allows to pause the event until the provided thenable resolves.
-		 *
-		 * *Note:* This function can only be called during event dispatch.
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<any>): void;
-	}
-
-	/**
-	 * An event that is fired after files are deleted.
-	 */
-	export interface FileDeleteEvent {
-
-		/**
-		 * The files that got deleted.
-		 */
-		readonly files: ReadonlyArray<Uri>;
-	}
-
-	/**
-	 * An event that is fired when files are going to be renamed.
-	 *
-	 * To make modifications to the workspace before the files are renamed,
-	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
-	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
-	 */
-	export interface FileWillRenameEvent {
-
-		/**
-		 * The files that are going to be renamed.
-		 */
-		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-
-		/**
-		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
-		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
-		 *
-		 * ```ts
-		 * workspace.onWillCreateFiles(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
-		 *
-		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
-		 * })
-		 * ```
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
-
-		/**
-		 * Allows to pause the event until the provided thenable resolves.
-		 *
-		 * *Note:* This function can only be called during event dispatch.
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<any>): void;
-	}
-
-	/**
-	 * An event that is fired after files are renamed.
-	 */
-	export interface FileRenameEvent {
-
-		/**
-		 * The files that got renamed.
-		 */
-		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-	}
-
-	export namespace workspace {
-
-		/**
-		 * An event that is emitted when files are being created.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When this event is fired, edits to files thare are being created cannot be applied.
-		 */
-		export const onWillCreateFiles: Event<FileWillCreateEvent>;
-
-		/**
-		 * An event that is emitted when files have been created.
-		 *
-		 * *Note:* This event is triggered by user gestures, like creating a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 */
-		export const onDidCreateFiles: Event<FileCreateEvent>;
-
-		/**
-		 * An event that is emitted when files are being deleted.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When deleting a folder with children only one event is fired.
-		 */
-		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
-
-		/**
-		 * An event that is emitted when files have been deleted.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When deleting a folder with children only one event is fired.
-		 */
-		export const onDidDeleteFiles: Event<FileDeleteEvent>;
-
-		/**
-		 * An event that is emitted when files are being renamed.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
-		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When renaming a folder with children only one event is fired.
-		 */
-		export const onWillRenameFiles: Event<FileWillRenameEvent>;
-
-		/**
-		 * An event that is emitted when files have been renamed.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
-		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When renaming a folder with children only one event is fired.
-		 */
-		export const onDidRenameFiles: Event<FileRenameEvent>;
-	}
 	//#endregion
 
 	//#region Alex - OnEnter enhancement

@@ -21,6 +21,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/arrays';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 const $ = dom.$;
 
 export class StartView extends ViewletPane {
@@ -72,16 +74,12 @@ export class StartView extends ViewletPane {
 
 			const setSecondMessage = () => {
 				secondMessageElement.textContent = localize('specifyHowToRun', "To futher configure Debug and Run");
-				const clickElement = $('span.click');
-				clickElement.textContent = localize('configure', " create a launch.json file.");
-				clickElement.onclick = () => this.commandService.executeCommand(ConfigureAction.ID);
+				const clickElement = this.createClickElement(localize('configure', " create a launch.json file."), () => this.commandService.executeCommand(ConfigureAction.ID));
 				this.secondMessageContainer.appendChild(clickElement);
 			};
 			const setSecondMessageWithFolder = () => {
 				secondMessageElement.textContent = localize('noLaunchConfiguration', "To futher configure Debug and Run, ");
-				const clickElement = $('span.click');
-				clickElement.textContent = localize('openFolder', " open a folder");
-				clickElement.onclick = () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false });
+				const clickElement = this.createClickElement(localize('openFolder', " open a folder"), () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false }));
 				this.secondMessageContainer.appendChild(clickElement);
 
 				const moreText = $('span.moreText');
@@ -106,10 +104,7 @@ export class StartView extends ViewletPane {
 			}
 
 			if (!enabled && emptyWorkbench) {
-				const clickElement = $('span.click');
-				clickElement.textContent = localize('openFile', "Open a file");
-				clickElement.onclick = () => this.dialogService.pickFileAndOpen({ forceNewWindow: false });
-
+				const clickElement = this.createClickElement(localize('openFile', "Open a file"), () => this.dialogService.pickFileAndOpen({ forceNewWindow: false }));
 				this.firstMessageContainer.appendChild(clickElement);
 				const firstMessageElement = $('span');
 				this.firstMessageContainer.appendChild(firstMessageElement);
@@ -119,6 +114,21 @@ export class StartView extends ViewletPane {
 				setSecondMessageWithFolder();
 			}
 		}
+	}
+
+	private createClickElement(textContent: string, action: () => any): HTMLSpanElement {
+		const clickElement = $('span.click');
+		clickElement.textContent = textContent;
+		clickElement.onclick = action;
+		clickElement.tabIndex = 0;
+		clickElement.onkeyup = (e) => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (keyboardEvent.keyCode === KeyCode.Enter || (keyboardEvent.keyCode === KeyCode.Space)) {
+				action();
+			}
+		};
+
+		return clickElement;
 	}
 
 	protected renderBody(container: HTMLElement): void {

@@ -1086,6 +1086,8 @@ export class GridView implements IDisposable {
 			throw new Error('Invalid JSON: \'width\' property must be a number.');
 		} else if (typeof json.height !== 'number') {
 			throw new Error('Invalid JSON: \'height\' property must be a number.');
+		} else if (json.root?.type !== 'branch') {
+			throw new Error('Invalid JSON: \'root\' property must have \'type\' value of branch.');
 		}
 
 		const orientation = json.orientation;
