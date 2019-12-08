@@ -731,7 +731,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expr, 'bar.js', hasSibling), null);
 	});
 
-	test.only('expressions with include patterns', function () {
+	test('expressions with include patterns', function () {
 		let expr = {
 			'**/*.exclude': true,
 			'**/donot.exclude': false
