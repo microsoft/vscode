@@ -1056,7 +1056,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Ben - status bar item with ID and Name
+	//#region Status bar item with ID and Name: https://github.com/microsoft/vscode/issues/74972
 
 	export namespace window {
 
@@ -1100,26 +1100,6 @@ declare module 'vscode' {
 		 * @return A new status bar item.
 		 */
 		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
-	}
-
-	//#endregion
-
-	//#region Ben - extension auth flow (desktop+web)
-
-	export interface AppUriOptions {
-		payload?: {
-			path?: string;
-			query?: string;
-			fragment?: string;
-		};
-	}
-
-	export namespace env {
-
-		/**
-		 * @deprecated use `vscode.env.asExternalUri` instead.
-		 */
-		export function createAppUri(options?: AppUriOptions): Thenable<Uri>;
 	}
 
 	//#endregion
