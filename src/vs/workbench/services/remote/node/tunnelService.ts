@@ -150,26 +150,29 @@ export class TunnelService implements ITunnelService {
 			dispose: () => {
 				const existing = this._tunnels.get(tunnel.tunnelRemotePort);
 				if (existing) {
-					if (--existing.refcount <= 0) {
-						existing.value.then(tunnel => this.disposeTunnel(tunnel));
-						this._tunnels.delete(tunnel.tunnelRemotePort);
-					}
+					existing.refcount--;
+					this.tryDisposeTunnel(tunnel.tunnelRemotePort, existing);
 				}
 			}
 		};
 	}
 
-	private disposeTunnel(tunnel: RemoteTunnel) {
-		tunnel.dispose();
-		this._onTunnelClosed.fire(tunnel.tunnelRemotePort);
+	private async tryDisposeTunnel(remotePort: number, tunnel: { refcount: number, readonly value: Promise<RemoteTunnel> }): Promise<void> {
+		if (tunnel.refcount <= 0) {
+			const disposePromise: Promise<void> = tunnel.value.then(tunnel => {
+				tunnel.dispose();
+				this._onTunnelClosed.fire(tunnel.tunnelRemotePort);
+			});
+			this._tunnels.delete(remotePort);
+			return disposePromise;
+		}
 	}
 
 	async closeTunnel(remotePort: number): Promise<void> {
 		if (this._tunnels.has(remotePort)) {
 			const value = this._tunnels.get(remotePort)!;
-			this.disposeTunnel(await value.value);
 			value.refcount = 0;
-			this._tunnels.delete(remotePort);
+			await this.tryDisposeTunnel(remotePort, value);
 		}
 	}
 
