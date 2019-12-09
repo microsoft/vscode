@@ -42,6 +42,7 @@ const $ = DOM.$;
 
 interface NotebookHandler {
 	insertEmptyNotebookCell(cell: ICell | IOutput, direction: 'above' | 'below'): void;
+	deleteNotebookCell(cell: ICell): void;
 }
 
 interface CellRenderTemplate {
@@ -112,8 +113,19 @@ class AbstractCellRenderer {
 			}
 		);
 
+		const deleteCell = new Action(
+			'workbench.notebook.deleteCell',
+			'Delete Cell',
+			undefined,
+			true,
+			async () => {
+				this.handler.deleteNotebookCell(element);
+			}
+		);
+
 		actions.push(insertAbove);
 		actions.push(insertBelow);
+		actions.push(deleteCell);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => {
@@ -494,6 +506,14 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		this.model!.getNookbook().cells.splice(insertIndex, 0, newCell);
 		this.list?.splice(insertIndex, 0, [newCell]);
 	}
+
+	deleteNotebookCell(cell: ICell) {
+		let index = this.model!.getNookbook().cells.indexOf(cell);
+
+		this.model!.getNookbook().cells.splice(index, 1);
+		this.list?.splice(index, 1);
+	}
+
 
 	layout(dimension: DOM.Dimension): void {
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
