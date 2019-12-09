@@ -353,7 +353,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					DOM.addClasses(evalue, 'error_message');
 					evalue.innerText = element.outputs[i].evalue;
 					outputNode.appendChild(evalue);
-					const traceback = document.createElement('traceback');
+					const traceback = document.createElement('pre');
 					DOM.addClasses(traceback, 'traceback');
 					if (element.outputs[i].traceback) {
 						for (let j = 0; j < element.outputs[i].traceback.length; j++) {
