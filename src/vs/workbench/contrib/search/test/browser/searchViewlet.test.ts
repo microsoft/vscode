@@ -14,6 +14,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { isWindows } from 'vs/base/common/platform';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -63,9 +64,9 @@ suite('Search - Viewlet', () => {
 	});
 
 	test('Comparer', () => {
-		let fileMatch1 = aFileMatch('C:\\foo');
-		let fileMatch2 = aFileMatch('C:\\with\\path');
-		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');
+		let fileMatch1 = aFileMatch(isWindows ? 'C:\\foo' : '/c/foo');
+		let fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path' : '/c/with/path');
+		let fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path\\foo' : '/c/with/path/foo');
 		let lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
 		let lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
 		let lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
@@ -81,10 +82,10 @@ suite('Search - Viewlet', () => {
 	});
 
 	test('Advanced Comparer', () => {
-		let fileMatch1 = aFileMatch('C:\\with\\path\\foo10');
-		let fileMatch2 = aFileMatch('C:\\with\\path2\\foo1');
-		let fileMatch3 = aFileMatch('C:\\with\\path2\\bar.a');
-		let fileMatch4 = aFileMatch('C:\\with\\path2\\bar.b');
+		let fileMatch1 = aFileMatch(isWindows ? 'C:\\with\\path\\foo10' : '/c/with/path/foo10');
+		let fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path2\\foo1' : '/c/with/path2/foo1');
+		let fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.a' : '/c/with/path2/bar.a');
+		let fileMatch4 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.b' : '/c/with/path2/bar.b');
 
 		// By default, path < path2
 		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
@@ -96,7 +97,7 @@ suite('Search - Viewlet', () => {
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		let rawMatch: IFileMatch = {
-			resource: uri.file('C:\\' + path),
+			resource: uri.file(path),
 			results: lineMatches
 		};
 		return instantiation.createInstance(FileMatch, null, null, null, searchResult, rawMatch);
