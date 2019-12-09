@@ -23,7 +23,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -173,6 +173,18 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		});
 	}
 
+	changeFocusBetweenPreviewAndReferences() {
+		if (!this._widget) {
+			// can be called while still resolving...
+			return;
+		}
+		if (this._widget.isPreviewEditorFocused()) {
+			this._widget.focusOnReferenceTree();
+		} else {
+			this._widget.focusOnPreviewEditor();
+		}
+	}
+
 	async goToNextOrPreviousReference(fwd: boolean) {
 		if (!this._editor.hasModel() || !this._model || !this._widget) {
 			// can be called while still resolving...
@@ -229,7 +241,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			if (this._editor === openedEditor) {
 				//
 				this._widget.show(range);
-				this._widget.focus();
+				this._widget.focusOnReferenceTree();
 
 			} else {
 				// we opened a different editor instance which means a different controller instance.
@@ -277,6 +289,18 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 		fn(controller);
 	}
 }
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'changePeekFocus',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.F2),
+	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
+	handler(accessor) {
+		withController(accessor, controller => {
+			controller.changeFocusBetweenPreviewAndReferences();
+		});
+	}
+});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReference',

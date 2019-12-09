@@ -124,11 +124,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: true
 		},
-		// 'breadcrumbs.useQuickPick': {
-		// 	description: localize('useQuickPick', "Use quick pick instead of breadcrumb-pickers."),
-		// 	type: 'boolean',
-		// 	default: false
-		// },
 		'breadcrumbs.filePath': {
 			description: localize('filepath', "Controls whether and how file paths are shown in the breadcrumbs view."),
 			type: 'string',
@@ -155,6 +150,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('symbolSortOrder', "Controls how symbols are sorted in the breadcrumbs outline view."),
 			type: 'string',
 			default: 'position',
+			overridable: true,
 			enum: ['position', 'name', 'type'],
 			enumDescriptions: [
 				localize('symbolSortOrder.position', "Show symbol outline in file position order."),
