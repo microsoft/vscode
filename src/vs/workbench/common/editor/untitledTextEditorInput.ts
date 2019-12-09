@@ -163,7 +163,7 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, async () => {
+		return this.doSaveAs(group, options, async () => {
 
 			// With associated file path, save to the path that is
 			// associated. Make sure to convert the result using
@@ -182,7 +182,7 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, () => this.textFileService.saveAs(this.resource, undefined, options), true /* replace editor across all groups */);
+		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options), true /* replace editor across all groups */);
 	}
 
 	async revert(options?: IRevertOptions): Promise<boolean> {
