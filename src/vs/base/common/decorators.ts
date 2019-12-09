@@ -84,11 +84,11 @@ export function memoize(target: any, key: string, descriptor: any) {
 	return createMemoizer()(target, key, descriptor);
 }
 
-export interface IDebouceReducer<T> {
+export interface IDebounceReducer<T> {
 	(previousValue: T, ...args: any[]): T;
 }
 
-export function debounce<T>(delay: number, reducer?: IDebouceReducer<T>, initialValueProvider?: () => T): Function {
+export function debounce<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T): Function {
 	return createDecorator((fn, key) => {
 		const timerKey = `$debounce$${key}`;
 		const resultKey = `$debounce$result$${key}`;
@@ -113,7 +113,7 @@ export function debounce<T>(delay: number, reducer?: IDebouceReducer<T>, initial
 	});
 }
 
-export function throttle<T>(delay: number, reducer?: IDebouceReducer<T>, initialValueProvider?: () => T): Function {
+export function throttle<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T): Function {
 	return createDecorator((fn, key) => {
 		const timerKey = `$throttle$timer$${key}`;
 		const resultKey = `$throttle$result$${key}`;
