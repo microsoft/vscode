@@ -28,7 +28,7 @@ export class NotebookEditorModel extends EditorModel {
 	private _notebook: INotebook | undefined;
 
 	constructor(
-		private readonly textModel: ITextModel
+		public readonly textModel: ITextModel
 	) {
 		super();
 	}

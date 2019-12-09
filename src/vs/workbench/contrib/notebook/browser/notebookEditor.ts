@@ -385,8 +385,12 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				return input.resolve();
 			})
 			.then(model => {
+				if (this.model !== undefined && this.model.textModel === model.textModel) {
+					return;
+				}
+
 				this.model = model;
-				this.list?.splice(0, 0, model.getNookbook().cells);
+				this.list?.splice(0, this.list?.length, model.getNookbook().cells);
 				this.list?.layout();
 			});
 	}
