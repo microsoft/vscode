@@ -80,7 +80,7 @@ const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
 function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
 	const isMultiline = !!value.match(/\n/);
-	if (textarea && isMultiline && textarea.selectionStart > 0) {
+	if (textarea && (isMultiline || textarea.clientHeight > 24) && textarea.selectionStart > 0) {
 		event.stopPropagation();
 		return;
 	}
@@ -88,7 +88,7 @@ function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string
 
 function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
 	const isMultiline = !!value.match(/\n/);
-	if (textarea && isMultiline && textarea.selectionEnd < textarea.value.length) {
+	if (textarea && (isMultiline || textarea.clientHeight > 24) && textarea.selectionEnd < textarea.value.length) {
 		event.stopPropagation();
 		return;
 	}
