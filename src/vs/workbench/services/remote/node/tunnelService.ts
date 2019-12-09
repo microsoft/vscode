@@ -153,8 +153,10 @@ export class TunnelService implements ITunnelService {
 					if (--existing.refcount <= 0) {
 						existing.value.then(tunnel => tunnel.dispose());
 						this._tunnels.delete(tunnel.tunnelRemotePort);
-						this._onTunnelClosed.fire(tunnel.tunnelRemotePort);
 					}
+				} else {
+					tunnel.dispose();
+					this._onTunnelClosed.fire(tunnel.tunnelRemotePort);
 				}
 			}
 		};
