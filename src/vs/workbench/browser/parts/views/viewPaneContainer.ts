@@ -372,8 +372,17 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 	}
 
-	getContextMenuActions(): IAction[] {
+	getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
 		const result: IAction[] = [];
+		if (viewDescriptor) {
+			result.push(<IAction>{
+				id: `${viewDescriptor.id}.removeView`,
+				label: nls.localize('hideView', "Hide"),
+				enabled: viewDescriptor.canToggleVisibility,
+				run: () => this.toggleViewVisibility(viewDescriptor.id)
+			});
+		}
+
 		const viewToggleActions = this.viewsModel.viewDescriptors.map(viewDescriptor => (<IAction>{
 			id: `${viewDescriptor.id}.toggleVisibility`,
 			label: viewDescriptor.name,
@@ -381,6 +390,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			enabled: viewDescriptor.canToggleVisibility,
 			run: () => this.toggleViewVisibility(viewDescriptor.id)
 		}));
+
+		if (result.length && viewToggleActions.length) {
+			result.push(new Separator());
+		}
 
 		result.push(...viewToggleActions);
 		return result;
@@ -532,17 +545,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		const actions: IAction[] = [];
-		actions.push(<IAction>{
-			id: `${viewDescriptor.id}.removeView`,
-			label: nls.localize('hideView', "Hide"),
-			enabled: viewDescriptor.canToggleVisibility,
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		});
-		const otherActions = this.getContextMenuActions();
-		if (otherActions.length) {
-			actions.push(...[new Separator(), ...otherActions]);
-		}
+		const actions: IAction[] = this.getContextMenuActions(viewDescriptor);
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
