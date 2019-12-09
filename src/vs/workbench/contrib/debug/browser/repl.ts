@@ -610,6 +610,7 @@ class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluationInput,
 	}
 
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
+		dom.append(container, $('span.arrow.codicon.codicon-chevron-right'));
 		const input = dom.append(container, $('.expression'));
 		const label = new HighlightedLabel(input, false);
 		return { label };
@@ -635,6 +636,7 @@ class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResul
 	constructor(private readonly linkDetector: LinkDetector) { }
 
 	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
+		dom.append(container, $('span.arrow.codicon.codicon-chevron-left'));
 		const output = dom.append(container, $('.evaluation-result.expression'));
 		const value = dom.append(output, $('span.value'));
 		const annotation = dom.append(output, $('span'));

@@ -101,8 +101,16 @@ export abstract class ViewContainerViewlet extends PaneViewlet implements IViews
 		this.focus();
 	}
 
-	getContextMenuActions(): IAction[] {
+	getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
 		const result: IAction[] = [];
+		if (viewDescriptor) {
+			result.push(<IAction>{
+				id: `${viewDescriptor.id}.removeView`,
+				label: localize('hideView', "Hide"),
+				enabled: viewDescriptor.canToggleVisibility,
+				run: () => this.toggleViewVisibility(viewDescriptor.id)
+			});
+		}
 		const viewToggleActions = this.viewsModel.viewDescriptors.map(viewDescriptor => (<IAction>{
 			id: `${viewDescriptor.id}.toggleVisibility`,
 			label: viewDescriptor.name,
@@ -111,13 +119,17 @@ export abstract class ViewContainerViewlet extends PaneViewlet implements IViews
 			run: () => this.toggleViewVisibility(viewDescriptor.id)
 		}));
 
-		result.push(...viewToggleActions);
-		const parentActions = this.getViewletContextMenuActions();
-		if (viewToggleActions.length && parentActions.length) {
+		if (result.length && viewToggleActions.length) {
 			result.push(new Separator());
 		}
+		result.push(...viewToggleActions);
 
+		const parentActions = this.getViewletContextMenuActions();
+		if (result.length && parentActions.length) {
+			result.push(new Separator());
+		}
 		result.push(...parentActions);
+
 		return result;
 	}
 
@@ -249,17 +261,7 @@ export abstract class ViewContainerViewlet extends PaneViewlet implements IViews
 		event.stopPropagation();
 		event.preventDefault();
 
-		const actions: IAction[] = [];
-		actions.push(<IAction>{
-			id: `${viewDescriptor.id}.removeView`,
-			label: localize('hideView', "Hide"),
-			enabled: viewDescriptor.canToggleVisibility,
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		});
-		const otherActions = this.getContextMenuActions();
-		if (otherActions.length) {
-			actions.push(...[new Separator(), ...otherActions]);
-		}
+		const actions: IAction[] = this.getContextMenuActions(viewDescriptor);
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
@@ -377,6 +379,9 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 	protected abstract getFilterOn(viewDescriptor: IViewDescriptor): string | undefined;
 
 	private onFilterChanged(newFilterValue: string) {
+		if (this.allViews.size === 0) {
+			this.updateAllViews(this.viewsModel.viewDescriptors);
+		}
 		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, false));
 		this.getViewsForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, true));
 	}

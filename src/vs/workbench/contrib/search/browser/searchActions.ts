@@ -32,6 +32,7 @@ import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { createEditorFromSearchResult, refreshActiveEditorSearch } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -472,7 +473,38 @@ export class RerunEditorSearchAction extends Action {
 	async run() {
 		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
 			await this.progressService.withProgress({ location: ProgressLocation.Window },
-				() => refreshActiveEditorSearch(this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
+				() => refreshActiveEditorSearch(undefined, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
+		}
+	}
+}
+
+export class RerunEditorSearchWithContextAction extends Action {
+
+	static readonly ID: string = Constants.RerunEditorSearchWithContextCommandId;
+	static readonly LABEL = nls.localize('search.rerunEditorSearchContext', "Search Again (With Context)");
+
+	constructor(id: string, label: string,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEditorService private editorService: IEditorService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ILabelService private labelService: ILabelService,
+		@IProgressService private progressService: IProgressService,
+		@IQuickInputService private quickPickService: IQuickInputService
+	) {
+		super(id, label);
+	}
+
+	async run() {
+		const lines = await this.quickPickService.input({
+			prompt: nls.localize('lines', "Lines of Context"),
+			value: '2',
+			validateInput: async (value) => isNaN(parseInt(value)) ? nls.localize('mustBeInteger', "Must enter an integer") : undefined
+		});
+		if (lines === undefined) { return; }
+		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+			await this.progressService.withProgress({ location: ProgressLocation.Window },
+				() => refreshActiveEditorSearch(+lines, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
 		}
 	}
 }

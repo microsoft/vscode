@@ -396,7 +396,6 @@
 .codicon-debug-breakpoint-function:before { content: "\eb88" }
 .codicon-debug-breakpoint-function-disabled:before { content: "\eb88" }
 .codicon-debug-breakpoint-stackframe-active:before { content: "\eb89" }
-.codicon-debug-breakpoint-stackframe-dot:before { content: "\eb8a" }
 .codicon-debug-breakpoint-stackframe:before { content: "\eb8b" }
 .codicon-debug-breakpoint-stackframe-focused:before { content: "\eb8b" }
 .codicon-debug-breakpoint-unsupported:before { content: "\eb8c" }

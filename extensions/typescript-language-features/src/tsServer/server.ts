@@ -60,7 +60,7 @@ export interface ITypeScriptServer {
 }
 
 export interface TsServerDelegate {
-	onFatalError(command: string): void;
+	onFatalError(command: string, error: Error): void;
 }
 
 export interface TsServerProcess {
@@ -222,21 +222,13 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 					if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
 						/* __GDPR__
 							"languageServiceErrorResponse" : {
-								"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-								"stack" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-								"errortext" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 								"${include}": [
-									"${TypeScriptCommonProperties}"
+									"${TypeScriptCommonProperties}",
+									"${TypeScriptRequestErrorProperties}"
 								]
 							}
 						*/
-						this._telemetryReporter.logTelemetry('languageServiceErrorResponse', {
-							command: err.serverCommand,
-							message: err.serverMessage || '',
-							stack: err.serverStack || '',
-							errortext: err.serverErrorText || '',
-						});
+						this._telemetryReporter.logTelemetry('languageServiceErrorResponse', err.telemetry);
 					}
 				}
 
@@ -367,9 +359,8 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		} else if (SyntaxRoutingTsServer.sharedCommands.has(command)) {
 			// Dispatch to both server but only return from syntax one
 
-			const enum RequestState { Unresolved, Resolved, Errored }
-			let syntaxRequestState = RequestState.Unresolved;
-			let semanticRequestState = RequestState.Unresolved;
+			let syntaxRequestState: RequestState.State = RequestState.Unresolved;
+			let semanticRequestState: RequestState.State = RequestState.Unresolved;
 
 			// Also make sure we never cancel requests to just one server
 			let token: vscode.CancellationToken | undefined = undefined;
@@ -394,16 +385,16 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 				semanticRequest
 					.then(result => {
 						semanticRequestState = RequestState.Resolved;
-						if (syntaxRequestState === RequestState.Errored) {
+						if (syntaxRequestState.type === RequestState.Type.Errored) {
 							// We've gone out of sync
-							this._delegate.onFatalError(command);
+							this._delegate.onFatalError(command, syntaxRequestState.err);
 						}
 						return result;
 					}, err => {
-						semanticRequestState = RequestState.Errored;
+						semanticRequestState = new RequestState.Errored(err);
 						if (syntaxRequestState === RequestState.Resolved) {
 							// We've gone out of sync
-							this._delegate.onFatalError(command);
+							this._delegate.onFatalError(command, err);
 						}
 						throw err;
 					});
@@ -413,16 +404,16 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 				syntaxRequest
 					.then(result => {
 						syntaxRequestState = RequestState.Resolved;
-						if (semanticRequestState === RequestState.Errored) {
+						if (semanticRequestState.type === RequestState.Type.Errored) {
 							// We've gone out of sync
-							this._delegate.onFatalError(command);
+							this._delegate.onFatalError(command, semanticRequestState.err);
 						}
 						return result;
 					}, err => {
-						syntaxRequestState = RequestState.Errored;
+						syntaxRequestState = new RequestState.Errored(err);
 						if (semanticRequestState === RequestState.Resolved) {
 							// We've gone out of sync
-							this._delegate.onFatalError(command);
+							this._delegate.onFatalError(command, err);
 						}
 						throw err;
 					});
@@ -432,4 +423,22 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 			return this.semanticServer.executeImpl(command, args, executeInfo);
 		}
 	}
+}
+
+namespace RequestState {
+	export const enum Type { Unresolved, Resolved, Errored }
+
+	export const Unresolved = { type: Type.Unresolved } as const;
+
+	export const Resolved = { type: Type.Resolved } as const;
+
+	export class Errored {
+		readonly type = Type.Errored;
+
+		constructor(
+			public readonly err: Error
+		) { }
+	}
+
+	export type State = typeof Unresolved | typeof Resolved | Errored;
 }

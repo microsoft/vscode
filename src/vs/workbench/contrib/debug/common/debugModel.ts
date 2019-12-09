@@ -157,6 +157,11 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.session = session;
 		try {
 			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			if (response && response.success === false) {
+				this.value = response.message || '';
+				return false;
+			}
+
 			if (response && response.body) {
 				this.value = response.body.result || '';
 				this.reference = response.body.variablesReference;
@@ -743,13 +748,14 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 	constructor(
-		public label: string,
+		public description: string,
 		public dataId: string,
 		public canPersist: boolean,
 		enabled: boolean,
 		hitCondition: string | undefined,
 		condition: string | undefined,
 		logMessage: string | undefined,
+		private accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
@@ -757,8 +763,9 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 	toJSON(): any {
 		const result = super.toJSON();
-		result.label = this.label;
-		result.dataid = this.dataId;
+		result.description = this.description;
+		result.dataId = this.dataId;
+		result.accessTypes = this.accessTypes;
 
 		return result;
 	}
@@ -772,7 +779,7 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 	}
 
 	toString(): string {
-		return this.label;
+		return this.description;
 	}
 }
 
@@ -1154,8 +1161,8 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed });
 	}
 
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean): void {
-		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined);
+	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined): void {
+		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes);
 		this.dataBreakopints.push(newDataBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint] });
 	}

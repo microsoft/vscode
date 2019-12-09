@@ -8,13 +8,13 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams, DocumentRangeFormattingRequest, ProvideCompletionItemsSignature } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
-import { activateMatchingTagPosition as activateMatchingTagSelection } from './matchingTag';
+import { activateMirrorCursor } from './mirrorCursor';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -72,6 +72,31 @@ export function activate(context: ExtensionContext) {
 			dataPaths,
 			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
 		},
+		middleware: {
+			// testing the replace / insert mode
+			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				function updateRanges(item: CompletionItem) {
+					const range = item.range;
+					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range2 = { inserting: new Range(range.start, position), replacing: range };
+						item.range = undefined;
+					}
+				}
+				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
+					if (r) {
+						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+					}
+					return r;
+				}
+				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+
+				const r = next(document, position, context, token);
+				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+					return r.then(updateProposals);
+				}
+				return updateProposals(r);
+			}
+		}
 	};
 
 	// Create the language client and start the client.
@@ -93,7 +118,7 @@ export function activate(context: ExtensionContext) {
 			return client.sendRequest(MatchingTagPositionRequest.type, param);
 		};
 
-		disposable = activateMatchingTagSelection(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.autoSelectingMatchingTags');
+		disposable = activateMirrorCursor(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.mirrorCursorOnMatchingTag');
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {

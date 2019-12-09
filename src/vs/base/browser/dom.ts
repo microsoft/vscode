@@ -972,6 +972,7 @@ export const EventHelper = {
 export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
+	refreshState?(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
@@ -1000,6 +1001,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
+	private _refreshStateHandler: () => void;
+
 	constructor(element: HTMLElement | Window) {
 		super();
 		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
@@ -1026,8 +1029,23 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
+		this._refreshStateHandler = () => {
+			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			if (currentNodeHasFocus !== hasFocus) {
+				if (hasFocus) {
+					onBlur();
+				} else {
+					onFocus();
+				}
+			}
+		};
+
 		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
 		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
+	}
+
+	refreshState() {
+		this._refreshStateHandler();
 	}
 }
 
@@ -1079,6 +1097,11 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	Object.keys(attrs).forEach(name => {
 		const value = attrs![name];
+
+		if (typeof value === 'undefined') {
+			return;
+		}
+
 		if (/^on\w+$/.test(name)) {
 			(<any>result)[name] = value;
 		} else if (name === 'selected') {

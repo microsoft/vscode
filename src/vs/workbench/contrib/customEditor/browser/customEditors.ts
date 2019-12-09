@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, distinct, find, mergeSort } from 'vs/base/common/arrays';
-import * as glob from 'vs/base/common/glob';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename, isEqual } from 'vs/base/common/resources';
@@ -32,14 +31,14 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { CustomFileEditorInput } from './customEditorInput';
 const defaultEditorId = 'default';
 
-const defaultEditorInfo: CustomEditorInfo = {
+const defaultEditorInfo = new CustomEditorInfo({
 	id: defaultEditorId,
 	displayName: nls.localize('promptOpenWith.defaultEditor', "VS Code's standard text editor"),
 	selector: [
 		{ filenamePattern: '*' }
 	],
 	priority: CustomEditorPriority.default,
-};
+});
 
 export class CustomEditorInfoStore {
 	private readonly contributedEditors = new Map<string, CustomEditorInfo>();
@@ -64,7 +63,7 @@ export class CustomEditorInfoStore {
 
 	public getContributedEditors(resource: URI): readonly CustomEditorInfo[] {
 		return Array.from(this.contributedEditors.values()).filter(customEditor =>
-			customEditor.selector.some(selector => matches(selector, resource)));
+			customEditor.matches(resource));
 	}
 }
 
@@ -97,12 +96,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 			for (const extension of extensions) {
 				for (const webviewEditorContribution of extension.value) {
-					this._editorInfoStore.add({
+					this._editorInfoStore.add(new CustomEditorInfo({
 						id: webviewEditorContribution.viewType,
 						displayName: webviewEditorContribution.displayName,
 						selector: webviewEditorContribution.selector || [],
 						priority: webviewEditorContribution.priority || CustomEditorPriority.default,
-					});
+					}));
 				}
 			}
 			this.updateContexts();
@@ -127,6 +126,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return { resource, viewType: activeInput.viewType };
 	}
 
+	public getCustomEditor(viewType: string): CustomEditorInfo | undefined {
+		return this._editorInfoStore.get(viewType);
+	}
+
 	public getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[] {
 		return this._editorInfoStore.getContributedEditors(resource);
 	}
@@ -134,7 +137,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	public getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[] {
 		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsKey) || [];
 		return coalesce(rawAssociations
-			.filter(association => matches(association, resource))
+			.filter(association => CustomEditorInfo.selectorMatches(association, resource))
 			.map(association => this._editorInfoStore.get(association.viewType)));
 	}
 
@@ -332,6 +335,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		return {
 			override: (async () => {
 				const standardEditor = await this.editorService.openEditor(editor, { ...options, ignoreOverrides: true }, group);
+				// Give a moment to make sure the editor is showing.
+				// Otherwise the focus shift can cause the prompt to be dismissed right away.
+				await new Promise(resolve => setTimeout(resolve, 20));
 				const selectedEditor = await this.customEditorService.promptOpenWith(resource, options, group);
 				if (selectedEditor && selectedEditor.input) {
 					await group.replaceEditors([{
@@ -403,16 +409,6 @@ function priorityToRank(priority: CustomEditorPriority): number {
 		case CustomEditorPriority.builtin: return 2;
 		case CustomEditorPriority.option: return 1;
 	}
-}
-
-function matches(selector: CustomEditorSelector, resource: URI): boolean {
-	if (selector.filenamePattern) {
-		if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
-			return true;
-		}
-	}
-
-	return false;
 }
 
 registerThemingParticipant((theme, collector) => {

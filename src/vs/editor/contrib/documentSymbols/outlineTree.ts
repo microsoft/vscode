@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IDataSource, ITreeNode, ITreeRenderer, ITreeSorter, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
-import { values, forEach } from 'vs/base/common/collections';
+import { values } from 'vs/base/common/collections';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
@@ -22,6 +22,8 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { registerColor, listErrorForeground, listWarningForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IdleValue } from 'vs/base/common/async';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { URI } from 'vs/base/common/uri';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
 
@@ -278,27 +280,26 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 		[SymbolKind.TypeParameter]: 'showTypeParameters',
 	});
 
-	private readonly _filteredTypes = new Set<SymbolKind>();
-
 	constructor(
 		private readonly _prefix: string,
-		@IConfigurationService private readonly _configService: IConfigurationService,
-	) {
-		this.update();
-	}
-
-	update() {
-		this._filteredTypes.clear();
-		forEach(OutlineFilter.configNameToKind, entry => {
-			const key = `${this._prefix}.${entry.key}`;
-			if (this._configService.getValue<boolean>(key) === false) {
-				this._filteredTypes.add(entry.value);
-			}
-		});
-	}
+		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
+	) { }
 
 	filter(element: OutlineItem): boolean {
-		return !(element instanceof OutlineElement) || !this._filteredTypes.has(element.symbol.kind);
+		const outline = OutlineModel.get(element);
+		let uri: URI | undefined;
+
+		if (outline) {
+			uri = outline.textModel.uri;
+		}
+
+		if (!(element instanceof OutlineElement)) {
+			return true;
+		}
+
+		const configName = OutlineFilter.kindToConfigName[element.symbol.kind];
+		const configKey = `${this._prefix}.${configName}`;
+		return this._textResourceConfigService.getValue(uri, configKey);
 	}
 }
 

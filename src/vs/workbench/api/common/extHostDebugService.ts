@@ -1054,12 +1054,6 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 				this.acceptMessage(message);
 			});
 		}
-
-		if (this.implementation.onError) {
-			implementation.onError((error: Error) => {
-				this._onError.fire(error);
-			});
-		}
 	}
 
 	startSession(): Promise<void> {
@@ -1073,6 +1067,9 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	stopSession(): Promise<void> {
+		if (this.implementation.dispose) {
+			this.implementation.dispose();
+		}
 		return Promise.resolve(undefined);
 	}
 }

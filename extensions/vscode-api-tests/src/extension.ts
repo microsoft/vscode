@@ -2824,14 +2824,12 @@ export class ProtocolServer implements vscode.DebugAdapter {
 	private _sequence: number = 1;
 	private _pendingRequests = new Map<number, (response: DebugProtocol.Response) => void>();
 
-	constructor() {
-	}
 
 	public handleMessage(message: DebugProtocol.ProtocolMessage): void {
 		this.dispatch(message);
 	}
 
-	public stop(): void {
+	public dispose() {
 	}
 
 	public sendEvent(event: DebugProtocol.Event): void {
@@ -3817,7 +3815,7 @@ export class MockDebugAdapterDescriptorFactory implements vscode.DebugAdapterDes
 	}
 
 	createDebugAdapterDescriptor(_session: vscode.DebugSession, _executable: vscode.DebugAdapterExecutable | undefined): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-		return new vscode.DebugAdapterInlineImplementation(new MockDebugSession(this.memfs));
+		return <any>new vscode.DebugAdapterInlineImplementation(new MockDebugSession(this.memfs));
 	}
 }
 

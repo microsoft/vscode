@@ -15,7 +15,7 @@ import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workben
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -119,22 +119,27 @@ export class DebugViewlet extends ViewContainerViewlet {
 		if (CONTEXT_DEBUG_UX.getValue(this.contextKeyService) === 'simple') {
 			return [];
 		}
-		if (this.showInitialDebugActions) {
-			return [this.startAction, this.configureAction, this.toggleReplAction];
+		if (!this.showInitialDebugActions) {
+
+			if (!this.debugToolBarMenu) {
+				this.debugToolBarMenu = this.menuService.createMenu(MenuId.DebugToolBar, this.contextKeyService);
+				this._register(this.debugToolBarMenu);
+			}
+
+			const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+			if (this.disposeOnTitleUpdate) {
+				dispose(this.disposeOnTitleUpdate);
+			}
+			this.disposeOnTitleUpdate = disposable;
+
+			return actions;
 		}
 
-		if (!this.debugToolBarMenu) {
-			this.debugToolBarMenu = this.menuService.createMenu(MenuId.DebugToolBar, this.contextKeyService);
-			this._register(this.debugToolBarMenu);
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return [this.toggleReplAction];
 		}
 
-		const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
-		if (this.disposeOnTitleUpdate) {
-			dispose(this.disposeOnTitleUpdate);
-		}
-		this.disposeOnTitleUpdate = disposable;
-
-		return actions;
+		return [this.startAction, this.configureAction, this.toggleReplAction];
 	}
 
 	get showInitialDebugActions(): boolean {

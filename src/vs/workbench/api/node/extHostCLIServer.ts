@@ -101,9 +101,6 @@ export class CLIServer {
 			for (const s of folderURIs) {
 				try {
 					urisToOpen.push({ folderUri: URI.parse(s) });
-					if (!addMode && !forceReuseWindow) {
-						forceNewWindow = true;
-					}
 				} catch (e) {
 					// ignore
 				}
@@ -114,9 +111,6 @@ export class CLIServer {
 				try {
 					if (hasWorkspaceFileExtension(s)) {
 						urisToOpen.push({ workspaceUri: URI.parse(s) });
-						if (!forceReuseWindow) {
-							forceNewWindow = true;
-						}
 					} else {
 						urisToOpen.push({ fileUri: URI.parse(s) });
 					}
@@ -127,7 +121,8 @@ export class CLIServer {
 		}
 		if (urisToOpen.length) {
 			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
-			const windowOpenArgs: INativeOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, waitMarkerFileURI };
+			const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
+			const windowOpenArgs: INativeOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI };
 			this._commands.executeCommand('_files.windowOpen', urisToOpen, windowOpenArgs);
 		}
 		res.writeHead(200);

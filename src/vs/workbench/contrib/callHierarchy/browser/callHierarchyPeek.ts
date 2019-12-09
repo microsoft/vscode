@@ -49,10 +49,10 @@ class ChangeHierarchyDirectionAction extends Action {
 		});
 		const update = () => {
 			if (getDirection() === CallHierarchyDirection.CallsFrom) {
-				this.label = localize('toggle.from', "Showing Calls");
+				this.label = localize('toggle.from', "Show Incoming Calls");
 				this.class = 'calls-from';
 			} else {
-				this.label = localize('toggle.to', "Showing Callers");
+				this.label = localize('toggle.to', "Showing Outgoing Calls");
 				this.class = 'calls-to';
 			}
 		};
@@ -325,7 +325,11 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		// set decorations for caller ranges (if in the same file)
 		let decorations: IModelDeltaDecoration[] = [];
 		let fullRange: IRange | undefined;
-		for (const loc of element.locations) {
+		let locations = element.locations;
+		if (!locations) {
+			locations = [{ uri: element.item.uri, range: element.item.selectionRange }];
+		}
+		for (const loc of locations) {
 			if (loc.uri.toString() === previewUri.toString()) {
 				decorations.push({ range: loc.range, options });
 				fullRange = !fullRange ? loc.range : Range.plusRange(loc.range, fullRange);
@@ -424,7 +428,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 	}
 
 	protected _doLayoutBody(height: number, width: number): void {
-		if (this._dim.height !== height || this._dim.width === width) {
+		if (this._dim.height !== height || this._dim.width !== width) {
 			super._doLayoutBody(height, width);
 			this._dim = { height, width };
 			this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;

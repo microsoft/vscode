@@ -30,7 +30,7 @@ let tokenClassificationRegistry = getTokenClassificationRegistry();
 
 const tokenGroupToScopesMap = {
 	comments: ['comment', 'punctuation.definition.comment'],
-	strings: ['string'],
+	strings: ['string', 'meta.embedded.assembly'],
 	keywords: ['keyword - keyword.operator', 'keyword.control', 'storage', 'storage.type'],
 	numbers: ['constant.numeric'],
 	types: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],

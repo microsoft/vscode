@@ -51,10 +51,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/testCustomEditors",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/debug",
 			"project": "vscode-workbench"
 		},
