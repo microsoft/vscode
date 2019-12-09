@@ -1209,11 +1209,10 @@ class CallHierarchyAdapter {
 	}
 
 	releaseSession(sessionId: string): void {
-		this._cache.delete(sessionId.charAt(0));
+		this._cache.delete(sessionId);
 	}
 
-	private _cacheAndConvertItem(itemOrSessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
-		const sessionId = itemOrSessionId.charAt(0);
+	private _cacheAndConvertItem(sessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
 		const map = this._cache.get(sessionId)!;
 		const dto: extHostProtocol.ICallHierarchyItemDto = {
 			_sessionId: sessionId,
@@ -1231,7 +1230,7 @@ class CallHierarchyAdapter {
 
 	private _itemFromCache(sessionId: string, itemId: string): vscode.CallHierarchyItem | undefined {
 		const map = this._cache.get(sessionId);
-		return map && map.get(itemId);
+		return map?.get(itemId);
 	}
 }
 

@@ -27,7 +27,6 @@ import { Marker } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 
@@ -285,7 +284,6 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(null, action);
@@ -385,7 +383,6 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		inputbox.addToHistory();
 		this.action.filterText = inputbox.value;
 		this.action.filterHistory = inputbox.getHistory();
-		this.reportFilteringUsed();
 	}
 
 	private updateBadge(): void {
@@ -424,23 +421,6 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 			event.stopPropagation();
 			event.preventDefault();
 		}
-	}
-
-	private reportFilteringUsed(): void {
-		const filterOptions = this.filterController.getFilterOptions();
-		const data = {
-			errors: filterOptions.showErrors,
-			warnings: filterOptions.showWarnings,
-			infos: filterOptions.showInfos,
-		};
-		/* __GDPR__
-			"problems.filter" : {
-				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('problems.filter', data);
 	}
 
 	protected updateClass(): void {

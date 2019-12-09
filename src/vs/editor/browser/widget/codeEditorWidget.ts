@@ -874,6 +874,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public onHide(): void {
 		this._modelData?.view.refreshFocusState();
+		this._focusTracker.refreshState();
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {
@@ -1805,6 +1806,12 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 
 	public hasFocus(): boolean {
 		return this._hasFocus;
+	}
+
+	public refreshState(): void {
+		if (this._domFocusTracker.refreshState) {
+			this._domFocusTracker.refreshState();
+		}
 	}
 }
 

@@ -72,7 +72,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				openerService
+				openerService,
+				remoteExplorerService
 			));
 		}
 
@@ -89,7 +90,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				openerService
+				openerService,
+				remoteExplorerService
 			));
 		}
 
@@ -106,7 +108,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				openerService
+				openerService,
+				remoteExplorerService
 			));
 		}
 
@@ -123,7 +126,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				openerService
+				openerService,
+				remoteExplorerService
 			));
 		}
 
@@ -137,7 +141,8 @@ class HelpModel {
 				})),
 				quickInputService,
 				environmentService,
-				commandService
+				commandService,
+				remoteExplorerService
 			));
 		}
 
@@ -158,14 +163,15 @@ abstract class HelpItemBase implements IHelpItem {
 		public label: string,
 		public values: { extensionDescription: IExtensionDescription, url?: string, remoteAuthority: string[] | undefined }[],
 		private quickInputService: IQuickInputService,
-		private environmentService: IWorkbenchEnvironmentService
+		private environmentService: IWorkbenchEnvironmentService,
+		private remoteExplorerService: IRemoteExplorerService
 	) {
 		iconClasses.push('remote-help-tree-node-item-icon');
 	}
 
 	async handleClick() {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		if (remoteAuthority) {
+		if (remoteAuthority && startsWith(remoteAuthority, this.remoteExplorerService.targetType)) {
 			for (let value of this.values) {
 				if (value.remoteAuthority) {
 					for (let authority of value.remoteAuthority) {
@@ -207,9 +213,10 @@ class HelpItem extends HelpItemBase {
 		values: { extensionDescription: IExtensionDescription; url: string, remoteAuthority: string[] | undefined }[],
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
-		private openerService: IOpenerService
+		private openerService: IOpenerService,
+		remoteExplorerService: IRemoteExplorerService
 	) {
-		super(iconClasses, label, values, quickInputService, environmentService);
+		super(iconClasses, label, values, quickInputService, environmentService, remoteExplorerService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
@@ -225,8 +232,9 @@ class IssueReporterItem extends HelpItemBase {
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
 		private commandService: ICommandService,
+		remoteExplorerService: IRemoteExplorerService
 	) {
-		super(iconClasses, label, values, quickInputService, environmentService);
+		super(iconClasses, label, values, quickInputService, environmentService, remoteExplorerService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {

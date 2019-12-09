@@ -350,8 +350,9 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		// Global settings
 		defaultEncodingOverrides.push({ parent: this.environmentService.userRoamingDataHome, encoding: UTF8 });
 
-		// Workspace files
+		// Workspace files (via extension and via untitled workspaces location)
 		defaultEncodingOverrides.push({ extension: WORKSPACE_EXTENSION, encoding: UTF8 });
+		defaultEncodingOverrides.push({ parent: this.environmentService.untitledWorkspacesHome, encoding: UTF8 });
 
 		// Folder Settings
 		this.contextService.getWorkspace().folders.forEach(folder => {

@@ -206,7 +206,7 @@ export class SearchView extends ViewletPane {
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
 
-		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(500));
+		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(2000));
 
 		this.actions = [
 			this._register(this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)),
@@ -963,13 +963,15 @@ export class SearchView extends ViewletPane {
 		return this.searchWidget && this.searchWidget.searchInput.getValue().length > 0;
 	}
 
-	clearSearchResults(): void {
+	clearSearchResults(clearInput = true): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage(true);
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.showSearchWithoutFolderMessage();
 		}
-		this.searchWidget.clear();
+		if (clearInput) {
+			this.searchWidget.clear();
+		}
 		this.viewModel.cancelSearch();
 		this.updateActions();
 
@@ -1202,7 +1204,7 @@ export class SearchView extends ViewletPane {
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 
 		if (contentPattern.length === 0) {
-			this.clearSearchResults();
+			this.clearSearchResults(false);
 			this.clearMessage();
 			return;
 		}

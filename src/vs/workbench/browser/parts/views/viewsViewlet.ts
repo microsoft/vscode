@@ -379,6 +379,9 @@ export abstract class FilterViewContainerViewlet extends ViewContainerViewlet {
 	protected abstract getFilterOn(viewDescriptor: IViewDescriptor): string | undefined;
 
 	private onFilterChanged(newFilterValue: string) {
+		if (this.allViews.size === 0) {
+			this.updateAllViews(this.viewsModel.viewDescriptors);
+		}
 		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, false));
 		this.getViewsForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, true));
 	}

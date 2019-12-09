@@ -610,7 +610,6 @@ export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
 	$createAppUri(uri: UriComponents): Promise<UriComponents>;
-	$proposedCreateAppUri(extensionId: ExtensionIdentifier, options?: { payload?: Partial<UriComponents>; }): Promise<UriComponents>;
 }
 
 export interface ExtHostUrlsShape {
@@ -1287,6 +1286,7 @@ export interface IDataBreakpointDto extends IBreakpointDto {
 	dataId: string;
 	canPersist: boolean;
 	label: string;
+	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
 }
 
 export interface ISourceBreakpointDto extends IBreakpointDto {

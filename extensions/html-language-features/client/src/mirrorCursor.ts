@@ -15,7 +15,7 @@ import {
 	WorkspaceEdit
 } from 'vscode';
 
-export function activateMatchingTagPosition(
+export function activateMirrorCursor(
 	matchingTagPositionProvider: (document: TextDocument, position: Position) => Thenable<Position | null>,
 	supportedLanguages: { [id: string]: boolean },
 	configName: string
@@ -87,9 +87,22 @@ export function activateMatchingTagPosition(
 			}
 		}
 
+		const exitMirrorMode = () => {
+			inMirrorMode = false;
+			window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
+		};
+
 		if (cursors.length === 2 && inMirrorMode) {
-			// Check two cases
 			if (event.selections[0].isEmpty && event.selections[1].isEmpty) {
+				if (
+					prevCursors.length === 2 &&
+					event.selections[0].anchor.line !== prevCursors[0].anchor.line &&
+					event.selections[1].anchor.line !== prevCursors[0].anchor.line
+				) {
+					exitMirrorMode();
+					return;
+				}
+
 				const charBeforeAndAfterPositionsRoughtlyEqual = isCharBeforeAndAfterPositionsRoughtlyEqual(
 					event.textEditor.document,
 					event.selections[0].anchor,
@@ -97,8 +110,7 @@ export function activateMatchingTagPosition(
 				);
 
 				if (!charBeforeAndAfterPositionsRoughtlyEqual) {
-					inMirrorMode = false;
-					window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
+					exitMirrorMode();
 					return;
 				} else {
 					// Need to cleanup in the case of <div |></div |>
@@ -109,11 +121,10 @@ export function activateMatchingTagPosition(
 							event.selections[1].anchor
 						)
 					) {
-						inMirrorMode = false;
 						const cleanupEdit = new WorkspaceEdit();
 						const cleanupRange = new Range(event.selections[1].anchor.translate(0, -1), event.selections[1].anchor);
 						cleanupEdit.replace(event.textEditor.document.uri, cleanupRange, '');
-						window.activeTextEditor!.selections = [window.activeTextEditor!.selections[0]];
+						exitMirrorMode();
 						workspace.applyEdit(cleanupEdit);
 					}
 				}
@@ -150,6 +161,36 @@ function isCharBeforeAndAfterPositionsRoughtlyEqual(document: TextDocument, firs
 	const charBeforeSecondarySelection = getCharBefore(document, secondPos);
 	const charAfterSecondarySelection = getCharAfter(document, secondPos);
 
+	/**
+	 * Special case for exiting
+	 * |<div>
+	 * |</div>
+	 */
+	if (
+		charBeforePrimarySelection === ' ' &&
+		charBeforeSecondarySelection === ' ' &&
+		charAfterPrimarySelection === '<' &&
+		charAfterSecondarySelection === '<'
+	) {
+		return false;
+	}
+	/**
+	 * Special case for exiting
+	 * |  <div>
+	 * |  </div>
+	 */
+	if (charBeforePrimarySelection === '\n' && charBeforeSecondarySelection === '\n') {
+		return false;
+	}
+	/**
+	 * Special case for exiting
+	 * <div>|
+	 * </div>|
+	 */
+	if (charAfterPrimarySelection === '\n' && charAfterSecondarySelection === '\n') {
+		return false;
+	}
+
 	// Exit mirror mode when cursor position no longer mirror
 	// Unless it's in the case of `<|></|>`
 	const charBeforeBothPositionRoughlyEqual =
@@ -173,10 +214,19 @@ function shouldDoCleanupForHtmlAttributeInput(document: TextDocument, firstPos: 
 
 	const primaryBeforeSecondary = document.offsetAt(firstPos) < document.offsetAt(secondPos);
 
+	/**
+	 * Check two cases
+	 * <div |></div >
+	 * <div | id="a"></div >
+	 * Before 1st cursor: ` `
+	 * After  1st cursor: `>` or ` `
+	 * Before 2nd cursor: ` `
+	 * After  2nd cursor: `>`
+	 */
 	return (
 		primaryBeforeSecondary &&
 		charBeforePrimarySelection === ' ' &&
-		charAfterPrimarySelection === '>' &&
+		(charAfterPrimarySelection === '>' || charAfterPrimarySelection === ' ') &&
 		charBeforeSecondarySelection === ' ' &&
 		charAfterSecondarySelection === '>'
 	);

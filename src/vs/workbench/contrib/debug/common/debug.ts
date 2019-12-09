@@ -215,7 +215,7 @@ export interface IDebugSession extends ITreeElement {
 
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean }>;
+	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean, accessTypes?: DebugProtocol.DataBreakpointAccessType[] }>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
@@ -377,7 +377,7 @@ export interface IExceptionBreakpoint extends IEnablement {
 }
 
 export interface IDataBreakpoint extends IBaseBreakpoint {
-	readonly label: string;
+	readonly description: string;
 	readonly dataId: string;
 	readonly canPersist: boolean;
 }
@@ -795,7 +795,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new data breakpoint.
 	 */
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean): Promise<void>;
+	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined): Promise<void>;
 
 	/**
 	 * Removes all data breakpoints. If id is passed only removes the data breakpoint with the passed id.

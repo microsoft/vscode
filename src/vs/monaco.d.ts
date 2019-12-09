@@ -2880,9 +2880,9 @@ declare namespace monaco.editor {
 		showFoldingControls?: 'always' | 'mouseover';
 		/**
 		 * Enable highlighting of matching brackets.
-		 * Defaults to true.
+		 * Defaults to 'always'.
 		 */
-		matchBrackets?: boolean;
+		matchBrackets?: 'never' | 'near' | 'always';
 		/**
 		 * Enable rendering of whitespace.
 		 * Defaults to none.

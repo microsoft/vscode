@@ -374,10 +374,6 @@
 	justify-content: center;
 }
 
-.debug-viewlet .debug-breakpoints .breakpoint > .codicon-debug-breakpoint-stackframe-dot::before {
-	content: "\ea71";
-}
-
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {
 	opacity: 0.7;
 	font-size: 0.9em;

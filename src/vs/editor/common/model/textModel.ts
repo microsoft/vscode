@@ -34,6 +34,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
+import { Constants } from 'vs/base/common/uint';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -2341,16 +2342,21 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return null;
 	}
 
-	public findEnclosingBrackets(_position: IPosition): [Range, Range] | null {
+	public findEnclosingBrackets(_position: IPosition, maxDuration = Constants.MAX_SAFE_SMALL_INTEGER): [Range, Range] | null {
 		const position = this.validatePosition(_position);
 		const lineCount = this.getLineCount();
+		const savedCounts = new Map<number, number[]>();
 
 		let counts: number[] = [];
-		const resetCounts = (modeBrackets: RichEditBrackets | null) => {
-			counts = [];
-			for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
-				counts[i] = 0;
+		const resetCounts = (languageId: number, modeBrackets: RichEditBrackets | null) => {
+			if (!savedCounts.has(languageId)) {
+				let tmp = [];
+				for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
+					tmp[i] = 0;
+				}
+				savedCounts.set(languageId, tmp);
 			}
+			counts = savedCounts.get(languageId)!;
 		};
 		const searchInRange = (modeBrackets: RichEditBrackets, lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): [Range, Range] | null => {
 			while (true) {
@@ -2380,7 +2386,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		let languageId: LanguageId = -1;
 		let modeBrackets: RichEditBrackets | null = null;
+		const startTime = Date.now();
 		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
+			const elapsedTime = Date.now() - startTime;
+			if (elapsedTime > maxDuration) {
+				return null;
+			}
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this._buffer.getLineContent(lineNumber);
@@ -2396,7 +2407,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				if (languageId !== tokenLanguageId) {
 					languageId = tokenLanguageId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
-					resetCounts(modeBrackets);
+					resetCounts(languageId, modeBrackets);
 				}
 			}
 
@@ -2415,7 +2426,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					}
 					languageId = tokenLanguageId;
 					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
-					resetCounts(modeBrackets);
+					resetCounts(languageId, modeBrackets);
 				}
 
 				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));

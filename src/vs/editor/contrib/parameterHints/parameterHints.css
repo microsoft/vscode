@@ -34,6 +34,7 @@
 .monaco-editor .parameter-hints-widget .body {
 	display: flex;
 	flex-direction: column;
+	min-height: 100%;
 }
 
 .monaco-editor .parameter-hints-widget .signature {
@@ -72,6 +73,7 @@
 
 .monaco-editor .parameter-hints-widget.multiple .controls {
 	display: flex;
+	padding: 0 2px;
 }
 
 .monaco-editor .parameter-hints-widget.multiple .button {
@@ -95,6 +97,7 @@
 	height: 12px;
 	line-height: 12px;
 	opacity: 0.5;
+	font-family: var(--monaco-monospace-font);
 }
 
 .monaco-editor .parameter-hints-widget .signature .parameter.active {
