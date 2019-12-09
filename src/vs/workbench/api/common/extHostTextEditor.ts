@@ -133,19 +133,6 @@ export class TextEditorEdit {
 	}
 }
 
-
-function deprecated(name: string, message: string = 'Refer to the documentation for further details.') {
-	return (target: Object, key: string, descriptor: TypedPropertyDescriptor<any>) => {
-		const originalMethod = descriptor.value;
-		descriptor.value = function (...args: any[]) {
-			console.warn(`[Deprecation Warning] method '${name}' is deprecated and should no longer be used. ${message}`);
-			return originalMethod.apply(this, args);
-		};
-
-		return descriptor;
-	};
-}
-
 export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 
 	private _proxy: MainThreadTextEditorsShape;
@@ -409,11 +396,11 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		this._disposed = true;
 	}
 
-	@deprecated('TextEditor.show') show(column: vscode.ViewColumn) {
+	show(column: vscode.ViewColumn) {
 		this._proxy.$tryShowEditor(this._id, TypeConverters.ViewColumn.from(column));
 	}
 
-	@deprecated('TextEditor.hide') hide() {
+	hide() {
 		this._proxy.$tryHideEditor(this._id);
 	}
 
