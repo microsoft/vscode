@@ -12,15 +12,17 @@ import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, IEditorInput } from 'vs/workbench/common/editor';
 import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { defaultEditorId } from 'vs/workbench/contrib/customEditor/browser/customEditors';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
@@ -180,10 +182,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		super({
 			id: ToggleCustomEditorCommand.ID,
 			precondition: CONTEXT_HAS_CUSTOM_EDITORS,
-			kbOpts: {
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_E,
-				weight: KeybindingWeight.EditorContrib
-			}
 		});
 	}
 
@@ -196,6 +194,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 		const activeGroup = activeControl.group;
 		const activeEditor = activeControl.input;
+
 		if (!activeEditor) {
 			return;
 		}
@@ -206,11 +205,11 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		}
 
 		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
-		const viewIDs = customEditorService.getContributedCustomEditors(targetResource);
-
 		const activeCustomEditor = customEditorService.activeCustomEditor;
-		let toggleView = 'default';
+
+		let toggleView = defaultEditorId;
 		if (!activeCustomEditor) {
+			const viewIDs = customEditorService.getContributedCustomEditors(targetResource);
 			if (viewIDs && viewIDs.length) {
 				toggleView = viewIDs[0].id;
 			}
@@ -219,7 +218,18 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			}
 		}
 
-		activeEditor.dispose();
-		customEditorService.openWith(targetResource, toggleView, undefined, activeGroup);
+		let replInput: IEditorInput;
+		if (toggleView === defaultEditorId) {
+			const instantiationService = accessor.get<IInstantiationService>(IInstantiationService);
+			replInput = instantiationService.createInstance(FileEditorInput, targetResource, undefined, undefined);
+		}
+		else {
+			replInput = customEditorService.createInput(targetResource, toggleView, activeGroup);
+		}
+
+		editorService.replaceEditors([{
+			editor: activeEditor,
+			replacement: replInput,
+		}], activeGroup);
 	}
 }).register();
