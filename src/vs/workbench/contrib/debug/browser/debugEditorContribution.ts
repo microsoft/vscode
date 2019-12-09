@@ -48,6 +48,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 	private hoverWidget: DebugHoverWidget;
 	private nonDebugHoverPosition: Position | undefined;
 	private hoverRange: Range | null = null;
+	private selectionRange: Range | null = null;
 	private mouseDown = false;
 
 	private wordToLineNumbersMap: Map<string, Position[]> | undefined;
@@ -141,11 +142,11 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	async showHover(range: Range, focus: boolean): Promise<void> {
+	async showHover(range: Range, focus: boolean, isSelectionRange: boolean = false): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && sf.source.uri.toString() === model.uri.toString()) {
-			return this.hoverWidget.showAt(range, focus);
+			return this.hoverWidget.showAt(range, focus, isSelectionRange);
 		}
 	}
 
@@ -166,8 +167,10 @@ class DebugEditorContribution implements IDebugEditorContribution {
 	@memoize
 	private get showHoverScheduler(): RunOnceScheduler {
 		const scheduler = new RunOnceScheduler(() => {
-			if (this.hoverRange) {
-				this.showHover(this.hoverRange, false);
+			if (this.hoverRange && this.selectionRange && this.selectionRange.containsRange(this.hoverRange)) {
+				this.showHover(this.selectionRange, false, true);
+			} else if (this.hoverRange) {
+				this.showHover(this.hoverRange, false, false);
 			}
 		}, HOVER_DELAY);
 		this.toDispose.push(scheduler);
@@ -237,6 +240,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		if (targetType === MouseTargetType.CONTENT_TEXT) {
 			if (mouseEvent.target.range && !mouseEvent.target.range.equalsRange(this.hoverRange)) {
 				this.hoverRange = mouseEvent.target.range;
+				this.selectionRange = this.editor.getSelection();
 				this.showHoverScheduler.schedule();
 			}
 		} else if (!this.mouseDown) {

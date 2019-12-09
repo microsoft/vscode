@@ -144,19 +144,31 @@ export class DebugHoverWidget implements IContentWidget {
 	getDomNode(): HTMLElement {
 		return this.domNode;
 	}
-
-	async showAt(range: Range, focus: boolean): Promise<void> {
+	async showAt(range: Range, focus: boolean, isSelectionRange: boolean = false): Promise<void> {
 		const pos = range.getStartPosition();
 
 		const session = this.debugService.getViewModel().focusedSession;
 		if (!this.editor.hasModel()) {
 			return Promise.resolve(this.hide());
 		}
+		const model = this.editor.getModel();
+		const rangeContent = model.getValueInRange(
+			new Range(range.startLineNumber, 1, range.endLineNumber, model.getLineMaxColumn(range.endLineNumber))
+		);
+		let start: number;
+		let end: number;
+		let fullExpressionRange!: Range;
+		if (isSelectionRange) {
+			start = range.startColumn;
+			end = range.endColumn;
+			fullExpressionRange = range;
+		} else {
+			({ start, end } = getExactExpressionStartAndEnd(rangeContent, range.startColumn, range.endColumn));
+			fullExpressionRange = new Range(pos.lineNumber, start, pos.lineNumber, end + 1);
+		}
 
-		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
-		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
 		// use regex to extract the sub-expression #9821
-		const matchingExpression = lineContent.substring(start - 1, end);
+		const matchingExpression = this.editor.getModel().getValueInRange(fullExpressionRange);
 		if (!matchingExpression || !session) {
 			return Promise.resolve(this.hide());
 		}
@@ -175,7 +187,7 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-			range: new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length),
+			range: fullExpressionRange,
 			options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 		}]);
 
