@@ -138,22 +138,30 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	static ID = 0;
 
 	private _index: number;
-	readonly labels: HTMLElement[];
+	private _labels!: HTMLElement[];
+	private _updateLabelDisposable: IDisposable;
 
 	get index(): number { return this._index; }
 	get count(): number { return this.items.length; }
 	get current(): ExplorerItem { return this.items[this._index]!; }
 	get currentId(): string { return `${this.id}_${this.index}`; }
+	get labels(): HTMLElement[] { return this._labels; }
 
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData) {
 		this._index = items.length - 1;
-		this.labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
 
-		for (let i = 0; i < items.length; i++) {
-			this.labels[i].setAttribute('aria-label', items[i].name);
+		this.updateLabels(templateData);
+		this._updateLabelDisposable = templateData.label.onDidRender(() => this.updateLabels(templateData));
+	}
+
+	private updateLabels(templateData: IFileTemplateData): void {
+		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
+
+		for (let i = 0; i < this.items.length; i++) {
+			this.labels[i].setAttribute('aria-label', this.items[i].name);
 		}
 
 		DOM.addClass(this.labels[this._index], 'active');
@@ -205,6 +213,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 
 	dispose(): void {
 		this._onDidChange.dispose();
+		this._updateLabelDisposable.dispose();
 	}
 }
 
