@@ -27,15 +27,14 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 
 const $ = DOM.$;
 
@@ -65,7 +64,7 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
 		if (element.cell_type === 'markdown') {
 			return 100;
 		} else {
-			return Math.max(element.source.length + 1, 4) * this._lineHeight + 16;
+			return Math.max(element.source.length + 1, 5) * this._lineHeight + 16;
 		}
 	}
 
@@ -213,7 +212,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				horizontalHasArrows: false
 			},
 			overviewRulerLanes: 3,
-			fixedOverflowWidgets: true,
+			fixedOverflowWidgets: false,
 			lineNumbersMinChars: 1,
 			minimap: { enabled: false },
 		};
@@ -235,7 +234,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				width: 0,
 				height: 0
 			}
-		}, this.widgetOptions);
+		}, {});
 		const action = document.createElement('div');
 		DOM.addClasses(action, 'menu', 'codicon-settings-gear', 'codicon');
 		container.appendChild(action);
@@ -251,8 +250,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const innerContent = templateData.cellContainer;
 		const width = innerContent.clientWidth;
 		const lineNum = element.source.length;
-		const totalHeight = Math.max(lineNum + 1, 4) * 21;
+		const totalHeight = Math.max(lineNum + 1, 5) * 21;
 		const resource = URI.parse(`notebookcell-${index}-${Date.now()}.py`);
+
 		const model = this.modelService.createModel(element.source.join(''), this.modeService.createByFilepathOrFirstLine(resource), resource, false);
 		templateData.editor?.setModel(model);
 		templateData.editor?.layout(
@@ -290,13 +290,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 		return {
 			isSimpleWidget: false,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				MenuPreventer.ID,
-				SelectionClipboardContributionID,
-				SuggestController.ID,
-				SnippetController2.ID,
-				TabCompletionController.ID
-			])
+			contributions: <IEditorContributionDescription[]>[
+				{ id: MenuPreventer.ID, ctor: MenuPreventer },
+				{ id: SuggestController.ID, ctor: SuggestController },
+				// { id: ModesHoverController.ID, ctor: ModesHoverController },
+				{ id: SnippetController2.ID, ctor: SnippetController2 },
+				{ id: TabCompletionController.ID, ctor: TabCompletionController },
+			]
 		};
 	}
 }

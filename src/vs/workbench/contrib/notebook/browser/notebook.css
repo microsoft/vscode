@@ -28,6 +28,14 @@
 	padding: 8px 0 8px 24px;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row {
+	overflow: visible !important;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:focus-within {
+	z-index: 10;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu {
 	position: absolute;
 	left: 0;
