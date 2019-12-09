@@ -59,8 +59,8 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 		return { added: [], removed: [], updated: [], remote: null };
 	}
 
-	const baseToLocal = lastSyncExtensionsMap ? compare(lastSyncExtensionsMap, localExtensionsMap, ignoredExtensionsSet) : { added: keys(localExtensionsMap).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-	const baseToRemote = lastSyncExtensionsMap ? compare(lastSyncExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet) : { added: keys(remoteExtensionsMap).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+	const baseToLocal = compare(lastSyncExtensionsMap, localExtensionsMap, ignoredExtensionsSet);
+	const baseToRemote = compare(lastSyncExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet);
 
 	const massageSyncExtension = (extension: ISyncExtension, key: string): ISyncExtension => {
 		const massagedExtension: ISyncExtension = {
@@ -144,8 +144,8 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 	return { added, removed, updated, remote };
 }
 
-function compare(from: Map<string, ISyncExtension>, to: Map<string, ISyncExtension>, ignoredExtensions: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-	const fromKeys = keys(from).filter(key => !ignoredExtensions.has(key));
+function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISyncExtension>, ignoredExtensions: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
+	const fromKeys = from ? keys(from).filter(key => !ignoredExtensions.has(key)) : [];
 	const toKeys = keys(to).filter(key => !ignoredExtensions.has(key));
 	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
@@ -155,7 +155,7 @@ function compare(from: Map<string, ISyncExtension>, to: Map<string, ISyncExtensi
 		if (removed.has(key)) {
 			continue;
 		}
-		const fromExtension = from.get(key)!;
+		const fromExtension = from!.get(key)!;
 		const toExtension = to.get(key);
 		if (!toExtension
 			|| fromExtension.enabled !== toExtension.enabled
