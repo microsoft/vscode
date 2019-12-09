@@ -151,22 +151,25 @@ export class TunnelService implements ITunnelService {
 				const existing = this._tunnels.get(tunnel.tunnelRemotePort);
 				if (existing) {
 					if (--existing.refcount <= 0) {
-						existing.value.then(tunnel => tunnel.dispose());
+						existing.value.then(tunnel => this.disposeTunnel(tunnel));
 						this._tunnels.delete(tunnel.tunnelRemotePort);
 					}
-				} else {
-					tunnel.dispose();
-					this._onTunnelClosed.fire(tunnel.tunnelRemotePort);
 				}
 			}
 		};
 	}
 
+	private disposeTunnel(tunnel: RemoteTunnel) {
+		tunnel.dispose();
+		this._onTunnelClosed.fire(tunnel.tunnelRemotePort);
+	}
+
 	async closeTunnel(remotePort: number): Promise<void> {
 		if (this._tunnels.has(remotePort)) {
 			const value = this._tunnels.get(remotePort)!;
-			(await value.value).dispose();
+			this.disposeTunnel(await value.value);
 			value.refcount = 0;
+			this._tunnels.delete(remotePort);
 		}
 	}
 
@@ -191,8 +194,7 @@ export class TunnelService implements ITunnelService {
 		};
 
 		const tunnel = createRemoteTunnel(options, remotePort, localPort);
-		// Using makeTunnel here for the value does result in dispose getting called twice, but it also ensures that _onTunnelClosed will be fired when closeTunnel is called.
-		this._tunnels.set(remotePort, { refcount: 1, value: tunnel.then(value => this.makeTunnel(value)) });
+		this._tunnels.set(remotePort, { refcount: 1, value: tunnel });
 		return tunnel;
 	}
 }
