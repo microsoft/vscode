@@ -422,12 +422,14 @@ editorCommands.setup();
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
-		group: 'navigation'
+		group: 'navigation',
+		order: 0
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
-		group: 'navigation'
+		group: 'navigation',
+		order: 1
 	});
 }
 

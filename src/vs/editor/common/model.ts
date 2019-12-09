@@ -898,7 +898,7 @@ export interface ITextModel {
 	 * @param position The position at which to start the search.
 	 * @internal
 	 */
-	findEnclosingBrackets(position: IPosition): [Range, Range] | null;
+	findEnclosingBrackets(position: IPosition, maxDuration?: number): [Range, Range] | null;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,

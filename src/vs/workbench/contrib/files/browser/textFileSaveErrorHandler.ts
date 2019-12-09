@@ -21,9 +21,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -33,6 +31,8 @@ import { Event } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { SaveReason } from 'vs/workbench/common/editor';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -126,9 +126,12 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 			// Otherwise show the message that will lead the user into the save conflict editor.
 			else {
-				message = nls.localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Please compare your version with the file contents.", basename(resource));
+				message = nls.localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Please compare your version with the file contents or overwrite the content of the file with your changes.", basename(resource));
 
 				primaryActions.push(this.instantiationService.createInstance(ResolveSaveConflictAction, model));
+				primaryActions.push(this.instantiationService.createInstance(SaveIgnoreModifiedSinceAction, model));
+
+				secondaryActions.push(this.instantiationService.createInstance(ConfigureSaveConflictAction));
 			}
 		}
 
@@ -278,7 +281,8 @@ class SaveElevatedAction extends Action {
 		if (!this.model.isDisposed()) {
 			this.model.save({
 				writeElevated: true,
-				overwriteReadonly: this.triedToMakeWriteable
+				overwriteReadonly: this.triedToMakeWriteable,
+				reason: SaveReason.EXPLICIT
 			});
 		}
 
@@ -296,8 +300,40 @@ class OverwriteReadonlyAction extends Action {
 
 	run(): Promise<any> {
 		if (!this.model.isDisposed()) {
-			this.model.save({ overwriteReadonly: true });
+			this.model.save({ overwriteReadonly: true, reason: SaveReason.EXPLICIT });
 		}
+
+		return Promise.resolve(true);
+	}
+}
+
+class SaveIgnoreModifiedSinceAction extends Action {
+
+	constructor(
+		private model: ITextFileEditorModel
+	) {
+		super('workbench.files.action.saveIgnoreModifiedSince', nls.localize('overwrite', "Overwrite"));
+	}
+
+	run(): Promise<any> {
+		if (!this.model.isDisposed()) {
+			this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
+		}
+
+		return Promise.resolve(true);
+	}
+}
+
+class ConfigureSaveConflictAction extends Action {
+
+	constructor(
+		@IPreferencesService private readonly preferencesService: IPreferencesService
+	) {
+		super('workbench.files.action.configureSaveConflict', nls.localize('configure', "Configure"));
+	}
+
+	run(): Promise<any> {
+		this.preferencesService.openSettings(undefined, 'files.preventSaveConflicts');
 
 		return Promise.resolve(true);
 	}
@@ -306,7 +342,6 @@ class OverwriteReadonlyAction extends Action {
 export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
-	const modelService = accessor.get(IModelService);
 
 	const control = editorService.activeControl;
 	if (!control) {
@@ -318,18 +353,11 @@ export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, reso
 
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as IResolvedTextFileEditorModel;
-	const localModelSnapshot = model.createSnapshot();
 
 	clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
-	// Revert to be able to save
-	await model.revert();
-
-	// Restore user value (without loosing undo stack)
-	modelService.updateModel(model.textEditorModel, createTextBufferFactoryFromSnapshot(localModelSnapshot));
-
 	// Trigger save
-	await model.save();
+	await model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 
 	// Reopen file input
 	await editorService.openEditor({ resource: model.resource }, group);

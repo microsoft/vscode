@@ -21,6 +21,8 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/arrays';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 const $ = dom.$;
 
 
@@ -33,6 +35,7 @@ export class StartView extends ViewPane {
 	private runButton!: Button;
 	private firstMessageContainer!: HTMLElement;
 	private secondMessageContainer!: HTMLElement;
+	private clickElement: HTMLElement | undefined;
 	private debuggerLabels: string[] | undefined = undefined;
 
 	constructor(
@@ -73,17 +76,13 @@ export class StartView extends ViewPane {
 
 			const setSecondMessage = () => {
 				secondMessageElement.textContent = localize('specifyHowToRun', "To futher configure Debug and Run");
-				const clickElement = $('span.click');
-				clickElement.textContent = localize('configure', " create a launch.json file.");
-				clickElement.onclick = () => this.commandService.executeCommand(ConfigureAction.ID);
-				this.secondMessageContainer.appendChild(clickElement);
+				this.clickElement = this.createClickElement(localize('configure', " create a launch.json file."), () => this.commandService.executeCommand(ConfigureAction.ID));
+				this.secondMessageContainer.appendChild(this.clickElement);
 			};
 			const setSecondMessageWithFolder = () => {
 				secondMessageElement.textContent = localize('noLaunchConfiguration', "To futher configure Debug and Run, ");
-				const clickElement = $('span.click');
-				clickElement.textContent = localize('openFolder', " open a folder");
-				clickElement.onclick = () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false });
-				this.secondMessageContainer.appendChild(clickElement);
+				this.clickElement = this.createClickElement(localize('openFolder', " open a folder"), () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false }));
+				this.secondMessageContainer.appendChild(this.clickElement);
 
 				const moreText = $('span.moreText');
 				moreText.textContent = localize('andconfigure', " and create a launch.json file.");
@@ -107,11 +106,8 @@ export class StartView extends ViewPane {
 			}
 
 			if (!enabled && emptyWorkbench) {
-				const clickElement = $('span.click');
-				clickElement.textContent = localize('openFile', "Open a file");
-				clickElement.onclick = () => this.dialogService.pickFileAndOpen({ forceNewWindow: false });
-
-				this.firstMessageContainer.appendChild(clickElement);
+				this.clickElement = this.createClickElement(localize('openFile', "Open a file"), () => this.dialogService.pickFileAndOpen({ forceNewWindow: false }));
+				this.firstMessageContainer.appendChild(this.clickElement);
 				const firstMessageElement = $('span');
 				this.firstMessageContainer.appendChild(firstMessageElement);
 				firstMessageElement.textContent = localize('canBeDebuggedOrRun', " which can be debugged or run.");
@@ -120,6 +116,21 @@ export class StartView extends ViewPane {
 				setSecondMessageWithFolder();
 			}
 		}
+	}
+
+	private createClickElement(textContent: string, action: () => any): HTMLSpanElement {
+		const clickElement = $('span.click');
+		clickElement.textContent = textContent;
+		clickElement.onclick = action;
+		clickElement.tabIndex = 0;
+		clickElement.onkeyup = (e) => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (keyboardEvent.keyCode === KeyCode.Enter || (keyboardEvent.keyCode === KeyCode.Space)) {
+				action();
+			}
+		};
+
+		return clickElement;
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -152,6 +163,10 @@ export class StartView extends ViewPane {
 	}
 
 	focus(): void {
-		this.runButton.focus();
+		if (this.debugButton.enabled) {
+			this.debugButton.focus();
+		} else if (this.clickElement) {
+			this.clickElement.focus();
+		}
 	}
 }

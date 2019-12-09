@@ -2824,14 +2824,12 @@ export class ProtocolServer implements vscode.DebugAdapter {
 	private _sequence: number = 1;
 	private _pendingRequests = new Map<number, (response: DebugProtocol.Response) => void>();
 
-	constructor() {
-	}
 
 	public handleMessage(message: DebugProtocol.ProtocolMessage): void {
 		this.dispatch(message);
 	}
 
-	public stop(): void {
+	public dispose() {
 	}
 
 	public sendEvent(event: DebugProtocol.Event): void {

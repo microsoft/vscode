@@ -39,6 +39,7 @@ export interface IDraggedResource {
 }
 
 export class DraggedEditorIdentifier {
+
 	constructor(private _identifier: IEditorIdentifier) { }
 
 	get identifier(): IEditorIdentifier {
@@ -47,6 +48,7 @@ export class DraggedEditorIdentifier {
 }
 
 export class DraggedEditorGroupIdentifier {
+
 	constructor(private _identifier: GroupIdentifier) { }
 
 	get identifier(): GroupIdentifier {
@@ -56,13 +58,17 @@ export class DraggedEditorGroupIdentifier {
 
 export interface IDraggedEditor extends IDraggedResource {
 	backupResource?: URI;
+	encoding?: string;
+	mode?: string;
 	viewState?: IEditorViewState;
 }
 
 export interface ISerializedDraggedEditor {
 	resource: string;
 	backupResource?: string;
-	viewState: IEditorViewState | null;
+	encoding?: string;
+	mode?: string;
+	viewState?: IEditorViewState;
 }
 
 export const CodeDataTransfers = {
@@ -86,7 +92,9 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 						resources.push({
 							resource: URI.parse(draggedEditor.resource),
 							backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined,
-							viewState: withNullAsUndefined(draggedEditor.viewState),
+							viewState: draggedEditor.viewState,
+							encoding: draggedEditor.encoding,
+							mode: draggedEditor.mode,
 							isExternal: false
 						});
 					});
@@ -195,6 +203,8 @@ export class ResourcesDropHandler {
 
 		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
 			resource: untitledOrFileResource.resource,
+			encoding: (untitledOrFileResource as IDraggedEditor).encoding,
+			mode: (untitledOrFileResource as IDraggedEditor).mode,
 			options: {
 				pinned: true,
 				index: targetIndex,
@@ -234,7 +244,7 @@ export class ResourcesDropHandler {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			droppedDirtyEditor.resource = this.untitledTextEditorService.createOrGet().getResource();
+			droppedDirtyEditor.resource = this.untitledTextEditorService.createOrGet(undefined, droppedDirtyEditor.mode, undefined, droppedDirtyEditor.encoding).getResource();
 		}
 
 		// Return early if the resource is already dirty in target or opened already
@@ -342,6 +352,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
+	const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
 	const backupFileService = accessor.get(IBackupFileService);
 	const editorService = accessor.get(IEditorService);
 
@@ -349,24 +360,42 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
-		let viewState: IEditorViewState | null = null;
+		let viewState: IEditorViewState | undefined = undefined;
 		const textEditorWidgets = editorService.visibleTextEditorWidgets;
 		for (const textEditorWidget of textEditorWidgets) {
 			if (isCodeEditor(textEditorWidget)) {
 				const model = textEditorWidget.getModel();
 				if (model?.uri?.toString() === file.resource.toString()) {
-					viewState = textEditorWidget.saveViewState();
+					viewState = withNullAsUndefined(textEditorWidget.saveViewState());
 					break;
 				}
 			}
 		}
 
+		// Try to find encoding and mode from text model
+		let encoding: string | undefined = undefined;
+		let mode: string | undefined = undefined;
+		if (untitledTextEditorService.exists(file.resource)) {
+			const model = untitledTextEditorService.createOrGet(file.resource);
+			encoding = model.getEncoding();
+			mode = model.getMode();
+		} else {
+			const model = textFileService.models.get(file.resource);
+			if (model) {
+				encoding = model.getEncoding();
+				mode = model.textEditorModel?.getModeId();
+			}
+		}
+
+		// If the resource is dirty, send over its backup
+		// resource to restore dirty state
+		let backupResource: string | undefined = undefined;
+		if (textFileService.isDirty(file.resource)) {
+			backupResource = backupFileService.toBackupResource(file.resource).toString();
+		}
+
 		// Add as dragged editor
-		draggedEditors.push({
-			resource: file.resource.toString(),
-			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : undefined,
-			viewState
-		});
+		draggedEditors.push({ resource: file.resource.toString(), backupResource, viewState, encoding, mode });
 	});
 
 	if (draggedEditors.length) {

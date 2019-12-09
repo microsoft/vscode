@@ -112,7 +112,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			return null;
 		}
 
-		const inspectPort = await this._extensionService.getInspectPort(false);
+		const inspectPort = await this._extensionService.getInspectPort(true);
 		if (!inspectPort) {
 			return this._dialogService.confirm({
 				type: 'info',

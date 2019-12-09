@@ -12,7 +12,7 @@ import { SetLogLevelAction, OpenWindowSessionLogFileAction } from 'vs/workbench/
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/contrib/output/common/output';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -45,7 +45,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerCommonContributions(): void {
-		this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Configuration Sync"), this.environmentService.userDataSyncLogResource);
+		this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Sync"), this.environmentService.userDataSyncLogResource);
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);
 	}
 
@@ -71,6 +71,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async registerLogChannel(id: string, label: string, file: URI): Promise<void> {
+		await whenProviderRegistered(file, this.fileService);
 		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 		const exists = await this.fileService.exists(file);
 		if (exists) {

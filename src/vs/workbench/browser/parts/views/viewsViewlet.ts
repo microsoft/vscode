@@ -80,6 +80,9 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 	protected abstract getFilterOn(viewDescriptor: IViewDescriptor): string | undefined;
 
 	private onFilterChanged(newFilterValue: string) {
+		if (this.allViews.size === 0) {
+			this.updateAllViews(this.viewsModel.viewDescriptors);
+		}
 		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, false));
 		this.getViewsForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, true));
 	}

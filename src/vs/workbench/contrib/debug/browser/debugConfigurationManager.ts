@@ -18,7 +18,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory } from 'vs/workbench/contrib/debug/common/debug';
@@ -80,7 +80,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedLaunch = this.launches.filter(l => l.uri.toString() === previousSelectedRoot).pop();
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
-		if (previousSelectedLaunch) {
+		if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
 			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 		} else if (this.launches.length > 0) {
 			const rootUri = historyService.getLastActiveWorkspaceRoot();
@@ -284,9 +284,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			});
 		});
 
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => {
+		this.toDispose.push(Event.any<IWorkspaceFoldersChangeEvent | WorkbenchState>(this.contextService.onDidChangeWorkspaceFolders, this.contextService.onDidChangeWorkbenchState)(() => {
 			this.initLaunches();
-			this.selectConfiguration(this.selectedLaunch);
+			const toSelect = this.selectedLaunch || (this.launches.length > 0 ? this.launches[0] : undefined);
+			this.selectConfiguration(toSelect);
 			this.setCompoundSchemaValues();
 		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
@@ -495,10 +496,13 @@ abstract class AbstractLaunch {
 
 	getConfigurationNames(includeCompounds = true): string[] {
 		const config = this.getConfig();
-		if (!config || !config.configurations || !Array.isArray(config.configurations)) {
+		if (!config || (!Array.isArray(config.configurations) && !Array.isArray(config.compounds))) {
 			return [];
 		} else {
-			const names = config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name);
+			const names: string[] = [];
+			if (config.configurations) {
+				names.push(...config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name));
+			}
 			if (includeCompounds && config.compounds) {
 				if (config.compounds) {
 					names.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length)

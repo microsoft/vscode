@@ -161,12 +161,16 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			}
 		},
 		accessibilityProvider: options.accessibilityProvider && {
+			...options.accessibilityProvider,
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			},
 			getAriaLevel(node) {
 				return node.depth;
-			}
+			},
+			getActiveDescendantId: options.accessibilityProvider.getActiveDescendantId && (node => {
+				return options.accessibilityProvider!.getActiveDescendantId!(node.element);
+			})
 		},
 		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
 			...options.keyboardNavigationLabelProvider,
@@ -1294,7 +1298,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		onDidModelSplice(() => null, null, this.disposables);
 
 		// Active nodes can change when the model changes or when focus or selection change.
-		// We debouce it with 0 delay since these events may fire in the same stack and we only
+		// We debounce it with 0 delay since these events may fire in the same stack and we only
 		// want to run this once. It also doesn't matter if it runs on the next tick since it's only
 		// a nice to have UI feature.
 		onDidChangeActiveNodes.input = Event.chain(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange))

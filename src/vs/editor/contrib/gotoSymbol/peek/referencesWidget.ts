@@ -251,8 +251,16 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
 
-	focus(): void {
+	focusOnReferenceTree(): void {
 		this._tree.domFocus();
+	}
+
+	focusOnPreviewEditor(): void {
+		this._preview.focus();
+	}
+
+	isPreviewEditorFocused(): boolean {
+		return this._preview.hasTextFocus();
 	}
 
 	protected _onTitleClick(e: IMouseEvent): void {
@@ -457,7 +465,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		dom.show(this._treeContainer);
 		dom.show(this._previewContainer);
 		this._splitView.layout(this._dim.width);
-		this.focus();
+		this.focusOnReferenceTree();
 
 		// pick input and a reference to begin with
 		return this._tree.setInput(this._model.groups.length === 1 ? this._model.groups[0] : this._model);

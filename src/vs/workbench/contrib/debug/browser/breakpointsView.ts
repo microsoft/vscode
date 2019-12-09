@@ -500,7 +500,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IBaseBrea
 
 	renderElement(dataBreakpoint: DataBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = dataBreakpoint;
-		data.name.textContent = dataBreakpoint.label;
+		data.name.textContent = dataBreakpoint.description;
 		const { className, message } = getBreakpointMessageAndClassName(this.debugService, dataBreakpoint);
 		data.icon.className = `codicon ${className}`;
 		data.icon.title = message ? message : '';
@@ -711,25 +711,6 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 			className: breakpoint.logMessage ? 'codicon-debug-breakpoint-log' : 'codicon-debug-breakpoint-conditional',
 			message: appendMessage(messages.join('\n'))
 		};
-	}
-
-	const focusedThread = debugService.getViewModel().focusedThread;
-	if (focusedThread) {
-		const callStack = focusedThread ? focusedThread.getCallStack() : undefined;
-		const topStackFrame = callStack ? callStack[0] : undefined;
-		if (topStackFrame && topStackFrame.source.uri.toString() === breakpoint.uri.toString() && topStackFrame.range.startLineNumber === breakpoint.lineNumber) {
-			if (topStackFrame.range.startColumn === breakpoint.column) {
-				return {
-					className: 'codicon-debug-breakpoint-stackframe-dot',
-					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
-				};
-			} else if (breakpoint.column === undefined) {
-				return {
-					className: 'codicon-debug-breakpoint',
-					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
-				};
-			}
-		}
 	}
 
 	return {
