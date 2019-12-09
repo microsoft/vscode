@@ -28,6 +28,10 @@
 	padding: 8px 0 8px 24px;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .output {
+	margin-left: 24px;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row {
 	overflow: visible !important;
 }

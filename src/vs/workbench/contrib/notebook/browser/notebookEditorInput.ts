@@ -7,9 +7,27 @@ import { EditorInput, EditorModel, IEditorInput } from 'vs/workbench/common/edit
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 
+export interface IStreamOutput {
+	output_type: 'stream';
+	text: string;
+}
+
+export interface IErrorOutput {
+	output_type: 'error';
+	evalue: string;
+	traceback: string[];
+}
+
+export interface IGenericOutput {
+	output_type: string;
+}
+
+export type IOutput = IStreamOutput | any;
+
 export interface ICell {
 	source: string[];
 	cell_type: 'markdown' | 'code';
+	outputs: IOutput[];
 }
 
 export interface LanguageInfo {

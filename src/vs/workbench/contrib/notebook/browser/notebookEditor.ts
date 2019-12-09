@@ -9,7 +9,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { NotebookEditorInput, ICell, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { NotebookEditorInput, ICell, NotebookEditorModel, IOutput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,17 +40,18 @@ const $ = DOM.$;
 
 
 interface NotebookHandler {
-	insertEmptyNotebookCell(cell: ICell, direction: 'above' | 'below'): void;
+	insertEmptyNotebookCell(cell: ICell | IOutput, direction: 'above' | 'below'): void;
 }
 
 interface CellRenderTemplate {
 	cellContainer: HTMLElement;
-	menuContainer: HTMLElement;
+	menuContainer?: HTMLElement;
+	outputContainer?: HTMLElement;
 	renderer?: marked.Renderer; // TODO this can be cached
 	editor?: CodeEditorWidget;
 }
 
-export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
+export class NotebookCellListDelegate implements IListVirtualDelegate<ICell | IOutput> {
 	private _lineHeight: number;
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -60,7 +61,7 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
 		this._lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
-	getHeight(element: ICell): number {
+	getHeight(element: ICell | IOutput): number {
 		if (element.cell_type === 'markdown') {
 			return 100;
 		} else {
@@ -68,11 +69,12 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
 		}
 	}
 
-	hasDynamicHeight(element: ICell): boolean {
-		return element.cell_type === 'markdown';
+	hasDynamicHeight(element: ICell | IOutput): boolean {
+		return true;
 	}
 
-	getTemplateId(element: ICell): string {
+	getTemplateId(element: ICell | IOutput): string {
+
 		if (element.cell_type === 'markdown') {
 			return MarkdownCellRenderer.TEMPLATE_ID;
 		} else {
@@ -127,7 +129,51 @@ class AbstractCellRenderer {
 	}
 }
 
-export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
+export class OutputCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell | IOutput, CellRenderTemplate> {
+	static readonly TEMPLATE_ID = 'output_cell';
+
+	constructor(
+		handler: NotebookHandler,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super(handler, contextMenuService);
+	}
+
+	get templateId() {
+		return OutputCellRenderer.TEMPLATE_ID;
+	}
+
+	renderTemplate(container: HTMLElement): CellRenderTemplate {
+		const innerContent = document.createElement('div');
+		DOM.addClasses(innerContent, 'cell', 'output');
+		const renderer = new marked.Renderer();
+		container.appendChild(innerContent);
+
+		const action = document.createElement('div');
+		DOM.addClasses(action, 'menu', 'codicon-settings-gear', 'codicon');
+		container.appendChild(action);
+
+		return {
+			cellContainer: innerContent,
+			menuContainer: action,
+			renderer: renderer
+		};
+	}
+
+	renderElement(element: IOutput, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+		if (element.output_type === 'stream') {
+			templateData.cellContainer.innerText = element.text;
+		} else {
+			templateData.cellContainer.innerText = '';
+		}
+	}
+
+	disposeTemplate(templateData: CellRenderTemplate): void {
+		// throw nerendererw Error('Method not implemented.');
+	}
+}
+
+export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell | IOutput, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 	private disposables: Map<HTMLElement, IDisposable> = new Map();
 
@@ -159,23 +205,23 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		};
 	}
 
-	renderElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: ICell | IOutput, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		templateData.cellContainer.innerHTML = marked(element.source.join(''), { renderer: templateData.renderer });
-		let disposable = this.disposables.get(templateData.menuContainer);
+		let disposable = this.disposables.get(templateData.menuContainer!);
 
 		if (disposable) {
 			disposable.dispose();
-			this.disposables.delete(templateData.menuContainer);
+			this.disposables.delete(templateData.menuContainer!);
 		}
 
-		let listener = DOM.addStandardDisposableListener(templateData.menuContainer, 'mousedown', e => {
-			const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer);
+		let listener = DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
+			const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
 			e.preventDefault();
 
 			this.showContextMenu(element, e.posx, top + height);
 		});
 
-		this.disposables.set(templateData.menuContainer, listener);
+		this.disposables.set(templateData.menuContainer!, listener);
 	}
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
@@ -183,7 +229,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 }
 
-export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
+export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell | IOutput, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private editorOptions: IEditorOptions;
 	private widgetOptions: ICodeEditorWidgetOptions;
@@ -239,9 +285,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		DOM.addClasses(action, 'menu', 'codicon-settings-gear', 'codicon');
 		container.appendChild(action);
 
+		const outputContainer = document.createElement('div');
+		DOM.addClasses(outputContainer, 'output');
+		container.appendChild(outputContainer);
+
 		return {
 			cellContainer: innerContent,
 			menuContainer: action,
+			outputContainer: outputContainer,
 			editor
 		};
 	}
@@ -262,14 +313,31 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		);
 
-		let listener = DOM.addStandardDisposableListener(templateData.menuContainer, 'mousedown', e => {
-			const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer);
+		let listener = DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
+			const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
 			e.preventDefault();
 
 			this.showContextMenu(element, e.posx, top + height);
 		});
 
 		this.disposables.set(element, listener);
+
+		if (templateData.outputContainer) {
+			templateData.outputContainer!.innerHTML = '';
+		}
+
+		if (element.outputs.length > 0) {
+			for (let i = 0; i < element.outputs.length; i++) {
+				const outputNode = document.createElement('div');
+				if (element.outputs[i].output_type === 'stream') {
+					outputNode.innerText = element.outputs[i].text;
+				} else {
+					templateData.cellContainer.innerText = '';
+				}
+
+				templateData.outputContainer?.appendChild(outputNode);
+			}
+		}
 
 	}
 
@@ -306,7 +374,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
-	private list: WorkbenchList<ICell> | undefined;
+	private list: WorkbenchList<ICell | IOutput> | undefined;
 	private model: NotebookEditorModel | undefined;
 
 	constructor(
@@ -341,6 +409,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		DOM.addClass(this.body, 'cell-list-container');
 
 		const renders = [
+			// this.instantiationService.createInstance(OutputCellRenderer, this),
 			this.instantiationService.createInstance(MarkdownCellRenderer, this),
 			this.instantiationService.createInstance(CodeCellRenderer, this)
 		];
@@ -390,7 +459,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				}
 
 				this.model = model;
-				this.list?.splice(0, this.list?.length, model.getNookbook().cells);
+				let cells = model.getNookbook().cells;
+				this.list?.splice(0, this.list?.length, cells);
 				this.list?.layout();
 			});
 	}
@@ -398,11 +468,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	insertEmptyNotebookCell(cell: ICell, direction: 'above' | 'below') {
 		let newCell: ICell = {
 			source: [],
-			cell_type: 'code'
+			cell_type: 'code',
+			outputs: []
 		};
 
 		let index = this.model!.getNookbook().cells.indexOf(cell);
-
 		const insertIndex = direction === 'above' ? index : index + 1;
 
 		this.model!.getNookbook().cells.splice(insertIndex, 0, newCell);
