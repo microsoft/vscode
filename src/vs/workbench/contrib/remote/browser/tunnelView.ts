@@ -603,7 +603,7 @@ namespace ForwardPortAction {
 					},
 					validationMessage: (value) => {
 						const asNumber = Number(value);
-						if (isNaN(asNumber) || (asNumber < 0) || (asNumber > 65535)) {
+						if ((value === '') || isNaN(asNumber) || (asNumber < 0) || (asNumber > 65535)) {
 							return nls.localize('remote.tunnelsView.portNumberValid', "Port number is invalid");
 						}
 						return null;
