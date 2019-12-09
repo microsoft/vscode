@@ -7,6 +7,38 @@
 			"name": "comment"
 		},
 		{
+			"begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.ts)(:)$",
+			"end": "(^$)|(^  (\\d+)(:| ))",
+			"name": "searchResult.resultLine.typescript",
+			"beginCaptures": {
+				"0": {
+					"name": "string path.searchResult"
+				},
+				"1": {
+					"name": "dirname.path.searchResult"
+				},
+				"2": {
+					"name": "basename.path.searchResult"
+				},
+				"3": {
+					"name": "endingColon.path.searchResult"
+				}
+			},
+			"whileCaptures": {
+				"3": {
+					"name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+				},
+				"4": {
+					"name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+				}
+			},
+			"patterns": [
+				{
+					"include": "source.ts"
+				}
+			]
+		},
+		{
 			"match": "^(?!\\s)(.*?)([^\\\\\\/\\n]*)(:)$",
 			"name": "string path.searchResult",
 			"captures": {
@@ -27,7 +59,7 @@
 				"1": {
 					"name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
 				},
-				"2:": {
+				"2": {
 					"name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
 				}
 			}
