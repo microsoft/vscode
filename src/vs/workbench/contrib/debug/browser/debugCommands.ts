@@ -120,7 +120,7 @@ export function registerCommands(): void {
 	// Same for stackFrame commands and session commands.
 	CommandsRegistry.registerCommand({
 		id: COPY_STACK_TRACE_ID,
-		handler: async (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const textResourcePropertiesService = accessor.get(ITextResourcePropertiesService);
 			const clipboardService = accessor.get(IClipboardService);
 			let frame = getFrame(accessor.get(IDebugService), context);
@@ -133,21 +133,21 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: REVERSE_CONTINUE_ID,
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, thread => thread.reverseContinue());
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: STEP_BACK_ID,
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, thread => thread.stepBack());
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: TERMINATE_THREAD_ID,
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, thread => thread.terminate());
 		}
 	});
@@ -206,7 +206,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
 			let session: IDebugSession | undefined;
 			if (isSessionContext(context)) {
@@ -230,7 +230,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F10,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, (thread: IThread) => thread.next());
 		}
 	});
@@ -240,7 +240,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
 		primary: KeyCode.F11,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
 		}
 	});
@@ -250,7 +250,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F11,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut());
 		}
 	});
@@ -260,7 +260,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F6,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, thread => thread.pause());
 		}
 	});
@@ -279,7 +279,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
 			let session: IDebugSession | undefined;
 			if (isSessionContext(context)) {
@@ -301,7 +301,7 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: RESTART_FRAME_ID,
-		handler: async (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
 			let frame = getFrame(debugService, context);
 			if (frame) {
@@ -315,7 +315,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, context: CallStackContext | unknown) => {
+		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, thread => thread.continue());
 		}
 	});
