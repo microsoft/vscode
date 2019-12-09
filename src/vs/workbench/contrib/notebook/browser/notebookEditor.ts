@@ -163,8 +163,11 @@ export class OutputCellRenderer extends AbstractCellRenderer implements IListRen
 	renderElement(element: IOutput, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		if (element.output_type === 'stream') {
 			templateData.cellContainer.innerText = element.text;
-		} else {
-			templateData.cellContainer.innerText = '';
+		} else if (element.output_type === 'error') {
+			const evalue = document.createElement('div');
+			DOM.addClasses(evalue, 'error_message');
+			evalue.innerText = element.evalue;
+			templateData.cellContainer.appendChild(evalue);
 		}
 	}
 
@@ -332,7 +335,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				if (element.outputs[i].output_type === 'stream') {
 					outputNode.innerText = element.outputs[i].text;
 				} else {
-					templateData.cellContainer.innerText = '';
+					const evalue = document.createElement('div');
+					DOM.addClasses(evalue, 'error_message');
+					evalue.innerText = element.outputs[i].evalue;
+					outputNode.appendChild(evalue);
+					const traceback = document.createElement('traceback');
+					DOM.addClasses(evalue, 'traceback');
+					traceback.innerText = element.outputs[i].traceback.join('\n');
+					outputNode.appendChild(traceback);
 				}
 
 				templateData.outputContainer?.appendChild(outputNode);

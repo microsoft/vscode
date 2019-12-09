@@ -32,6 +32,10 @@
 	margin-left: 24px;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .output .error_message {
+	color: red;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row {
 	overflow: visible !important;
 }
