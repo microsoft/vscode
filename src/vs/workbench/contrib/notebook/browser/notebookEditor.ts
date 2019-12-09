@@ -35,6 +35,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
+import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/output';
 
 const $ = DOM.$;
 
@@ -244,7 +245,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
+		@IModeService private readonly modeService: IModeService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super(handler, contextMenuService);
 
@@ -340,9 +342,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					evalue.innerText = element.outputs[i].evalue;
 					outputNode.appendChild(evalue);
 					const traceback = document.createElement('traceback');
-					DOM.addClasses(evalue, 'traceback');
-					traceback.innerText = element.outputs[i].traceback.join('\n');
-					outputNode.appendChild(traceback);
+					DOM.addClasses(traceback, 'traceback');
+					if (element.outputs[i].traceback) {
+						for (let j = 0; j < element.outputs[i].traceback.length; j++) {
+							traceback.appendChild(handleANSIOutput(element.outputs[i].traceback[j], this.themeService));
+							outputNode.appendChild(traceback);
+						}
+					}
 				}
 
 				templateData.outputContainer?.appendChild(outputNode);
