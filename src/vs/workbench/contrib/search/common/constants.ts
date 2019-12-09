@@ -50,5 +50,3 @@ export const FileMatchOrFolderMatchWithResourceFocusKey = new RawContextKey<bool
 export const FileFocusKey = new RawContextKey<boolean>('fileMatchFocus', false);
 export const FolderFocusKey = new RawContextKey<boolean>('folderMatchFocus', false);
 export const MatchFocusKey = new RawContextKey<boolean>('matchFocus', false);
-
-export const OneLineHeight = 24;
