@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 
 function exceptionToErrorMessage(exception: any, verbose: boolean): string {
-	if (exception.message) {
+	if (exception.message || exception.stack || exception.stacktrace) {
 		if (verbose && (exception.stack || exception.stacktrace)) {
 			return nls.localize('stackTrace.format', "{0}: {1}", detectSystemErrorMessage(exception), stackToString(exception.stack) || stackToString(exception.stacktrace));
 		}
