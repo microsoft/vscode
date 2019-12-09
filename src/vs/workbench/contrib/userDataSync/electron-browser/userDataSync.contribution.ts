@@ -8,7 +8,7 @@ import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDa
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { UserDataSycnUtilServiceChannel } from 'vs/platform/userDataSync/common/keybindingsSyncIpc';
+import { UserDataSycnUtilServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 
 class UserDataSyncServicesContribution implements IWorkbenchContribution {
 
