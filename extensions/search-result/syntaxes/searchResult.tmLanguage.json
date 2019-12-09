@@ -8,8 +8,8 @@
 		},
 		{
 			"begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.ts)(:)$",
-			"end": "(^$)|(^  (\\d+)(:| ))",
-			"name": "searchResult.resultLine.typescript",
+			"end": "^(?!\\s)",
+			"name": "searchResult.block.typescript",
 			"beginCaptures": {
 				"0": {
 					"name": "string path.searchResult"
@@ -24,17 +24,51 @@
 					"name": "endingColon.path.searchResult"
 				}
 			},
-			"whileCaptures": {
-				"3": {
-					"name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
-				},
-				"4": {
-					"name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
-				}
-			},
 			"patterns": [
 				{
-					"include": "source.ts"
+					"begin": "^  (\\d+)( )",
+					"while": "^  (\\d+)(:| )",
+					"beginCaptures": {
+						"1": {
+							"name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+						},
+						"2": {
+							"name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+						}
+					},
+					"whileCaptures": {
+						"1": {
+							"name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+						},
+						"2": {
+							"name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+						}
+					},
+					"name": "searchResult.resultLine.typescript searchResult.multiline",
+					"patterns": [
+						{
+							"include": "source.ts"
+						}
+					]
+				},
+				{
+					"match": "^  (\\d+)(:)(.*)",
+					"name": "searchResult.resultLine.typescript searchResult.singleline",
+					"captures": {
+						"1": {
+							"name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+						},
+						"2": {
+							"name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+						},
+						"3": {
+							"patterns": [
+								{
+									"include": "source.ts"
+								}
+							]
+						}
+					}
 				}
 			]
 		},
