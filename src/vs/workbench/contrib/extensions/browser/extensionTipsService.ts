@@ -19,7 +19,7 @@ import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsA
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewlet, IExtensionsWorkbenchService, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { flatten, distinct, shuffle, coalesce } from 'vs/base/common/arrays';
@@ -889,7 +889,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					*/
 					this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension: fileExtension });
 					this.viewletService.openViewlet('workbench.view.extensions', true)
-						.then(viewlet => viewlet as IExtensionsViewlet)
+						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 						.then(viewlet => {
 							viewlet.search(`ext:${fileExtension}`);
 							viewlet.focus();

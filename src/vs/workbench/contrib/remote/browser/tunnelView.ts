@@ -21,7 +21,6 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { ActionBar, ActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
@@ -36,6 +35,7 @@ import { once } from 'vs/base/common/functional';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { URI } from 'vs/base/common/uri';
 
 class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
@@ -376,7 +376,7 @@ class TunnelItem implements ITunnelItem {
 export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add);
 export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false);
 
-export class TunnelPanel extends ViewletPane {
+export class TunnelPanel extends ViewPane {
 	static readonly ID = '~remote.tunnelPanel';
 	static readonly TITLE = nls.localize('remote.tunnel', "Tunnels");
 	private tree!: WorkbenchAsyncDataTree<any, any, any>;
@@ -388,7 +388,7 @@ export class TunnelPanel extends ViewletPane {
 
 	constructor(
 		protected viewModel: ITunnelViewModel,
-		options: IViewletPaneOptions,
+		options: IViewPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,

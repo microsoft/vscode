@@ -12,6 +12,8 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { TestViewletService, TestPanelService } from 'vs/workbench/test/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
+import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
+import { IView } from 'vs/workbench/common/views';
 
 class TestViewlet implements IViewlet {
 
@@ -29,6 +31,9 @@ class TestViewlet implements IViewlet {
 	getControl(): IEditorControl { return null!; }
 	focus(): void { }
 	getOptimalWidth(): number { return 10; }
+	openView(id: string, focus?: boolean): IView { return null!; }
+	getViewPaneContainer(): IViewPaneContainer { return null!; }
+	saveState(): void { }
 }
 
 class TestCompositeScope extends CompositeScope {

@@ -35,7 +35,6 @@ import { IViewsRegistry, Extensions as ViewExtensions } from 'vs/workbench/commo
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { DebugViewlet } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { DebugQuickOpenHandler } from 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -48,6 +47,7 @@ import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView'
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { DebugCallStackContribution } from 'vs/workbench/contrib/debug/browser/debugCallStackContribution';
+import { DebugViewlet } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { StartView } from 'vs/workbench/contrib/debug/browser/startView';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 

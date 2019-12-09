@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { FilterViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
@@ -24,7 +24,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
@@ -46,7 +46,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { startsWith } from 'vs/base/common/strings';
 import { TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
-import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 class HelpModel {
 	items: IHelpItem[] | undefined;
@@ -272,7 +272,23 @@ class HelpAction extends Action {
 	}
 }
 
-export class RemoteViewlet extends FilterViewContainerViewlet {
+export class RemoteViewlet extends Viewlet {
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService protected storageService: IStorageService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IExtensionService protected extensionService: IExtensionService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
+		@IConfigurationService protected configurationService: IConfigurationService
+	) {
+		super(VIEWLET_ID, instantiationService.createInstance(RemoteViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
+	}
+}
+
+export class RemoteViewPaneContainer extends FilterViewPaneContainer {
 	private actions: IAction[] | undefined;
 	private tunnelPanelDescriptor: TunnelPanelDescriptor | undefined;
 
@@ -323,9 +339,9 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 		return title;
 	}
 
-	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPane[] {
+	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		// Call to super MUST be first, since registering the additional view will cause this to be called again.
-		const panels: ViewletPane[] = super.onDidAddViews(added);
+		const panels: ViewPane[] = super.onDidAddViews(added);
 		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && this.configurationService.getValue<boolean>('remote.forwardedPortsView.visible')) {
 			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);

@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, REPL_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY } from 'vs/workbench/contrib/debug/common/debug';
 import { StartAction, ConfigureAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
@@ -26,20 +25,38 @@ import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IMenu, MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { StartView } from 'vs/workbench/contrib/debug/browser/startView';
 
-export class DebugViewlet extends ViewContainerViewlet {
+// Register a lightweight viewlet responsible for making the container
+export class DebugViewlet extends Viewlet {
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService protected storageService: IStorageService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IExtensionService protected extensionService: IExtensionService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
+		@IConfigurationService protected configurationService: IConfigurationService
+	) {
+		super(VIEWLET_ID, instantiationService.createInstance(DebugViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
+	}
+}
+
+export class DebugViewPaneContainer extends ViewPaneContainer {
 
 	private startDebugActionViewItem: StartDebugActionViewItem | undefined;
 	private progressResolve: (() => void) | undefined;
-	private breakpointView: ViewletPane | undefined;
+	private breakpointView: ViewPane | undefined;
 	private paneListeners = new Map<string, IDisposable>();
 	private debugToolBarMenu: IMenu | undefined;
 	private disposeOnTitleUpdate: IDisposable | undefined;
@@ -62,7 +79,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, { showHeaderInTitleWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
 		this._register(this.debugService.onDidNewSession(() => this.updateToolBar()));
@@ -198,7 +215,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		}
 	}
 
-	addPanes(panes: { pane: ViewletPane, size: number, index?: number }[]): void {
+	addPanes(panes: { pane: ViewPane, size: number, index?: number }[]): void {
 		super.addPanes(panes);
 
 		for (const { pane: pane } of panes) {
@@ -212,7 +229,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 		}
 	}
 
-	removePanes(panes: ViewletPane[]): void {
+	removePanes(panes: ViewPane[]): void {
 		super.removePanes(panes);
 		for (const pane of panes) {
 			dispose(this.paneListeners.get(pane.id));

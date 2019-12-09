@@ -33,7 +33,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext as ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
@@ -47,7 +47,7 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 
 const $ = dom.$;
 
-export class OpenEditorsView extends ViewletPane {
+export class OpenEditorsView extends ViewPane {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	static readonly ID = 'workbench.explorer.openEditorsView';
@@ -81,7 +81,7 @@ export class OpenEditorsView extends ViewletPane {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super({
-			...(options as IViewletPaneOptions),
+			...(options as IViewPaneOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
 		}, keybindingService, contextMenuService, configurationService, contextKeyService);
 
