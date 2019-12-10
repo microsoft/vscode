@@ -498,6 +498,11 @@ export class TunnelPanel extends ViewPane {
 		return this.titleActions;
 	}
 
+	focus(): void {
+		super.focus();
+		this.tree.domFocus();
+	}
+
 	private onContextMenu(treeEvent: ITreeContextMenuEvent<ITunnelItem | ITunnelGroup>, actionRunner: ActionRunner): void {
 		if (!(treeEvent.element instanceof TunnelItem)) {
 			return;
