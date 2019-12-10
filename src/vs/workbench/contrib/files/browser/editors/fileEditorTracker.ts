@@ -24,7 +24,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { timeout } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
@@ -86,7 +85,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 		// Handle moves specially when file is opened
 		if (e.isOperation(FileOperation.MOVE)) {
-			this.handleMovedFileInOpenedEditors(e.resource, e.target.resource);
+			this.handleMovedFileInOpenedFileEditors(e.resource, e.target.resource);
 		}
 
 		// Handle deletes
@@ -95,13 +94,13 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		}
 	}
 
-	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
+	private handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): void {
 		this.editorGroupService.groups.forEach(group => {
 			group.editors.forEach(editor => {
-				const resource = editor.getResource();
-				if (resource && (editor instanceof FileEditorInput || editor.handleMove)) {
+				if (editor instanceof FileEditorInput) {
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
+					const resource = editor.getResource();
 					if (resources.isEqualOrParent(resource, oldResource)) {
 						let reopenFileResource: URI;
 						if (oldResource.toString() === resource.toString()) {
@@ -111,27 +110,26 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 							reopenFileResource = resources.joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 
-						const options: ITextEditorOptions = {
-							preserveFocus: true,
-							pinned: group.isPinned(editor),
-							index: group.getIndexOfEditor(editor),
-							inactive: !group.isActive(editor),
-						};
+						let encoding: string | undefined = undefined;
+						let mode: string | undefined = undefined;
 
-						if (editor.handleMove) {
-							const replacement = editor.handleMove(group.id, reopenFileResource, options);
-							if (replacement) {
-								this.editorService.replaceEditors([{ editor, replacement }], group);
-								return;
-							}
+						const model = this.textFileService.models.get(resource);
+						if (model) {
+							encoding = model.getEncoding();
+							mode = model.textEditorModel?.getModeId();
 						}
 
 						this.editorService.replaceEditors([{
 							editor: { resource },
 							replacement: {
 								resource: reopenFileResource,
+								encoding,
+								mode,
 								options: {
-									...options,
+									preserveFocus: true,
+									pinned: group.isPinned(editor),
+									index: group.getIndexOfEditor(editor),
+									inactive: !group.isActive(editor),
 									viewState: this.getViewStateFor(oldResource, group)
 								}
 							},
