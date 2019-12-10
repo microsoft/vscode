@@ -291,7 +291,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
-				horizontalHasArrows: false
+				horizontalHasArrows: false,
+				alwaysConsumeMouseWheel: false
 			},
 			overviewRulerLanes: 2,
 			fixedOverflowWidgets: true,
