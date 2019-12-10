@@ -19,15 +19,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
@@ -260,7 +258,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	//#endregion
 
-	//#region Update text models and binary editors on external changes
+	//#region File Changes: Update text models and binary editors
 
 	private onFileChanges(e: FileChangesEvent): void {
 
@@ -279,9 +277,6 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 		// Handle updates to text models
 		this.handleUpdatesToTextModels(e);
-
-		// Handle updates to visible binary editors
-		this.handleUpdatesToVisibleBinaryEditors(e);
 	}
 
 	private handleUpdatesToTextModels(e: FileChangesEvent): void {
@@ -307,48 +302,25 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		}
 	}
 
-	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
-		const editors = this.editorService.visibleControls;
-		editors.forEach(editor => {
-			const resource = editor.input ? toResource(editor.input, { supportSideBySide: SideBySideEditorChoice.MASTER }) : undefined;
-
-			// Support side-by-side binary editors too
-			let isBinaryEditor = false;
-			if (editor instanceof SideBySideEditor) {
-				const masterEditor = editor.getMasterEditor();
-				isBinaryEditor = masterEditor?.getId() === BINARY_FILE_EDITOR_ID;
-			} else {
-				isBinaryEditor = editor.getId() === BINARY_FILE_EDITOR_ID;
-			}
-
-			// Binary editor that should reload from event
-			if (resource && editor.input && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
-				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true, activation: EditorActivation.PRESERVE }, editor.group);
-			}
-		});
-	}
-
 	//#endregion
 
-	//#region Open dirty text files if not opened already
+	//#region Text File Dirty: Ensure every dirty text file is opened in an editor
 
-	private onTextFilesDirty(e: readonly TextFileModelChangeEvent[]): void {
+	private onTextFilesDirty(events: ReadonlyArray<TextFileModelChangeEvent>): void {
 
 		// If files become dirty but are not opened, we open it in the background unless there are pending to be saved
-		this.doOpenDirtyResources(distinct(e.filter(e => {
+		this.doOpenDirtyResourcesInBackground(distinct(events.filter(({ resource }) => {
 
 			// Only dirty models that are not PENDING_SAVE
-			const model = this.textFileService.models.get(e.resource);
+			const model = this.textFileService.models.get(resource);
 			const shouldOpen = model?.isDirty() && !model.hasState(ModelState.PENDING_SAVE);
 
 			// Only if not open already
-			return shouldOpen && !this.editorService.isOpen({ resource: e.resource });
-		}).map(e => e.resource), r => r.toString()));
+			return shouldOpen && !this.editorService.isOpen({ resource });
+		}).map(event => event.resource), resource => resource.toString()));
 	}
 
-	private doOpenDirtyResources(resources: URI[]): void {
-
-		// Open
+	private doOpenDirtyResourcesInBackground(resources: URI[]): void {
 		this.editorService.openEditors(resources.map(resource => {
 			return {
 				resource,
