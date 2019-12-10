@@ -11,7 +11,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -21,11 +20,13 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/arrays';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 const $ = dom.$;
 
-export class StartView extends ViewletPane {
+
+export class StartView extends ViewPane {
 
 	static ID = 'workbench.debug.startView';
 	static LABEL = localize('start', "Start");
@@ -50,7 +51,7 @@ export class StartView extends ViewletPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
-		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this._register(editorService.onDidActiveEditorChange(() => this.updateView()));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(() => this.updateView()));
 	}

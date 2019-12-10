@@ -3,18 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-resource-viewer:focus {
-	outline: none !important;
-}
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 
-.monaco-resource-viewer {
-	padding: 5px 0 0 10px;
-	box-sizing: border-box;
-}
-
-.monaco-resource-viewer .embedded-link,
-.monaco-resource-viewer .embedded-link:hover {
-	cursor: pointer;
-	text-decoration: underline;
-	margin-left: 5px;
+export interface IViewPaneContainer {
+	setVisible(visible: boolean): void;
+	isVisible(): boolean;
+	focus(): void;
+	getActions(): IAction[];
+	getSecondaryActions(): IAction[];
+	getActionViewItem(action: IAction): IActionViewItem | undefined;
+	saveState(): void;
 }

@@ -13,7 +13,7 @@
     "native-watchdog": "1.3.0",
     "node-pty": "^0.10.0-beta2",
     "onigasm-umd": "2.2.5",
-    "semver-umd": "^5.5.3",
+    "semver-umd": "^5.5.4",
     "spdlog": "^0.11.1",
     "vscode-minimist": "^1.2.2",
     "vscode-nsfw": "1.2.8",

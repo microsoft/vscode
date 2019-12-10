@@ -3,8 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'semver-umd' {
+.monaco-binary-resource-editor:focus {
+	outline: none !important;
+}
 
-	export * from "semver";
+.monaco-binary-resource-editor {
+	padding: 5px 0 0 10px;
+	box-sizing: border-box;
+}
 
+.monaco-binary-resource-editor .embedded-link,
+.monaco-binary-resource-editor .embedded-link:hover {
+	cursor: pointer;
+	text-decoration: underline;
+	margin-left: 5px;
 }
