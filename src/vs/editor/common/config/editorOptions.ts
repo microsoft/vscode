@@ -3358,7 +3358,7 @@ export const EditorOptions = {
 	lineNumbers: register(new EditorRenderLineNumbersOption()),
 	lineNumbersMinChars: register(new EditorIntOption(
 		EditorOption.lineNumbersMinChars, 'lineNumbersMinChars',
-		5, 1, 10
+		5, 1, 300
 	)),
 	links: register(new EditorBooleanOption(
 		EditorOption.links, 'links', true,

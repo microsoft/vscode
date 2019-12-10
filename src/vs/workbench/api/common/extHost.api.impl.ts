@@ -67,6 +67,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -86,6 +87,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const rpcProtocol = accessor.get(IExtHostRpcService);
 	const extHostStorage = accessor.get(IExtHostStorage);
 	const extHostLogService = accessor.get(ILogService);
+	const extHostTunnelService = accessor.get(IExtHostTunnelService);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, <ExtHostLogServiceShape><any>extHostLogService);
@@ -93,6 +95,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
+	rpcProtocol.set(ExtHostContext.ExtHostTunnelService, extHostTunnelService);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -710,6 +713,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
+			},
+			makeTunnel: (forward: vscode.TunnelOptions) => {
+				checkProposedApiEnabled(extension);
+				return extHostTunnelService.makeTunnel(forward);
 			}
 		};
 

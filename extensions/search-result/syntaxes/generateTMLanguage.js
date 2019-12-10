@@ -158,6 +158,5 @@ const tmLanguage = {
 	repository
 };
 
-
 require('fs')
-	.writeFileSync('./searchResult.tmLanguage.json', JSON.stringify(tmLanguage, null, 2));
+	.writeFileSync(require('path').join(__dirname, './searchResult.tmLanguage.json'), JSON.stringify(tmLanguage, null, 2));

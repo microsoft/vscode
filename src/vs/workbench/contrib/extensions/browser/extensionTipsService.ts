@@ -43,6 +43,7 @@ import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspac
 import { setImmediate, isWeb } from 'vs/base/common/platform';
 import { platform, env as processEnv } from 'vs/base/common/process';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Schemas } from 'vs/base/common/network';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -698,7 +699,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 */
 	private promptFiletypeBasedRecommendations(model: ITextModel): void {
 		const uri = model.uri;
-		if (!uri || !this.fileService.canHandleResource(uri)) {
+		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
+		if (!uri || supportedSchemes.indexOf(uri.scheme) === -1) {
 			return;
 		}
 
@@ -752,11 +754,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				fileExtension = fileExtension.substr(1); // Strip the dot
 			}
 			if (!fileExtension) {
-				return;
-			}
-
-			// ignore .git files
-			if (fileExtension === 'git') {
 				return;
 			}
 

@@ -16,7 +16,7 @@
 
 declare module 'vscode' {
 
-	//#region Alex - resolvers
+	//#region Alex - resolvers, AlexR - ports
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -33,7 +33,31 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export type ResolverResult = ResolvedAuthority & ResolvedOptions;
+	export interface TunnelOptions {
+		remote: { port: number, host: string };
+		localPort?: number;
+		name?: string;
+		closeable?: boolean;
+	}
+
+	export interface Tunnel extends Disposable {
+		remote: { port: number, host: string };
+		local: { port: number, host: string };
+	}
+
+	/**
+	 * Used as part of the ResolverResult if the extension has any candidate, published, or forwarded ports.
+	 */
+	export interface TunnelInformation {
+		/**
+		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
+		 * The localAddress should be the complete local address(ex. localhost:1234) for connecting to the port. Tunnels provided through
+		 * detected are read-only from the forwarded ports UI.
+		 */
+		detectedTunnels?: { remotePort: number, localAddress: string }[];
+	}
+
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
@@ -44,6 +68,20 @@ declare module 'vscode' {
 
 	export interface RemoteAuthorityResolver {
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+		/**
+		 * Can be optionally implemented if the extension can forward ports better than the core.
+		 * When not implemented, the core will use its default forwarding logic.
+		 * When implemented, the core will use this to forward ports.
+		 */
+		forwardPort?(tunnelOptions: TunnelOptions): Thenable<Tunnel | undefined>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Forwards a port.
+		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;
 	}
 
 	export interface ResourceLabelFormatter {

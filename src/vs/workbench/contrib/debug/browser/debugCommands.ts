@@ -430,9 +430,13 @@ export function registerCommands(): void {
 			const focused = listService.lastFocusedList;
 
 			if (focused) {
-				const elements = focused.getFocus();
+				let elements = focused.getFocus();
 				if (Array.isArray(elements) && elements[0] instanceof Expression) {
-					debugService.removeWatchExpressions(elements[0].getId());
+					const selection = focused.getSelection();
+					if (selection && selection.indexOf(elements[0]) >= 0) {
+						elements = selection;
+					}
+					elements.forEach((e: Expression) => debugService.removeWatchExpressions(e.getId()));
 				}
 			}
 		}
