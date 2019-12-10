@@ -413,11 +413,6 @@ export interface IEditorInput extends IDisposable {
 	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
 
 	/**
-	 * Handles when the input is replaced, such as by renaming its backing resource.
-	 */
-	handleMove?(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined;
-
-	/**
 	 * Reverts this input.
 	 */
 	revert(options?: IRevertOptions): Promise<boolean>;
