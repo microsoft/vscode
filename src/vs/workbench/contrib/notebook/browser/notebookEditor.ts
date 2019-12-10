@@ -9,7 +9,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { NotebookEditorInput, ICell, NotebookEditorModel, IOutput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { NotebookEditorInput, ICell, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -36,16 +36,19 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/output';
+import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 
 const $ = DOM.$;
 
 
 interface NotebookHandler {
-	insertEmptyNotebookCell(cell: ICell | IOutput, direction: 'above' | 'below'): void;
+	insertEmptyNotebookCell(cell: ICell, direction: 'above' | 'below'): void;
 	deleteNotebookCell(cell: ICell): void;
+	layoutElement(cell: ICell, height: number): void;
 }
 
 interface CellRenderTemplate {
+	container: HTMLElement;
 	cellContainer: HTMLElement;
 	menuContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
@@ -53,7 +56,7 @@ interface CellRenderTemplate {
 	editor?: CodeEditorWidget;
 }
 
-export class NotebookCellListDelegate implements IListVirtualDelegate<ICell | IOutput> {
+export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
 	private _lineHeight: number;
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -63,7 +66,7 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICell | IO
 		this._lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
-	getHeight(element: ICell | IOutput): number {
+	getHeight(element: ICell): number {
 		if (element.cell_type === 'markdown') {
 			return 100;
 		} else {
@@ -71,11 +74,17 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICell | IO
 		}
 	}
 
-	hasDynamicHeight(element: ICell | IOutput): boolean {
+	hasDynamicHeight(element: ICell): boolean {
+		if (element.cell_type === 'code') {
+			if (!element.outputs || element.outputs.length === 0) {
+				return false;
+			}
+		}
+
 		return true;
 	}
 
-	getTemplateId(element: ICell | IOutput): string {
+	getTemplateId(element: ICell): string {
 
 		if (element.cell_type === 'markdown') {
 			return MarkdownCellRenderer.TEMPLATE_ID;
@@ -87,7 +96,7 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICell | IO
 
 class AbstractCellRenderer {
 	constructor(
-		private handler: NotebookHandler,
+		protected handler: NotebookHandler,
 		private contextMenuService: IContextMenuService
 	) { }
 
@@ -142,54 +151,7 @@ class AbstractCellRenderer {
 	}
 }
 
-export class OutputCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell | IOutput, CellRenderTemplate> {
-	static readonly TEMPLATE_ID = 'output_cell';
-
-	constructor(
-		handler: NotebookHandler,
-		@IContextMenuService contextMenuService: IContextMenuService
-	) {
-		super(handler, contextMenuService);
-	}
-
-	get templateId() {
-		return OutputCellRenderer.TEMPLATE_ID;
-	}
-
-	renderTemplate(container: HTMLElement): CellRenderTemplate {
-		const innerContent = document.createElement('div');
-		DOM.addClasses(innerContent, 'cell', 'output');
-		const renderer = new marked.Renderer();
-		container.appendChild(innerContent);
-
-		const action = document.createElement('div');
-		DOM.addClasses(action, 'menu', 'codicon-settings-gear', 'codicon');
-		container.appendChild(action);
-
-		return {
-			cellContainer: innerContent,
-			menuContainer: action,
-			renderer: renderer
-		};
-	}
-
-	renderElement(element: IOutput, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		if (element.output_type === 'stream') {
-			templateData.cellContainer.innerText = element.text;
-		} else if (element.output_type === 'error') {
-			const evalue = document.createElement('div');
-			DOM.addClasses(evalue, 'error_message');
-			evalue.innerText = element.evalue;
-			templateData.cellContainer.appendChild(evalue);
-		}
-	}
-
-	disposeTemplate(templateData: CellRenderTemplate): void {
-		// throw nerendererw Error('Method not implemented.');
-	}
-}
-
-export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell | IOutput, CellRenderTemplate> {
+export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 	private disposables: Map<HTMLElement, IDisposable> = new Map();
 
@@ -215,13 +177,14 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		container.appendChild(action);
 
 		return {
+			container: container,
 			cellContainer: innerContent,
 			menuContainer: action,
 			renderer: renderer
 		};
 	}
 
-	renderElement(element: ICell | IOutput, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		templateData.cellContainer.innerHTML = marked(element.source.join(''), { renderer: templateData.renderer });
 		let disposable = this.disposables.get(templateData.menuContainer!);
 
@@ -245,11 +208,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 }
 
-export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell | IOutput, CellRenderTemplate> {
+export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private editorOptions: IEditorOptions;
 	private widgetOptions: ICodeEditorWidgetOptions;
-	private disposables: Map<ICell, IDisposable> = new Map();
+	private disposables: Map<HTMLElement, IDisposable> = new Map();
 
 	constructor(
 		handler: NotebookHandler,
@@ -307,6 +270,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		container.appendChild(outputContainer);
 
 		return {
+			container: container,
 			cellContainer: innerContent,
 			menuContainer: action,
 			outputContainer: outputContainer,
@@ -337,22 +301,21 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.showContextMenu(element, e.posx, top + height);
 		});
 
-		this.disposables.set(element, listener);
+		this.disposables.set(templateData.cellContainer, listener);
 
 		if (templateData.outputContainer) {
 			templateData.outputContainer!.innerHTML = '';
 		}
 
 		if (element.outputs.length > 0) {
+			const outputNodes = [];
+			let shouldResize = false;
 			for (let i = 0; i < element.outputs.length; i++) {
 				const outputNode = document.createElement('div');
 				if (element.outputs[i].output_type === 'stream') {
 					outputNode.innerText = element.outputs[i].text;
-				} else {
-					const evalue = document.createElement('div');
-					DOM.addClasses(evalue, 'error_message');
-					evalue.innerText = element.outputs[i].evalue;
-					outputNode.appendChild(evalue);
+					outputNodes.push(outputNode);
+				} else if (element.outputs[i].output_type === 'error') {
 					const traceback = document.createElement('pre');
 					DOM.addClasses(traceback, 'traceback');
 					if (element.outputs[i].traceback) {
@@ -361,9 +324,39 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 							outputNode.appendChild(traceback);
 						}
 					}
+					outputNodes.push(outputNode);
+				} else if (element.outputs[i].output_type === 'display_data') {
+					const display = document.createElement('div');
+					DOM.addClasses(display, 'display');
+					if (element.outputs[i].data && element.outputs[i].data['image/png']) {
+						const image = document.createElement('img');
+						image.src = `data:image/png;base64,${element.outputs[i].data['image/png']}`;
+						display.appendChild(image);
+						outputNode.appendChild(display);
+						shouldResize = true;
+						outputNodes.push(outputNode);
+					}
 				}
 
 				templateData.outputContainer?.appendChild(outputNode);
+			}
+
+			if (shouldResize && height !== undefined) {
+				let dimensions = DOM.getClientArea(templateData.outputContainer!);
+				const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
+					let height = elementSizeObserver.getHeight();
+					this.handler.layoutElement(element, totalHeight + 16 + height);
+				});
+				elementSizeObserver.startObserving();
+				this.handler.layoutElement(element, totalHeight + 16 + dimensions.height);
+
+				this.disposables.set(templateData.outputContainer!, {
+					dispose: () => {
+						elementSizeObserver.stopObserving();
+						elementSizeObserver.dispose();
+					}
+				});
+
 			}
 		}
 
@@ -375,11 +368,20 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 
 	disposeElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		let disposable = this.disposables.get(element);
+		let cellDisposable = this.disposables.get(templateData.cellContainer);
 
-		if (disposable) {
-			disposable.dispose();
-			this.disposables.delete(element);
+		if (cellDisposable) {
+			cellDisposable.dispose();
+			this.disposables.delete(templateData.cellContainer);
+		}
+
+		if (templateData.outputContainer) {
+			let outputDisposable = this.disposables.get(templateData.outputContainer!);
+
+			if (outputDisposable) {
+				outputDisposable.dispose();
+				this.disposables.delete(templateData.outputContainer!);
+			}
 		}
 	}
 
@@ -402,7 +404,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
-	private list: WorkbenchList<ICell | IOutput> | undefined;
+	private list: WorkbenchList<ICell> | undefined;
 	private model: NotebookEditorModel | undefined;
 
 	constructor(
@@ -491,6 +493,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				this.list?.splice(0, this.list?.length, cells);
 				this.list?.layout();
 			});
+	}
+
+	layoutElement(cell: ICell, height: number) {
+		let index = this.model!.getNookbook().cells.indexOf(cell);
+		this.list?.updateDynamicHeight(index, cell, height);
 	}
 
 	insertEmptyNotebookCell(cell: ICell, direction: 'above' | 'below') {

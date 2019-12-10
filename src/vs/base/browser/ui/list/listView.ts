@@ -268,6 +268,23 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.layout();
 	}
 
+	updateDynamicHeight(index: number, element: T, size: number): void {
+		this.rangeMap.splice(index, 1, [
+			{
+				size: size
+			}
+		]);
+
+		this.items[index].size = size;
+
+		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight + size);
+		for (let i = renderRange.start; i < renderRange.end; i++) {
+			if (this.items[i].row) {
+				this.updateItemInDOM(this.items[i], i);
+			}
+		}
+	}
+
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
 		if (this.splicing) {
 			throw new Error('Can\'t run recursive splices.');

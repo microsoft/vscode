@@ -1305,6 +1305,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
 	}
 
+	updateDynamicHeight(index: number, element: T, size: number): void {
+		this.view.updateDynamicHeight(index, element, size);
+	}
+
 	updateWidth(index: number): void {
 		this.view.updateWidth(index);
 	}

@@ -18,6 +18,11 @@ export interface IErrorOutput {
 	traceback: string[];
 }
 
+export interface IDisplayOutput {
+	output_type: 'display_data';
+	data: { string: string };
+}
+
 export interface IGenericOutput {
 	output_type: string;
 }
