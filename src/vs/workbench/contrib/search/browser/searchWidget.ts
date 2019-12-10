@@ -35,7 +35,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
 
-const OneLineHeight = 24;
+export const OneLineHeight = 24;
 
 export interface ISearchWidgetOptions {
 	value?: string;
