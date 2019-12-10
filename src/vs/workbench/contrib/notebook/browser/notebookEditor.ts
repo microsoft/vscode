@@ -37,6 +37,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/output';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
+import { ITextModel } from 'vs/editor/common/model';
 
 const $ = DOM.$;
 
@@ -54,6 +55,7 @@ interface CellRenderTemplate {
 	outputContainer?: HTMLElement;
 	renderer?: marked.Renderer; // TODO this can be cached
 	editor?: CodeEditorWidget;
+	model?: ITextModel;
 }
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
@@ -76,9 +78,10 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
 
 	hasDynamicHeight(element: ICell): boolean {
 		if (element.cell_type === 'code') {
-			if (!element.outputs || element.outputs.length === 0) {
-				return false;
-			}
+			// if (!element.outputs || element.outputs.length === 0) {
+			// 	return false;
+			// }
+			return false;
 		}
 
 		return true;
@@ -309,7 +312,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		if (element.outputs.length > 0) {
 			const outputNodes = [];
-			let shouldResize = false;
 			for (let i = 0; i < element.outputs.length; i++) {
 				const outputNode = document.createElement('div');
 				if (element.outputs[i].output_type === 'stream') {
@@ -341,14 +343,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				templateData.outputContainer?.appendChild(outputNode);
 			}
 
-			if (shouldResize && height !== undefined) {
+			if (height !== undefined) {
 				let dimensions = DOM.getClientArea(templateData.outputContainer!);
 				const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
-					let height = elementSizeObserver.getHeight();
-					this.handler.layoutElement(element, totalHeight + 16 + height);
+					if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
+						let height = elementSizeObserver.getHeight();
+						this.handler.layoutElement(element, totalHeight + 32 + height);
+					}
 				});
 				elementSizeObserver.startObserving();
-				this.handler.layoutElement(element, totalHeight + 16 + dimensions.height);
+				this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
 
 				this.disposables.set(templateData.outputContainer!, {
 					dispose: () => {
