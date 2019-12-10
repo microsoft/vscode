@@ -60,7 +60,12 @@ export class ExtensionHostProfiler {
 						break;
 				}
 			} else if (segmentId === 'self' && node.callFrame.url) {
-				let extension = searchTree.findSubstr(node.callFrame.url);
+				let extension: IExtensionDescription | undefined;
+				try {
+					extension = searchTree.findSubstr(URI.parse(node.callFrame.url).toString());
+				} catch {
+					// ignore
+				}
 				if (extension) {
 					segmentId = extension.identifier.value;
 				}
