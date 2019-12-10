@@ -3360,6 +3360,11 @@ declare namespace monaco.editor {
 		 */
 		handleMouseWheel?: boolean;
 		/**
+		 * Always consume mouse wheel events (always call preventDefault() and stopPropagation() on the browser events).
+		 * Defaults to true.
+		 */
+		alwaysConsumeMouseWheel?: boolean;
+		/**
 		 * Height in pixels for the horizontal scrollbar.
 		 * Defaults to 10 (px).
 		 */
@@ -3389,6 +3394,7 @@ declare namespace monaco.editor {
 		readonly verticalHasArrows: boolean;
 		readonly horizontalHasArrows: boolean;
 		readonly handleMouseWheel: boolean;
+		readonly alwaysConsumeMouseWheel: boolean;
 		readonly horizontalScrollbarSize: number;
 		readonly horizontalSliderSize: number;
 		readonly verticalScrollbarSize: number;
