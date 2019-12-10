@@ -330,11 +330,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		if (!this.element) {
 			return;
 		}
-		try {
-			this.element.focus();
-		} catch {
-			// noop
-		}
 		this._send('focus');
 
 		// Handle focus change programmatically (do not rely on event from <webview>)
