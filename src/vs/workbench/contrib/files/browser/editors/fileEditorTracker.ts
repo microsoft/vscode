@@ -359,28 +359,34 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	//#endregion
 
-	//#region Out of workspace file watchers
+	//#region Visible Editors Change: Install file watchers for out of workspace resources that became visible
 
 	private onDidVisibleEditorsChange(): void {
-		const visibleOutOfWorkspacePaths = new ResourceMap<URI>();
-		coalesce(this.editorService.visibleEditors.map(editorInput => {
-			return toResource(editorInput, { supportSideBySide: SideBySideEditorChoice.MASTER });
-		})).filter(resource => {
-			return this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource);
-		}).forEach(resource => {
-			visibleOutOfWorkspacePaths.set(resource, resource);
-		});
+		const visibleOutOfWorkspaceResources = new ResourceMap<URI>();
+
+		for (const editor of this.editorService.visibleEditors) {
+			const resources = distinct(coalesce([
+				toResource(editor, { supportSideBySide: SideBySideEditorChoice.MASTER }),
+				toResource(editor, { supportSideBySide: SideBySideEditorChoice.DETAILS })
+			]), resource => resource.toString());
+
+			for (const resource of resources) {
+				if (this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource)) {
+					visibleOutOfWorkspaceResources.set(resource, resource);
+				}
+			}
+		}
 
 		// Handle no longer visible out of workspace resources
 		this.activeOutOfWorkspaceWatchers.keys().forEach(resource => {
-			if (!visibleOutOfWorkspacePaths.get(resource)) {
+			if (!visibleOutOfWorkspaceResources.get(resource)) {
 				dispose(this.activeOutOfWorkspaceWatchers.get(resource));
 				this.activeOutOfWorkspaceWatchers.delete(resource);
 			}
 		});
 
 		// Handle newly visible out of workspace resources
-		visibleOutOfWorkspacePaths.forEach(resource => {
+		visibleOutOfWorkspaceResources.forEach(resource => {
 			if (!this.activeOutOfWorkspaceWatchers.get(resource)) {
 				const disposable = this.fileService.watch(resource);
 				this.activeOutOfWorkspaceWatchers.set(resource, disposable);
