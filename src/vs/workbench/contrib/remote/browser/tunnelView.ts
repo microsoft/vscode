@@ -95,7 +95,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			});
 		}
 		groups.push({
-			label: nls.localize('remote.tunnelsView.add', "Add a Port..."),
+			label: nls.localize('remote.tunnelsView.add', "Forward Port..."),
 			tunnelType: TunnelType.Add,
 		});
 		return groups;
