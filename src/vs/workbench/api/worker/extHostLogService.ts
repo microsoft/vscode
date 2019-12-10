@@ -8,10 +8,11 @@ import { ExtHostLogServiceShape, MainThreadLogShape, MainContext } from 'vs/work
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { joinPath } from 'vs/base/common/resources';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { IExtHostContribution, IExtHostContributionsRegistry, Extensions } from 'vs/workbench/api/common/extHostContributions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class ExtHostLogService extends AbstractLogService implements ILogService, ExtHostLogServiceShape {
 
@@ -23,14 +24,11 @@ export class ExtHostLogService extends AbstractLogService implements ILogService
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostOutputService extHostOutputService: IExtHostOutputService
 	) {
 		super();
-		const logFile = joinPath(initData.logsLocation, `${ExtensionHostLogFileName}.log`);
 		this._proxy = rpc.getProxy(MainContext.MainThreadLog);
-		this._logFile = logFile.toJSON();
+		this._logFile = initData.logFile.toJSON();
 		this.setLevel(initData.logLevel);
-		extHostOutputService.createOutputChannelFromLogFile(localize('name', "Worker Extension Host"), logFile);
 	}
 
 	$setLevel(level: LogLevel): void {
@@ -75,3 +73,18 @@ export class ExtHostLogService extends AbstractLogService implements ILogService
 
 	flush(): void { }
 }
+
+
+class ExtHostLogChannelContribution extends Disposable implements IExtHostContribution {
+
+	constructor(
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@IExtHostOutputService outputSerice: IExtHostOutputService,
+	) {
+		super();
+		outputSerice.createOutputChannelFromLogFile(localize('name', "Worker Extension Host"), initData.logFile);
+	}
+
+}
+
+Registry.as<IExtHostContributionsRegistry>(Extensions.ExtHost).registerExtHostContribution(ExtHostLogChannelContribution);
