@@ -755,11 +755,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				return;
 			}
 
-			// ignore .git files
-			if (fileExtension === 'git') {
-				return;
-			}
-
 			await this.extensionService.whenInstalledExtensionsRegistered();
 			const mimeTypes = guessMimeTypes(uri);
 			if (mimeTypes.length !== 1 || mimeTypes[0] !== MIME_UNKNOWN) {
