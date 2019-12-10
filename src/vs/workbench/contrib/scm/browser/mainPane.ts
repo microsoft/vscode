@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
@@ -168,7 +168,7 @@ class ProviderRenderer implements IListRenderer<ISCMRepository, RepositoryTempla
 	}
 }
 
-export class MainPane extends ViewletPane {
+export class MainPane extends ViewPane {
 
 	static readonly ID = 'scm.mainPane';
 	static readonly TITLE = localize('scm providers', "Source Control Providers");
@@ -177,7 +177,7 @@ export class MainPane extends ViewletPane {
 
 	constructor(
 		protected viewModel: IViewModel,
-		options: IViewletPaneOptions,
+		options: IViewPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ISCMService protected scmService: ISCMService,

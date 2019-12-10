@@ -743,7 +743,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: lastResolvedFileStat.mtime,
 				encoding: this.getEncoding(),
-				etag: lastResolvedFileStat.etag,
+				etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 				writeElevated: options.writeElevated
 			}).then(stat => {
 				this.logService.trace(`doSave(${versionId}) - after write()`, this.resource);

@@ -140,8 +140,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			};
 
+			// Apply icon to window
+			// Linux: always
+			// Windows: only when running out of sources, otherwise an icon is set by us on the executable
 			if (isLinux) {
-				options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+				options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png');
+			} else if (isWindows && !this.environmentService.isBuilt) {
+				options.icon = path.join(this.environmentService.appRoot, 'resources/win32/code_150x150.png');
 			}
 
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');

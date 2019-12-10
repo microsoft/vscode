@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IAutoFocus, Mode, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -50,7 +50,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 		const label = nls.localize('manage', "Press Enter to manage your extensions.");
 		const action = () => {
 			this.viewletService.openViewlet(VIEWLET_ID, true)
-				.then(viewlet => viewlet as IExtensionsViewlet)
+				.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 				.then(viewlet => {
 					viewlet.search('');
 					viewlet.focus();
@@ -97,7 +97,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 						const label = nls.localize('install', "Press Enter to install '{0}' from the Marketplace.", text);
 						const action = () => {
 							return this.viewletService.openViewlet(VIEWLET_ID, true)
-								.then(viewlet => viewlet as IExtensionsViewlet)
+								.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 								.then(viewlet => viewlet.search(`@id:${text}`))
 								.then(() => this.extensionsService.installFromGallery(galleryExtension))
 								.then(undefined, err => this.notificationService.error(err));
@@ -116,7 +116,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 			const label = nls.localize('searchFor', "Press Enter to search for '{0}' in the Marketplace.", text);
 			const action = () => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
-					.then(viewlet => viewlet as IExtensionsViewlet)
+					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 					.then(viewlet => {
 						viewlet.search(text);
 						viewlet.focus();

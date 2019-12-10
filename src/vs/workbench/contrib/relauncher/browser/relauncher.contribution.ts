@@ -3,17 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh, isNative } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { localize } from 'vs/nls';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
+import { isMacintosh, isNative } from 'vs/base/common/platform';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
@@ -126,5 +132,82 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	}
 }
 
+export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWorkbenchContribution {
+
+	private firstFolderResource?: URI;
+	private extensionHostRestarter: RunOnceScheduler;
+
+	private onDidChangeWorkspaceFoldersUnbind: IDisposable | undefined;
+
+	constructor(
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IExtensionService extensionService: IExtensionService,
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+	) {
+		super();
+
+		this.extensionHostRestarter = this._register(new RunOnceScheduler(() => {
+			if (!!environmentService.extensionTestsLocationURI) {
+				return; // no restart when in tests: see https://github.com/Microsoft/vscode/issues/66936
+			}
+
+			if (environmentService.configuration.remoteAuthority) {
+				hostService.reload(); // TODO@aeschli, workaround
+			} else if (isNative) {
+				extensionService.restartExtensionHost();
+			}
+		}, 10));
+
+		this.contextService.getCompleteWorkspace()
+			.then(workspace => {
+				this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+				this.handleWorkbenchState();
+				this._register(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
+			});
+
+		this._register(toDisposable(() => {
+			if (this.onDidChangeWorkspaceFoldersUnbind) {
+				this.onDidChangeWorkspaceFoldersUnbind.dispose();
+			}
+		}));
+	}
+
+	private handleWorkbenchState(): void {
+
+		// React to folder changes when we are in workspace state
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+
+			// Update our known first folder path if we entered workspace
+			const workspace = this.contextService.getWorkspace();
+			this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+
+			// Install workspace folder listener
+			if (!this.onDidChangeWorkspaceFoldersUnbind) {
+				this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
+			}
+		}
+
+		// Ignore the workspace folder changes in EMPTY or FOLDER state
+		else {
+			dispose(this.onDidChangeWorkspaceFoldersUnbind);
+			this.onDidChangeWorkspaceFoldersUnbind = undefined;
+		}
+	}
+
+	private onDidChangeWorkspaceFolders(): void {
+		const workspace = this.contextService.getWorkspace();
+
+		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
+		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : undefined;
+		if (!isEqual(this.firstFolderResource, newFirstFolderResource)) {
+			this.firstFolderResource = newFirstFolderResource;
+
+			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
+		}
+	}
+}
+
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(WorkspaceChangeExtHostRelauncher, LifecyclePhase.Restored);

@@ -13,7 +13,7 @@ import * as json from 'vs/base/common/json';
 import { ActionViewItem, Separator, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { ExtensionsLabel, IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService, IExtensionRecommendation, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -1081,7 +1081,7 @@ export class CheckForUpdatesAction extends Action {
 		}
 
 		this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => viewlet.search(''));
 
 		this.notificationService.info(msgAvailableExtensions);
@@ -1486,7 +1486,7 @@ export class ShowEnabledExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@enabled ');
 				viewlet.focus();
@@ -1509,7 +1509,7 @@ export class ShowInstalledExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@installed ');
 				viewlet.focus();
@@ -1532,7 +1532,7 @@ export class ShowDisabledExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@disabled ');
 				viewlet.focus();
@@ -1563,7 +1563,7 @@ export class ClearExtensionsInputAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('');
 				viewlet.focus();
@@ -1586,7 +1586,7 @@ export class ShowBuiltInExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@builtin ');
 				viewlet.focus();
@@ -1609,7 +1609,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@outdated ');
 				viewlet.focus();
@@ -1632,7 +1632,7 @@ export class ShowPopularExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@sort:installs ');
 				viewlet.focus();
@@ -1655,7 +1655,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@recommended ', true);
 				viewlet.focus();
@@ -1689,7 +1689,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 
 	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@recommended ');
 				viewlet.focus();
@@ -1745,7 +1745,7 @@ export class InstallRecommendedExtensionAction extends Action {
 
 	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search(`@id:${this.extensionId}`);
 				viewlet.focus();
@@ -1827,7 +1827,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@recommended:keymaps ');
 				viewlet.focus();
@@ -1850,7 +1850,7 @@ export class ShowLanguageExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@category:"programming languages" @sort:installs ');
 				viewlet.focus();
@@ -1873,7 +1873,7 @@ export class ShowAzureExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@sort:installs azure ');
 				viewlet.focus();
@@ -1911,7 +1911,7 @@ export class ChangeSortAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search(this.query.toString());
 				viewlet.focus();
@@ -3166,7 +3166,7 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForL
 	const viewletService = accessor.get(IViewletService);
 
 	return viewletService.openViewlet(VIEWLET_ID, true)
-		.then(viewlet => viewlet as IExtensionsViewlet)
+		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 		.then(viewlet => {
 			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
 			viewlet.focus();
@@ -3177,7 +3177,7 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWith
 	const viewletService = accessor.get(IViewletService);
 
 	return viewletService.openViewlet(VIEWLET_ID, true)
-		.then(viewlet => viewlet as IExtensionsViewlet)
+		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 		.then(viewlet => {
 			const query = extensionIds
 				.map(id => `@id:${id}`)

@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, FileSystemProviderErrorCode, FileSystemProviderError, IFileContent } from 'vs/platform/files/common/files';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, ISettingsMergeService, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, DEFAULT_IGNORED_SETTINGS, IUserDataSyncLogService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
@@ -17,6 +17,8 @@ import { joinPath, dirname } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { startsWith } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { computeRemoteContent, merge } from 'vs/platform/userDataSync/common/settingsMerge';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -46,8 +48,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@ISettingsMergeService private readonly settingsMergeService: ISettingsMergeService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IUserDataSyncUtilService private readonly userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
@@ -148,7 +150,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				await this.writeToLocal(content, fileContent);
 			}
 			if (hasRemoteChanged) {
-				const remoteContent = remoteUserData.content ? await this.settingsMergeService.computeRemoteContent(content, remoteUserData.content, this.getIgnoredSettings(content)) : content;
+				const formatUtils = await this.getFormattingOptions();
+				const remoteContent = remoteUserData.content ? computeRemoteContent(content, remoteUserData.content, this.getIgnoredSettings(content), formatUtils) : content;
 				this.logService.info('Settings: Updating remote settings');
 				const ref = await this.writeToRemote(remoteContent, remoteUserData.ref);
 				remoteUserData = { ref, content };
@@ -205,7 +208,8 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 				|| lastSyncData.content !== remoteContent // Remote has forwarded
 			) {
 				this.logService.trace('Settings: Merging remote settings with local settings...');
-				const result = await this.settingsMergeService.merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, this.getIgnoredSettings());
+				const formatUtils = await this.getFormattingOptions();
+				const result = merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, this.getIgnoredSettings(), formatUtils);
 				// Sync only if there are changes
 				if (result.hasChanges) {
 					hasLocalChanged = result.mergeContent !== localContent;
@@ -228,6 +232,14 @@ export class SettingsSynchroniser extends Disposable implements ISynchroniser {
 		}
 
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
+	}
+
+	private _formattingOptions: Promise<FormattingOptions> | undefined = undefined;
+	private getFormattingOptions(): Promise<FormattingOptions> {
+		if (!this._formattingOptions) {
+			this._formattingOptions = this.userDataSyncUtilService.resolveFormattingOptions(this.environmentService.settingsResource);
+		}
+		return this._formattingOptions;
 	}
 
 	private getIgnoredSettings(settingsContent?: string): string[] {

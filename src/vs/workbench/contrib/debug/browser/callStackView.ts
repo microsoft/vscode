@@ -18,7 +18,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewletPaneOptions, ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -53,8 +53,7 @@ function getContext(element: CallStackItem | null): any {
 	} : undefined;
 }
 
-export class CallStackView extends ViewletPane {
-
+export class CallStackView extends ViewPane {
 	private pauseMessage!: HTMLSpanElement;
 	private pauseMessageLabel!: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
@@ -79,7 +78,7 @@ export class CallStackView extends ViewletPane {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
@@ -818,7 +817,7 @@ class StopAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(STOP_ID, getContext(this.session));
+		return this.commandService.executeCommand(STOP_ID, undefined, getContext(this.session));
 	}
 }
 
@@ -832,7 +831,7 @@ class DisconnectAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(DISCONNECT_ID, getContext(this.session));
+		return this.commandService.executeCommand(DISCONNECT_ID, undefined, getContext(this.session));
 	}
 }
 
@@ -846,7 +845,7 @@ class RestartAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(RESTART_SESSION_ID, getContext(this.session));
+		return this.commandService.executeCommand(RESTART_SESSION_ID, undefined, getContext(this.session));
 	}
 }
 
@@ -860,7 +859,7 @@ class StepOverAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(STEP_OVER_ID, getContext(this.thread));
+		return this.commandService.executeCommand(STEP_OVER_ID, undefined, getContext(this.thread));
 	}
 }
 
@@ -874,7 +873,7 @@ class StepIntoAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(STEP_INTO_ID, getContext(this.thread));
+		return this.commandService.executeCommand(STEP_INTO_ID, undefined, getContext(this.thread));
 	}
 }
 
@@ -888,7 +887,7 @@ class StepOutAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(STEP_OUT_ID, getContext(this.thread));
+		return this.commandService.executeCommand(STEP_OUT_ID, undefined, getContext(this.thread));
 	}
 }
 
@@ -902,7 +901,7 @@ class PauseAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(PAUSE_ID, getContext(this.thread));
+		return this.commandService.executeCommand(PAUSE_ID, undefined, getContext(this.thread));
 	}
 }
 
@@ -916,6 +915,6 @@ class ContinueAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(CONTINUE_ID, getContext(this.thread));
+		return this.commandService.executeCommand(CONTINUE_ID, undefined, getContext(this.thread));
 	}
 }
