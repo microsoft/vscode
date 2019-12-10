@@ -28,9 +28,10 @@ import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
-	private closeOnFileDelete: boolean | undefined;
+	private closeOnFileDelete: boolean = false;
 	private readonly modelLoadQueue = new ResourceQueue();
 	private readonly activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
 
@@ -43,7 +44,8 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super();
 
@@ -64,7 +66,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		this._register(this.textFileService.models.onModelsDirty(e => this.onTextFilesDirty(e)));
 
 		// Out of workspace file watchers
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.handleOutOfWorkspaceWatchers()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
 
 		// Update visible editors when focus is gained
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
@@ -76,31 +78,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
-		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
-			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
-		} else {
-			this.closeOnFileDelete = false; // default
-		}
-	}
-
-	private onWindowFocusChange(focused: boolean): void {
-		if (focused) {
-			// the window got focus and we use this as a hint that files might have been changed outside
-			// of this window. since file events can be unreliable, we queue a load for models that
-			// are visible in any editor. since this is a fast operation in the case nothing has changed,
-			// we tolerate the additional work.
-			distinct(
-				coalesce(this.editorService.visibleEditors
-					.map(editorInput => {
-						const resource = toResource(editorInput, { supportSideBySide: SideBySideEditorChoice.MASTER });
-						return resource ? this.textFileService.models.get(resource) : undefined;
-					}))
-					.filter(model => !model.isDirty()),
-				model => model.resource.toString()
-			).forEach(model => this.queueModelLoad(model));
-		}
-	}
+	//#region Handle deletes and moves in opened editors
 
 	// Note: there is some duplication with the other file event handler below. Since we cannot always rely on the disk events
 	// carrying all necessary data in all environments, we also use the file operation events to make sure operations are handled.
@@ -117,98 +95,6 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		if (e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.MOVE)) {
 			this.handleDeletes(e.resource, false, e.target ? e.target.resource : undefined);
 		}
-	}
-
-	private onFileChanges(e: FileChangesEvent): void {
-
-		// Handle updates
-		if (e.gotAdded() || e.gotUpdated()) {
-			this.handleUpdates(e);
-		}
-
-		// Handle deletes
-		if (e.gotDeleted()) {
-			this.handleDeletes(e, true);
-		}
-	}
-
-	private handleDeletes(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
-		const nonDirtyFileEditors = this.getOpenedFileEditors(false /* non-dirty only */);
-		nonDirtyFileEditors.forEach(async editor => {
-			const resource = editor.getResource();
-
-			// Handle deletes in opened editors depending on:
-			// - the user has not disabled the setting closeOnFileDelete
-			// - the file change is local or external
-			// - the input is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
-			if (this.closeOnFileDelete || !isExternal || !editor.isResolved()) {
-
-				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
-				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
-				// path but different casing.
-				if (movedTo && resources.isEqualOrParent(resource, movedTo)) {
-					return;
-				}
-
-				let matches = false;
-				if (arg1 instanceof FileChangesEvent) {
-					matches = arg1.contains(resource, FileChangeType.DELETED);
-				} else {
-					matches = resources.isEqualOrParent(resource, arg1);
-				}
-
-				if (!matches) {
-					return;
-				}
-
-				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
-				// Since we do not want to close an editor without reason, we have to check if the
-				// file is really gone and not just a faulty file event.
-				// This only applies to external file events, so we need to check for the isExternal
-				// flag.
-				let exists = false;
-				if (isExternal) {
-					await timeout(100);
-					exists = await this.fileService.exists(resource);
-				}
-
-				if (!exists && !editor.isDisposed()) {
-					editor.dispose();
-				} else if (this.environmentService.verbose) {
-					console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
-				}
-			}
-		});
-	}
-
-	private getOpenedFileEditors(dirtyState: boolean): FileEditorInput[] {
-		const editors: FileEditorInput[] = [];
-
-		this.editorService.editors.forEach(editor => {
-			if (editor instanceof FileEditorInput) {
-				if (!!editor.isDirty() === dirtyState) {
-					editors.push(editor);
-				}
-			} else if (editor instanceof SideBySideEditorInput) {
-				const master = editor.master;
-				const details = editor.details;
-
-				if (master instanceof FileEditorInput) {
-					if (!!master.isDirty() === dirtyState) {
-						editors.push(master);
-					}
-				}
-
-				if (details instanceof FileEditorInput) {
-					if (!!details.isDirty() === dirtyState) {
-						editors.push(details);
-					}
-				}
-			}
-		});
-
-		return editors;
 	}
 
 	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
@@ -293,6 +179,102 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		return undefined;
 	}
 
+	private handleDeletes(arg1: URI | FileChangesEvent, isExternal: boolean, movedTo?: URI): void {
+		const nonDirtyFileEditors = this.getOpenedFileEditors(false /* non-dirty only */);
+		nonDirtyFileEditors.forEach(async editor => {
+			const resource = editor.getResource();
+
+			// Handle deletes in opened editors depending on:
+			// - the user has not disabled the setting closeOnFileDelete
+			// - the file change is local or external
+			// - the input is not resolved (we need to dispose because we cannot restore otherwise since we do not have the contents)
+			if (this.closeOnFileDelete || !isExternal || !editor.isResolved()) {
+
+				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
+				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
+				// path but different casing.
+				if (movedTo && resources.isEqualOrParent(resource, movedTo)) {
+					return;
+				}
+
+				let matches = false;
+				if (arg1 instanceof FileChangesEvent) {
+					matches = arg1.contains(resource, FileChangeType.DELETED);
+				} else {
+					matches = resources.isEqualOrParent(resource, arg1);
+				}
+
+				if (!matches) {
+					return;
+				}
+
+				// We have received reports of users seeing delete events even though the file still
+				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+				// Since we do not want to close an editor without reason, we have to check if the
+				// file is really gone and not just a faulty file event.
+				// This only applies to external file events, so we need to check for the isExternal
+				// flag.
+				let exists = false;
+				if (isExternal) {
+					await timeout(100);
+					exists = await this.fileService.exists(resource);
+				}
+
+				if (!exists && !editor.isDisposed()) {
+					editor.dispose();
+				} else if (this.environmentService.verbose) {
+					console.warn(`File exists even though we received a delete event: ${resource.toString()}`);
+				}
+			}
+		});
+	}
+
+	private getOpenedFileEditors(dirtyState: boolean): FileEditorInput[] {
+		const editors: FileEditorInput[] = [];
+
+		this.editorService.editors.forEach(editor => {
+			if (editor instanceof FileEditorInput) {
+				if (!!editor.isDirty() === dirtyState) {
+					editors.push(editor);
+				}
+			} else if (editor instanceof SideBySideEditorInput) {
+				const master = editor.master;
+				const details = editor.details;
+
+				if (master instanceof FileEditorInput) {
+					if (!!master.isDirty() === dirtyState) {
+						editors.push(master);
+					}
+				}
+
+				if (details instanceof FileEditorInput) {
+					if (!!details.isDirty() === dirtyState) {
+						editors.push(details);
+					}
+				}
+			}
+		});
+
+		return editors;
+	}
+
+	//#endregion
+
+	//#region Update text models and binary editors on external changes
+
+	private onFileChanges(e: FileChangesEvent): void {
+
+		// Handle updates
+		if (e.gotAdded() || e.gotUpdated()) {
+			this.handleUpdates(e);
+		}
+
+		// Handle deletes
+		if (e.gotDeleted()) {
+			this.handleDeletes(e, true);
+		}
+	}
+
 	private handleUpdates(e: FileChangesEvent): void {
 
 		// Handle updates to text models
@@ -346,7 +328,40 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		});
 	}
 
-	private handleOutOfWorkspaceWatchers(): void {
+	//#endregion
+
+	//#region Open dirty text files if not opened already
+
+	private onTextFilesDirty(e: readonly TextFileModelChangeEvent[]): void {
+
+		// If files become dirty but are not opened, we open it in the background unless there are pending to be saved
+		this.doOpenDirtyResources(distinct(e.filter(e => {
+
+			// Only dirty models that are not PENDING_SAVE
+			const model = this.textFileService.models.get(e.resource);
+			const shouldOpen = model?.isDirty() && !model.hasState(ModelState.PENDING_SAVE);
+
+			// Only if not open already
+			return shouldOpen && !this.editorService.isOpen({ resource: e.resource });
+		}).map(e => e.resource), r => r.toString()));
+	}
+
+	private doOpenDirtyResources(resources: URI[]): void {
+
+		// Open
+		this.editorService.openEditors(resources.map(resource => {
+			return {
+				resource,
+				options: { inactive: true, pinned: true, preserveFocus: true }
+			};
+		}));
+	}
+
+	//#endregion
+
+	//#region Out of workspace file watchers
+
+	private onDidVisibleEditorsChange(): void {
 		const visibleOutOfWorkspacePaths = new ResourceMap<URI>();
 		coalesce(this.editorService.visibleEditors.map(editorInput => {
 			return toResource(editorInput, { supportSideBySide: SideBySideEditorChoice.MASTER });
@@ -373,30 +388,53 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		});
 	}
 
-	private onTextFilesDirty(e: readonly TextFileModelChangeEvent[]): void {
+	//#endregion
 
-		// If files become dirty but are not opened, we open it in the background unless there are pending to be saved
-		this.doOpenDirtyResources(distinct(e.filter(e => {
+	//#region Window Focus Change: Update visible code editors when focus is gained
 
-			// Only dirty models that are not PENDING_SAVE
-			const model = this.textFileService.models.get(e.resource);
-			const shouldOpen = model?.isDirty() && !model.hasState(ModelState.PENDING_SAVE);
+	private onWindowFocusChange(focused: boolean): void {
+		if (focused) {
+			// the window got focus and we use this as a hint that files might have been changed outside
+			// of this window. since file events can be unreliable, we queue a load for models that
+			// are visible in any editor. since this is a fast operation in the case nothing has changed,
+			// we tolerate the additional work.
+			distinct(
+				coalesce(this.codeEditorService.listCodeEditors()
+					.map(codeEditor => {
+						const resource = codeEditor.getModel()?.uri;
+						if (!resource) {
+							return undefined;
+						}
 
-			// Only if not open already
-			return shouldOpen && !this.editorService.isOpen({ resource: e.resource });
-		}).map(e => e.resource), r => r.toString()));
+						const model = this.textFileService.models.get(resource);
+						if (!model) {
+							return undefined;
+						}
+
+						if (model.isDirty()) {
+							return undefined;
+						}
+
+						return model;
+					})),
+				model => model.resource.toString()
+			).forEach(model => this.queueModelLoad(model));
+		}
 	}
 
-	private doOpenDirtyResources(resources: URI[]): void {
+	//#endregion
 
-		// Open
-		this.editorService.openEditors(resources.map(resource => {
-			return {
-				resource,
-				options: { inactive: true, pinned: true, preserveFocus: true }
-			};
-		}));
+	//#region Configuration Change
+
+	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
+			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
+		} else {
+			this.closeOnFileDelete = false; // default
+		}
 	}
+
+	//#endregion
 
 	dispose(): void {
 		super.dispose();
