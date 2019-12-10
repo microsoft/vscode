@@ -1358,7 +1358,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private resolveOptions(resolver: VariableResolver, options: CommandOptions | undefined): CommandOptions {
 		if (options === undefined || options === null) {
-			return { cwd: this.resolveVariable(resolver, '${workspaceFolder}') };
+			let cwd: string | undefined;
+			try {
+				cwd = this.resolveVariable(resolver, '${workspaceFolder}');
+			} catch (e) {
+				// No workspace
+			}
+			return { cwd };
 		}
 		let result: CommandOptions = Types.isString(options.cwd)
 			? { cwd: this.resolveVariable(resolver, options.cwd) }

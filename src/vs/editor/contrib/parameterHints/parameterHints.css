@@ -54,6 +54,10 @@
 	white-space: initial;
 }
 
+.monaco-editor .parameter-hints-widget .docs .markdown-docs p code {
+	font-family: var(--monaco-monospace-font);
+}
+
 .monaco-editor .parameter-hints-widget .docs .code {
 	white-space: pre-wrap;
 }
