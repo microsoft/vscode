@@ -450,6 +450,7 @@ export class TunnelPanel extends ViewPane {
 						return item.label;
 					}
 				},
+				multipleSelectionSupport: false
 			}
 		);
 		const actionRunner: ActionRunner = new ActionRunner();
