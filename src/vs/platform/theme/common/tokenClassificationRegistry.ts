@@ -12,13 +12,13 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
-//  ------ API types
-
 export const TOKEN_TYPE_WILDCARD = '*';
 export const TOKEN_TYPE_WILDCARD_NUM = -1;
 
 // qualified string [type|*](.modifier)*
 export type TokenClassificationString = string;
+
+export const typeAndModifierIdPattern = '^\\w+[-_\\w+]*$';
 
 export interface TokenClassification {
 	type: number;
@@ -121,6 +121,12 @@ export interface ITokenClassificationRegistry {
 	registerTokenStyleDefault(selector: TokenClassification, defaults: TokenStyleDefaults): void;
 
 	/**
+	 * Deregister a TokenStyle default to the registry.
+	 * @param selector The rule selector
+	 */
+	deregisterTokenStyleDefault(selector: TokenClassification): void;
+
+	/**
 	 * Deregister a TokenType from the registry.
 	 */
 	deregisterTokenType(id: string): void;
@@ -202,9 +208,15 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		this.tokenModifierById = {};
 
 		this.tokenTypeById[TOKEN_TYPE_WILDCARD] = { num: TOKEN_TYPE_WILDCARD_NUM, id: TOKEN_TYPE_WILDCARD, description: '', deprecationMessage: undefined };
+
+		this.registerDefaultClassifications();
 	}
 
 	public registerTokenType(id: string, description: string, deprecationMessage?: string): void {
+		if (!id.match(typeAndModifierIdPattern)) {
+			throw new Error('Invalid token type id.');
+		}
+
 		const num = this.currentTypeNumber++;
 		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
 		this.tokenTypeById[id] = tokenStyleContribution;
@@ -213,6 +225,10 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	}
 
 	public registerTokenModifier(id: string, description: string, deprecationMessage?: string): void {
+		if (!id.match(typeAndModifierIdPattern)) {
+			throw new Error('Invalid token modifier id.');
+		}
+
 		const num = this.currentModifierBit;
 		this.currentModifierBit = this.currentModifierBit * 2;
 		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
@@ -244,6 +260,10 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		this.tokenStylingDefaultRules.push({ classification, matchScore: getTokenStylingScore(classification), defaults });
 	}
 
+	public deregisterTokenStyleDefault(classification: TokenClassification): void {
+		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => !(r.classification.type === classification.type && r.classification.modifiers === classification.modifiers));
+	}
+
 	public deregisterTokenType(id: string): void {
 		delete this.tokenTypeById[id];
 		delete this.tokenStylingSchema.properties[id];
@@ -268,6 +288,48 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 	public getTokenStylingDefaultRules(): TokenStylingDefaultRule[] {
 		return this.tokenStylingDefaultRules;
+	}
+
+	private registerDefaultClassifications(): void {
+
+		// default token types
+
+		registerTokenType('comment', nls.localize('comment', "Style for comments."), [['comment']]);
+		registerTokenType('string', nls.localize('string', "Style for strings."), [['string']]);
+		registerTokenType('keyword', nls.localize('keyword', "Style for keywords."), [['keyword.control']]);
+		registerTokenType('number', nls.localize('number', "Style for numbers."), [['constant.numeric']]);
+		registerTokenType('regexp', nls.localize('regexp', "Style for expressions."), [['constant.regexp']]);
+		registerTokenType('operator', nls.localize('operator', "Style for operators."), [['keyword.operator']]);
+
+		registerTokenType('namespace', nls.localize('namespace', "Style for namespaces."), [['entity.name.namespace']]);
+
+		registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['entity.name.class'], ['support.type'], ['support.class']]);
+		registerTokenType('struct', nls.localize('struct', "Style for structs."), [['storage.type.struct']], 'type');
+		registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.class']], 'type');
+		registerTokenType('interface', nls.localize('interface', "Style for interfaces."), undefined, 'type');
+		registerTokenType('enum', nls.localize('enum', "Style for enums."), undefined, 'type');
+		registerTokenType('parameterType', nls.localize('parameterType', "Style for parameter types."), undefined, 'type');
+
+		registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
+		registerTokenType('macro', nls.localize('macro', "Style for macros."), undefined, 'function');
+
+		registerTokenType('variable', nls.localize('variable', "Style for variables."), [['variable'], ['entity.name.variable']]);
+		registerTokenType('constant', nls.localize('constant', "Style for constants."), undefined, 'variable');
+		registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), undefined, 'variable');
+		registerTokenType('property', nls.localize('propertie', "Style for properties."), undefined, 'variable');
+
+		registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
+
+		// default token modifiers
+
+		registerTokenModifier('declaration', nls.localize('declaration', "Style for all symbol declarations."), undefined);
+		registerTokenModifier('documentation', nls.localize('documentation', "Style to use for references in documentation."), undefined);
+		registerTokenModifier('member', nls.localize('member', "Style to use for member functions, variables (fields) and types."), undefined);
+		registerTokenModifier('static', nls.localize('static', "Style to use for symbols that are static."), undefined);
+		registerTokenModifier('abstract', nls.localize('abstract', "Style to use for symbols that are abstract."), undefined);
+		registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);
+		registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
+		registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
 	}
 
 	public toString() {
@@ -319,46 +381,6 @@ export function registerTokenModifier(id: string, description: string, deprecati
 export function getTokenClassificationRegistry(): ITokenClassificationRegistry {
 	return tokenClassificationRegistry;
 }
-
-// default token types
-
-registerTokenType('comment', nls.localize('comment', "Style for comments."), [['comment']]);
-registerTokenType('string', nls.localize('string', "Style for strings."), [['string']]);
-registerTokenType('keyword', nls.localize('keyword', "Style for keywords."), [['keyword.control']]);
-registerTokenType('number', nls.localize('number', "Style for numbers."), [['constant.numeric']]);
-registerTokenType('regexp', nls.localize('regexp', "Style for expressions."), [['constant.regexp']]);
-registerTokenType('operator', nls.localize('operator', "Style for operators."), [['keyword.operator']]);
-
-registerTokenType('namespace', nls.localize('namespace', "Style for namespaces."), [['entity.name.namespace']]);
-
-registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['entity.name.class'], ['support.type'], ['support.class']]);
-registerTokenType('struct', nls.localize('struct', "Style for structs."), [['storage.type.struct']], 'type');
-registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.class']], 'type');
-registerTokenType('interface', nls.localize('interface', "Style for interfaces."), undefined, 'type');
-registerTokenType('enum', nls.localize('enum', "Style for enums."), undefined, 'type');
-registerTokenType('parameterType', nls.localize('parameterType', "Style for parameter types."), undefined, 'type');
-
-registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
-registerTokenType('macro', nls.localize('macro', "Style for macros."), undefined, 'function');
-
-registerTokenType('variable', nls.localize('variable', "Style for variables."), [['variable'], ['entity.name.variable']]);
-registerTokenType('constant', nls.localize('constant', "Style for constants."), undefined, 'variable');
-registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), undefined, 'variable');
-registerTokenType('property', nls.localize('propertie', "Style for properties."), undefined, 'variable');
-
-registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
-
-// default token modifiers
-
-registerTokenModifier('declaration', nls.localize('declaration', "Style for all symbol declarations."), undefined);
-registerTokenModifier('documentation', nls.localize('documentation', "Style to use for references in documentation."), undefined);
-registerTokenModifier('member', nls.localize('member', "Style to use for member functions, variables (fields) and types."), undefined);
-registerTokenModifier('static', nls.localize('static', "Style to use for symbols that are static."), undefined);
-registerTokenModifier('abstract', nls.localize('abstract', "Style to use for symbols that are abstract."), undefined);
-registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);
-registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
-registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
-
 
 function bitCount(u: number) {
 	// https://blogs.msdn.microsoft.com/jeuge/2005/06/08/bit-fiddling-3/
