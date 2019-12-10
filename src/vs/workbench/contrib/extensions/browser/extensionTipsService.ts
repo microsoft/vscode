@@ -698,7 +698,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	 */
 	private promptFiletypeBasedRecommendations(model: ITextModel): void {
 		const uri = model.uri;
-		if (!uri || !this.fileService.canHandleResource(uri)) {
+		if (!uri || uri.scheme === 'gitfs' || !this.fileService.canHandleResource(uri)) {
 			return;
 		}
 
