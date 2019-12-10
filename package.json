@@ -39,7 +39,7 @@
     "jschardet": "2.1.1",
     "keytar": "^4.11.0",
     "native-is-elevated": "0.4.1",
-    "native-keymap": "2.1.0",
+    "native-keymap": "2.1.1",
     "native-watchdog": "1.3.0",
     "node-pty": "^0.10.0-beta2",
     "onigasm-umd": "2.2.5",
