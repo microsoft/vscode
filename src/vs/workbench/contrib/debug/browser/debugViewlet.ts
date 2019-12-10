@@ -84,7 +84,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
 		this._register(this.debugService.onDidNewSession(() => this.updateToolBar()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(CONTEXT_DEBUG_UX_KEY))) {
+			if (e.affectsSome(new Set([CONTEXT_DEBUG_UX_KEY]))) {
 				this.updateTitleArea();
 			}
 		}));
