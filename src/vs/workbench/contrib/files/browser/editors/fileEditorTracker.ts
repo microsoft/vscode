@@ -30,10 +30,9 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
-
 	private closeOnFileDelete: boolean | undefined;
-	private modelLoadQueue = new ResourceQueue();
-	private activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
+	private readonly modelLoadQueue = new ResourceQueue();
+	private readonly activeOutOfWorkspaceWatchers = new ResourceMap<IDisposable>();
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -64,17 +63,17 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// Open editors from dirty text file models
 		this._register(this.textFileService.models.onModelsDirty(e => this.onTextFilesDirty(e)));
 
-		// Editor changing
+		// Out of workspace file watchers
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.handleOutOfWorkspaceWatchers()));
 
 		// Update visible editors when focus is gained
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
 
-		// Lifecycle
-		this.lifecycleService.onShutdown(this.dispose, this);
-
 		// Configuration
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
+
+		// Lifecycle
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
@@ -98,7 +97,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						return resource ? this.textFileService.models.get(resource) : undefined;
 					}))
 					.filter(model => !model.isDirty()),
-				m => m.resource.toString()
+				model => model.resource.toString()
 			).forEach(model => this.queueModelLoad(model));
 		}
 	}
@@ -311,7 +310,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// and updated right after.
 		distinct(coalesce([...e.getUpdated(), ...e.getAdded()]
 			.map(u => this.textFileService.models.get(u.resource)))
-			.filter(model => model && !model.isDirty()), m => m.resource.toString())
+			.filter(model => model && !model.isDirty()), model => model.resource.toString())
 			.forEach(model => this.queueModelLoad(model));
 	}
 
