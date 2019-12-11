@@ -4,14 +4,88 @@
   "scopeName": "text.searchResult",
   "patterns": [
     {
-      "match": "^# (Query|Flags|Including|Excluding|ContextLines): .*$",
-      "name": "comment"
+      "begin": "^(# Query): ",
+      "end": "\n",
+      "name": "meta.header.search keyword.operator.word.search",
+      "beginCaptures": {
+        "1": {
+          "name": "entity.other.attribute-name"
+        }
+      },
+      "patterns": [
+        {
+          "match": "(\\\\n)|(\\\\\\\\)",
+          "name": "entity.other.attribute-value string.unquoted constant.character.escape"
+        },
+        {
+          "match": "\\\\.|\\\\$",
+          "name": "entity.other.attribute-value string.unquoted invalid.illegal"
+        },
+        {
+          "match": "[^\\\\\\\n]+",
+          "name": "entity.other.attribute-value string.unquoted"
+        }
+      ]
+    },
+    {
+      "begin": "^(# Flags): ",
+      "end": "\n",
+      "name": "meta.header.search keyword.operator.word.search",
+      "beginCaptures": {
+        "1": {
+          "name": "entity.other.attribute-name"
+        }
+      },
+      "patterns": [
+        {
+          "match": "(RegExp|CaseSensitive|IgnoreExcludeSettings|WordMatch)",
+          "name": "entity.other.attribute-value string.unquoted keyword.other"
+        },
+        {
+          "match": "."
+        }
+      ]
+    },
+    {
+      "begin": "^(# ContextLines): ",
+      "end": "\n",
+      "name": "meta.header.search keyword.operator.word.search",
+      "beginCaptures": {
+        "1": {
+          "name": "entity.other.attribute-name"
+        }
+      },
+      "patterns": [
+        {
+          "match": "\\d",
+          "name": "entity.other.attribute-value string.unquoted constant.numeric.integer"
+        },
+        {
+          "match": ".",
+          "name": "invalid.illegal"
+        }
+      ]
+    },
+    {
+      "match": "^(# (?:Including|Excluding)): (.*)$",
+      "name": "meta.header.search keyword.operator.word.search",
+      "captures": {
+        "1": {
+          "name": "entity.other.attribute-name"
+        },
+        "2": {
+          "name": "entity.other.attribute-value string.unquoted"
+        }
+      }
     },
     {
       "include": "#bat"
     },
     {
       "include": "#c"
+    },
+    {
+      "include": "#cc"
     },
     {
       "include": "#clj"
@@ -24,6 +98,9 @@
     },
     {
       "include": "#cs"
+    },
+    {
+      "include": "#cshtml"
     },
     {
       "include": "#css"
@@ -50,10 +127,22 @@
       "include": "#h"
     },
     {
+      "include": "#handlebars"
+    },
+    {
+      "include": "#hbs"
+    },
+    {
+      "include": "#hlsl"
+    },
+    {
       "include": "#hpp"
     },
     {
       "include": "#html"
+    },
+    {
+      "include": "#ini"
     },
     {
       "include": "#java"
@@ -71,13 +160,19 @@
       "include": "#less"
     },
     {
+      "include": "#log"
+    },
+    {
       "include": "#lua"
     },
     {
       "include": "#m"
     },
     {
-      "include": "#make"
+      "include": "#makefile"
+    },
+    {
+      "include": "#md"
     },
     {
       "include": "#mm"
@@ -96,6 +191,9 @@
     },
     {
       "include": "#ps1"
+    },
+    {
+      "include": "#pug"
     },
     {
       "include": "#py"
@@ -131,75 +229,106 @@
       "include": "#tsx"
     },
     {
+      "include": "#vb"
+    },
+    {
+      "include": "#xml"
+    },
+    {
       "include": "#yaml"
     },
     {
       "match": "^(?!\\s)(.*?)([^\\\\\\/\\n]*)(:)$",
-      "name": "string path.searchResult",
+      "name": "meta.resultBlock.search string meta.path.search",
       "captures": {
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       }
     },
     {
-      "match": "^  (\\d+)(:| )",
+      "match": "^  ((\\d+)(:))|((\\d+)( ))(.*)",
+      "name": "meta.resultBlock.search meta.resultLine.search",
       "captures": {
         "1": {
-          "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+          "name": "constant.numeric.integer meta.resultLinePrefix.search meta.resultLinePrefix.matchLinePrefix.search"
         },
         "2": {
-          "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+          "name": "meta.resultLinePrefix.lineNumber.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        },
+        "4": {
+          "name": "constant.numeric.integer meta.resultLinePrefix.search meta.resultLinePrefix.contextLinePrefix.search"
+        },
+        "5": {
+          "name": "meta.resultLinePrefix.lineNumber.search"
         }
       }
     }
   ],
   "repository": {
     "bat": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.bat)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.bat)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.bat",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.bat searchResult.multiline",
           "patterns": [
             {
               "include": "source.batchfile"
@@ -207,65 +336,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.bat searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.batchfile"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.batchfile"
+            }
+          ]
         }
       ]
     },
     "c": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.c)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.c)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.c",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.c searchResult.multiline",
           "patterns": [
             {
               "include": "source.c"
@@ -273,197 +422,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.c searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.c"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "clj": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.clj)(:)$",
-      "end": "^(?!\\s)",
-      "name": "searchResult.block.clj",
-      "beginCaptures": {
-        "0": {
-          "name": "string path.searchResult"
-        },
-        "1": {
-          "name": "dirname.path.searchResult"
-        },
-        "2": {
-          "name": "basename.path.searchResult"
-        },
-        "3": {
-          "name": "endingColon.path.searchResult"
-        }
-      },
-      "patterns": [
-        {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
-          "beginCaptures": {
-            "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
-            },
-            "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "punctuation.separator"
             }
           },
-          "whileCaptures": {
-            "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
-            },
-            "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
-            }
-          },
-          "name": "searchResult.resultLine.clj searchResult.multiline",
           "patterns": [
             {
-              "include": "source.clojure"
+              "include": "source.c"
             }
           ]
-        },
-        {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.clj searchResult.singleline",
-          "captures": {
-            "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
-            },
-            "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
-            },
-            "3": {
-              "patterns": [
-                {
-                  "include": "source.clojure"
-                }
-              ]
-            }
-          }
         }
       ]
     },
-    "coffee": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.coffee)(:)$",
+    "cc": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.cc)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.coffee",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
-            }
-          },
-          "name": "searchResult.resultLine.coffee searchResult.multiline",
-          "patterns": [
-            {
-              "include": "source.coffee"
-            }
-          ]
-        },
-        {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.coffee searchResult.singleline",
-          "captures": {
-            "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
-            },
-            "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.coffee"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    "cpp": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.cpp)(:)$",
-      "end": "^(?!\\s)",
-      "name": "searchResult.block.cpp",
-      "beginCaptures": {
-        "0": {
-          "name": "string path.searchResult"
-        },
-        "1": {
-          "name": "dirname.path.searchResult"
-        },
-        "2": {
-          "name": "basename.path.searchResult"
-        },
-        "3": {
-          "name": "endingColon.path.searchResult"
-        }
-      },
-      "patterns": [
-        {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
-          "beginCaptures": {
-            "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "punctuation.separator"
             },
-            "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "whileCaptures": {
-            "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
-            },
-            "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
-            }
-          },
-          "name": "searchResult.resultLine.cpp searchResult.multiline",
           "patterns": [
             {
               "include": "source.cpp"
@@ -471,65 +508,343 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.cpp searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.cpp"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.cpp"
+            }
+          ]
         }
       ]
     },
-    "cs": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.cs)(:)$",
+    "clj": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.clj)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.cs",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.cs searchResult.multiline",
+          "patterns": [
+            {
+              "include": "source.clojure"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.clojure"
+            }
+          ]
+        }
+      ]
+    },
+    "coffee": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.coffee)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.coffee"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.coffee"
+            }
+          ]
+        }
+      ]
+    },
+    "cpp": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.cpp)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.cpp"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.cpp"
+            }
+          ]
+        }
+      ]
+    },
+    "cs": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.cs)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
           "patterns": [
             {
               "include": "source.cs"
@@ -537,65 +852,171 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.cs searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.cs"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.cs"
+            }
+          ]
         }
       ]
     },
-    "css": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.css)(:)$",
+    "cshtml": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.cshtml)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.css",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.css searchResult.multiline",
+          "patterns": [
+            {
+              "include": "text.html.cshtml"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "text.html.cshtml"
+            }
+          ]
+        }
+      ]
+    },
+    "css": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.css)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
           "patterns": [
             {
               "include": "source.css"
@@ -603,65 +1024,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.css searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.css"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.css"
+            }
+          ]
         }
       ]
     },
     "dart": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.dart)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.dart)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.dart",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.dart searchResult.multiline",
           "patterns": [
             {
               "include": "source.dart"
@@ -669,65 +1110,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.dart searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.dart"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.dart"
+            }
+          ]
         }
       ]
     },
     "diff": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.diff)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.diff)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.diff",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.diff searchResult.multiline",
           "patterns": [
             {
               "include": "source.diff"
@@ -735,65 +1196,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.diff searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.diff"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.diff"
+            }
+          ]
         }
       ]
     },
     "dockerfile": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.dockerfile)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*(?:dockerfile|Dockerfile))(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.dockerfile",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.dockerfile searchResult.multiline",
           "patterns": [
             {
               "include": "source.dockerfile"
@@ -801,65 +1282,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.dockerfile searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.dockerfile"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.dockerfile"
+            }
+          ]
         }
       ]
     },
     "fs": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.fs)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.fs)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.fs",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.fs searchResult.multiline",
           "patterns": [
             {
               "include": "source.fsharp"
@@ -867,65 +1368,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.fs searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.fsharp"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.fsharp"
+            }
+          ]
         }
       ]
     },
     "go": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.go)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.go)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.go",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.go searchResult.multiline",
           "patterns": [
             {
               "include": "source.go"
@@ -933,65 +1454,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.go searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.go"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.go"
+            }
+          ]
         }
       ]
     },
     "groovy": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.groovy)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.groovy)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.groovy",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.groovy searchResult.multiline",
           "patterns": [
             {
               "include": "source.groovy"
@@ -999,65 +1540,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.groovy searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.groovy"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.groovy"
+            }
+          ]
         }
       ]
     },
     "h": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.h)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.h)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.h",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.h searchResult.multiline",
           "patterns": [
             {
               "include": "source.objc"
@@ -1065,65 +1626,343 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.h searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.objc"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.objc"
+            }
+          ]
         }
       ]
     },
-    "hpp": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.hpp)(:)$",
+    "handlebars": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.handlebars)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.hpp",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.hpp searchResult.multiline",
+          "patterns": [
+            {
+              "include": "text.html.handlebars"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "text.html.handlebars"
+            }
+          ]
+        }
+      ]
+    },
+    "hbs": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.hbs)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "patterns": [
+            {
+              "include": "text.html.handlebars"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "text.html.handlebars"
+            }
+          ]
+        }
+      ]
+    },
+    "hlsl": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.hlsl)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.hlsl"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.hlsl"
+            }
+          ]
+        }
+      ]
+    },
+    "hpp": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.hpp)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
           "patterns": [
             {
               "include": "source.objcpp"
@@ -1131,131 +1970,257 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.hpp searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.objcpp"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.objcpp"
+            }
+          ]
         }
       ]
     },
     "html": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.html)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.html)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.html",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.html searchResult.multiline",
           "patterns": [
             {
-              "include": "source.html"
+              "include": "text.html.basic"
             }
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.html searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.html"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "text.html.basic"
+            }
+          ]
         }
       ]
     },
-    "java": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.java)(:)$",
+    "ini": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.ini)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.java",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.java searchResult.multiline",
+          "patterns": [
+            {
+              "include": "source.ini"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.ini"
+            }
+          ]
+        }
+      ]
+    },
+    "java": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.java)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
           "patterns": [
             {
               "include": "source.java"
@@ -1263,65 +2228,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.java searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.java"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.java"
+            }
+          ]
         }
       ]
     },
     "js": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.js)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.js)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.js",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.js searchResult.multiline",
           "patterns": [
             {
               "include": "source.js"
@@ -1329,65 +2314,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.js searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.js"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.js"
+            }
+          ]
         }
       ]
     },
     "json": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.json)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.json)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.json",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.json searchResult.multiline",
           "patterns": [
             {
               "include": "source.json.comments"
@@ -1395,65 +2400,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.json searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.json.comments"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.json.comments"
+            }
+          ]
         }
       ]
     },
     "jsx": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.jsx)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.jsx)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.jsx",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.jsx searchResult.multiline",
           "patterns": [
             {
               "include": "source.js.jsx"
@@ -1461,65 +2486,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.jsx searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.js.jsx"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.js.jsx"
+            }
+          ]
         }
       ]
     },
     "less": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.less)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.less)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.less",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.less searchResult.multiline",
           "patterns": [
             {
               "include": "source.css.less"
@@ -1527,65 +2572,171 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.less searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.css.less"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.css.less"
+            }
+          ]
         }
       ]
     },
-    "lua": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.lua)(:)$",
+    "log": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.log)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.lua",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.lua searchResult.multiline",
+          "patterns": [
+            {
+              "include": "text.log"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "text.log"
+            }
+          ]
+        }
+      ]
+    },
+    "lua": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.lua)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
           "patterns": [
             {
               "include": "source.lua"
@@ -1593,65 +2744,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.lua searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.lua"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.lua"
+            }
+          ]
         }
       ]
     },
     "m": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.m)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.m)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.m",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.m searchResult.multiline",
           "patterns": [
             {
               "include": "source.objc"
@@ -1659,65 +2830,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.m searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.objc"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.objc"
+            }
+          ]
         }
       ]
     },
-    "make": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.make)(:)$",
+    "makefile": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*(?:makefile|Makefile)(?:\\..*)?)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.make",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.make searchResult.multiline",
           "patterns": [
             {
               "include": "source.makefile"
@@ -1725,65 +2916,171 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.make searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.makefile"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.makefile"
+            }
+          ]
         }
       ]
     },
-    "mm": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.mm)(:)$",
+    "md": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.md)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.mm",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.mm searchResult.multiline",
+          "patterns": [
+            {
+              "include": "text.html.markdown"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "text.html.markdown"
+            }
+          ]
+        }
+      ]
+    },
+    "mm": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.mm)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
           "patterns": [
             {
               "include": "source.objcpp"
@@ -1791,65 +3088,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.mm searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.objcpp"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.objcpp"
+            }
+          ]
         }
       ]
     },
     "p6": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.p6)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.p6)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.p6",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.p6 searchResult.multiline",
           "patterns": [
             {
               "include": "source.perl.6"
@@ -1857,65 +3174,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.p6 searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.perl.6"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.perl.6"
+            }
+          ]
         }
       ]
     },
     "perl": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.perl)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.perl)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.perl",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.perl searchResult.multiline",
           "patterns": [
             {
               "include": "source.perl"
@@ -1923,65 +3260,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.perl searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.perl"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.perl"
+            }
+          ]
         }
       ]
     },
     "php": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.php)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.php)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.php",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.php searchResult.multiline",
           "patterns": [
             {
               "include": "source.php"
@@ -1989,65 +3346,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.php searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.php"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.php"
+            }
+          ]
         }
       ]
     },
     "pl": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.pl)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.pl)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.pl",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.pl searchResult.multiline",
           "patterns": [
             {
               "include": "source.perl"
@@ -2055,65 +3432,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.pl searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.perl"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.perl"
+            }
+          ]
         }
       ]
     },
     "ps1": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.ps1)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.ps1)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.ps1",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.ps1 searchResult.multiline",
           "patterns": [
             {
               "include": "source.powershell"
@@ -2121,65 +3518,171 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.ps1 searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.powershell"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.powershell"
+            }
+          ]
         }
       ]
     },
-    "py": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.py)(:)$",
+    "pug": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.pug)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.py",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.py searchResult.multiline",
+          "patterns": [
+            {
+              "include": "text.pug"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "text.pug"
+            }
+          ]
+        }
+      ]
+    },
+    "py": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.py)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
           "patterns": [
             {
               "include": "source.python"
@@ -2187,65 +3690,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.py searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.python"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.python"
+            }
+          ]
         }
       ]
     },
     "r": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.r)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.r)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.r",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.r searchResult.multiline",
           "patterns": [
             {
               "include": "source.r"
@@ -2253,65 +3776,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.r searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.r"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.r"
+            }
+          ]
         }
       ]
     },
     "rb": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.rb)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.rb)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.rb",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.rb searchResult.multiline",
           "patterns": [
             {
               "include": "source.ruby"
@@ -2319,65 +3862,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.rb searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.ruby"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.ruby"
+            }
+          ]
         }
       ]
     },
     "rs": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.rs)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.rs)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.rs",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.rs searchResult.multiline",
           "patterns": [
             {
               "include": "source.rust"
@@ -2385,65 +3948,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.rs searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.rust"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.rust"
+            }
+          ]
         }
       ]
     },
     "scala": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.scala)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.scala)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.scala",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.scala searchResult.multiline",
           "patterns": [
             {
               "include": "source.scala"
@@ -2451,65 +4034,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.scala searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.scala"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.scala"
+            }
+          ]
         }
       ]
     },
     "scss": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.scss)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.scss)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.scss",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.scss searchResult.multiline",
           "patterns": [
             {
               "include": "source.css.scss"
@@ -2517,65 +4120,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.scss searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.css.scss"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.css.scss"
+            }
+          ]
         }
       ]
     },
     "sh": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.sh)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.sh)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.sh",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.sh searchResult.multiline",
           "patterns": [
             {
               "include": "source.shell"
@@ -2583,65 +4206,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.sh searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.shell"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.shell"
+            }
+          ]
         }
       ]
     },
     "sql": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.sql)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.sql)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.sql",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.sql searchResult.multiline",
           "patterns": [
             {
               "include": "source.sql"
@@ -2649,65 +4292,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.sql searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.sql"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.sql"
+            }
+          ]
         }
       ]
     },
     "swift": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.swift)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.swift)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.swift",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.swift searchResult.multiline",
           "patterns": [
             {
               "include": "source.swift"
@@ -2715,65 +4378,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.swift searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.swift"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.swift"
+            }
+          ]
         }
       ]
     },
     "ts": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.ts)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.ts)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.ts",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.ts searchResult.multiline",
           "patterns": [
             {
               "include": "source.ts"
@@ -2781,65 +4464,85 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.ts searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.ts"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.ts"
+            }
+          ]
         }
       ]
     },
     "tsx": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.tsx)(:)$",
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.tsx)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.tsx",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.tsx searchResult.multiline",
           "patterns": [
             {
               "include": "source.tsx"
@@ -2847,65 +4550,257 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.tsx searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.tsx"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.tsx"
+            }
+          ]
         }
       ]
     },
-    "yaml": {
-      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*.yaml)(:)$",
+    "vb": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.vb)(:)$",
       "end": "^(?!\\s)",
-      "name": "searchResult.block.yaml",
       "beginCaptures": {
         "0": {
-          "name": "string path.searchResult"
+          "name": "string meta.path.search"
         },
         "1": {
-          "name": "dirname.path.searchResult"
+          "name": "meta.path.dirname.search"
         },
         "2": {
-          "name": "basename.path.searchResult"
+          "name": "meta.path.basename.search"
         },
         "3": {
-          "name": "endingColon.path.searchResult"
+          "name": "punctuation.separator"
         }
       },
       "patterns": [
         {
-          "begin": "^  (\\d+)( )",
-          "while": "^  (\\d+)(:| )",
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
           "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
           "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
             }
           },
-          "name": "searchResult.resultLine.yaml searchResult.multiline",
+          "patterns": [
+            {
+              "include": "source.asp.vb.net"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.asp.vb.net"
+            }
+          ]
+        }
+      ]
+    },
+    "xml": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.xml)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "patterns": [
+            {
+              "include": "text.xml"
+            }
+          ]
+        },
+        {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            }
+          },
+          "patterns": [
+            {
+              "include": "text.xml"
+            }
+          ]
+        }
+      ]
+    },
+    "yaml": {
+      "name": "meta.resultBlock.search",
+      "begin": "^(?!\\s)(.*?)([^\\\\\\/\\n]*\\.yaml)(:)$",
+      "end": "^(?!\\s)",
+      "beginCaptures": {
+        "0": {
+          "name": "string meta.path.search"
+        },
+        "1": {
+          "name": "meta.path.dirname.search"
+        },
+        "2": {
+          "name": "meta.path.basename.search"
+        },
+        "3": {
+          "name": "punctuation.separator"
+        }
+      },
+      "patterns": [
+        {
+          "name": "meta.resultLine.search meta.resultLine.multiLine.search",
+          "begin": "^  ((\\d+) )",
+          "while": "^  ((\\d+)(:))|((\\d+) )",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
+          "whileCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
+            "1": {
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
+            },
+            "2": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            },
+            "3": {
+              "name": "punctuation.separator"
+            },
+            "4": {
+              "name": "meta.resultLinePrefix.contextLinePrefix.search"
+            },
+            "5": {
+              "name": "meta.resultLinePrefix.lineNumber.search"
+            }
+          },
           "patterns": [
             {
               "include": "source.yaml"
@@ -2913,23 +4808,28 @@
           ]
         },
         {
-          "match": "^  (\\d+)(:)(.*)",
-          "name": "searchResult.resultLine.yaml searchResult.singleline",
-          "captures": {
+          "begin": "^  ((\\d+)(:))",
+          "while": "(?=not)possible",
+          "name": "meta.resultLine.search meta.resultLine.singleLine.search",
+          "beginCaptures": {
+            "0": {
+              "name": "constant.numeric.integer meta.resultLinePrefix.search"
+            },
             "1": {
-              "name": "constant.numeric lineNumber.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.matchLinePrefix.search"
             },
             "2": {
-              "name": "resultPrefixSeparator.searchResult resultPrefix.searchResult"
+              "name": "meta.resultLinePrefix.lineNumber.search"
             },
             "3": {
-              "patterns": [
-                {
-                  "include": "source.yaml"
-                }
-              ]
+              "name": "punctuation.separator"
             }
-          }
+          },
+          "patterns": [
+            {
+              "include": "source.yaml"
+            }
+          ]
         }
       ]
     }
