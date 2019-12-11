@@ -17,7 +17,7 @@ import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { symbolKindToCssClass } from 'vs/editor/common/modes';
+import { SymbolKinds } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -45,8 +45,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 class Item extends BreadcrumbsItem {
 
@@ -102,14 +103,14 @@ class Item extends BreadcrumbsItem {
 		} else if (this.element instanceof OutlineGroup) {
 			// provider
 			let label = new IconLabel(container);
-			label.setLabel(this.element.provider.displayName);
+			label.setLabel(this.element.provider.displayName || '');
 			this._disposables.add(label);
 
 		} else if (this.element instanceof OutlineElement) {
 			// symbol
 			if (this.options.showSymbolIcons) {
 				let icon = document.createElement('div');
-				icon.className = symbolKindToCssClass(this.element.symbol.kind);
+				icon.className = SymbolKinds.toCssClassName(this.element.symbol.kind);
 				container.appendChild(icon);
 				dom.addClass(container, 'shows-symbol-icon');
 			}
@@ -130,15 +131,15 @@ export interface IBreadcrumbsControlOptions {
 
 export class BreadcrumbsControl {
 
-	static HEIGHT = 22;
+	static readonly HEIGHT = 22;
 
 	static readonly Payload_Reveal = {};
 	static readonly Payload_RevealAside = {};
 	static readonly Payload_Pick = {};
 
-	static CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false);
-	static CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
-	static CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false);
+	static readonly CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false);
+	static readonly CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
+	static readonly CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false);
 
 	private readonly _ckBreadcrumbsPossible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
@@ -168,6 +169,7 @@ export class BreadcrumbsControl {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -246,7 +248,12 @@ export class BreadcrumbsControl {
 
 		const uri = input.getResource()!;
 		const editor = this._getActiveCodeEditor();
-		const model = new EditorBreadcrumbsModel(uri, editor, this._workspaceService, this._configurationService);
+		const model = new EditorBreadcrumbsModel(
+			uri, editor,
+			this._configurationService,
+			this._textResourceConfigurationService,
+			this._workspaceService
+		);
 		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
 		dom.toggleClass(this.domNode, 'backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
 
@@ -375,7 +382,7 @@ export class BreadcrumbsControl {
 						editorViewState = withNullAsUndefined(editor.saveViewState());
 					}
 					const { symbol } = data.target;
-					editor.revealRangeInCenter(symbol.range, ScrollType.Smooth);
+					editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
 					editorDecorations = editor.deltaDecorations(editorDecorations, [{
 						range: symbol.range,
 						options: {
@@ -485,7 +492,7 @@ export class BreadcrumbsControl {
 						selection: Range.collapseToStart(element.symbol.selectionRange),
 						revealInCenterIfOutsideViewport: true
 					}
-				}, this._getActiveCodeEditor(), group === SIDE_GROUP);
+				}, withUndefinedAsNull(this._getActiveCodeEditor()), group === SIDE_GROUP);
 			}
 		}
 	}

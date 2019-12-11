@@ -9,17 +9,17 @@ import { localize } from 'vs/nls';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { addClasses, addClass, removeClasses } from 'vs/base/browser/dom';
 import { runWhenIdle } from 'vs/base/common/async';
-import { getZoomLevel } from 'vs/base/browser/browser';
+import { getZoomLevel, isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
+import { isWindows, isLinux, isWeb, isNative, isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, WillSaveStateReason, StorageScope, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -157,7 +157,7 @@ export class Workbench extends Layout {
 				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
 
 				// Workbench Layout
-				this.createWorkbenchLayout(instantiationService);
+				this.createWorkbenchLayout();
 
 				// Layout
 				this.layout();
@@ -227,6 +227,20 @@ export class Workbench extends Layout {
 		configurationService: IConfigurationService
 	): void {
 
+		// Configuration changes
+		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
+
+		// Font Info
+		if (isNative) {
+			this._register(storageService.onWillSaveState(e => {
+				if (e.reason === WillSaveStateReason.SHUTDOWN) {
+					this.storeFontInfo(storageService);
+				}
+			}));
+		} else {
+			this._register(lifecycleService.onWillShutdown(() => this.storeFontInfo(storageService)));
+		}
+
 		// Lifecycle
 		this._register(lifecycleService.onBeforeShutdown(event => this._onBeforeShutdown.fire(event)));
 		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
@@ -234,16 +248,14 @@ export class Workbench extends Layout {
 			this._onShutdown.fire();
 			this.dispose();
 		}));
-
-		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
-
-		// Storage
-		this._register(storageService.onWillSaveState(e => this.storeFontInfo(e, storageService)));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
 	private setFontAliasing(configurationService: IConfigurationService) {
+		if (!isMacintosh) {
+			return; // macOS only
+		}
+
 		const aliasing = configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>('workbench.fontAliasing');
 		if (this.fontAliasing === aliasing) {
 			return;
@@ -264,7 +276,7 @@ export class Workbench extends Layout {
 	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
 
 		// Restore (native: use storage service, web: use browser specific local storage)
-		const storedFontInfoRaw = isNative ? storageService.get('editorFontInfo', StorageScope.GLOBAL) : window.localStorage.getItem('editorFontInfo');
+		const storedFontInfoRaw = isNative ? storageService.get('editorFontInfo', StorageScope.GLOBAL) : window.localStorage.getItem('vscode.editorFontInfo');
 		if (storedFontInfoRaw) {
 			try {
 				const storedFontInfo = JSON.parse(storedFontInfoRaw);
@@ -279,13 +291,19 @@ export class Workbench extends Layout {
 		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
 	}
 
-	private storeFontInfo(e: IWillSaveStateEvent, storageService: IStorageService): void {
-		if (e.reason === WillSaveStateReason.SHUTDOWN) {
-			const serializedFontInfo = serializeFontInfo();
-			if (serializedFontInfo) {
-				const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
+	private storeFontInfo(storageService: IStorageService): void {
+		const serializedFontInfo = serializeFontInfo();
+		if (serializedFontInfo) {
+			const serializedFontInfoRaw = JSON.stringify(serializedFontInfo);
 
-				isNative ? storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL) : window.localStorage.setItem('editorFontInfo', serializedFontInfoRaw);
+			// Font info is very specific to the machine the workbench runs
+			// on. As such, in the web, we prefer to store this info in
+			// local storage and not global storage because it would not make
+			// much sense to synchronize to other machines.
+			if (isNative) {
+				storageService.store('editorFontInfo', serializedFontInfoRaw, StorageScope.GLOBAL);
+			} else {
+				window.localStorage.setItem('vscode.editorFontInfo', serializedFontInfoRaw);
 			}
 		}
 	}
@@ -298,6 +316,7 @@ export class Workbench extends Layout {
 			'monaco-workbench',
 			platformClass,
 			isWeb ? 'web' : undefined,
+			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
 			...this.getLayoutClasses()
 		]);
 

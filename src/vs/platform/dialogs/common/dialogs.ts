@@ -8,8 +8,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
-import { FileFilter } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+
+export interface FileFilter {
+	extensions: string[];
+	name: string;
+}
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 
@@ -90,7 +94,7 @@ export interface ISaveDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 export interface IOpenDialogOptions {
@@ -134,9 +138,8 @@ export interface IOpenDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can load from. If not specified, uses the schema of the defaultURI or, if also not available,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
-
 
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
@@ -237,22 +240,33 @@ export interface IFileDialogService {
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 
 	/**
+	 * Shows a confirm dialog for saving 1-N files.
+	 */
+	showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult>;
+
+	/**
 	 * Shows a open file dialog and returns the chosen file URI.
 	 */
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 }
 
+export const enum ConfirmResult {
+	SAVE,
+	DONT_SAVE,
+	CANCEL
+}
+
 const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, resourcesToConfirm: readonly URI[]): string {
+export function getConfirmMessage(start: string, fileNamesOrResources: readonly (string | URI)[]): string {
 	const message = [start];
 	message.push('');
-	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r)));
+	message.push(...fileNamesOrResources.slice(0, MAX_CONFIRM_FILES).map(fileNameOrResource => typeof fileNameOrResource === 'string' ? fileNameOrResource : basename(fileNameOrResource)));
 
-	if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
-		if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
+	if (fileNamesOrResources.length > MAX_CONFIRM_FILES) {
+		if (fileNamesOrResources.length - MAX_CONFIRM_FILES === 1) {
 			message.push(localize('moreFile', "...1 additional file not shown"));
 		} else {
-			message.push(localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+			message.push(localize('moreFiles', "...{0} additional files not shown", fileNamesOrResources.length - MAX_CONFIRM_FILES));
 		}
 	}
 

@@ -12,6 +12,7 @@ import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model
 import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
+import { equals } from 'vs/base/common/arrays';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
@@ -27,7 +28,6 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	private _languageId: string;
 	private _isDirty: boolean;
 	private _document?: vscode.TextDocument;
-	private _textLines: vscode.TextLine[] = [];
 	private _isDisposed: boolean = false;
 
 	constructor(proxy: MainThreadDocumentsShape, uri: URI, lines: string[], eol: string,
@@ -48,17 +48,8 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		this._isDirty = false;
 	}
 
-	equalLines(lines: string[]): boolean {
-		const len = lines.length;
-		if (len !== this._lines.length) {
-			return false;
-		}
-		for (let i = 0; i < len; i++) {
-			if (lines[i] !== this._lines[i]) {
-				return false;
-			}
-		}
-		return true;
+	equalLines(lines: readonly string[]): boolean {
+		return equals(this._lines, lines);
 	}
 
 	get document(): vscode.TextDocument {
@@ -138,33 +129,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			line = lineOrPosition;
 		}
 
-		if (typeof line !== 'number' || line < 0 || line >= this._lines.length) {
+		if (typeof line !== 'number' || line < 0 || line >= this._lines.length || Math.floor(line) !== line) {
 			throw new Error('Illegal value for `line`');
 		}
 
-		let result = this._textLines[line];
-		if (!result || result.lineNumber !== line || result.text !== this._lines[line]) {
-
-			const text = this._lines[line];
-			const firstNonWhitespaceCharacterIndex = /^(\s*)/.exec(text)![1].length;
-			const range = new Range(line, 0, line, text.length);
-			const rangeIncludingLineBreak = line < this._lines.length - 1
-				? new Range(line, 0, line + 1, 0)
-				: range;
-
-			result = Object.freeze({
-				lineNumber: line,
-				range,
-				rangeIncludingLineBreak,
-				text,
-				firstNonWhitespaceCharacterIndex, //TODO@api, rename to 'leadingWhitespaceLength'
-				isEmptyOrWhitespace: firstNonWhitespaceCharacterIndex === text.length
-			});
-
-			this._textLines[line] = result;
-		}
-
-		return result;
+		return new ExtHostDocumentLine(line, this._lines[line], line === this._lines.length - 1);
 	}
 
 	private _offsetAt(position: vscode.Position): number {
@@ -247,8 +216,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 
 		} else if (regExpLeadsToEndlessLoop(regexp)) {
 			// use default when custom-regexp is bad
-			console.warn(`[getWordRangeAtPosition]: ignoring custom regexp '${regexp.source}' because it matches the empty string.`);
-			regexp = getWordDefinitionFor(this._languageId);
+			throw new Error(`[getWordRangeAtPosition]: ignoring custom regexp '${regexp.source}' because it matches the empty string.`);
 		}
 
 		const wordAtText = getWordAtText(
@@ -262,5 +230,46 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			return new Range(position.line, wordAtText.startColumn - 1, position.line, wordAtText.endColumn - 1);
 		}
 		return undefined;
+	}
+}
+
+class ExtHostDocumentLine implements vscode.TextLine {
+
+	private readonly _line: number;
+	private readonly _text: string;
+	private readonly _isLastLine: boolean;
+
+	constructor(line: number, text: string, isLastLine: boolean) {
+		this._line = line;
+		this._text = text;
+		this._isLastLine = isLastLine;
+	}
+
+	public get lineNumber(): number {
+		return this._line;
+	}
+
+	public get text(): string {
+		return this._text;
+	}
+
+	public get range(): Range {
+		return new Range(this._line, 0, this._line, this._text.length);
+	}
+
+	public get rangeIncludingLineBreak(): Range {
+		if (this._isLastLine) {
+			return this.range;
+		}
+		return new Range(this._line, 0, this._line + 1, 0);
+	}
+
+	public get firstNonWhitespaceCharacterIndex(): number {
+		//TODO@api, rename to 'leadingWhitespaceLength'
+		return /^(\s*)/.exec(this._text)![1].length;
+	}
+
+	public get isEmptyOrWhitespace(): boolean {
+		return this.firstNonWhitespaceCharacterIndex === this._text.length;
 	}
 }

@@ -10,26 +10,11 @@ const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
 const _doubleSlashStart = /^\/\//;
 
-let _throwOnMissingSchema: boolean = true;
-
-/**
- * @internal
- */
-export function setUriThrowOnMissingScheme(value: boolean): boolean {
-	const old = _throwOnMissingSchema;
-	_throwOnMissingSchema = value;
-	return old;
-}
-
 function _validateUri(ret: URI, _strict?: boolean): void {
 
 	// scheme, must be set
-	if (!ret.scheme) {
-		if (_strict || _throwOnMissingSchema) {
-			throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
-		} else {
-			console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
-		}
+	if (!ret.scheme && _strict) {
+		throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
 	}
 
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
@@ -61,12 +46,8 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 // back to the file-scheme. that should cause the least carnage and still be a
 // clear warning
 function _schemeFix(scheme: string, _strict: boolean): string {
-	if (_strict || _throwOnMissingSchema) {
-		return scheme || _empty;
-	}
-	if (!scheme) {
-		console.trace('BAD uri lacks scheme, falling back to file-scheme.');
-		scheme = 'file';
+	if (!scheme && !_strict) {
+		return 'file';
 	}
 	return scheme;
 }
@@ -286,10 +267,10 @@ export class URI implements UriComponents {
 		}
 		return new _URI(
 			match[2] || _empty,
-			decodeURIComponent(match[4] || _empty),
-			decodeURIComponent(match[5] || _empty),
-			decodeURIComponent(match[7] || _empty),
-			decodeURIComponent(match[9] || _empty),
+			percentDecode(match[4] || _empty),
+			percentDecode(match[5] || _empty),
+			percentDecode(match[7] || _empty),
+			percentDecode(match[9] || _empty),
 			_strict
 		);
 	}
@@ -666,4 +647,27 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		res += !skipEncoding ? encodeURIComponentFast(fragment, false) : fragment;
 	}
 	return res;
+}
+
+// --- decode
+
+function decodeURIComponentGraceful(str: string): string {
+	try {
+		return decodeURIComponent(str);
+	} catch {
+		if (str.length > 3) {
+			return str.substr(0, 3) + decodeURIComponentGraceful(str.substr(3));
+		} else {
+			return str;
+		}
+	}
+}
+
+const _rEncodedAsHex = /(%[0-9A-Za-z][0-9A-Za-z])+/g;
+
+function percentDecode(str: string): string {
+	if (!str.match(_rEncodedAsHex)) {
+		return str;
+	}
+	return str.replace(_rEncodedAsHex, (match) => decodeURIComponentGraceful(match));
 }

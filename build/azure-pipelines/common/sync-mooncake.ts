@@ -8,7 +8,7 @@
 import * as url from 'url';
 import * as azure from 'azure-storage';
 import * as mime from 'mime';
-import { DocumentClient, RetrievedDocument } from 'documentdb';
+import { CosmosClient } from '@azure/cosmos';
 
 function log(...args: any[]) {
 	console.log(...[`[${new Date().toISOString()}]`, ...args]);
@@ -23,7 +23,7 @@ if (process.argv.length < 3) {
 	process.exit(-1);
 }
 
-interface Build extends RetrievedDocument {
+interface Build {
 	assets: Asset[];
 }
 
@@ -38,62 +38,20 @@ interface Asset {
 	supportsFastUpdate?: boolean;
 }
 
-function updateBuild(commit: string, quality: string, platform: string, type: string, asset: Asset): Promise<void> {
-	const client = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT']!, { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
-	const collection = 'dbs/builds/colls/' + quality;
-	const updateQuery = {
-		query: 'SELECT TOP 1 * FROM c WHERE c.id = @id',
-		parameters: [{ name: '@id', value: commit }]
-	};
-
-	let updateTries = 0;
-
-	function _update(): Promise<void> {
-		updateTries++;
-
-		return new Promise<void>((c, e) => {
-			client.queryDocuments(collection, updateQuery).toArray((err, results) => {
-				if (err) { return e(err); }
-				if (results.length !== 1) { return e(new Error('No documents')); }
-
-				const release = results[0];
-
-				release.assets = [
-					...release.assets.filter((a: any) => !(a.platform === platform && a.type === type)),
-					asset
-				];
-
-				client.replaceDocument(release._self, release, err => {
-					if (err && err.code === 409 && updateTries < 5) { return c(_update()); }
-					if (err) { return e(err); }
-
-					log('Build successfully updated.');
-					c();
-				});
-			});
-		});
-	}
-
-	return _update();
-}
-
 async function sync(commit: string, quality: string): Promise<void> {
 	log(`Synchronizing Mooncake assets for ${quality}, ${commit}...`);
 
-	const cosmosdb = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT']!, { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
-	const collection = `dbs/builds/colls/${quality}`;
-	const query = {
-		query: 'SELECT TOP 1 * FROM c WHERE c.id = @id',
-		parameters: [{ name: '@id', value: commit }]
-	};
+	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
+	const container = client.database('builds').container(quality);
 
-	const build = await new Promise<Build>((c, e) => {
-		cosmosdb.queryDocuments(collection, query).toArray((err, results) => {
-			if (err) { return e(err); }
-			if (results.length !== 1) { return e(new Error('No documents')); }
-			c(results[0] as Build);
-		});
-	});
+	const query = `SELECT TOP 1 * FROM c WHERE c.id = "${commit}"`;
+	const res = await container.items.query<Build>(query, {}).fetchAll();
+
+	if (res.resources.length !== 1) {
+		throw new Error(`No builds found for ${commit}`);
+	}
+
+	const build = res.resources[0];
 
 	log(`Found build for ${commit}, with ${build.assets.length} assets`);
 
@@ -140,8 +98,9 @@ async function sync(commit: string, quality: string): Promise<void> {
 			await new Promise((c, e) => readStream.pipe(writeStream).on('finish', c).on('error', e));
 
 			log(`  Updating build in DB...`);
-			asset.mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
-			await updateBuild(commit, quality, asset.platform, asset.type, asset);
+			const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
+			await container.scripts.storedProcedure('setAssetMooncakeUrl')
+				.execute('', [commit, asset.platform, asset.type, mooncakeUrl]);
 
 			log(`  Done ✔️`);
 		} catch (err) {

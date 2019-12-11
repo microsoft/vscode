@@ -171,7 +171,7 @@ export class InputBox extends Widget {
 			this.maxHeight = typeof this.options.flexibleMaxHeight === 'number' ? this.options.flexibleMaxHeight : Number.POSITIVE_INFINITY;
 
 			this.mirror = dom.append(wrapper, $('div.mirror'));
-			this.mirror.innerHTML = '&nbsp;';
+			this.mirror.innerHTML = '&#160;';
 
 			this.scrollableElement = new ScrollableElement(this.element, { vertical: ScrollbarVisibility.Auto });
 
@@ -189,7 +189,7 @@ export class InputBox extends Widget {
 
 			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
 				const selection = document.getSelection();
-				return !!selection && selection.anchorNode === wrapper;
+				return selection?.anchorNode === wrapper;
 			});
 
 			// from DOM to ScrollableElement
@@ -219,6 +219,8 @@ export class InputBox extends Widget {
 				this.input.focus();
 			});
 		}
+
+		this.ignoreGesture(this.input);
 
 		setTimeout(() => this.updateMirror(), 0);
 
@@ -303,6 +305,7 @@ export class InputBox extends Widget {
 	}
 
 	public disable(): void {
+		this.blur();
 		this.input.disabled = true;
 		this._hideMessage();
 	}
@@ -351,7 +354,7 @@ export class InputBox extends Widget {
 	}
 
 	private updateScrollDimensions(): void {
-		if (typeof this.cachedContentHeight !== 'number' || typeof this.cachedHeight !== 'number') {
+		if (typeof this.cachedContentHeight !== 'number' || typeof this.cachedHeight !== 'number' || !this.scrollableElement) {
 			return;
 		}
 
@@ -359,8 +362,8 @@ export class InputBox extends Widget {
 		const height = this.cachedHeight;
 		const scrollTop = this.input.scrollTop;
 
-		this.scrollableElement!.setScrollDimensions({ scrollHeight, height });
-		this.scrollableElement!.setScrollPosition({ scrollTop });
+		this.scrollableElement.setScrollDimensions({ scrollHeight, height });
+		this.scrollableElement.setScrollPosition({ scrollTop });
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {
@@ -373,7 +376,7 @@ export class InputBox extends Widget {
 		dom.addClass(this.element, this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
-		this.element.style.border = styles.border ? `1px solid ${styles.border}` : null;
+		this.element.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
 		// ARIA Support
 		let alertText: string;
@@ -473,9 +476,9 @@ export class InputBox extends Widget {
 				dom.addClass(spanElement, this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
-				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : null;
+				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : '';
 				spanElement.style.color = styles.foreground ? styles.foreground.toString() : null;
-				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : null;
+				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
 				dom.append(div, spanElement);
 
@@ -527,7 +530,7 @@ export class InputBox extends Widget {
 		if (mirrorTextContent) {
 			this.mirror.textContent = value + suffix;
 		} else {
-			this.mirror.innerHTML = '&nbsp;';
+			this.mirror.innerHTML = '&#160;';
 		}
 
 		this.layout();
@@ -552,17 +555,17 @@ export class InputBox extends Widget {
 	}
 
 	protected applyStyles(): void {
-		const background = this.inputBackground ? this.inputBackground.toString() : null;
-		const foreground = this.inputForeground ? this.inputForeground.toString() : null;
-		const border = this.inputBorder ? this.inputBorder.toString() : null;
+		const background = this.inputBackground ? this.inputBackground.toString() : '';
+		const foreground = this.inputForeground ? this.inputForeground.toString() : '';
+		const border = this.inputBorder ? this.inputBorder.toString() : '';
 
 		this.element.style.backgroundColor = background;
 		this.element.style.color = foreground;
 		this.input.style.backgroundColor = background;
 		this.input.style.color = foreground;
 
-		this.element.style.borderWidth = border ? '1px' : null;
-		this.element.style.borderStyle = border ? 'solid' : null;
+		this.element.style.borderWidth = border ? '1px' : '';
+		this.element.style.borderStyle = border ? 'solid' : '';
 		this.element.style.borderColor = border;
 	}
 

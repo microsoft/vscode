@@ -6,7 +6,8 @@
 import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
+import { IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
+import { IOutputService, OUTPUT_PANEL_ID } from 'vs/workbench/contrib/output/common/output';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -21,6 +22,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -213,8 +215,8 @@ export class OpenLogOutputFile extends Action {
 
 export class ShowLogsOutputChannelAction extends Action {
 
-	static ID = 'workbench.action.showLogs';
-	static LABEL = nls.localize('showLogs', "Show Logs...");
+	static readonly ID = 'workbench.action.showLogs';
+	static readonly LABEL = nls.localize('showLogs', "Show Logs...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -243,8 +245,8 @@ interface IOutputChannelQuickPickItem extends IQuickPickItem {
 
 export class OpenOutputLogFileAction extends Action {
 
-	static ID = 'workbench.action.openLogFile';
-	static LABEL = nls.localize('openLogFile', "Open Log File...");
+	static readonly ID = 'workbench.action.openLogFile';
+	static readonly LABEL = nls.localize('openLogFile', "Open Log File...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -262,7 +264,8 @@ export class OpenOutputLogFileAction extends Action {
 		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") })
 			.then(entry => {
 				if (entry) {
-					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel)).then(() => undefined);
+					assertIsDefined(entry.channel.file);
+					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel as IFileOutputChannelDescriptor)).then(() => undefined);
 				}
 				return undefined;
 			});

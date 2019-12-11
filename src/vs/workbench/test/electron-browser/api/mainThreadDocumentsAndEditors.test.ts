@@ -20,6 +20,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -42,7 +43,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService());
 		codeEditorService = new TestCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
@@ -79,7 +80,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 				onDidPanelOpen = Event.None;
 				onDidPanelClose = Event.None;
 				getActivePanel() {
-					return null;
+					return undefined;
 				}
 			},
 			TestEnvironmentService

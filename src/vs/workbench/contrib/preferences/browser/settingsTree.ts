@@ -12,7 +12,7 @@ import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IListVirtualDelegate, ListAriaRootRole } from 'vs/base/browser/ui/list/list';
+import { ListAriaRootRole, CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -28,7 +28,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -37,7 +36,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -47,6 +46,8 @@ import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isArray } from 'vs/base/common/types';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { isIOS } from 'vs/base/common/platform';
 
 const $ = DOM.$;
 
@@ -393,9 +394,13 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			toggleMenuTitle
 		});
 		toolbar.setActions([], this.settingActions)();
-		const button = container.querySelector('.toolbar-toggle-more');
+
+		const button = container.querySelector('.codicon-more');
 		if (button) {
 			(<HTMLElement>button).tabIndex = -1;
+
+			// change icon from ellipsis to gear
+			(<HTMLElement>button).classList.add('codicon-gear');
 		}
 
 		return toolbar;
@@ -409,7 +414,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const setting = element.setting;
 
 		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
-		DOM.toggleClass(template.containerElement, 'is-expanded', true);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR, element.setting.key);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
 
@@ -463,7 +467,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}
 
 		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
-		template.deprecationWarningElement.innerText = element.setting.deprecationMessage || '';
+		const deprecationText = element.setting.deprecationMessage || '';
+		template.deprecationWarningElement.innerText = deprecationText;
+		DOM.toggleClass(template.containerElement, 'is-deprecated', !!deprecationText);
+
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
 	}
@@ -482,15 +489,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
-						let uri: URI | undefined;
-						try {
-							uri = URI.parse(content);
-						} catch (err) {
-							// ignore
-						}
-						if (uri) {
-							this._openerService.open(uri).catch(onUnexpectedError);
-						}
+						this._openerService.open(content).catch(onUnexpectedError);
 					}
 				},
 				disposeables
@@ -915,7 +914,9 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	renderTemplate(container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'enum');
 
-		const selectBox = new SelectBox([], 0, this._contextViewService, undefined, { useCustomDrawn: true });
+		const selectBox = new SelectBox([], 0, this._contextViewService, undefined, {
+			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+		});
 
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this._themeService, {
@@ -1071,7 +1072,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
-		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
+		const checkbox = new Checkbox({ actionClassName: 'codicon-check setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
@@ -1212,7 +1213,7 @@ export class SettingTreeRenderers {
 	}
 
 	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
-		const toolbarElement = settingDOMElement.querySelector('.toolbar-toggle-more');
+		const toolbarElement = settingDOMElement.querySelector('.monaco-toolbar');
 		if (toolbarElement) {
 			this._contextMenuService.showContextMenu({
 				getActions: () => this.settingActions,
@@ -1376,29 +1377,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	}
 }
 
-class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChild> {
-
-	private heightCache = new WeakMap<SettingsTreeGroupChild, number>();
-
-	getHeight(element: SettingsTreeGroupChild): number {
-		const cachedHeight = this.heightCache.get(element);
-
-		if (typeof cachedHeight === 'number') {
-			return cachedHeight;
-		}
-
-		if (element instanceof SettingsTreeGroupElement) {
-			if (element.isFirstGroup) {
-				return 31;
-			}
-
-			return 40 + (7 * element.level);
-		}
-
-		return element instanceof SettingsTreeSettingElement && element.valueType === SettingValueType.Boolean ?
-			78 :
-			104;
-	}
+class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupChild> {
 
 	getTemplateId(element: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement): string {
 		if (element instanceof SettingsTreeGroupElement) {
@@ -1444,8 +1423,16 @@ class SettingsTreeDelegate implements IListVirtualDelegate<SettingsTreeGroupChil
 		return !(element instanceof SettingsTreeGroupElement);
 	}
 
-	setDynamicHeight(element: SettingsTreeGroupChild, height: number): void {
-		this.heightCache.set(element, height);
+	protected estimateHeight(element: SettingsTreeGroupChild): number {
+		if (element instanceof SettingsTreeGroupElement) {
+			if (element.isFirstGroup) {
+				return 31;
+			}
+
+			return 40 + (7 * element.level);
+		}
+
+		return element instanceof SettingsTreeSettingElement && element.valueType === SettingValueType.Boolean ? 78 : 104;
 	}
 }
 
@@ -1467,8 +1454,6 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const treeClass = 'settings-editor-tree';
-
 		super('SettingsTree', container,
 			new SettingsTreeDelegate(),
 			renderers,
@@ -1481,12 +1466,12 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
-				styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass),
+				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState)
 			});
 
-		this.disposables = [];
-		this.disposables.push(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+		this.disposables.clear();
+		this.disposables.add(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
 				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
@@ -1499,6 +1484,8 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 				// applying an opacity to the link color.
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
+
+				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
 			}
 
 			const errorColor = theme.getColor(errorForeground);
@@ -1534,9 +1521,10 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			}
 		}));
 
-		this.getHTMLElement().classList.add(treeClass);
+		this.getHTMLElement().classList.add('settings-editor-tree');
 
-		this.disposables.push(attachStyler(themeService, {
+		this.disposables.add(attachStyler(themeService, {
+			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: foreground,
 			listFocusAndSelectionBackground: editorBackground,

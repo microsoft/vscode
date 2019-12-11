@@ -111,7 +111,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				});
 			}
 
-			_final(callback: (error: Error | null) => void) {
+			_final(callback: () => void) {
 
 				// normal finish
 				if (this.decodeStream) {
@@ -122,7 +122,11 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 				// detection. thus, wrap up starting the stream even
 				// without all the data to get things going
 				else {
-					this._startDecodeStream(() => this.decodeStream!.end(callback));
+					this._startDecodeStream(() => {
+						if (this.decodeStream) {
+							this.decodeStream.end(callback);
+						}
+					});
 				}
 			}
 		};
@@ -140,7 +144,7 @@ export function decode(buffer: Buffer, encoding: string): string {
 }
 
 export function encode(content: string | Buffer, encoding: string, options?: { addBOM?: boolean }): Buffer {
-	return iconv.encode(content, toNodeEncoding(encoding), options);
+	return iconv.encode(content as string /* TODO report into upstream typings */, toNodeEncoding(encoding), options);
 }
 
 export function encodingExists(encoding: string): boolean {
@@ -163,7 +167,7 @@ function toNodeEncoding(enc: string | null): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): string | null {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, bytesRead: number): typeof UTF8_with_bom | typeof UTF16le | typeof UTF16be | null {
 	if (!buffer || bytesRead < UTF16be_BOM.length) {
 		return null;
 	}
@@ -189,14 +193,18 @@ export function detectEncodingByBOMFromBuffer(buffer: Buffer | VSBuffer | null, 
 
 	// UTF-8
 	if (b0 === UTF8_BOM[0] && b1 === UTF8_BOM[1] && b2 === UTF8_BOM[2]) {
-		return UTF8;
+		return UTF8_with_bom;
 	}
 
 	return null;
 }
 
-const MINIMUM_THRESHOLD = 0.2;
-const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
+// we explicitly ignore a specific set of encodings from auto guessing
+// - ASCII: we never want this encoding (most UTF-8 files would happily detect as
+//          ASCII files and then you could not type non-ASCII characters anymore)
+// - UTF-16: we have our own detection logic for UTF-16
+// - UTF-32: we do not support this encoding in VSCode
+const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
 
 /**
  * Guesses the encoding from buffer.
@@ -204,19 +212,14 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 async function guessEncodingByBuffer(buffer: Buffer): Promise<string | null> {
 	const jschardet = await import('jschardet');
 
-	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
-
 	const guessed = jschardet.detect(buffer);
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
 
 	const enc = guessed.encoding.toLowerCase();
-
-	// Ignore encodings that cannot guess correctly
-	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
 	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
-		return null;
+		return null; // see comment above why we ignore some encodings
 	}
 
 	return toIconvLiteEncoding(guessed.encoding);

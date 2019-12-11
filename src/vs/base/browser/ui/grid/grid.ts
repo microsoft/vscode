@@ -9,7 +9,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
 import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize, IGridViewOptions } from './gridview';
 import { Event } from 'vs/base/common/event';
-import { InvisibleSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 export { Orientation, Sizing as GridViewSizing, IViewSize, orthogonal, LayoutPriority } from './gridview';
 
@@ -605,8 +604,8 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 export type GridNodeDescriptor = { size?: number, groups?: GridNodeDescriptor[] };
 export type GridDescriptor = { orientation: Orientation, groups?: GridNodeDescriptor[] };
 
-export function sanitizeGridNodeDescriptor(nodeDescriptor: GridNodeDescriptor): void {
-	if (nodeDescriptor.groups && nodeDescriptor.groups.length === 0) {
+export function sanitizeGridNodeDescriptor(nodeDescriptor: GridNodeDescriptor, rootNode: boolean): void {
+	if (!rootNode && nodeDescriptor.groups && nodeDescriptor.groups.length <= 1) {
 		nodeDescriptor.groups = undefined;
 	}
 
@@ -618,7 +617,7 @@ export function sanitizeGridNodeDescriptor(nodeDescriptor: GridNodeDescriptor): 
 	let totalDefinedSizeCount = 0;
 
 	for (const child of nodeDescriptor.groups) {
-		sanitizeGridNodeDescriptor(child);
+		sanitizeGridNodeDescriptor(child, false);
 
 		if (child.size) {
 			totalDefinedSize += child.size;
@@ -666,7 +665,7 @@ function getDimensions(node: ISerializedNode, orientation: Orientation): { width
 }
 
 export function createSerializedGrid(gridDescriptor: GridDescriptor): ISerializedGrid {
-	sanitizeGridNodeDescriptor(gridDescriptor);
+	sanitizeGridNodeDescriptor(gridDescriptor, true);
 
 	const root = createSerializedNode(gridDescriptor);
 	const { width, height } = getDimensions(root, gridDescriptor.orientation);

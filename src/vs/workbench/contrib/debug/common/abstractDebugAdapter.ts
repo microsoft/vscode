@@ -18,14 +18,12 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	private requestCallback: ((request: DebugProtocol.Request) => void) | undefined;
 	private eventCallback: ((request: DebugProtocol.Event) => void) | undefined;
 	private messageCallback: ((message: DebugProtocol.ProtocolMessage) => void) | undefined;
-	protected readonly _onError: Emitter<Error>;
-	protected readonly _onExit: Emitter<number | null>;
-	private queue: DebugProtocol.ProtocolMessage[] = [];
+	private readonly queue: DebugProtocol.ProtocolMessage[] = [];
+	protected readonly _onError = new Emitter<Error>();
+	protected readonly _onExit = new Emitter<number | null>();
 
 	constructor() {
 		this.sequence = 1;
-		this._onError = new Emitter<Error>();
-		this._onExit = new Emitter<number>();
 	}
 
 	abstract startSession(): Promise<void>;
@@ -143,7 +141,8 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 				}
 				break;
 		}
-		if (this.queue!.length) {
+
+		if (this.queue.length) {
 			setTimeout(() => this.processQueue(), 0);
 		}
 	}

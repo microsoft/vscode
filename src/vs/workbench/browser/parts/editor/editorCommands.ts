@@ -318,7 +318,7 @@ function registerOpenEditorAtIndexCommands(): void {
 		const editorService = accessor.get(IEditorService);
 		const activeControl = editorService.activeControl;
 		if (activeControl) {
-			const editor = activeControl.group.getEditor(editorIndex);
+			const editor = activeControl.group.getEditorByIndex(editorIndex);
 			if (editor) {
 				editorService.openEditor(editor);
 			}
@@ -448,7 +448,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	// Split editor (if it can be split)
 	let editorToCopy: IEditorInput | undefined;
 	if (context && typeof context.editorIndex === 'number') {
-		editorToCopy = sourceGroup.getEditor(context.editorIndex);
+		editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
 	} else {
 		editorToCopy = types.withNullAsUndefined(sourceGroup.activeEditor);
 	}
@@ -548,7 +548,7 @@ function registerCloseEditorCommands() {
 				if (group) {
 					const editors = coalesce(contexts
 						.filter(context => context.groupId === groupId)
-						.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor));
+						.map(context => typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) : group.activeEditor));
 
 					return group.closeEditors(editors);
 				}
@@ -603,8 +603,12 @@ function registerCloseEditorCommands() {
 				if (group) {
 					const editors = contexts
 						.filter(context => context.groupId === groupId)
-						.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor);
+						.map(context => typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) : group.activeEditor);
 					const editorsToClose = group.editors.filter(e => editors.indexOf(e) === -1);
+
+					if (group.activeEditor) {
+						group.pinEditor(group.activeEditor);
+					}
 
 					return group.closeEditors(editorsToClose);
 				}
@@ -624,6 +628,10 @@ function registerCloseEditorCommands() {
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 			if (group && editor) {
+				if (group.activeEditor) {
+					group.pinEditor(group.activeEditor);
+				}
+
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor });
 			}
 
@@ -707,7 +715,7 @@ function resolveCommandsContext(editorGroupService: IEditorGroupsService, contex
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
-	let editor = group && context && typeof context.editorIndex === 'number' ? types.withNullAsUndefined(group.getEditor(context.editorIndex)) : undefined;
+	let editor = group && context && typeof context.editorIndex === 'number' ? types.withNullAsUndefined(group.getEditorByIndex(context.editorIndex)) : undefined;
 	let control = group ? group.activeControl : undefined;
 
 	// Fallback to active group as needed
@@ -744,7 +752,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 			const selection: Array<IEditorIdentifier | IEditorGroup> = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 
 			// Only respect selection if it contains focused element
-			if (selection && selection.some(s => {
+			if (selection?.some(s => {
 				if (isEditorGroup(s)) {
 					return s.id === focus.groupId;
 				}

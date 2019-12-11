@@ -46,7 +46,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { renderExpressionValue, AbstractExpressionsRenderer, IExpressionTemplateData, renderVariable, IInputBoxOptions } from 'vs/workbench/contrib/debug/browser/baseDebugView';
@@ -63,6 +63,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -74,8 +75,8 @@ interface IPrivateReplService {
 	_serviceBrand: undefined;
 	acceptReplInput(): void;
 	getVisibleContent(): string;
-	selectSession(session?: IDebugSession): void;
-	clearRepl(): void;
+	selectSession(session?: IDebugSession): Promise<void>;
+	clearRepl(): Promise<void>;
 	focusRepl(): void;
 }
 
@@ -129,7 +130,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	private registerListeners(): void {
-		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
+		this._register(this.debugService.getViewModel().onDidFocusSession(async session => {
 			if (session) {
 				sessionsToIgnore.delete(session);
 				if (this.completionItemProvider) {
@@ -159,13 +160,13 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				}
 			}
 
-			this.selectSession();
+			await this.selectSession();
 		}));
-		this._register(this.debugService.onWillNewSession(newSession => {
+		this._register(this.debugService.onWillNewSession(async newSession => {
 			// Need to listen to output events for sessions which are not yet fully initialised
 			const input = this.tree.getInput();
 			if (!input || input.state === State.Inactive) {
-				this.selectSession(newSession);
+				await this.selectSession(newSession);
 			}
 			this.updateTitleArea();
 		}));
@@ -252,7 +253,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 	}
 
-	selectSession(session?: IDebugSession): void {
+	async selectSession(session?: IDebugSession): Promise<void> {
 		const treeInput = this.tree.getInput();
 		if (!session) {
 			const focusedSession = this.debugService.getViewModel().focusedSession;
@@ -272,7 +273,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			});
 
 			if (this.tree && treeInput !== session) {
-				this.tree.setInput(session).then(() => revealLastElement(this.tree)).then(undefined, errors.onUnexpectedError);
+				await this.tree.setInput(session);
+				revealLastElement(this.tree);
 			}
 		}
 
@@ -280,14 +282,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.updateInputDecoration();
 	}
 
-	clearRepl(): void {
+	async clearRepl(): Promise<void> {
 		const session = this.tree.getInput();
 		if (session) {
 			session.removeReplExpressions();
 			if (session.state === State.Inactive) {
 				// Ignore inactive sessions which got cleared - so they are not shown any more
 				sessionsToIgnore.add(session);
-				this.selectSession();
+				await this.selectSession();
 				this.updateTitleArea();
 			}
 		}
@@ -343,7 +345,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	focus(): void {
-		this.replInput.focus();
+		setTimeout(() => this.replInput.focus(), 0);
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -405,7 +407,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = this.instantiationService.createInstance(
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
 			treeContainer,
@@ -427,7 +429,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
-				supportDynamicHeights: wordWrap
+				supportDynamicHeights: wordWrap,
+				overrideStyles: {
+					listBackground: PANEL_BACKGROUND
+				}
 			});
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
@@ -605,6 +610,7 @@ class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluationInput,
 	}
 
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
+		dom.append(container, $('span.arrow.codicon.codicon-chevron-right'));
 		const input = dom.append(container, $('.expression'));
 		const label = new HighlightedLabel(input, false);
 		return { label };
@@ -630,6 +636,7 @@ class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResul
 	constructor(private readonly linkDetector: LinkDetector) { }
 
 	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
+		dom.append(container, $('span.arrow.codicon.codicon-chevron-left'));
 		const output = dom.append(container, $('.evaluation-result.expression'));
 		const value = dom.append(output, $('span.value'));
 		const annotation = dom.append(output, $('span'));
@@ -646,7 +653,7 @@ class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResul
 			linkDetector: this.linkDetector
 		});
 		if (expression.hasChildren) {
-			templateData.annotation.className = 'annotation octicon octicon-info';
+			templateData.annotation.className = 'annotation codicon codicon-info';
 			templateData.annotation.title = nls.localize('stateCapture', "Object state is captured from first evaluation");
 		}
 	}
@@ -701,7 +708,7 @@ class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, Fuz
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService);
+		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session);
 		templateData.value.appendChild(result);
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
@@ -781,7 +788,7 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, Fuzz
 
 		// annotation if any
 		if (element.annotation) {
-			templateData.annotation.className = 'annotation octicon octicon-info';
+			templateData.annotation.className = 'annotation codicon codicon-info';
 			templateData.annotation.title = element.annotation;
 		} else {
 			templateData.annotation.className = '';
@@ -794,38 +801,33 @@ class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, Fuzz
 	}
 }
 
-class ReplDelegate implements IListVirtualDelegate<IReplElement> {
+class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 
-	constructor(private configurationService: IConfigurationService) { }
+	constructor(private configurationService: IConfigurationService) {
+		super();
+	}
 
 	getHeight(element: IReplElement): number {
-		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
-
-		// Give approximate heights. Repl has dynamic height so the tree will measure the actual height on its own.
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const fontSize = config.console.fontSize;
-		const rowHeight = Math.ceil(1.4 * fontSize);
-		const wordWrap = config.console.wordWrap;
-		if (!wordWrap) {
-			return rowHeight;
+
+		if (!config.console.wordWrap) {
+			return this.estimateHeight(element, true);
 		}
 
-		// In order to keep scroll position we need to give a good approximation to the tree
-		// For every 150 characters increase the number of lines needed
-		if (element instanceof ReplEvaluationResult) {
+		return super.getHeight(element);
+	}
+
+	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
+		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+		const rowHeight = Math.ceil(1.4 * config.console.fontSize);
+		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
+		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
+
+		// Calculate a rough overestimation for the height
+		// For every 30 characters increase the number of lines needed
+		if (hasValue(element)) {
 			let value = element.value;
-
-			if (element.hasChildren) {
-				return rowHeight;
-			}
-
-			let valueRows = value ? (countNumberOfLines(value) + Math.floor(value.length / 150)) : 0;
-			return rowHeight * valueRows;
-		}
-
-		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput) {
-			let value = element.value;
-			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 150);
+			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 30));
 
 			return valueRows * rowHeight;
 		}
@@ -851,7 +853,7 @@ class ReplDelegate implements IListVirtualDelegate<IReplElement> {
 		return ReplRawObjectsRenderer.ID;
 	}
 
-	hasDynamicHeight?(element: IReplElement): boolean {
+	hasDynamicHeight(element: IReplElement): boolean {
 		// Empty elements should not have dynamic height since they will be invisible
 		return element.toString().length > 0;
 	}
@@ -919,7 +921,7 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion();
+		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
 }
@@ -941,7 +943,7 @@ class FilterReplAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion();
+		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		accessor.get(IPrivateReplService).focusRepl();
 	}
 }
@@ -984,7 +986,7 @@ class SelectReplActionViewItem extends FocusSessionActionViewItem {
 class SelectReplAction extends Action {
 
 	static readonly ID = 'workbench.action.debug.selectRepl';
-	static LABEL = nls.localize('selectRepl', "Select Debug Console");
+	static readonly LABEL = nls.localize('selectRepl', "Select Debug Console");
 
 	constructor(id: string, label: string,
 		@IDebugService private readonly debugService: IDebugService,
@@ -993,12 +995,12 @@ class SelectReplAction extends Action {
 		super(id, label);
 	}
 
-	run(session: IDebugSession): Promise<any> {
+	async run(session: IDebugSession): Promise<any> {
 		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== this.debugService.getViewModel().focusedSession) {
-			this.debugService.focusStackFrame(undefined, undefined, session, true);
+			await this.debugService.focusStackFrame(undefined, undefined, session, true);
 		} else {
-			this.replService.selectSession(session);
+			await this.replService.selectSession(session);
 		}
 
 		return Promise.resolve(undefined);
@@ -1007,7 +1009,7 @@ class SelectReplAction extends Action {
 
 export class ClearReplAction extends Action {
 	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
-	static LABEL = nls.localize('clearRepl', "Clear Console");
+	static readonly LABEL = nls.localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
 		@IPanelService private readonly panelService: IPanelService
@@ -1015,11 +1017,9 @@ export class ClearReplAction extends Action {
 		super(id, label, 'debug-action codicon-clear-all');
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		const repl = <Repl>this.panelService.openPanel(REPL_ID);
-		repl.clearRepl();
+		await repl.clearRepl();
 		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
-
-		return Promise.resolve(undefined);
 	}
 }

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IWindowService, IURIToOpen, FileFilter } from 'vs/platform/windows/common/windows';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -14,19 +14,20 @@ import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
 import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { isWeb } from 'vs/base/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import Severity from 'vs/base/common/severity';
 
-export class AbstractFileDialogService {
+export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	_serviceBrand: undefined;
 
 	constructor(
-		@IWindowService protected readonly windowService: IWindowService,
+		@IHostService protected readonly hostService: IHostService,
 		@IWorkspaceContextService protected readonly contextService: IWorkspaceContextService,
 		@IHistoryService protected readonly historyService: IHistoryService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
@@ -34,6 +35,7 @@ export class AbstractFileDialogService {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IFileService protected readonly fileService: IFileService,
 		@IOpenerService protected readonly openerService: IOpenerService,
+		@IDialogService private readonly dialogService: IDialogService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -78,15 +80,41 @@ export class AbstractFileDialogService {
 		return this.defaultFilePath(schemeFilter);
 	}
 
-	protected addFileSchemaIfNeeded(schema: string): string[] {
-		// Include File schema unless the schema is web
-		// Don't allow untitled schema through.
-		if (isWeb) {
-			return schema === Schemas.untitled ? [Schemas.file] : [schema];
+	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
+		if (this.environmentService.isExtensionDevelopment) {
+			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
+		}
+
+		if (fileNamesOrResources.length === 0) {
+			return ConfirmResult.DONT_SAVE;
+		}
+
+		let message: string;
+		if (fileNamesOrResources.length === 1) {
+			message = nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", typeof fileNamesOrResources[0] === 'string' ? fileNamesOrResources[0] : resources.basename(fileNamesOrResources[0]));
 		} else {
-			return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
+			message = getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", fileNamesOrResources.length), fileNamesOrResources);
+		}
+
+		const buttons: string[] = [
+			fileNamesOrResources.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+			nls.localize('cancel', "Cancel")
+		];
+
+		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons, {
+			cancelId: 2,
+			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
+		});
+
+		switch (choice) {
+			case 0: return ConfirmResult.SAVE;
+			case 1: return ConfirmResult.DONT_SAVE;
+			default: return ConfirmResult.CANCEL;
 		}
 	}
+
+	protected abstract addFileSchemaIfNeeded(schema: string): string[];
 
 	protected async pickFileFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions, preferNewWindow: boolean): Promise<any> {
 		const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
@@ -97,11 +125,11 @@ export class AbstractFileDialogService {
 		if (uri) {
 			const stat = await this.fileService.resolve(uri);
 
-			const toOpen: IURIToOpen = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
+			const toOpen: IWindowOpenable = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
-				return this.windowService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
+				return this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
 			} else {
-				return this.openerService.open(uri);
+				return this.openerService.open(uri, { fromUserGesture: true });
 			}
 		}
 	}
@@ -113,9 +141,9 @@ export class AbstractFileDialogService {
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
 			if (options.forceNewWindow || preferNewWindow) {
-				return this.windowService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
+				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
 			} else {
-				return this.openerService.open(uri);
+				return this.openerService.open(uri, { fromUserGesture: true });
 			}
 		}
 	}
@@ -126,7 +154,7 @@ export class AbstractFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
-			return this.windowService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow });
+			return this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow });
 		}
 	}
 
@@ -137,7 +165,7 @@ export class AbstractFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
 		if (uri) {
-			return this.windowService.openWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow });
+			return this.hostService.openWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow });
 		}
 	}
 
@@ -184,11 +212,15 @@ export class AbstractFileDialogService {
 		return !this.environmentService.configuration.remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
 	}
 
-	protected getFileSystemSchema(options: { availableFileSystems?: string[], defaultUri?: URI }): string {
+	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {
 		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow();
 	}
-}
 
-function isUntitledWorkspace(path: URI, environmentService: IWorkbenchEnvironmentService): boolean {
-	return resources.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
+	abstract pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	abstract pickFileAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	abstract pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	abstract pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
+	abstract pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
+	abstract showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
+	abstract showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 }

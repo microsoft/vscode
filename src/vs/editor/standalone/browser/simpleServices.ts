@@ -31,13 +31,13 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeyboardEvent, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -99,7 +99,12 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: undefined;
 
+	private readonly modelService: IModelService | undefined;
 	private editor?: editorCommon.IEditor;
+
+	constructor(modelService: IModelService | undefined) {
+		this.modelService = modelService;
+	}
 
 	public setEditor(editor: editorCommon.IEditor): void {
 		this.editor = editor;
@@ -132,7 +137,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
-		let model = editor.getModel();
+		let model = this.modelService ? this.modelService.getModel(resource) : editor.getModel();
 		if (model && model.uri.toString() !== resource.toString()) {
 			return null;
 		}
@@ -233,6 +238,8 @@ export class SimpleNotificationService implements INotificationService {
 	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
+
+	public setFilter(filter: NotificationsFilter): void { }
 }
 
 export class StandaloneCommandService implements ICommandService {
@@ -298,6 +305,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
+				keyEvent.stopPropagation();
 			}
 		}));
 	}
@@ -407,6 +415,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public _dumpDebugInfoJSON(): string {
 		return '';
 	}
+
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
+		// noop
+	}
 }
 
 function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
@@ -515,12 +527,10 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 	) {
 	}
 
-	getEOL(resource: URI): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
-		if (filesConfiguration && filesConfiguration.eol) {
-			if (filesConfiguration.eol !== 'auto') {
-				return filesConfiguration.eol;
-			}
+	getEOL(resource: URI, language?: string): string {
+		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
+		if (eol && eol !== 'auto') {
+			return eol;
 		}
 		return (isLinux || isMacintosh) ? '\n' : '\r\n';
 	}
@@ -551,7 +561,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: undefined;
 
-	private static SCHEME = 'inmemory';
+	private static readonly SCHEME = 'inmemory';
 
 	private readonly _onDidChangeWorkspaceName = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
@@ -648,7 +658,9 @@ export class SimpleBulkEditService implements IBulkEditService {
 		let totalEdits = 0;
 		let totalFiles = 0;
 		edits.forEach((edits, model) => {
-			model.applyEdits(edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
+			model.pushStackElement();
+			model.pushEditOperations([], edits.map((e) => EditOperation.replaceMove(Range.lift(e.range), e.text)), () => []);
+			model.pushStackElement();
 			totalFiles += 1;
 			totalEdits += edits.length;
 		});

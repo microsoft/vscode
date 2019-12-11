@@ -67,8 +67,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessTitle = this._register(new Emitter<string>());
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
-	private readonly _onProcessExit = this._register(new Emitter<number>());
-	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	public get onProcessExit(): Event<number | undefined> { return this._onProcessExit.event; }
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensions | undefined>());
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensions | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessOverrideShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
@@ -285,7 +285,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return Promise.resolve(this._latency);
 	}
 
-	private _onExit(exitCode: number): void {
+	private _onExit(exitCode: number | undefined): void {
 		this._process = null;
 
 		// If the process is marked as launching then mark the process as killed

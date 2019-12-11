@@ -68,9 +68,19 @@ abstract class BaseNavigationAction extends Action {
 			return false;
 		}
 
-		const activePanelId = this.panelService.getActivePanel()!.getId();
+		const activePanel = this.panelService.getActivePanel();
+		if (!activePanel) {
+			return false;
+		}
 
-		return this.panelService.openPanel(activePanelId, true)!;
+		const activePanelId = activePanel.getId();
+
+		const res = this.panelService.openPanel(activePanelId, true);
+		if (!res) {
+			return false;
+		}
+
+		return res;
 	}
 
 	protected async navigateToSidebar(): Promise<IViewlet | boolean> {
@@ -84,8 +94,8 @@ abstract class BaseNavigationAction extends Action {
 		}
 		const activeViewletId = activeViewlet.getId();
 
-		const value = await this.viewletService.openViewlet(activeViewletId, true);
-		return value === null ? false : value;
+		const viewlet = await this.viewletService.openViewlet(activeViewletId, true);
+		return !!viewlet;
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): boolean {
@@ -270,7 +280,7 @@ class NavigateDownAction extends BaseNavigationAction {
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, undefined), 'View: Navigate to the View Above', viewCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, undefined), 'View: Navigate to the View Below', viewCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, undefined), 'View: Navigate to the View on the Left', viewCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, undefined), 'View: Navigate to the View on the Right', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, undefined), 'View: Navigate to the View Above', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, undefined), 'View: Navigate to the View Below', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, undefined), 'View: Navigate to the View on the Left', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, undefined), 'View: Navigate to the View on the Right', viewCategory);

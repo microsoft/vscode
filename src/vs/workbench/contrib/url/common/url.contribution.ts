@@ -35,13 +35,13 @@ export class OpenUrlAction extends Action {
 	run(): Promise<any> {
 		return this.quickInputService.input({ prompt: 'URL to open' }).then(input => {
 			const uri = URI.parse(input);
-			this.urlService.open(uri);
+			this.urlService.open(uri, { trusted: true });
 		});
 	}
 }
 
 Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL),
+	SyncActionDescriptor.create(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL),
 	'Open URL',
 	localize('developer', 'Developer')
 );
@@ -54,7 +54,10 @@ CommandsRegistry.registerCommand(manageTrustedDomainSettingsCommand);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: manageTrustedDomainSettingsCommand.id,
-		title: manageTrustedDomainSettingsCommand.description.description
+		title: {
+			value: manageTrustedDomainSettingsCommand.description.description,
+			original: 'Manage Trusted Domains'
+		}
 	}
 });
 

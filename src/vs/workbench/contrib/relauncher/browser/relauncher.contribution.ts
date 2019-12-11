@@ -6,11 +6,10 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -20,6 +19,7 @@ import { isMacintosh, isNative } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
@@ -41,9 +41,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
-		@IWindowService private readonly windowService: IWindowService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly envService: IEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
@@ -56,13 +55,13 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		let changed = false;
 
 		// Tree horizontal scrolling support
-		if (config.workbench && config.workbench.list && typeof config.workbench.list.horizontalScrolling === 'boolean' && config.workbench.list.horizontalScrolling !== this.treeHorizontalScrolling) {
+		if (typeof config.workbench?.list?.horizontalScrolling === 'boolean' && config.workbench.list.horizontalScrolling !== this.treeHorizontalScrolling) {
 			this.treeHorizontalScrolling = config.workbench.list.horizontalScrolling;
 			changed = true;
 		}
 
 		// Debug console word wrap
-		if (config.debug && typeof config.debug.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
+		if (typeof config.debug?.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
 			this.debugConsoleWordWrap = config.debug.console.wordWrap;
 			changed = true;
 		}
@@ -70,37 +69,37 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		if (isNative) {
 
 			// Titlebar style
-			if (config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
+			if (typeof config.window?.titleBarStyle === 'string' && config.window?.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
 				this.titleBarStyle = config.window.titleBarStyle;
 				changed = true;
 			}
 
 			// macOS: Native tabs
-			if (isMacintosh && config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
+			if (isMacintosh && typeof config.window?.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
 				this.nativeTabs = config.window.nativeTabs;
 				changed = true;
 			}
 
 			// macOS: Native fullscreen
-			if (isMacintosh && config.window && typeof config.window.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
+			if (isMacintosh && typeof config.window?.nativeFullScreen === 'boolean' && config.window.nativeFullScreen !== this.nativeFullScreen) {
 				this.nativeFullScreen = config.window.nativeFullScreen;
 				changed = true;
 			}
 
 			// macOS: Click through (accept first mouse)
-			if (isMacintosh && config.window && typeof config.window.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
+			if (isMacintosh && typeof config.window?.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
 				this.clickThroughInactive = config.window.clickThroughInactive;
 				changed = true;
 			}
 
 			// Update channel
-			if (config.update && typeof config.update.mode === 'string' && config.update.mode !== this.updateMode) {
+			if (typeof config.update?.mode === 'string' && config.update.mode !== this.updateMode) {
 				this.updateMode = config.update.mode;
 				changed = true;
 			}
 
 			// Crash reporter
-			if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
+			if (typeof config.telemetry?.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 				this.enableCrashReporter = config.telemetry.enableCrashReporter;
 				changed = true;
 			}
@@ -113,8 +112,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 					localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect.") :
 					localize('relaunchSettingMessageWeb', "A setting has changed that requires a reload to take effect."),
 				isNative ?
-					localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.envService.appNameLong) :
-					localize('relaunchSettingDetailWeb', "Press the reload button to reload {0} and enable the setting.", this.envService.appNameLong),
+					localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.productService.nameLong) :
+					localize('relaunchSettingDetailWeb', "Press the reload button to reload {0} and enable the setting.", this.productService.nameLong),
 				isNative ?
 					localize('restart', "&&Restart") :
 					localize('restartWeb', "&&Reload"),
@@ -123,23 +122,13 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
-		this.windowService.isFocused().then(focused => {
-			if (focused) {
-				return this.dialogService.confirm({
-					type: 'info',
-					message,
-					detail,
-					primaryButton
-				}).then(res => {
-					if (res.confirmed) {
-						confirmed();
-					}
-				});
+	private async doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): Promise<void> {
+		if (this.hostService.hasFocus) {
+			const res = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton });
+			if (res.confirmed) {
+				confirmed();
 			}
-
-			return undefined;
-		});
+		}
 	}
 }
 

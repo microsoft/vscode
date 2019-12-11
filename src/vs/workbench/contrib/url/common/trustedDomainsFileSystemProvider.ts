@@ -7,17 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import {
-	FileDeleteOptions,
-	FileOverwriteOptions,
-	FileSystemProviderCapabilities,
-	FileType,
-	FileWriteOptions,
-	IFileService,
-	IFileSystemProvider,
-	IStat,
-	IWatchOptions
-} from 'vs/platform/files/common/files';
+import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileService, IStat, IWatchOptions, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -33,10 +23,11 @@ const TRUSTED_DOMAINS_STAT: IStat = {
 	size: 0
 };
 
-const CONFIG_HELP_TEXT_PRE =
-	`// Links matching one or more entries in the list below can be opened without link protection.
+const CONFIG_HELP_TEXT_PRE = `// Links matching one or more entries in the list below can be opened without link protection.
 // The following examples show what entries can look like:
 // - "https://microsoft.com": Matches this specific domain using https
+// - "https://microsoft.com/foo": Matches https://microsoft.com/foo and https://microsoft.com/foo/bar,
+//   but not https://microsoft.com/foobar or https://microsoft.com/bar
 // - "https://*.microsoft.com": Match all domains ending in "microsoft.com" using https
 // - "microsoft.com": Match this specific domain using either http or https
 // - "*.microsoft.com": Match all domains ending in "microsoft.com" using either http or https
@@ -76,7 +67,7 @@ function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDom
 	return content;
 }
 
-export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IWorkbenchContribution {
+export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IWorkbenchContribution {
 	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite;
 
 	readonly onDidChangeCapabilities = Event.None;
@@ -95,23 +86,36 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProvider, IW
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {
-		const { defaultTrustedDomains, trustedDomains } = readTrustedDomains(this.storageService, this.productService);
+		let trustedDomainsContent = this.storageService.get(
+			'http.linkProtectionTrustedDomainsContent',
+			StorageScope.GLOBAL
+		);
 
-		const trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains);
+		if (
+			!trustedDomainsContent ||
+			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_PRE) === -1 ||
+			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_AFTER) === -1
+		) {
+			const { defaultTrustedDomains, trustedDomains } = readTrustedDomains(this.storageService, this.productService);
+
+			trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains);
+		}
+
 		const buffer = VSBuffer.fromString(trustedDomainsContent).buffer;
 		return Promise.resolve(buffer);
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
 		try {
-			const trustedDomains = parse(content.toString());
+			const trustedDomainsContent = VSBuffer.wrap(content).toString();
+			const trustedDomains = parse(trustedDomainsContent);
 
+			this.storageService.store('http.linkProtectionTrustedDomainsContent', trustedDomainsContent, StorageScope.GLOBAL);
 			this.storageService.store(
 				'http.linkProtectionTrustedDomains',
-				JSON.stringify(trustedDomains),
+				JSON.stringify(trustedDomains) || '',
 				StorageScope.GLOBAL
 			);
-
 		} catch (err) { }
 
 		return Promise.resolve();

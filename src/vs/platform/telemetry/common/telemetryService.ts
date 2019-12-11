@@ -24,8 +24,8 @@ export interface ITelemetryServiceConfig {
 
 export class TelemetryService implements ITelemetryService {
 
-	static IDLE_START_EVENT_NAME = 'UserIdleStart';
-	static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
+	static readonly IDLE_START_EVENT_NAME = 'UserIdleStart';
+	static readonly IDLE_STOP_EVENT_NAME = 'UserIdleStop';
 
 	_serviceBrand: undefined;
 

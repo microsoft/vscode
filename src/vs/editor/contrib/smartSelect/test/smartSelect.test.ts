@@ -12,33 +12,12 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
-
-class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
-
-	_serviceBrand: undefined;
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-	) {
-	}
-
-	getEOL(resource: URI | undefined): string {
-		const filesConfiguration = this.configurationService.getValue<{ eol: string }>('files');
-		if (filesConfiguration && filesConfiguration.eol) {
-			if (filesConfiguration.eol !== 'auto') {
-				return filesConfiguration.eol;
-			}
-		}
-		return (isLinux || isMacintosh) ? '\n' : '\r\n';
-	}
-}
+import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/modelService.test';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 class MockJSMode extends MockMode {
 
@@ -67,7 +46,7 @@ suite('SmartSelect', () => {
 
 	setup(() => {
 		const configurationService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService));
+		modelService = new ModelServiceImpl(configurationService, new TestTextResourcePropertiesService(configurationService), new TestThemeService());
 		mode = new MockJSMode();
 	});
 

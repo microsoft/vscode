@@ -88,7 +88,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
 		const terminalEntries: QuickOpenEntry[] = this.getTerminals();
-		terminalEntries.push(new CreateTerminal(nls.localize("workbench.action.terminal.newplus", "$(plus) Create New Integrated Terminal"), this.commandService));
+		terminalEntries.push(new CreateTerminal('$(plus) ' + nls.localize("workbench.action.terminal.newplus", "Create New Integrated Terminal"), this.commandService));
 
 		const entries = terminalEntries.filter(e => {
 			if (!searchValue) {
@@ -113,7 +113,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 	}
 
 	private getTerminals(): TerminalEntry[] {
-		return this.terminalService.terminalTabs.reduce((terminals, tab, tabIndex) => {
+		return this.terminalService.terminalTabs.reduce((terminals: TerminalEntry[], tab, tabIndex) => {
 			const terminalsInTab = tab.terminalInstances.map((terminal, terminalIndex) => {
 				const label = `${tabIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
 				return new TerminalEntry(terminal, label, this.terminalService);

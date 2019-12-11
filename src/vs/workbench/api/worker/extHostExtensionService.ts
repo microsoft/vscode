@@ -32,7 +32,7 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
-	private _fakeModules: WorkerRequireInterceptor;
+	private _fakeModules?: WorkerRequireInterceptor;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		// initialize API and register actors
@@ -57,7 +57,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const _exports = {};
 		const _module = { exports: _exports };
 		const _require = (request: string) => {
-			const result = this._fakeModules.getModule(request, module);
+			const result = this._fakeModules!.getModule(request, module);
 			if (result === undefined) {
 				throw new Error(`Cannot load module '${request}'`);
 			}

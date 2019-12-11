@@ -24,6 +24,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
@@ -37,7 +38,7 @@ CommandsRegistry.registerCommand({
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const remoteAgentService = accessor.get(IRemoteAgentService);
 
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IExplorerService));
 		return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
 			const targets = distinct(stats.filter(data => data.success));
 			// Always use integrated terminal when using a remote
@@ -130,7 +131,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-		title: { value: nls.localize('globalConsoleAction', "Open New Terminal"), original: 'Open New Terminal' }
+		title: { value: nls.localize('globalConsoleAction', "Open New External Terminal"), original: 'Open New External Terminal' }
 	}
 });
 
@@ -162,4 +163,3 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: openConsoleCommand,
 	when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
 });
-

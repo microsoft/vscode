@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, SubmenuAction, IMenuStyles } from 'vs/base/browser/ui/menu/menu';
+import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, SubmenuAction, IMenuStyles, Direction } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -20,6 +20,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { asArray } from 'vs/base/common/arrays';
 import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
 import { isMacintosh } from 'vs/base/common/platform';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = DOM.$;
 
@@ -29,6 +30,7 @@ export interface IMenuBarOptions {
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
+	compactMode?: Direction;
 }
 
 export interface MenuBarMenu {
@@ -54,7 +56,7 @@ export class MenuBar extends Disposable {
 		actions?: ReadonlyArray<IAction>;
 	}[];
 
-	private overflowMenu: {
+	private overflowMenu!: {
 		buttonElement: HTMLElement;
 		titleElement: HTMLElement;
 		label: string;
@@ -71,27 +73,30 @@ export class MenuBar extends Disposable {
 	private menuUpdater: RunOnceScheduler;
 
 	// Input-related
-	private _mnemonicsInUse: boolean;
-	private openedViaKeyboard: boolean;
-	private awaitingAltRelease: boolean;
-	private ignoreNextMouseUp: boolean;
+	private _mnemonicsInUse: boolean = false;
+	private openedViaKeyboard: boolean = false;
+	private awaitingAltRelease: boolean = false;
+	private ignoreNextMouseUp: boolean = false;
 	private mnemonics: Map<string, number>;
 
-	private updatePending: boolean;
+	private updatePending: boolean = false;
 	private _focusState: MenubarState;
 	private actionRunner: IActionRunner;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
 
-	private numMenusShown: number;
-	private menuStyle: IMenuStyles;
-	private overflowLayoutScheduled: IDisposable | null;
+	private numMenusShown: number = 0;
+	private menuStyle: IMenuStyles | undefined;
+	private overflowLayoutScheduled: IDisposable | null = null;
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
 
 		this.container.setAttribute('role', 'menubar');
+		if (this.options.compactMode !== undefined) {
+			DOM.addClass(this.container, 'compact');
+		}
 
 		this.menuCache = [];
 		this.mnemonics = new Map<string, number>();
@@ -234,7 +239,7 @@ export class MenuBar extends Disposable {
 				}
 			}));
 
-			Gesture.addTarget(buttonElement);
+			this._register(Gesture.addTarget(buttonElement));
 			this._register(DOM.addDisposableListener(buttonElement, EventType.Tap, (e: GestureEvent) => {
 				// Ignore this touch if the menu is touched
 				if (this.isOpen && this.focusedMenu && this.focusedMenu.holder && DOM.isAncestor(e.initialTarget as HTMLElement, this.focusedMenu.holder)) {
@@ -248,7 +253,14 @@ export class MenuBar extends Disposable {
 				e.stopPropagation();
 			}));
 
-			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
+			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+				// Ignore non-left-click
+				const mouseEvent = new StandardMouseEvent(e);
+				if (!mouseEvent.leftButton) {
+					e.preventDefault();
+					return;
+				}
+
 				if (!this.isOpen) {
 					// Open the menu with mouse down and ignore the following mouse up event
 					this.ignoreNextMouseUp = true;
@@ -262,6 +274,10 @@ export class MenuBar extends Disposable {
 			}));
 
 			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
+				if (e.defaultPrevented) {
+					return;
+				}
+
 				if (!this.ignoreNextMouseUp) {
 					if (this.isFocused) {
 						this.onMenuTriggered(menuIndex, true);
@@ -292,8 +308,8 @@ export class MenuBar extends Disposable {
 	}
 
 	createOverflowMenu(): void {
-		const label = nls.localize('mMore', "...");
-		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'aria-haspopup': true });
+		const label = this.options.compactMode !== undefined ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', "...");
+		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'title': label, 'aria-haspopup': true });
 		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more', { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
@@ -318,7 +334,7 @@ export class MenuBar extends Disposable {
 			}
 		}));
 
-		Gesture.addTarget(buttonElement);
+		this._register(Gesture.addTarget(buttonElement));
 		this._register(DOM.addDisposableListener(buttonElement, EventType.Tap, (e: GestureEvent) => {
 			// Ignore this touch if the menu is touched
 			if (this.isOpen && this.focusedMenu && this.focusedMenu.holder && DOM.isAncestor(e.initialTarget as HTMLElement, this.focusedMenu.holder)) {
@@ -333,6 +349,13 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
+			// Ignore non-left-click
+			const mouseEvent = new StandardMouseEvent(e);
+			if (!mouseEvent.leftButton) {
+				e.preventDefault();
+				return;
+			}
+
 			if (!this.isOpen) {
 				// Open the menu with mouse down and ignore the following mouse up event
 				this.ignoreNextMouseUp = true;
@@ -346,6 +369,10 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
+			if (e.defaultPrevented) {
+				return;
+			}
+
 			if (!this.ignoreNextMouseUp) {
 				if (this.isFocused) {
 					this.onMenuTriggered(MenuBar.OVERFLOW_INDEX, true);
@@ -421,7 +448,7 @@ export class MenuBar extends Disposable {
 
 		const sizeAvailable = this.container.offsetWidth;
 		let currentSize = 0;
-		let full = false;
+		let full = this.options.compactMode !== undefined;
 		const prevNumMenusShown = this.numMenusShown;
 		this.numMenusShown = 0;
 		for (let menuBarMenu of this.menuCache) {
@@ -458,9 +485,11 @@ export class MenuBar extends Disposable {
 				this.overflowMenu.actions.push(new SubmenuAction(this.menuCache[idx].label, this.menuCache[idx].actions || []));
 			}
 
-			DOM.removeNode(this.overflowMenu.buttonElement);
-			this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
-			this.overflowMenu.buttonElement.style.visibility = 'visible';
+			if (this.overflowMenu.buttonElement.nextElementSibling !== this.menuCache[this.numMenusShown].buttonElement) {
+				DOM.removeNode(this.overflowMenu.buttonElement);
+				this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
+				this.overflowMenu.buttonElement.style.visibility = 'visible';
+			}
 		} else {
 			DOM.removeNode(this.overflowMenu.buttonElement);
 			this.container.appendChild(this.overflowMenu.buttonElement);
@@ -694,7 +723,7 @@ export class MenuBar extends Disposable {
 
 	private focusPrevious(): void {
 
-		if (!this.focusedMenu) {
+		if (!this.focusedMenu || this.numMenusShown === 0) {
 			return;
 		}
 
@@ -724,7 +753,7 @@ export class MenuBar extends Disposable {
 	}
 
 	private focusNext(): void {
-		if (!this.focusedMenu) {
+		if (!this.focusedMenu || this.numMenusShown === 0) {
 			return;
 		}
 
@@ -884,8 +913,19 @@ export class MenuBar extends Disposable {
 		const menuHolder = $('div.menubar-menu-items-holder');
 
 		DOM.addClass(customMenu.buttonElement, 'open');
-		menuHolder.style.top = `${this.container.clientHeight}px`;
-		menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
+
+		if (this.options.compactMode === Direction.Right) {
+			menuHolder.style.top = `0px`;
+			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left + this.container.clientWidth}px`;
+		} else if (this.options.compactMode === Direction.Left) {
+			menuHolder.style.top = `0px`;
+			menuHolder.style.right = `${this.container.clientWidth}px`;
+			menuHolder.style.left = 'auto';
+			console.log(customMenu.buttonElement.getBoundingClientRect().right - this.container.clientWidth);
+		} else {
+			menuHolder.style.top = `${this.container.clientHeight}px`;
+			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
+		}
 
 		customMenu.buttonElement.appendChild(menuHolder);
 
@@ -893,11 +933,14 @@ export class MenuBar extends Disposable {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label'))
+			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
+			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
-		menuWidget.style(this.menuStyle);
+		if (this.menuStyle) {
+			menuWidget.style(this.menuStyle);
+		}
 
 		this._register(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;

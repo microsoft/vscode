@@ -125,6 +125,8 @@ export const enum MetadataConsts {
 	FOREGROUND_MASK = 0b00000000011111111100000000000000,
 	BACKGROUND_MASK = 0b11111111100000000000000000000000,
 
+	LANG_TTYPE_CMPL = 0b11111111111111111111100000000000,
+
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
 	FONT_STYLE_OFFSET = 11,
@@ -452,7 +454,7 @@ export interface CompletionItem {
 	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 	 */
-	range: IRange;
+	range: IRange | { insert: IRange, replace: IRange };
 	/**
 	 * An optional set of characters that when pressed while this completion is active will accept it first and
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -546,6 +548,7 @@ export interface CodeAction {
 	diagnostics?: IMarkerData[];
 	kind?: string;
 	isPreferred?: boolean;
+	disabled?: string;
 }
 
 /**
@@ -874,40 +877,82 @@ export const enum SymbolTag {
 /**
  * @internal
  */
-export const symbolKindToCssClass = (function () {
+export namespace SymbolKinds {
 
-	const _fromMapping: { [n: number]: string } = Object.create(null);
-	_fromMapping[SymbolKind.File] = 'file';
-	_fromMapping[SymbolKind.Module] = 'module';
-	_fromMapping[SymbolKind.Namespace] = 'namespace';
-	_fromMapping[SymbolKind.Package] = 'package';
-	_fromMapping[SymbolKind.Class] = 'class';
-	_fromMapping[SymbolKind.Method] = 'method';
-	_fromMapping[SymbolKind.Property] = 'property';
-	_fromMapping[SymbolKind.Field] = 'field';
-	_fromMapping[SymbolKind.Constructor] = 'constructor';
-	_fromMapping[SymbolKind.Enum] = 'enum';
-	_fromMapping[SymbolKind.Interface] = 'interface';
-	_fromMapping[SymbolKind.Function] = 'function';
-	_fromMapping[SymbolKind.Variable] = 'variable';
-	_fromMapping[SymbolKind.Constant] = 'constant';
-	_fromMapping[SymbolKind.String] = 'string';
-	_fromMapping[SymbolKind.Number] = 'number';
-	_fromMapping[SymbolKind.Boolean] = 'boolean';
-	_fromMapping[SymbolKind.Array] = 'array';
-	_fromMapping[SymbolKind.Object] = 'object';
-	_fromMapping[SymbolKind.Key] = 'key';
-	_fromMapping[SymbolKind.Null] = 'null';
-	_fromMapping[SymbolKind.EnumMember] = 'enum-member';
-	_fromMapping[SymbolKind.Struct] = 'struct';
-	_fromMapping[SymbolKind.Event] = 'event';
-	_fromMapping[SymbolKind.Operator] = 'operator';
-	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
+	const byName = new Map<string, SymbolKind>();
+	byName.set('file', SymbolKind.File);
+	byName.set('module', SymbolKind.Module);
+	byName.set('namespace', SymbolKind.Namespace);
+	byName.set('package', SymbolKind.Package);
+	byName.set('class', SymbolKind.Class);
+	byName.set('method', SymbolKind.Method);
+	byName.set('property', SymbolKind.Property);
+	byName.set('field', SymbolKind.Field);
+	byName.set('constructor', SymbolKind.Constructor);
+	byName.set('enum', SymbolKind.Enum);
+	byName.set('interface', SymbolKind.Interface);
+	byName.set('function', SymbolKind.Function);
+	byName.set('variable', SymbolKind.Variable);
+	byName.set('constant', SymbolKind.Constant);
+	byName.set('string', SymbolKind.String);
+	byName.set('number', SymbolKind.Number);
+	byName.set('boolean', SymbolKind.Boolean);
+	byName.set('array', SymbolKind.Array);
+	byName.set('object', SymbolKind.Object);
+	byName.set('key', SymbolKind.Key);
+	byName.set('null', SymbolKind.Null);
+	byName.set('enum-member', SymbolKind.EnumMember);
+	byName.set('struct', SymbolKind.Struct);
+	byName.set('event', SymbolKind.Event);
+	byName.set('operator', SymbolKind.Operator);
+	byName.set('type-parameter', SymbolKind.TypeParameter);
 
-	return function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		return `symbol-icon ${inline ? 'inline' : 'block'} ${_fromMapping[kind] || 'property'}`;
-	};
-})();
+	const byKind = new Map<SymbolKind, string>();
+	byKind.set(SymbolKind.File, 'file');
+	byKind.set(SymbolKind.Module, 'module');
+	byKind.set(SymbolKind.Namespace, 'namespace');
+	byKind.set(SymbolKind.Package, 'package');
+	byKind.set(SymbolKind.Class, 'class');
+	byKind.set(SymbolKind.Method, 'method');
+	byKind.set(SymbolKind.Property, 'property');
+	byKind.set(SymbolKind.Field, 'field');
+	byKind.set(SymbolKind.Constructor, 'constructor');
+	byKind.set(SymbolKind.Enum, 'enum');
+	byKind.set(SymbolKind.Interface, 'interface');
+	byKind.set(SymbolKind.Function, 'function');
+	byKind.set(SymbolKind.Variable, 'variable');
+	byKind.set(SymbolKind.Constant, 'constant');
+	byKind.set(SymbolKind.String, 'string');
+	byKind.set(SymbolKind.Number, 'number');
+	byKind.set(SymbolKind.Boolean, 'boolean');
+	byKind.set(SymbolKind.Array, 'array');
+	byKind.set(SymbolKind.Object, 'object');
+	byKind.set(SymbolKind.Key, 'key');
+	byKind.set(SymbolKind.Null, 'null');
+	byKind.set(SymbolKind.EnumMember, 'enum-member');
+	byKind.set(SymbolKind.Struct, 'struct');
+	byKind.set(SymbolKind.Event, 'event');
+	byKind.set(SymbolKind.Operator, 'operator');
+	byKind.set(SymbolKind.TypeParameter, 'type-parameter');
+	/**
+	 * @internal
+	 */
+	export function fromString(value: string): SymbolKind | undefined {
+		return byName.get(value);
+	}
+	/**
+	 * @internal
+	 */
+	export function toString(kind: SymbolKind): string | undefined {
+		return byKind.get(kind);
+	}
+	/**
+	 * @internal
+	 */
+	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
+		return `codicon ${inline ? 'inline' : 'block'} codicon-symbol-${byKind.get(kind) || 'property'}`;
+	}
+}
 
 export interface DocumentSymbol {
 	name: string;
@@ -922,7 +967,7 @@ export interface DocumentSymbol {
 
 /**
  * The document symbol provider interface defines the contract between extensions and
- * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
+ * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
  */
 export interface DocumentSymbolProvider {
 
@@ -1201,9 +1246,9 @@ export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
 }
 
 export interface ResourceFileEdit {
-	oldUri: URI;
-	newUri: URI;
-	options: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
+	oldUri?: URI;
+	newUri?: URI;
+	options?: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
 }
 
 export interface ResourceTextEdit {
@@ -1402,14 +1447,6 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
-/**
- * @internal
- */
-export const enum WebviewEditorState {
-	Readonly = 1,
-	Unchanged = 2,
-	Dirty = 3,
-}
 
 export interface CodeLens {
 	range: IRange;
@@ -1426,6 +1463,33 @@ export interface CodeLensProvider {
 	onDidChange?: Event<this>;
 	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
+}
+
+export interface SemanticTokensLegend {
+	readonly tokenTypes: string[];
+	readonly tokenModifiers: string[];
+}
+
+export interface SemanticTokens {
+	readonly resultId?: string;
+	readonly data: Uint32Array;
+}
+
+export interface SemanticTokensEdit {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly data?: Uint32Array;
+}
+
+export interface SemanticTokensEdits {
+	readonly resultId?: string;
+	readonly edits: SemanticTokensEdit[];
+}
+
+export interface SemanticTokensProvider {
+	getLegend(): SemanticTokensLegend;
+	provideSemanticTokens(model: model.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+	releaseSemanticTokens(resultId: string | undefined): void;
 }
 
 // --- feature registries ------
@@ -1529,6 +1593,11 @@ export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRange
  * @internal
  */
 export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
+
+/**
+ * @internal
+ */
+export const SemanticTokensProviderRegistry = new LanguageFeatureRegistry<SemanticTokensProvider>();
 
 /**
  * @internal

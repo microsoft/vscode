@@ -14,7 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import { exists, stat, chmod, rimraf, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, encodeStream, UTF8_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer, isUTFEncoding } from 'vs/base/node/encoding';
@@ -22,15 +22,52 @@ import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { joinPath, extname, isEqualOrParent } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { VSBufferReadable } from 'vs/base/common/buffer';
+import { VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
 import { Readable } from 'stream';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { nodeReadableToString, streamToNodeReadable, nodeStreamToVSBufferReadable } from 'vs/base/node/stream';
+import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { assign } from 'vs/base/common/objects';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
-	private _encoding!: EncodingOracle;
+	constructor(
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IFileService fileService: IFileService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModeService modeService: IModeService,
+		@IModelService modelService: IModelService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@INotificationService notificationService: INotificationService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IHistoryService historyService: IHistoryService,
+		@IDialogService dialogService: IDialogService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IEditorService editorService: IEditorService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IElectronService private readonly electronService: IElectronService,
+		@IProductService private readonly productService: IProductService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+	) {
+		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService);
+	}
+
+	private _encoding: EncodingOracle | undefined;
 	get encoding(): EncodingOracle {
 		if (!this._encoding) {
 			this._encoding = this._register(this.instantiationService.createInstance(EncodingOracle));
@@ -40,7 +77,16 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const [bufferStream, decoder] = await this.doRead(resource, options);
+		const [bufferStream, decoder] = await this.doRead(resource,
+			assign({
+				// optimization: since we know that the caller does not
+				// care about buffering, we indicate this to the reader.
+				// this reduces all the overhead the buffered reading
+				// has (open, read, close) if the provider supports
+				// unbuffered reading.
+				preferUnbuffered: true
+			}, options || Object.create(null))
+		);
 
 		return {
 			...bufferStream,
@@ -59,22 +105,31 @@ export class NativeTextFileService extends AbstractTextFileService {
 		};
 	}
 
-	private async doRead(resource: URI, options?: IReadTextFileOptions): Promise<[IFileStreamContent, IDecodeStreamResult]> {
+	private async doRead(resource: URI, options?: IReadTextFileOptions & { preferUnbuffered?: boolean }): Promise<[IFileStreamContent, IDecodeStreamResult]> {
 
 		// ensure limits
 		options = this.ensureLimits(options);
 
-		// read stream raw
-		const bufferStream = await this.fileService.readFileStream(resource, options);
+		// read stream raw (either buffered or unbuffered)
+		let bufferStream: IFileStreamContent;
+		if (options.preferUnbuffered) {
+			const content = await this.fileService.readFile(resource, options);
+			bufferStream = {
+				...content,
+				value: bufferToStream(content.value)
+			};
+		} else {
+			bufferStream = await this.fileService.readFileStream(resource, options);
+		}
 
 		// read through encoding library
 		const decoder = await toDecodeStream(streamToNodeReadable(bufferStream.value), {
-			guessEncoding: (options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
 			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
 		});
 
 		// validate binary
-		if (options && options.acceptTextOnly && decoder.detected.seemsBinary) {
+		if (options?.acceptTextOnly && decoder.detected.seemsBinary) {
 			throw new TextFileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
 		}
 
@@ -126,7 +181,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		// check for overwriteReadonly property (only supported for local file://)
 		try {
-			if (options && options.overwriteReadonly && resource.scheme === Schemas.file && await exists(resource.fsPath)) {
+			if (options?.overwriteReadonly && resource.scheme === Schemas.file && await exists(resource.fsPath)) {
 				const fileStat = await stat(resource.fsPath);
 
 				// try to change mode to writeable
@@ -137,7 +192,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		// check for writeElevated property (only supported for local file://)
-		if (options && options.writeElevated && resource.scheme === Schemas.file) {
+		if (options?.writeElevated && resource.scheme === Schemas.file) {
 			return this.writeElevated(resource, value, options);
 		}
 
@@ -235,12 +290,12 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		return new Promise<void>((resolve, reject) => {
 			const promptOptions = {
-				name: this.environmentService.appNameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentService.isBuilt) ? join(dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : undefined
+				name: this.productService.nameLong.replace('-', ''),
+				icns: (isMacintosh && this.environmentService.isBuilt) ? join(dirname(this.environmentService.appRoot), `${this.productService.nameShort}.icns`) : undefined
 			};
 
 			const sudoCommand: string[] = [`"${this.environmentService.cliPath}"`];
-			if (options && options.overwriteReadonly) {
+			if (options?.overwriteReadonly) {
 				sudoCommand.push('--file-chmod');
 			}
 
@@ -254,6 +309,10 @@ export class NativeTextFileService extends AbstractTextFileService {
 				}
 			});
 		});
+	}
+
+	protected getWindowCount(): Promise<number> {
+		return this.electronService.getWindowCount();
 	}
 }
 
@@ -291,8 +350,9 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		// Global settings
 		defaultEncodingOverrides.push({ parent: this.environmentService.userRoamingDataHome, encoding: UTF8 });
 
-		// Workspace files
+		// Workspace files (via extension and via untitled workspaces location)
 		defaultEncodingOverrides.push({ extension: WORKSPACE_EXTENSION, encoding: UTF8 });
+		defaultEncodingOverrides.push({ parent: this.environmentService.untitledWorkspacesHome, encoding: UTF8 });
 
 		// Folder Settings
 		this.contextService.getWorkspace().folders.forEach(folder => {
@@ -312,11 +372,11 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 		// Ensure that we preserve an existing BOM if found for UTF8
 		// unless we are instructed to overwrite the encoding
-		const overwriteEncoding = options && options.overwriteEncoding;
+		const overwriteEncoding = options?.overwriteEncoding;
 		if (!overwriteEncoding && encoding === UTF8) {
 			try {
 				const buffer = (await this.fileService.readFile(resource, { length: UTF8_BOM.length })).value;
-				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8) {
+				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8_with_bom) {
 					return { encoding, addBOM: true };
 				}
 			} catch (error) {
@@ -340,8 +400,8 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
-		if (options && options.encoding) {
-			if (detectedEncoding === UTF8 && options.encoding === UTF8) {
+		if (options?.encoding) {
+			if (detectedEncoding === UTF8_with_bom && options.encoding === UTF8) {
 				preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
 			} else {
 				preferredEncoding = options.encoding; // give passed in encoding highest priority
@@ -350,11 +410,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 		// Encoding detected
 		else if (detectedEncoding) {
-			if (detectedEncoding === UTF8) {
-				preferredEncoding = UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
-			} else {
-				preferredEncoding = detectedEncoding;
-			}
+			preferredEncoding = detectedEncoding;
 		}
 
 		// Encoding configured

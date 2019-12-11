@@ -9,26 +9,24 @@ import { StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent
 import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { HitTestContext, IViewZoneData, MouseTarget, MouseTargetFactory } from 'vs/editor/browser/controller/mouseTarget';
+import { HitTestContext, IViewZoneData, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorMouseMoveMonitor, createEditorPagePosition } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-
 /**
  * Merges mouse events when mouse move events are throttled
  */
-function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory | null) {
-	return function (lastEvent: EditorMouseEvent, currentEvent: EditorMouseEvent): EditorMouseEvent {
+export function createMouseMoveEventMerger(mouseTargetFactory: MouseTargetFactory | null) {
+	return function (lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent {
 		let targetIsWidget = false;
 		if (mouseTargetFactory) {
 			targetIsWidget = mouseTargetFactory.mouseTargetIsWidget(currentEvent);
@@ -47,9 +45,9 @@ export interface IPointerHandlerHelper {
 	focusTextArea(): void;
 
 	/**
-	 * Get the last rendered information of the cursors.
+	 * Get the last rendered information for cursors & textarea.
 	 */
-	getLastViewCursorsRenderData(): IViewCursorRenderData[];
+	getLastRenderData(): PointerHandlerLastRenderData;
 
 	shouldSuppressMouseDownOnViewZone(viewZoneId: string): boolean;
 	shouldSuppressMouseDownOnWidget(widgetId: string): boolean;
@@ -59,21 +57,20 @@ export interface IPointerHandlerHelper {
 	 */
 	getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position | null;
 
-	visibleRangeForPosition2(lineNumber: number, column: number): HorizontalRange | null;
+	visibleRangeForPosition(lineNumber: number, column: number): HorizontalPosition | null;
 	getLineWidth(lineNumber: number): number;
 }
 
 export class MouseHandler extends ViewEventHandler {
 
-	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
+	static readonly MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
 	protected _context: ViewContext;
 	protected viewController: ViewController;
 	protected viewHelper: IPointerHandlerHelper;
 	protected mouseTargetFactory: MouseTargetFactory;
 	private readonly _asyncFocus: RunOnceScheduler;
-
-	private readonly _mouseDownOperation: MouseDownOperation;
+	protected readonly _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime: number;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
@@ -160,13 +157,11 @@ export class MouseHandler extends ViewEventHandler {
 			return null;
 		}
 
-		const lastViewCursorsRenderData = this.viewHelper.getLastViewCursorsRenderData();
-		return this.mouseTargetFactory.createMouseTarget(lastViewCursorsRenderData, editorPos, pos, null);
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), editorPos, pos, null);
 	}
 
 	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): editorBrowser.IMouseTarget {
-		const lastViewCursorsRenderData = this.viewHelper.getLastViewCursorsRenderData();
-		return this.mouseTargetFactory.createMouseTarget(lastViewCursorsRenderData, e.editorPos, e.pos, testEventTarget ? e.target : null);
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, testEventTarget ? e.target : null);
 	}
 
 	private _getMouseColumn(e: EditorMouseEvent): number {
@@ -180,7 +175,7 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	private _onMouseMove(e: EditorMouseEvent): void {
+	public _onMouseMove(e: EditorMouseEvent): void {
 		if (this._mouseDownOperation.isActive()) {
 			// In selection/drag operation
 			return;
@@ -197,7 +192,7 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	private _onMouseLeave(e: EditorMouseEvent): void {
+	public _onMouseLeave(e: EditorMouseEvent): void {
 		this.lastMouseLeaveTime = (new Date()).getTime();
 		this.viewController.emitMouseLeave({
 			event: e,

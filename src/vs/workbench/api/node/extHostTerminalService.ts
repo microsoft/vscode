@@ -16,7 +16,7 @@ import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/t
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
+import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
@@ -45,14 +45,14 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, name);
+		const terminal = new ExtHostTerminal(this._proxy, { name, shellPath, shellArgs }, name);
 		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);
 		return terminal;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, options.name);
+		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
 		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
 		this._terminals.push(terminal);
 		return terminal;
@@ -120,10 +120,10 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	private async _updateVariableResolver(): Promise<void> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
+		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider, process.env as platform.IProcessEnvironment);
 	}
 
-	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
+	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<void> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name: shellLaunchConfigDto.name,
 			executable: shellLaunchConfigDto.executable,
@@ -156,16 +156,21 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		}
 
 		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
-		// Get the environment
-		const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
-		const lastActiveWorkspace = apiLastActiveWorkspace ? {
-			uri: apiLastActiveWorkspace.uri,
-			name: apiLastActiveWorkspace.name,
-			index: apiLastActiveWorkspace.index,
-			toResource: () => {
-				throw new Error('Not implemented');
+		let lastActiveWorkspace: IWorkspaceFolder | null = null;
+		if (activeWorkspaceRootUriComponents && activeWorkspaceRootUri) {
+			// Get the environment
+			const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
+			if (apiLastActiveWorkspace) {
+				lastActiveWorkspace = {
+					uri: apiLastActiveWorkspace.uri,
+					name: apiLastActiveWorkspace.name,
+					index: apiLastActiveWorkspace.index,
+					toResource: () => {
+						throw new Error('Not implemented');
+					}
+				};
 			}
-		} as IWorkspaceFolder : null;
+		}
 
 		// Get the initial cwd
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');

@@ -7,7 +7,6 @@ import { Command } from 'vs/editor/common/modes';
 import { UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITreeViewDataProvider } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -148,7 +147,7 @@ export interface IViewDescriptor {
 	// For contributed remote explorer views
 	readonly group?: string;
 
-	readonly remoteAuthority?: string;
+	readonly remoteAuthority?: string | string[];
 }
 
 export interface IViewDescriptorCollection extends IDisposable {
@@ -424,4 +423,11 @@ export interface ITreeViewDataProvider {
 
 	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
 
+}
+
+export interface IEditableData {
+	validationMessage: (value: string) => string | null;
+	placeholder?: string | null;
+	startingValue?: string | null;
+	onFinish: (value: string, success: boolean) => void;
 }

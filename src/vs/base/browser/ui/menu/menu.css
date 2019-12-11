@@ -15,7 +15,6 @@
 .monaco-menu .monaco-action-bar.vertical .action-item {
 	padding: 0;
 	transform: none;
-	display: -ms-flexbox;
 	display: flex;
 }
 
@@ -24,9 +23,7 @@
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;
-	display: -ms-flexbox;
 	display: flex;
 	height: 2em;
 	align-items: center;
@@ -34,7 +31,6 @@
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label {
-	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;
 	text-decoration: none;
 	padding: 0 1em;
@@ -46,7 +42,6 @@
 .monaco-menu .monaco-action-bar.vertical .keybinding,
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	display: inline-block;
-	-ms-flex: 2 1 auto;
 	flex: 2 1 auto;
 	padding: 0 1em;
 	text-align: right;
@@ -56,8 +51,8 @@
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
-	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/13px 13px;
 	mask: url('submenu.svg') no-repeat 90% 50%/13px 13px;
+	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/13px 13px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
@@ -67,11 +62,7 @@
 
 .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator) {
 	display: inline-block;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing: border-box;
 	margin: 0;
 }
 
@@ -79,7 +70,6 @@
 	position: static;
 	overflow: visible;
 }
-
 
 .monaco-menu .monaco-action-bar.vertical .action-item .monaco-submenu {
 	position: absolute;
@@ -104,8 +94,8 @@
 .monaco-menu .monaco-action-bar.vertical .menu-item-check {
 	position: absolute;
 	visibility: hidden;
-	-webkit-mask: url('check.svg') no-repeat 50% 56%/15px 15px;
 	mask: url('check.svg') no-repeat 50% 56%/15px 15px;
+	-webkit-mask: url('check.svg') no-repeat 50% 56%/15px 15px;
 	width: 1em;
 	height: 100%;
 }
@@ -119,10 +109,6 @@
 .context-view.monaco-menu-container {
 	outline: 0;
 	border: none;
-	-webkit-animation: fadeIn 0.083s linear;
-	-o-animation: fadeIn 0.083s linear;
-	-moz-animation: fadeIn 0.083s linear;
-	-ms-animation: fadeIn 0.083s linear;
 	animation: fadeIn 0.083s linear;
 }
 
@@ -157,7 +143,7 @@
 	flex-wrap: wrap;
 }
 
-.fullscreen .menubar {
+.fullscreen .menubar:not(.compact) {
 	margin: 0px;
 	padding: 0px 5px;
 }
@@ -171,6 +157,16 @@
 	zoom: 1;
 	white-space: nowrap;
 	outline: 0;
+}
+
+.menubar.compact {
+	flex-shrink: 0;
+}
+
+.menubar.compact > .menubar-menu-button {
+	width: 100%;
+	height: 100%;
+	padding: 0px;
 }
 
 .menubar .menubar-menu-items-holder {
@@ -197,9 +193,25 @@
 	height: 100%;
 }
 
+.menubar.compact .toolbar-toggle-more {
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 16px;
+	cursor: pointer;
+	width: 100%;
+}
+
 .menubar .toolbar-toggle-more {
 	display: inline-block;
 	padding: 0;
-	-webkit-mask: url('ellipsis.svg') no-repeat 50% 55%/14px 14px;
 	mask: url('ellipsis.svg') no-repeat 50% 55%/14px 14px;
+	-webkit-mask: url('ellipsis.svg') no-repeat 50% 55%/14px 14px;
+}
+
+.menubar.compact .toolbar-toggle-more {
+	mask: url('menu.svg') no-repeat 50% 55%/16px 16px;
+	-webkit-mask: url('menu.svg') no-repeat 50% 55%/16px 16px;
 }

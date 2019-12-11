@@ -8,7 +8,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -64,7 +64,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"),
@@ -87,13 +87,54 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"),
 				order: 2
 			}
 		});
+	}
+}
+
+export class DuplicateSelectionAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.duplicateSelection',
+			label: nls.localize('duplicateSelection', "Duplicate Selection"),
+			alias: 'Duplicate Selection',
+			precondition: EditorContextKeys.writable,
+			menuOpts: {
+				menuId: MenuId.MenubarSelectionMenu,
+				group: '2_line',
+				title: nls.localize({ key: 'miDuplicateSelection', comment: ['&& denotes a mnemonic'] }, "&&Duplicate Selection"),
+				order: 5
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
+		const model = editor.getModel();
+
+		for (const selection of selections) {
+			if (selection.isEmpty()) {
+				commands.push(new CopyLinesCommand(selection, true));
+			} else {
+				const insertSelection = new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn);
+				commands.push(new ReplaceCommandThatSelectsText(insertSelection, model.getValueInRange(selection)));
+			}
+		}
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
@@ -137,7 +178,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 				linux: { primary: KeyMod.Alt | KeyCode.UpArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"),
@@ -160,7 +201,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 				linux: { primary: KeyMod.Alt | KeyCode.DownArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"),
@@ -989,6 +1030,7 @@ export class TitleCaseAction extends AbstractCaseAction {
 
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
+registerEditorAction(DuplicateSelectionAction);
 registerEditorAction(MoveLinesUpAction);
 registerEditorAction(MoveLinesDownAction);
 registerEditorAction(SortLinesAscendingAction);

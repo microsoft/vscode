@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,6 +19,7 @@ import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { Constants } from 'vs/base/common/uint';
 
 export interface IColumnSelectData {
 	isReal: boolean;
@@ -102,7 +103,7 @@ export class CursorConfiguration {
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
-	public readonly autoIndent: boolean;
+	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairsOpen2: Map<string, StandardAutoClosingPairConditional[]>;
 	public readonly autoClosingPairsClose2: Map<string, StandardAutoClosingPairConditional[]>;
 	public readonly surroundingPairs: CharacterMap;
@@ -509,44 +510,57 @@ export class EditOperationResult {
  */
 export class CursorColumns {
 
-	public static isLowSurrogate(model: ICursorSimpleModel, lineNumber: number, charOffset: number): boolean {
-		let lineContent = model.getLineContent(lineNumber);
-		if (charOffset < 0 || charOffset >= lineContent.length) {
-			return false;
-		}
-		return strings.isLowSurrogate(lineContent.charCodeAt(charOffset));
-	}
-
-	public static isHighSurrogate(model: ICursorSimpleModel, lineNumber: number, charOffset: number): boolean {
-		let lineContent = model.getLineContent(lineNumber);
-		if (charOffset < 0 || charOffset >= lineContent.length) {
-			return false;
-		}
-		return strings.isHighSurrogate(lineContent.charCodeAt(charOffset));
-	}
-
-	public static isInsideSurrogatePair(model: ICursorSimpleModel, lineNumber: number, column: number): boolean {
-		return this.isHighSurrogate(model, lineNumber, column - 2);
-	}
-
 	public static visibleColumnFromColumn(lineContent: string, column: number, tabSize: number): number {
-		let endOffset = lineContent.length;
-		if (endOffset > column - 1) {
-			endOffset = column - 1;
-		}
+		const lineContentLength = lineContent.length;
+		const endOffset = column - 1 < lineContentLength ? column - 1 : lineContentLength;
 
 		let result = 0;
-		for (let i = 0; i < endOffset; i++) {
-			let charCode = lineContent.charCodeAt(i);
-			if (charCode === CharCode.Tab) {
-				result = this.nextRenderTabStop(result, tabSize);
-			} else if (strings.isFullWidthCharacter(charCode)) {
-				result = result + 2;
+		let i = 0;
+		while (i < endOffset) {
+			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
+			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+
+			if (codePoint === CharCode.Tab) {
+				result = CursorColumns.nextRenderTabStop(result, tabSize);
+			} else {
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
+				while (i < endOffset) {
+					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
+						break;
+					}
+					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+					graphemeBreakType = nextGraphemeBreakType;
+				}
+				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
+					result = result + 2;
+				} else {
+					result = result + 1;
+				}
+			}
+		}
+		return result;
+	}
+
+	public static toStatusbarColumn(lineContent: string, column: number, tabSize: number): number {
+		const lineContentLength = lineContent.length;
+		const endOffset = column - 1 < lineContentLength ? column - 1 : lineContentLength;
+
+		let result = 0;
+		let i = 0;
+		while (i < endOffset) {
+			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
+			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+
+			if (codePoint === CharCode.Tab) {
+				result = CursorColumns.nextRenderTabStop(result, tabSize);
 			} else {
 				result = result + 1;
 			}
 		}
-		return result;
+
+		return result + 1;
 	}
 
 	public static visibleColumnFromColumn2(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): number {
@@ -561,29 +575,46 @@ export class CursorColumns {
 		const lineLength = lineContent.length;
 
 		let beforeVisibleColumn = 0;
-		for (let i = 0; i < lineLength; i++) {
-			let charCode = lineContent.charCodeAt(i);
+		let beforeColumn = 1;
+		let i = 0;
+		while (i < lineLength) {
+			const codePoint = strings.getNextCodePoint(lineContent, lineLength, i);
+			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
 
 			let afterVisibleColumn: number;
-			if (charCode === CharCode.Tab) {
-				afterVisibleColumn = this.nextRenderTabStop(beforeVisibleColumn, tabSize);
-			} else if (strings.isFullWidthCharacter(charCode)) {
-				afterVisibleColumn = beforeVisibleColumn + 2;
+			if (codePoint === CharCode.Tab) {
+				afterVisibleColumn = CursorColumns.nextRenderTabStop(beforeVisibleColumn, tabSize);
 			} else {
-				afterVisibleColumn = beforeVisibleColumn + 1;
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
+				while (i < lineLength) {
+					const nextCodePoint = strings.getNextCodePoint(lineContent, lineLength, i);
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
+						break;
+					}
+					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+					graphemeBreakType = nextGraphemeBreakType;
+				}
+				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
+					afterVisibleColumn = beforeVisibleColumn + 2;
+				} else {
+					afterVisibleColumn = beforeVisibleColumn + 1;
+				}
 			}
+			const afterColumn = i + 1;
 
 			if (afterVisibleColumn >= visibleColumn) {
-				let prevDelta = visibleColumn - beforeVisibleColumn;
-				let afterDelta = afterVisibleColumn - visibleColumn;
-				if (afterDelta < prevDelta) {
-					return i + 2;
+				const beforeDelta = visibleColumn - beforeVisibleColumn;
+				const afterDelta = afterVisibleColumn - visibleColumn;
+				if (afterDelta < beforeDelta) {
+					return afterColumn;
 				} else {
-					return i + 1;
+					return beforeColumn;
 				}
 			}
 
 			beforeVisibleColumn = afterVisibleColumn;
+			beforeColumn = afterColumn;
 		}
 
 		// walked the entire string

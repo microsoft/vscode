@@ -16,7 +16,7 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log } from 'vs/base/common/console';
 import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
-import { findFreePort, randomPort } from 'vs/base/node/ports';
+import { findFreePort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
@@ -36,14 +36,19 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
-import { isEqualOrParent } from 'vs/base/common/resources';
+import { IExtensionHostStarter, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
+import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { joinPath } from 'vs/base/common/resources';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onExit: Event<[number, string]> = this._onExit.event;
+
+	private readonly _onDidSetInspectPort = new Emitter<void>();
 
 	private readonly _toDispose = new DisposableStore();
 
@@ -62,6 +67,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _extensionHostProcess: ChildProcess | null;
 	private _extensionHostConnection: Socket | null;
 	private _messageProtocol: Promise<PersistentProtocol> | null;
+
+	private readonly _extensionHostLogFile: URI;
 
 	constructor(
 		private readonly _autoStart: boolean,
@@ -93,6 +100,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._extensionHostConnection = null;
 		this._messageProtocol = null;
 
+		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
+
 		this._toDispose.add(this._onExit);
 		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.add(this._lifecycleService.onShutdown(reason => this.terminate()));
@@ -110,7 +119,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
 		this._toDispose.add(toDisposable(() => {
-			process.removeListener('exit', globalExitListener);
+			process.removeListener('exit' as 'loaded', globalExitListener); // https://github.com/electron/electron/issues/21475
 		}));
 	}
 
@@ -127,10 +136,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
 				this._tryListenOnPipe(),
-				!this._environmentService.args['disable-inspect'] ? this._tryFindDebugPort() : Promise.resolve(null)
+				this._tryFindDebugPort()
 			]).then(data => {
 				const pipeName = data[0];
-				const portData = data[1];
+				const portNumber = data[1];
 
 				const opts = {
 					env: objects.mixin(objects.deepClone(process.env), {
@@ -151,16 +160,13 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					silent: true
 				};
 
-				if (portData && portData.actual) {
+				if (portNumber !== 0) {
 					opts.execArgv = [
 						'--nolazy',
-						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portData.actual
+						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portNumber
 					];
-					if (!portData.expected) {
-						// No one asked for 'inspect' or 'inspect-brk', only us. We add another
-						// option such that the extension host can manipulate the execArgv array
-						opts.env.VSCODE_PREVENT_FOREIGN_INSPECT = true;
-					}
+				} else {
+					opts.execArgv = ['--inspect-port=0'];
 				}
 
 				const crashReporterOptions = undefined; // TODO@electron pass this in as options to the extension host after verifying this actually works
@@ -173,10 +179,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
-				this._extensionHostProcess.stdout.setEncoding('utf8');
-				this._extensionHostProcess.stderr.setEncoding('utf8');
-				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
-				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				this._extensionHostProcess.stdout!.setEncoding('utf8');
+				this._extensionHostProcess.stderr!.setEncoding('utf8');
+				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout!, 'data');
+				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr!, 'data');
 				const onOutput = Event.any(
 					Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
 					Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -198,6 +204,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						}
 						if (!this._inspectPort) {
 							this._inspectPort = Number(inspectorUrlMatch[2]);
+							this._onDidSetInspectPort.fire();
 						}
 					} else {
 						console.group('Extension Host');
@@ -218,11 +225,12 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (portData) {
-					if (this._isExtensionDevHost && portData.actual && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
-						this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portData.actual);
+				if (portNumber) {
+					if (this._isExtensionDevHost && portNumber && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
+						this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portNumber);
 					}
-					this._inspectPort = portData.actual;
+					this._inspectPort = portNumber;
+					this._onDidSetInspectPort.fire();
 				}
 
 				// Help in case we fail to start it
@@ -275,29 +283,31 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	/**
 	 * Find a free port if extension host debugging is enabled.
 	 */
-	private _tryFindDebugPort(): Promise<{ expected: number; actual: number }> {
-		let expected: number;
-		let startPort = randomPort();
-		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
-			startPort = expected = this._environmentService.debugExtensionHost.port;
+	private async _tryFindDebugPort(): Promise<number> {
+
+		if (typeof this._environmentService.debugExtensionHost.port !== 'number') {
+			return 0;
 		}
-		return new Promise(resolve => {
-			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
-				if (!port) {
-					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color:');
-				} else {
-					if (expected && port !== expected) {
-						console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color:');
-					}
-					if (this._isExtensionDevDebugBrk) {
-						console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
-					} else {
-						console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
-					}
-				}
-				return resolve({ expected, actual: port });
-			});
-		});
+
+		const expected = this._environmentService.debugExtensionHost.port;
+		const port = await findFreePort(expected, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */);
+
+		if (!port) {
+			console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color:');
+			return 0;
+		}
+
+		if (port !== expected) {
+			console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color:');
+		}
+		if (this._isExtensionDevDebugBrk) {
+			console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
+		} else {
+			console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
+		}
+		return port;
+
+
 	}
 
 	private _tryExtHostHandshake(): Promise<PersistentProtocol> {
@@ -370,6 +380,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						// stop listening for messages here
 						disposable.dispose();
 
+						// Register log channel for exthost log
+						Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'extHostLog', label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
+
 						// release this promise
 						resolve(protocol);
 						return;
@@ -409,7 +422,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						configuration: withNullAsUndefined(workspace.configuration),
 						id: workspace.id,
 						name: this._labelService.getWorkspaceLabel(workspace),
-						isUntitled: workspace.configuration ? isEqualOrParent(workspace.configuration, this._environmentService.untitledWorkspacesHome) : false
+						isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
 					},
 					remote: {
 						authority: this._environmentService.configuration.remoteAuthority,
@@ -421,6 +434,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
 					logsLocation: this._extensionHostLogsLocation,
+					logFile: this._extensionHostLogFile,
 					autoStart: this._autoStart,
 					uiKind: UIKind.Desktop
 				};
@@ -430,19 +444,19 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
 
-		// Send to local console unless we run tests from cli
-		if (!this._isExtensionDevTestFromCli) {
-			log(entry, 'Extension Host');
-		}
-
-		// Log on main side if running tests from cli
 		if (this._isExtensionDevTestFromCli) {
-			logRemoteEntry(this._logService, entry);
-		}
 
-		// Broadcast to other windows if we are in development mode
-		else if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
-			this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
+			// Log on main side if running tests from cli
+			logRemoteEntry(this._logService, entry);
+		} else {
+
+			// Send to local console
+			log(entry, 'Extension Host');
+
+			// Broadcast to other windows if we are in development mode
+			if (this._environmentService.debugExtensionHost.debugId && (!this._environmentService.isBuilt || this._isExtensionDevHost)) {
+				this._extensionHostDebugService.logToSession(this._environmentService.debugExtensionHost.debugId, entry);
+			}
 		}
 	}
 
@@ -464,6 +478,37 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 
 		this._onExit.fire([code, signal]);
+	}
+
+	public async enableInspectPort(): Promise<boolean> {
+		if (typeof this._inspectPort === 'number') {
+			return true;
+		}
+
+		if (!this._extensionHostProcess) {
+			return false;
+		}
+
+		interface ProcessExt {
+			_debugProcess?(n: number): any;
+		}
+
+		if (typeof (<ProcessExt>process)._debugProcess === 'function') {
+			// use (undocumented) _debugProcess feature of node
+			(<ProcessExt>process)._debugProcess!(this._extensionHostProcess.pid);
+			await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
+			return typeof this._inspectPort === 'number';
+
+		} else if (!platform.isWindows) {
+			// use KILL USR1 on non-windows platforms (fallback)
+			this._extensionHostProcess.kill('SIGUSR1');
+			await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
+			return typeof this._inspectPort === 'number';
+
+		} else {
+			// not supported...
+			return false;
+		}
 	}
 
 	public getInspectPort(): number | undefined {

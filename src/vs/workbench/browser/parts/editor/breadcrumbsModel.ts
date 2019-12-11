@@ -6,7 +6,7 @@
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { size } from 'vs/base/common/collections';
+import { size, values } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -22,6 +22,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { FileKind } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { ITextModel } from 'vs/editor/common/model';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 export class FileElement {
 	constructor(
@@ -51,16 +54,15 @@ export class EditorBreadcrumbsModel {
 	constructor(
 		private readonly _uri: URI,
 		private readonly _editor: ICodeEditor | undefined,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
-
-		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
-		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
+		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(_configurationService);
+		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(_configurationService);
 
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
-
 		this._fileInfo = EditorBreadcrumbsModel._initFilePathInfo(this._uri, workspaceService);
 		this._bindToEditor();
 		this._onDidUpdate.fire(this);
@@ -138,6 +140,25 @@ export class EditorBreadcrumbsModel {
 		this._disposables.add(this._editor.onDidChangeModel(_ => this._updateOutline()));
 		this._disposables.add(this._editor.onDidChangeModelLanguage(_ => this._updateOutline()));
 
+		// update when config changes (re-render)
+		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('breadcrumbs')) {
+				this._updateOutline(true);
+				return;
+			}
+			if (this._editor && this._editor.getModel()) {
+				const editorModel = this._editor.getModel() as ITextModel;
+				const languageName = editorModel.getLanguageIdentifier().language;
+
+				// Checking for changes in the current language override config.
+				// We can't be more specific than this because the ConfigurationChangeEvent(e) only includes the first part of the root path
+				if (e.affectsConfiguration(`[${languageName}]`)) {
+					this._updateOutline(true);
+				}
+			}
+		}));
+
+
 		// update soon'ish as model content change
 		const updateSoon = new TimeoutTimer();
 		this._disposables.add(updateSoon);
@@ -207,7 +228,7 @@ export class EditorBreadcrumbsModel {
 		}
 		let item: OutlineGroup | OutlineElement | undefined = model.getItemEnclosingPosition(position);
 		if (!item) {
-			return [model];
+			return this._getOutlineElementsRoot(model);
 		}
 		let chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
@@ -221,7 +242,35 @@ export class EditorBreadcrumbsModel {
 			}
 			item = parent;
 		}
-		return chain.reverse();
+		let result: Array<OutlineGroup | OutlineElement> = [];
+		for (let i = chain.length - 1; i >= 0; i--) {
+			let element = chain[i];
+			if (this._isFiltered(element)) {
+				break;
+			}
+			result.push(element);
+		}
+		if (result.length === 0) {
+			return this._getOutlineElementsRoot(model);
+		}
+		return result;
+	}
+
+	private _getOutlineElementsRoot(model: OutlineModel): (OutlineModel | OutlineGroup | OutlineElement)[] {
+		return values(model.children).every(e => this._isFiltered(e)) ? [] : [model];
+	}
+
+	private _isFiltered(element: TreeElement): boolean {
+		if (element instanceof OutlineElement) {
+			const key = `breadcrumbs.${OutlineFilter.kindToConfigName[element.symbol.kind]}`;
+			let uri: URI | undefined;
+			if (this._editor && this._editor.getModel()) {
+				const model = this._editor.getModel() as ITextModel;
+				uri = model.uri;
+			}
+			return !this._textResourceConfigurationService.getValue<boolean>(uri, key);
+		}
+		return false;
 	}
 
 	private _updateOutlineElements(elements: Array<OutlineModel | OutlineGroup | OutlineElement>): void {

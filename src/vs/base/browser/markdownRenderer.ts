@@ -9,7 +9,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import * as marked from 'vs/base/common/marked/marked';
-import * as insane from 'vs/base/common/insane/insane';
+import { insane } from 'vs/base/common/insane/insane';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
@@ -50,25 +50,25 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const _href = function (href: string, isDomUri: boolean): string {
 		const data = markdown.uris && markdown.uris[href];
 		if (!data) {
-			return href;
+			return href; // no uri exists
 		}
 		let uri = URI.revive(data);
+		if (URI.parse(href).toString() === uri.toString()) {
+			return href; // no tranformation performed
+		}
 		if (isDomUri) {
 			uri = DOM.asDomUri(uri);
 		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
 		}
-		if (data) {
-			href = uri.toString(true);
-		}
-		return href;
+		return uri.toString(true);
 	};
 
 	// signal to code-block render that the
 	// element has been created
 	let signalInnerHTML: () => void;
-	const withInnerHTML = new Promise(c => signalInnerHTML = c);
+	const withInnerHTML = new Promise<void>(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
@@ -173,7 +173,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderer
 	};
 
-	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote];
+	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote, Schemas.vscodeRemoteResource];
 	if (markdown.isTrusted) {
 		allowedSchemes.push(Schemas.command);
 	}
@@ -185,7 +185,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			'a': ['href', 'name', 'target', 'data-href'],
 			'iframe': ['allowfullscreen', 'frameborder', 'src'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],
-			'div': ['class', 'data-code']
+			'div': ['class', 'data-code'],
+			'span': ['class']
 		}
 	});
 

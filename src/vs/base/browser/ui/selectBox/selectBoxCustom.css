@@ -16,11 +16,7 @@
 
 .monaco-select-box-dropdown-container {
 	display: none;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing:	border-box;
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown * {
@@ -55,11 +51,7 @@
 	padding-right: 1px;
 	width: 100%;
 	overflow: hidden;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
-	box-sizing:			border-box;
+	box-sizing:	border-box;
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane {

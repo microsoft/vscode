@@ -233,7 +233,8 @@ export enum OverviewRulerLane {
  * Position in the minimap to render the decoration.
  */
 export enum MinimapPosition {
-	Inline = 1
+	Inline = 1,
+	Gutter = 2
 }
 
 /**
@@ -403,10 +404,8 @@ export enum TextEditorCursorStyle {
 
 export enum RenderMinimap {
 	None = 0,
-	Small = 1,
-	Large = 2,
-	SmallBlocks = 3,
-	LargeBlocks = 4
+	Text = 1,
+	Blocks = 2
 }
 
 export enum RenderLineNumbersType {

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isFunction } from 'vs/base/common/types';
+import { isFunction, assertIsDefined } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
@@ -24,7 +24,6 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -54,11 +53,10 @@ export class TextFileEditor extends BaseTextEditor {
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IWindowService windowService: IWindowService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 		@IExplorerService private readonly explorerService: IExplorerService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService);
 
 		this.updateRestoreViewStateConfiguration();
 
@@ -68,7 +66,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private onFilesChanged(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
-		if (deleted && deleted.length) {
+		if (deleted?.length) {
 			this.clearTextEditorViewState(deleted.map(d => d.resource));
 		}
 	}
@@ -115,13 +113,6 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	setOptions(options: EditorOptions | undefined): void {
-		const textOptions = options as TextEditorOptions;
-		if (textOptions && isFunction(textOptions.apply)) {
-			textOptions.apply(this.getControl(), ScrollType.Smooth);
-		}
-	}
-
 	async setInput(input: FileEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
@@ -147,7 +138,7 @@ export class TextFileEditor extends BaseTextEditor {
 			const textFileModel = <ITextFileEditorModel>resolvedModel;
 
 			// Editor
-			const textEditor = this.getControl();
+			const textEditor = assertIsDefined(this.getControl());
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Always restore View State if any associated
@@ -161,7 +152,11 @@ export class TextFileEditor extends BaseTextEditor {
 				(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
 			}
 
-			// Readonly flag
+			// Since the resolved model provides information about being readonly
+			// or not, we apply it here to the editor even though the editor input
+			// was already asked for being readonly or not. The rationale is that
+			// a resolved model might have more specific information about being
+			// readonly or not that the input did not have.
 			textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
 		} catch (error) {
 			this.handleSetInputError(error, input, options);
@@ -240,8 +235,7 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	protected getAriaLabel(): string {
-		const input = this.input;
-		const inputName = input && input.getName();
+		const inputName = this.input?.getName();
 
 		let ariaLabel: string;
 		if (inputName) {
@@ -259,7 +253,10 @@ export class TextFileEditor extends BaseTextEditor {
 		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Clear Model
-		this.getControl().setModel(null);
+		const textEditor = this.getControl();
+		if (textEditor) {
+			textEditor.setModel(null);
+		}
 
 		// Pass to super
 		super.clearInput();

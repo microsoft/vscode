@@ -87,7 +87,7 @@ class NullContext extends Context {
 
 class ConfigAwareContextValuesContainer extends Context {
 
-	private static _keyPrefix = 'config.';
+	private static readonly _keyPrefix = 'config.';
 
 	private readonly _values = new Map<string, any>();
 	private readonly _listener: IDisposable;

@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -14,16 +17,34 @@ export interface IElectronService {
 
 	_serviceBrand: undefined;
 
+	// Events
+	readonly onWindowOpen: Event<number>;
+
+	readonly onWindowMaximize: Event<number>;
+	readonly onWindowUnmaximize: Event<number>;
+
+	readonly onWindowFocus: Event<number>;
+	readonly onWindowBlur: Event<number>;
+
 	// Window
-	windowCount(): Promise<number>;
-	openEmptyWindow(options?: { reuse?: boolean, remoteAuthority?: string }): Promise<void>;
+	getWindows(): Promise<IOpenedWindow[]>;
+	getWindowCount(): Promise<number>;
+	getActiveWindowId(): Promise<number | undefined>;
+
+	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(toOpen: IWindowOpenable[], options?: INativeOpenWindowOptions): Promise<void>;
+
 	toggleFullScreen(): Promise<void>;
+
 	handleTitleDoubleClick(): Promise<void>;
 
 	isMaximized(): Promise<boolean>;
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
+
+	isWindowFocused(): Promise<boolean>;
+	focusWindow(options?: { windowId?: number }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
@@ -52,8 +73,7 @@ export interface IElectronService {
 
 	// Lifecycle
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
-	reload(): Promise<void>;
-	closeWorkpsace(): Promise<void>;
+	reload(options?: { disableExtensions?: boolean }): Promise<void>;
 	closeWindow(): Promise<void>;
 	quit(): Promise<void>;
 

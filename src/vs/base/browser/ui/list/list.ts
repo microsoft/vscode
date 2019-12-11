@@ -103,15 +103,32 @@ export const ListDragOverReactions = {
 
 export interface IListDragAndDrop<T> {
 	getDragURI(element: T): string | null;
-	getDragLabel?(elements: T[]): string | undefined;
+	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined;
 	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void;
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
 	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
+	onDragEnd?(originalEvent: DragEvent): void;
 }
 
 export class ListError extends Error {
 
 	constructor(user: string, message: string) {
 		super(`ListError [${user}] ${message}`);
+	}
+}
+
+export abstract class CachedListVirtualDelegate<T extends object> implements IListVirtualDelegate<T> {
+
+	private cache = new WeakMap<T, number>();
+
+	getHeight(element: T): number {
+		return this.cache.get(element) ?? this.estimateHeight(element);
+	}
+
+	protected abstract estimateHeight(element: T): number;
+	abstract getTemplateId(element: T): string;
+
+	setDynamicHeight(element: T, height: number): void {
+		this.cache.set(element, height);
 	}
 }

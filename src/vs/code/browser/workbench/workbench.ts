@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, URI, Event, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, URI, Event, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace } from 'vs/workbench/workbench.web.api';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { request } from 'vs/base/parts/request/browser/request';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { isEqual } from 'vs/base/common/resources';
+import { isStandalone } from 'vs/base/browser/browser';
 
 interface ICredential {
 	service: string;
@@ -20,7 +23,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
 
-	private _credentials!: ICredential[];
+	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
 		if (!this._credentials) {
 			try {
@@ -101,10 +104,10 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {
 
-	static FETCH_INTERVAL = 500; 			// fetch every 500ms
-	static FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
+	static readonly FETCH_INTERVAL = 500; 			// fetch every 500ms
+	static readonly FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
 
-	static QUERY_KEYS = {
+	static readonly QUERY_KEYS = {
 		REQUEST_ID: 'vscode-requestId',
 		SCHEME: 'vscode-scheme',
 		AUTHORITY: 'vscode-authority',
@@ -197,22 +200,149 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 	}
 }
 
-const options: IWorkbenchConstructionOptions = JSON.parse(document.getElementById('vscode-workbench-web-configuration')!.getAttribute('data-settings')!);
-options.urlCallbackProvider = new PollingURLCallbackProvider();
-options.credentialsProvider = new LocalStorageCredentialsProvider();
+class WorkspaceProvider implements IWorkspaceProvider {
 
-if (options.folderUri) {
-	options.folderUri = URI.revive(options.folderUri);
+	static QUERY_PARAM_EMPTY_WINDOW = 'ew';
+	static QUERY_PARAM_FOLDER = 'folder';
+	static QUERY_PARAM_WORKSPACE = 'workspace';
+
+	static QUERY_PARAM_PAYLOAD = 'payload';
+
+	constructor(
+		public readonly workspace: IWorkspace,
+		public readonly payload: object
+	) { }
+
+	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+		if (options?.reuse && !options.payload && this.isSame(this.workspace, workspace)) {
+			return; // return early if workspace and environment is not changing and we are reusing window
+		}
+
+		const targetHref = this.createTargetUrl(workspace, options);
+		if (targetHref) {
+			if (options?.reuse) {
+				window.location.href = targetHref;
+			} else {
+				if (isStandalone) {
+					window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
+				} else {
+					window.open(targetHref);
+				}
+			}
+		}
+	}
+
+	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): string | undefined {
+
+		// Empty
+		let targetHref: string | undefined = undefined;
+		if (!workspace) {
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW}=true`;
+		}
+
+		// Folder
+		else if (isFolderToOpen(workspace)) {
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${encodeURIComponent(workspace.folderUri.toString())}`;
+		}
+
+		// Workspace
+		else if (isWorkspaceToOpen(workspace)) {
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${encodeURIComponent(workspace.workspaceUri.toString())}`;
+		}
+
+		// Append payload if any
+		if (options?.payload) {
+			targetHref += `&${WorkspaceProvider.QUERY_PARAM_PAYLOAD}=${encodeURIComponent(JSON.stringify(options.payload))}`;
+		}
+
+		return targetHref;
+	}
+
+	private isSame(workspaceA: IWorkspace, workspaceB: IWorkspace): boolean {
+		if (!workspaceA || !workspaceB) {
+			return workspaceA === workspaceB; // both empty
+		}
+
+		if (isFolderToOpen(workspaceA) && isFolderToOpen(workspaceB)) {
+			return isEqual(workspaceA.folderUri, workspaceB.folderUri); // same workspace
+		}
+
+		if (isWorkspaceToOpen(workspaceA) && isWorkspaceToOpen(workspaceB)) {
+			return isEqual(workspaceA.workspaceUri, workspaceB.workspaceUri); // same workspace
+		}
+
+		return false;
+	}
 }
 
-if (options.workspaceUri) {
-	options.workspaceUri = URI.revive(options.workspaceUri);
-}
+(function () {
 
-if (Array.isArray(options.staticExtensions)) {
-	options.staticExtensions.forEach(extension => {
-		extension.extensionLocation = URI.revive(extension.extensionLocation);
+	// Find config by checking for DOM
+	const configElement = document.getElementById('vscode-workbench-web-configuration');
+	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
+	if (!configElement || !configElementAttribute) {
+		throw new Error('Missing web configuration element');
+	}
+
+	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
+
+	// Revive static extension locations
+	if (Array.isArray(config.staticExtensions)) {
+		config.staticExtensions.forEach(extension => {
+			extension.extensionLocation = URI.revive(extension.extensionLocation);
+		});
+	}
+
+	// Find workspace to open and payload
+	let foundWorkspace = false;
+	let workspace: IWorkspace;
+	let payload = Object.create(null);
+
+	const query = new URL(document.location.href).searchParams;
+	query.forEach((value, key) => {
+		switch (key) {
+
+			// Folder
+			case WorkspaceProvider.QUERY_PARAM_FOLDER:
+				workspace = { folderUri: URI.parse(value) };
+				foundWorkspace = true;
+				break;
+
+			// Workspace
+			case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
+				workspace = { workspaceUri: URI.parse(value) };
+				foundWorkspace = true;
+				break;
+
+			// Empty
+			case WorkspaceProvider.QUERY_PARAM_EMPTY_WINDOW:
+				workspace = undefined;
+				foundWorkspace = true;
+				break;
+
+			// Payload
+			case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
+				payload = JSON.parse(value);
+				break;
+		}
 	});
-}
 
-create(document.body, options);
+	// If no workspace is provided through the URL, check for config attribute from server
+	if (!foundWorkspace) {
+		if (config.folderUri) {
+			workspace = { folderUri: URI.revive(config.folderUri) };
+		} else if (config.workspaceUri) {
+			workspace = { workspaceUri: URI.revive(config.workspaceUri) };
+		} else {
+			workspace = undefined;
+		}
+	}
+
+	// Finally create workbench
+	create(document.body, {
+		...config,
+		workspaceProvider: new WorkspaceProvider(workspace, payload),
+		urlCallbackProvider: new PollingURLCallbackProvider(),
+		credentialsProvider: new LocalStorageCredentialsProvider()
+	});
+})();

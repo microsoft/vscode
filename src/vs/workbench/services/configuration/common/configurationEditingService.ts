@@ -158,7 +158,7 @@ export class ConfigurationEditingService {
 	writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
 		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
-			.then(() => null,
+			.then(() => { },
 				error => {
 					if (!options.donotNotifyError) {
 						this.onError(error, operation, options.scopes);
@@ -409,7 +409,7 @@ export class ConfigurationEditingService {
 			return false;
 		}
 		const parseErrors: json.ParseError[] = [];
-		json.parse(model.getValue(), parseErrors);
+		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true, allowEmptyContent: true });
 		return parseErrors.length > 0;
 	}
 
@@ -428,11 +428,6 @@ export class ConfigurationEditingService {
 			if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
 				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
 			}
-
-			// Workspace tasks are not supported
-			if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && operation.target === EditableConfigurationTarget.WORKSPACE) {
-				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET, target, operation);
-			}
 		}
 
 		// Target cannot be workspace or folder if no workspace opened
@@ -441,7 +436,7 @@ export class ConfigurationEditingService {
 		}
 
 		if (target === EditableConfigurationTarget.WORKSPACE) {
-			if (!operation.workspaceStandAloneConfigurationKey) {
+			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 				if (configurationProperties[operation.key].scope === ConfigurationScope.APPLICATION) {
 					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
@@ -457,7 +452,7 @@ export class ConfigurationEditingService {
 				return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET, target, operation);
 			}
 
-			if (!operation.workspaceStandAloneConfigurationKey) {
+			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 				if (configurationProperties[operation.key].scope !== ConfigurationScope.RESOURCE) {
 					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION, target, operation);

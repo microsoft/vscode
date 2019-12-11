@@ -187,4 +187,28 @@ suite('RPCProtocol', () => {
 			done(null);
 		});
 	});
+
+	test('issue #72798: null errors are hard to digest', function (done) {
+		delegate = (a1: number, a2: number) => {
+			throw { 'what': 'what' };
+		};
+		bProxy.$m(4, 1).then((res) => {
+			assert.fail('unexpected');
+			done(null);
+		}, (err) => {
+			assert.equal(err.what, 'what');
+			done(null);
+		});
+	});
+
+	test('undefined arguments arrive as null', function () {
+		delegate = (a1: any, a2: any) => {
+			assert.equal(typeof a1, 'undefined');
+			assert.equal(a2, null);
+			return 7;
+		};
+		return bProxy.$m(undefined, null).then((res) => {
+			assert.equal(res, 7);
+		});
+	});
 });

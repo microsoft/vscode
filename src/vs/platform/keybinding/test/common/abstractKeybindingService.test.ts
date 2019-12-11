@@ -87,6 +87,10 @@ suite('AbstractKeybindingService', () => {
 		public _dumpDebugInfoJSON(): string {
 			return '';
 		}
+
+		public registerSchemaContribution() {
+			// noop
+		}
 	}
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
@@ -159,7 +163,8 @@ suite('AbstractKeybindingService', () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
-				}
+				},
+				setFilter() { }
 			};
 
 			let resolver = new KeybindingResolver(items, []);

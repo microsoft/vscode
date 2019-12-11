@@ -12,12 +12,14 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { endsWith } from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
+import { Emitter } from 'vs/base/common/event';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
 
 export class SimpleReplElement implements IReplElement {
 	constructor(
+		public session: IDebugSession,
 		private id: string,
 		public value: string,
 		public severity: severity,
@@ -96,8 +98,21 @@ export class ReplEvaluationInput implements IReplElement {
 }
 
 export class ReplEvaluationResult extends ExpressionContainer implements IReplElement {
+	private _available = true;
+
+	get available(): boolean {
+		return this._available;
+	}
+
 	constructor() {
 		super(undefined, undefined, 0, generateUuid());
+	}
+
+	async evaluateExpression(expression: string, session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<boolean> {
+		const result = await super.evaluateExpression(expression, session, stackFrame, context);
+		this._available = result;
+
+		return result;
 	}
 
 	toString(): string {
@@ -107,6 +122,8 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 
 export class ReplModel {
 	private replElements: IReplElement[] = [];
+	private readonly _onDidChangeElements = new Emitter<void>();
+	readonly onDidChangeElements = this._onDidChangeElements.event;
 
 	getReplElements(): IReplElement[] {
 		return this.replElements;
@@ -119,12 +136,12 @@ export class ReplModel {
 		this.addReplElement(result);
 	}
 
-	appendToRepl(data: string | IExpression, sev: severity, source?: IReplElementSource): void {
+	appendToRepl(session: IDebugSession, data: string | IExpression, sev: severity, source?: IReplElementSource): void {
 		const clearAnsiSequence = '\u001b[2J';
 		if (typeof data === 'string' && data.indexOf(clearAnsiSequence) >= 0) {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
 			this.removeReplExpressions();
-			this.appendToRepl(nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
+			this.appendToRepl(session, nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
 			data = data.substr(data.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
 		}
 
@@ -132,8 +149,9 @@ export class ReplModel {
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
 			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !endsWith(previousElement.value, '\n') && !endsWith(previousElement.value, '\r\n')) {
 				previousElement.value += data;
+				this._onDidChangeElements.fire();
 			} else {
-				const element = new SimpleReplElement(`topReplElement:${topReplElementCounter++}`, data, sev, source);
+				const element = new SimpleReplElement(session, `topReplElement:${topReplElementCounter++}`, data, sev, source);
 				this.addReplElement(element);
 			}
 		} else {
@@ -149,6 +167,7 @@ export class ReplModel {
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
 		}
+		this._onDidChangeElements.fire();
 	}
 
 	logToRepl(session: IDebugSession, sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
@@ -185,12 +204,12 @@ export class ReplModel {
 
 				// flush any existing simple values logged
 				if (simpleVals.length) {
-					this.appendToRepl(simpleVals.join(' '), sev, source);
+					this.appendToRepl(session, simpleVals.join(' '), sev, source);
 					simpleVals = [];
 				}
 
 				// show object
-				this.appendToRepl(new RawObjectReplElement(`topReplElement:${topReplElementCounter++}`, (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
+				this.appendToRepl(session, new RawObjectReplElement(`topReplElement:${topReplElementCounter++}`, (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
 			}
 
 			// string: watch out for % replacement directive
@@ -220,13 +239,14 @@ export class ReplModel {
 		// flush simple values
 		// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
 		if (simpleVals.length) {
-			this.appendToRepl(simpleVals.join(' ') + '\n', sev, source);
+			this.appendToRepl(session, simpleVals.join(' ') + '\n', sev, source);
 		}
 	}
 
 	removeReplExpressions(): void {
 		if (this.replElements.length > 0) {
 			this.replElements = [];
+			this._onDidChangeElements.fire();
 		}
 	}
 }

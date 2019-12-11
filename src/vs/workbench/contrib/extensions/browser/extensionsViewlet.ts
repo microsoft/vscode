@@ -18,16 +18,16 @@ import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey, CloseExtensionDetailsOnViewChangeKey, VIEW_CONTAINER } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey, CloseExtensionDetailsOnViewChangeKey, VIEW_CONTAINER } from '../common/extensions';
 import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
-	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction, ShowSyncedExtensionsAction
+	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView, ServerExtensionsView, DefaultRecommendedExtensionsView, SyncedExtensionsView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
+import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView, ServerExtensionsView, DefaultRecommendedExtensionsView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { OpenGlobalSettingsAction } from 'vs/workbench/contrib/preferences/browser/preferencesActions';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -46,7 +46,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
-import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ViewPane, ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -54,11 +54,10 @@ import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MementoObject } from 'vs/workbench/common/memento';
-import { SyncStatus, CONTEXT_SYNC_STATE } from 'vs/platform/userDataSync/common/userDataSync';
+import { Viewlet } from 'vs/workbench/browser/viewlet';
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -71,7 +70,6 @@ const HasInstalledExtensionsContext = new RawContextKey<boolean>('hasInstalledEx
 const SearchBuiltInExtensionsContext = new RawContextKey<boolean>('searchBuiltInExtensions', false);
 const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 const DefaultRecommendedExtensionsContext = new RawContextKey<boolean>('defaultRecommendedExtensions', false);
-const SyncedExtensionsContext = new RawContextKey<boolean>('syncedExtensions', false);
 const viewIdNameMappings: { [id: string]: string } = {
 	'extensions.listView': localize('marketPlace', "Marketplace"),
 	'extensions.enabledExtensionList': localize('enabledExtensions', "Enabled"),
@@ -111,7 +109,6 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		viewDescriptors.push(this.createDefaultRecommendedExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createOtherRecommendedExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createWorkspaceRecommendedExtensionsListViewDescriptor());
-		viewDescriptors.push(this.createSyncedExtensionsViewDescriptor());
 
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
 			viewDescriptors.push(...this.createExtensionsViewDescriptorsForServer(this.extensionManagementServerService.localExtensionManagementServer));
@@ -315,19 +312,25 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		};
 	}
 
-	private createSyncedExtensionsViewDescriptor(): IViewDescriptor {
-		const id = 'extensions.syncedExtensionsList';
-		return {
-			id,
-			name: viewIdNameMappings[id],
-			ctorDescriptor: { ctor: SyncedExtensionsView },
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has('config.userConfiguration.enableSync'), ContextKeyExpr.has('syncedExtensions')),
-			weight: 100
-		};
+}
+
+export class ExtensionsViewlet extends Viewlet {
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService protected storageService: IStorageService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IExtensionService protected extensionService: IExtensionService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
+		@IConfigurationService protected configurationService: IConfigurationService
+	) {
+		super(VIEWLET_ID, instantiationService.createInstance(ExtensionsViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
 	}
 }
 
-export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensionsViewlet {
+export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IExtensionsViewPaneContainer {
 
 	private readonly _onSearchChange: Emitter<string> = this._register(new Emitter<string>());
 	private readonly onSearchChange: EventOf<string> = this._onSearchChange.event;
@@ -341,7 +344,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	private hasInstalledExtensionsContextKey: IContextKey<boolean>;
 	private searchBuiltInExtensionsContextKey: IContextKey<boolean>;
 	private recommendedExtensionsContextKey: IContextKey<boolean>;
-	private syncedExtensionsContextKey: IContextKey<boolean>;
 	private defaultRecommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: Delayer<void>;
@@ -366,9 +368,9 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, { showHeaderInTitleWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 
 		this.searchDelayer = new Delayer(500);
 		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
@@ -383,7 +385,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 		this.defaultRecommendedExtensionsContextKey = DefaultRecommendedExtensionsContext.bindTo(contextKeyService);
 		this.defaultRecommendedExtensionsContextKey.set(!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey));
-		this.syncedExtensionsContextKey = SyncedExtensionsContext.bindTo(contextKeyService);
 		this._register(this.viewletService.onDidViewletOpen(this.onViewletOpen, this));
 		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE);
 
@@ -457,7 +458,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		if (this.searchBox) {
 			this.searchBox.layout({ height: 20, width: dimension.width - 34 });
 		}
-		super.layout(new Dimension(dimension.width, dimension.height - 38));
+		super.layout(new Dimension(dimension.width, dimension.height - 41));
 	}
 
 	getOptimalWidth(): number {
@@ -483,7 +484,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				this.instantiationService.createInstance(ShowBuiltInExtensionsAction, ShowBuiltInExtensionsAction.ID, ShowBuiltInExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
-				this.instantiationService.createInstance(ShowSyncedExtensionsAction, ShowSyncedExtensionsAction.ID, ShowSyncedExtensionsAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs'),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating'),
@@ -519,7 +519,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return this.searchBox ? this.searchBox.getValue().replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:') : '';
 	}
 
-	protected saveState(): void {
+	saveState(): void {
 		const value = this.searchBox ? this.searchBox.getValue() : '';
 		if (ExtensionsListView.isLocalExtensionsQuery(value)) {
 			this.searchViewletState['query.value'] = value;
@@ -531,7 +531,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private doSearch(): Promise<void> {
 		const value = this.normalizedQuery();
-		const isSyncedExtensionsQuery = ExtensionsListView.isSyncedExtensionsQuery(value);
 		const isRecommendedExtensionsQuery = ExtensionsListView.isRecommendedExtensionsQuery(value);
 		this.searchInstalledExtensionsContextKey.set(ExtensionsListView.isInstalledExtensionsQuery(value));
 		this.searchOutdatedExtensionsContextKey.set(ExtensionsListView.isOutdatedExtensionsQuery(value));
@@ -539,18 +538,17 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.searchDisabledExtensionsContextKey.set(ExtensionsListView.isDisabledExtensionsQuery(value));
 		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 		this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
-		this.syncedExtensionsContextKey.set(isSyncedExtensionsQuery);
-		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery && !isSyncedExtensionsQuery);
+		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 		this.defaultViewsContextKey.set(!value);
 
-		return this.progress(Promise.all(this.panels.map(view =>
+		return this.progress(Promise.all(this.panes.map(view =>
 			(<ExtensionsListView>view).show(this.normalizedQuery())
 				.then(model => this.alertSearchResult(model.length, view.id))
 		))).then(() => undefined);
 	}
 
-	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
+	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const addedViews = super.onDidAddViews(added);
 		this.progress(Promise.all(addedViews.map(addedView =>
 			(<ExtensionsListView>addedView).show(this.normalizedQuery())
@@ -581,12 +579,12 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private count(): number {
-		return this.panels.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
+		return this.panes.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
 	}
 
 	private focusListView(): void {
 		if (this.count() > 0) {
-			this.panels[0].focus();
+			this.panes[0].focus();
 		}
 	}
 

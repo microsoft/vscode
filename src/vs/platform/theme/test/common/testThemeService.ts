@@ -23,6 +23,14 @@ export class TestTheme implements ITheme {
 	defines(color: string): boolean {
 		throw new Error('Method not implemented.');
 	}
+
+	getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
+		return undefined;
+	}
+
+	get tokenColorMap(): string[] {
+		return [];
+	}
 }
 
 export class TestIconTheme implements IIconTheme {

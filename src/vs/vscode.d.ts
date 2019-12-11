@@ -128,7 +128,7 @@ declare module 'vscode' {
 		readonly isDirty: boolean;
 
 		/**
-		 * `true` if the document have been closed. A closed document isn't synchronized anymore
+		 * `true` if the document has been closed. A closed document isn't synchronized anymore
 		 * and won't be re-used when the same resource is opened again.
 		 */
 		readonly isClosed: boolean;
@@ -2009,8 +2009,9 @@ declare module 'vscode' {
 		/**
 		 * Base kind for source actions: `source`
 		 *
-		 * Source code actions apply to the entire file and can be run on save
-		 * using `editor.codeActionsOnSave`. They also are shown in `source` context menu.
+		 * Source code actions apply to the entire file. They must be explicitly requested and will not show in the
+		 * normal [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) menu. Source actions
+		 * can be run on save using `editor.codeActionsOnSave` and are also shown in the `source` context menu.
 		 */
 		static readonly Source: CodeActionKind;
 
@@ -2968,6 +2969,17 @@ declare module 'vscode' {
 		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
 
 		/**
+		 * Builder-function that appends a choice (`${1|a,b,c}`) to
+		 * the [`value`](#SnippetString.value) of this snippet string.
+		 *
+		 * @param values The values for choices - the array of strings
+		 * @param number The number of this tabstop, defaults to an auto-increment
+		 * value starting at 1.
+		 * @return This snippet string.
+		 */
+		appendChoice(values: string[], number?: number): SnippetString;
+
+		/**
 		 * Builder-function that appends a variable (`${VAR}`) to
 		 * the [`value`](#SnippetString.value) of this snippet string.
 		 *
@@ -3002,6 +3014,9 @@ declare module 'vscode' {
 		 * Optional function for resolving and validating a position *before* running rename. The result can
 		 * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol
 		 * which is being renamed - when omitted the text in the returned range is used.
+		 *
+		 * *Note: * This function should throw an error or return a rejected thenable when the provided location
+		 * doesn't allow for a rename.
 		 *
 		 * @param document The document in which rename will be invoked.
 		 * @param position The position at which rename will be invoked.
@@ -3878,6 +3893,149 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents programming constructs like functions or constructors in the context
+	 * of call hierarchy.
+	 */
+	export class CallHierarchyItem {
+		/**
+		 * The name of this item.
+		 */
+		name: string;
+
+		/**
+		 * The kind of this item.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * Tags for this item.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
+
+		/**
+		 * More detail for this item, e.g. the signature of a function.
+		 */
+		detail?: string;
+
+		/**
+		 * The resource identifier of this item.
+		 */
+		uri: Uri;
+
+		/**
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
+		 */
+		range: Range;
+
+		/**
+		 * The range that should be selected and revealed when this symbol is being picked, e.g. the name of a function.
+		 * Must be contained by the [`range`](#CallHierarchyItem.range).
+		 */
+		selectionRange: Range;
+
+		/**
+		 * Creates a new call hierarchy item.
+		 */
+		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
+	}
+
+	/**
+	 * Represents an incoming call, e.g. a caller of a method or constructor.
+	 */
+	export class CallHierarchyIncomingCall {
+
+		/**
+		 * The item that makes the call.
+		 */
+		from: CallHierarchyItem;
+
+		/**
+		 * The range at which at which the calls appears. This is relative to the caller
+		 * denoted by [`this.from`](#CallHierarchyIncomingCall.from).
+		 */
+		fromRanges: Range[];
+
+		/**
+		 * Create a new call object.
+		 *
+		 * @param item The item making the call.
+		 * @param fromRanges The ranges at which the calls appear.
+		 */
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
+	}
+
+	/**
+	 * Represents an outgoing call, e.g. calling a getter from a method or a method from a constructor etc.
+	 */
+	export class CallHierarchyOutgoingCall {
+
+		/**
+		 * The item that is called.
+		 */
+		to: CallHierarchyItem;
+
+		/**
+		 * The range at which this item is called. This is the range relative to the caller, e.g the item
+		 * passed to [`provideCallHierarchyOutgoingCalls`](#CallHierarchyItemProvider.provideCallHierarchyOutgoingCalls)
+		 * and not [`this.to`](#CallHierarchyOutgoingCall.to).
+		 */
+		fromRanges: Range[];
+
+		/**
+		 * Create a new call object.
+		 *
+		 * @param item The item being called
+		 * @param fromRanges The ranges at which the calls appear.
+		 */
+		constructor(item: CallHierarchyItem, fromRanges: Range[]);
+	}
+
+	/**
+	 * The call hierarchy provider interface describes the constract between extensions
+	 * and the call hierarchy feature which allows to browse calls and caller of function,
+	 * methods, constructor etc.
+	 */
+	export interface CallHierarchyProvider {
+
+		/**
+		 * Bootstraps call hierarchy by returning the item that is denoted by the given document
+		 * and position. This item will be used as entry into the call graph. Providers should
+		 * return `undefined` or `null` when there is no item at the given location.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @returns A call hierarchy item or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+
+		/**
+		 * Provide all incoming calls for an item, e.g all callers for a method. In graph terms this describes directed
+		 * and annotated edges inside the call graph, e.g the given item is the starting node and the result is the nodes
+		 * that can be reached.
+		 *
+		 * @param item The hierarchy item for which incoming calls should be computed.
+		 * @param token A cancellation token.
+		 * @returns A set of incoming calls or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideCallHierarchyIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
+
+		/**
+		 * Provide all outgoing calls for an item, e.g call calls to functions, methods, or constructors from the given item. In
+		 * graph terms this describes directed and annotated edges inside the call graph, e.g the given item is the starting
+		 * node and the result is the nodes that can be reached.
+		 *
+		 * @param item The hierarchy item for which outgoing calls should be computed.
+		 * @param token A cancellation token.
+		 * @returns A set of outgoing calls or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideCallHierarchyOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+	}
+
+	/**
 	 * A tuple of two characters, like a pair of
 	 * opening and closing brackets.
 	 */
@@ -4080,11 +4238,11 @@ declare module 'vscode' {
 	 * - Workspace configuration (if available)
 	 * - Workspace folder configuration of the requested resource (if available)
 	 *
-	 * *Global configuration* comes from User Settings and shadows Defaults.
+	 * *Global configuration* comes from User Settings and overrides Defaults.
 	 *
-	 * *Workspace configuration* comes from Workspace Settings and shadows Global configuration.
+	 * *Workspace configuration* comes from Workspace Settings and overrides Global configuration.
 	 *
-	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders).
+	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders) and overrides Workspace configuration.
 	 *
 	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
@@ -4133,9 +4291,9 @@ declare module 'vscode' {
 		 * a workspace-specific value and a folder-specific value.
 		 *
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
-		 * is computed like this: `defaultValue` overwritten by `globalValue`,
-		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `workspaceFolderValue`.
-		 * Refer to [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings)
+		 * is computed like this: `defaultValue` overridden by `globalValue`,
+		 * `globalValue` overridden by `workspaceValue`. `workspaceValue` overwridden by `workspaceFolderValue`.
+		 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
@@ -4624,7 +4782,7 @@ declare module 'vscode' {
 		 *
 		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
 		 *
-		 * Where the icon-name is taken from the [octicon](https://octicons.github.com) icon set, e.g.
+		 * Where the icon-name is taken from the [codicon](https://microsoft.github.io/vscode-codicons/dist/codicon.html) icon set, e.g.
 		 * `light-bulb`, `thumbsup`, `zap` etc.
 		 */
 		text: string;
@@ -4688,7 +4846,7 @@ declare module 'vscode' {
 		/**
 		 * The process ID of the shell process.
 		 */
-		readonly processId: Thenable<number>;
+		readonly processId: Thenable<number | undefined>;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
@@ -4766,8 +4924,8 @@ declare module 'vscode' {
 		/**
 		 * The extension kind describes if an extension runs where the UI runs
 		 * or if an extension runs where the remote extension host runs. The extension kind
-		 * if defined in the `package.json` file of extensions but can also be refined
-		 * via the the `remote.extensionKind`-setting. When no remote extension host exists,
+		 * is defined in the `package.json`-file of extensions but can also be refined
+		 * via the `remote.extensionKind`-setting. When no remote extension host exists,
 		 * the value is [`ExtensionKind.UI`](#ExtensionKind.UI).
 		 */
 		extensionKind: ExtensionKind;
@@ -5222,7 +5380,7 @@ declare module 'vscode' {
 		/**
 		 * The shell command line. Is `undefined` if created with a command and arguments.
 		 */
-		commandLine: string;
+		commandLine: string | undefined;
 
 		/**
 		 * The shell command. Is `undefined` if created with a full command line.
@@ -5239,6 +5397,22 @@ declare module 'vscode' {
 		 * Defaults to undefined.
 		 */
 		options?: ShellExecutionOptions;
+	}
+
+	/**
+	 * Class used to execute an extension callback as a task.
+	 */
+	export class CustomExecution {
+		/**
+		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
+		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
+		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
+		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
+		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
+		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
+		 * @param callback The callback that will be called when the task is started by a user.
+		 */
+		constructor(callback: () => Thenable<Pseudoterminal>);
 	}
 
 	/**
@@ -5283,7 +5457,7 @@ declare module 'vscode' {
 		 *  or '$eslint'. Problem matchers can be contributed by an extension using
 		 *  the `problemMatchers` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
 		 * ~~Creates a new task.~~
@@ -5318,7 +5492,7 @@ declare module 'vscode' {
 		/**
 		 * The task's execution engine
 		 */
-		execution?: ProcessExecution | ShellExecution;
+		execution?: ProcessExecution | ShellExecution | CustomExecution;
 
 		/**
 		 * Whether the task is a background task or not.
@@ -5573,10 +5747,18 @@ declare module 'vscode' {
 		ctime: number;
 		/**
 		 * The modification timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+		 *
+		 * *Note:* If the file changed, it is important to provide an updated `mtime` that advanced
+		 * from the previous value. Otherwise there may be optimizations in place that will not show
+		 * the updated file contents in an editor for example.
 		 */
 		mtime: number;
 		/**
 		 * The size in bytes.
+		 *
+		 * *Note:* If the file changed, it is important to provide an updated `size`. Otherwise there
+		 * may be optimizations in place that will not show the updated file contents in an editor for
+		 * example.
 		 */
 		size: number;
 	}
@@ -5690,6 +5872,11 @@ declare module 'vscode' {
 		 * An event to signal that a resource has been created, changed, or deleted. This
 		 * event should fire for resources that are being [watched](#FileSystemProvider.watch)
 		 * by clients of this provider.
+		 *
+		 * *Note:* It is important that the metadata of the file that changed provides an
+		 * updated `mtime` that advanced from the previous value in the [stat](#FileStat) and a
+		 * correct `size` value. Otherwise there may be optimizations in place that will not show
+		 * the change in an editor for example.
 		 */
 		readonly onDidChangeFile: Event<FileChangeEvent[]>;
 
@@ -5826,6 +6013,9 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new directory (Note, that new files are created via `write`-calls).
+		 *
+		 * *Note* that missing directories are created automatically, e.g this call has
+		 * `mkdirp` semantics.
 		 *
 		 * @param uri The uri of the new folder.
 		 */
@@ -6178,6 +6368,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Possible kinds of UI that can use extensions.
+	 */
+	export enum UIKind {
+
+		/**
+		 * Extensions are accessed from a desktop application.
+		 */
+		Desktop = 1,
+
+		/**
+		 * Extensions are accessed from a web browser.
+		 */
+		Web = 2
+	}
+
+	/**
 	 * Namespace describing the environment the editor runs in.
 	 */
 	export namespace env {
@@ -6236,8 +6442,18 @@ declare module 'vscode' {
 		export const shell: string;
 
 		/**
-		 * Opens an *external* item, e.g. a http(s) or mailto-link, using the
-		 * default application.
+		 * The UI kind property indicates from which UI extensions
+		 * are accessed from. For example, extensions could be accessed
+		 * from a desktop application or a web browser.
+		 */
+		export const uiKind: UIKind;
+
+		/**
+		 * Opens a link externally using the default application. Depending on the
+		 * used scheme this can be:
+		 * * a browser (`http:`, `https:`)
+		 * * a mail client (`mailto:`)
+		 * * VSCode itself (`vscode:` from `vscode.env.uriScheme`)
 		 *
 		 * *Note* that [`showTextDocument`](#window.showTextDocument) is the right
 		 * way to open a text document inside the editor, not this function.
@@ -6246,6 +6462,57 @@ declare module 'vscode' {
 		 * @returns A promise indicating if open was successful.
 		 */
 		export function openExternal(target: Uri): Thenable<boolean>;
+
+		/**
+		 * Resolves a uri to form that is accessible externally. Currently only supports `https:`, `http:` and
+		 * `vscode.env.uriScheme` uris.
+		 *
+		 * #### `http:` or `https:` scheme
+		 *
+		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
+		 * uri to the same resource on the client machine.
+		 *
+		 * This is a no-op if the extension is running on the client machine.
+		 *
+		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
+		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
+		 * the port fowarding tunnel is managed by VS Code and the tunnel can be closed by the user.
+		 *
+		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri` on them.
+		 *
+		 * #### `vscode.env.uriScheme`
+		 *
+		 * Creates a uri that - if opened in a browser (e.g. via `openExternal`) - will result in a registered [UriHandler](#UriHandler)
+		 * to trigger.
+		 *
+		 * Extensions should not make any assumptions about the resulting uri and should not alter it in anyway.
+		 * Rather, extensions can e.g. use this uri in an authentication flow, by adding the uri as callback query
+		 * argument to the server to authenticate to.
+		 *
+		 * *Note* that if the server decides to add additional query parameters to the uri (e.g. a token or secret), it
+		 * will appear in the uri that is passed to the [UriHandler](#UriHandler).
+		 *
+		 * **Example** of an authentication flow:
+		 * ```typescript
+		 * vscode.window.registerUriHandler({
+		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
+		 *     if (uri.path === '/did-authenticate') {
+		 *       console.log(uri.toString());
+		 *     }
+		 *   }
+		 * });
+		 *
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
+		 * await vscode.env.openExternal(callableUri);
+		 * ```
+		 *
+		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
+		 * `asExternalUri`.
+		 *
+		 * @return A uri that can be used on the client machine.
+		 */
+		export function asExternalUri(target: Uri): Thenable<Uri>;
 	}
 
 	/**
@@ -6333,7 +6600,7 @@ declare module 'vscode' {
 		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
 
 		/**
-		 * Retrieve the list of all available commands. Commands starting an underscore are
+		 * Retrieve the list of all available commands. Commands starting with an underscore are
 		 * treated as internal commands.
 		 *
 		 * @param filterInternal Set `true` to not see internal commands (starting with an underscore)
@@ -7016,8 +7283,15 @@ declare module 'vscode' {
 
 		/**
 		 * An optional human-readable message that will be rendered in the view.
+		 * Setting the message to null, undefined, or empty string will remove the message from the view.
 		 */
 		message?: string;
+
+		/**
+		 * The tree view title is initially taken from the extension package.json
+		 * Changes to the title property will be properly reflected in the UI in the title of the view.
+		 */
+		title?: string;
 
 		/**
 		 * Reveals the given element in the tree view.
@@ -7247,6 +7521,9 @@ declare module 'vscode' {
 		 * [Terminal.sendText](#Terminal.sendText) which sends text to the underlying _process_
 		 * (the pty "slave"), this will write the text to the terminal itself (the pty "master").
 		 *
+		 * Note writing `\n` will just move the cursor down 1 row, you need to write `\r` as well
+		 * to move the cursor to the left-most cell.
+		 *
 		 * **Example:** Write red text to the terminal
 		 * ```typescript
 		 * const writeEmitter = new vscode.EventEmitter<string>();
@@ -7297,7 +7574,7 @@ declare module 'vscode' {
 		 * A number can be used to provide an exit code for the terminal. Exit codes must be
 		 * positive and a non-zero exit codes signals failure which shows a notification for a
 		 * regular terminal and allows dependent tasks to proceed when used with the
-		 * `CustomExecution2` API.
+		 * `CustomExecution` API.
 		 *
 		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
 		 * ```typescript
@@ -7808,6 +8085,172 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An event that is fired when files are going to be created.
+	 *
+	 * To make modifications to the workspace before the files are created,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillCreateEvent {
+
+		/**
+		 * The files that are going to be created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	/**
+	 * An event that is fired after files are created.
+	 */
+	export interface FileCreateEvent {
+
+		/**
+		 * The files that got created.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+	}
+
+	/**
+	 * An event that is fired when files are going to be deleted.
+	 *
+	 * To make modifications to the workspace before the files are deleted,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillDeleteEvent {
+
+		/**
+		 * The files that are going to be deleted.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	/**
+	 * An event that is fired after files are deleted.
+	 */
+	export interface FileDeleteEvent {
+
+		/**
+		 * The files that got deleted.
+		 */
+		readonly files: ReadonlyArray<Uri>;
+	}
+
+	/**
+	 * An event that is fired when files are going to be renamed.
+	 *
+	 * To make modifications to the workspace before the files are renamed,
+	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
+	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
+	 */
+	export interface FileWillRenameEvent {
+
+		/**
+		 * The files that are going to be renamed.
+		 */
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+
+		/**
+		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillCreateFiles(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event until the provided thenable resolves.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
+	/**
+	 * An event that is fired after files are renamed.
+	 */
+	export interface FileRenameEvent {
+
+		/**
+		 * The files that got renamed.
+		 */
+		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+	}
+
+
+	/**
 	 * An event describing a change to the set of [workspace folders](#workspace.workspaceFolders).
 	 */
 	export interface WorkspaceFoldersChangeEvent {
@@ -8038,8 +8481,8 @@ declare module 'vscode' {
 		 *
 		 * All changes of a workspace edit are applied in the same order in which they have been added. If
 		 * multiple textual inserts are made at the same position, these strings appear in the resulting text
-		 * in the order the 'inserts' were made. Invalid sequences like 'delete file a' -> 'insert text in file a'
-		 * cause failure of the operation.
+		 * in the order the 'inserts' were made, unless that are interleaved with resource edits. Invalid sequences
+		 * like 'delete file a' -> 'insert text in file a' cause failure of the operation.
 		 *
 		 * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
 		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consecutive edits will
@@ -8155,6 +8598,76 @@ declare module 'vscode' {
 		 * An event that is emitted when a [text document](#TextDocument) is saved to disk.
 		 */
 		export const onDidSaveTextDocument: Event<TextDocument>;
+
+		/**
+		 * An event that is emitted when files are being created.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When this event is fired, edits to files thare are being created cannot be applied.
+		 */
+		export const onWillCreateFiles: Event<FileWillCreateEvent>;
+
+		/**
+		 * An event that is emitted when files have been created.
+		 *
+		 * *Note:* This event is triggered by user gestures, like creating a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 */
+		export const onDidCreateFiles: Event<FileCreateEvent>;
+
+		/**
+		 * An event that is emitted when files are being deleted.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When deleting a folder with children only one event is fired.
+		 */
+		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
+
+		/**
+		 * An event that is emitted when files have been deleted.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
+		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When deleting a folder with children only one event is fired.
+		 */
+		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+
+		/**
+		 * An event that is emitted when files are being renamed.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
+		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When renaming a folder with children only one event is fired.
+		 */
+		export const onWillRenameFiles: Event<FileWillRenameEvent>;
+
+		/**
+		 * An event that is emitted when files have been renamed.
+		 *
+		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
+		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
+		 * files change on disk, e.g triggered by another application, or when using the
+		 * [`workspace.fs`](#FileSystem)-api.
+		 *
+		 * *Note 2:* When renaming a folder with children only one event is fired.
+		 */
+		export const onDidRenameFiles: Event<FileRenameEvent>;
 
 		/**
 		 * Get a workspace configuration object.
@@ -8627,6 +9140,15 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerSelectionRangeProvider(selector: DocumentSelector, provider: SelectionRangeProvider): Disposable;
+
+		/**
+		 * Register a call hierarchy provider.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A call hierarchy provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyProvider): Disposable;
 
 		/**
 		 * Set a [language configuration](#LanguageConfiguration) for a language.
@@ -9218,6 +9740,48 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Debug console mode used by debug session, see [options](#DebugSessionOptions).
+	 */
+	export enum DebugConsoleMode {
+		/**
+		 * Debug session should have a separate debug console.
+		 */
+		Separate = 0,
+
+		/**
+		 * Debug session should share debug console with its parent session.
+		 * This value has no effect for sessions which do not have a parent session.
+		 */
+		MergeWithParent = 1
+	}
+
+	/**
+	 * Options for [starting a debug session](#debug.startDebugging).
+	 */
+	export interface DebugSessionOptions {
+
+		/**
+		 * When specified the newly created debug session is registered as a "child" session of this
+		 * "parent" debug session.
+		 */
+		parentSession?: DebugSession;
+
+		/**
+		 * Controls whether this session should have a separate debug console or share it
+		 * with the parent session. Has no effect for sessions which do not have a parent session.
+		 * Defaults to Separate.
+		 */
+		consoleMode?: DebugConsoleMode;
+	}
+
+	/**
+	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolSource {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+	}
+
+	/**
 	 * Namespace for debug functionality.
 	 */
 	export namespace debug {
@@ -9307,10 +9871,10 @@ declare module 'vscode' {
 		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
 		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
 		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @param parent If specified the newly created debug session is registered as a "child" session of a "parent" debug session.
+		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSession?: DebugSession): Thenable<boolean>;
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
 
 		/**
 		 * Add breakpoints.
@@ -9323,6 +9887,19 @@ declare module 'vscode' {
 		 * @param breakpoints The breakpoints to remove.
 		 */
 		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
+
+		/**
+		 * Converts a "Source" descriptor object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
+		 * If the source descriptor is based on a path, a file Uri is returned.
+		 * If the source descriptor uses a reference number, a specific debug Uri (scheme 'debug') is constructed that requires a corresponding VS Code ContentProvider and a running debug session
+		 *
+		 * If the "Source" descriptor has insufficient information for creating the Uri, an error is thrown.
+		 *
+		 * @param source An object conforming to the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+		 * @param session An optional debug session that will be used when the source descriptor uses a reference number to load the contents from an active debug session.
+		 * @return A uri that can be used to load the contents of the source.
+		 */
+		export function asDebugSourceUri(source: DebugProtocolSource, session?: DebugSession): Uri;
 	}
 
 	/**
