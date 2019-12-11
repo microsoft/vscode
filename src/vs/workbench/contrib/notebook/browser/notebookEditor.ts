@@ -45,6 +45,7 @@ class ViewCell {
 	private _textModel: ITextModel | null = null;
 	private _mdRenderer: marked.Renderer | null = null;
 	private _html: string | null = null;
+	private _dynamicHeight: number | null = null;
 
 	get cellType() {
 		return this.cell.cell_type;
@@ -68,10 +69,22 @@ class ViewCell {
 	}
 
 	hasDynamicHeight() {
+		if (this._dynamicHeight !== null) {
+			return false;
+		}
+
 		return true;
 	}
 
+	setDynamicHeight(height: number) {
+		this._dynamicHeight = height;
+	}
+
 	getHeight(lineHeight: number) {
+		if (this._dynamicHeight) {
+			return this._dynamicHeight;
+		}
+
 		if (this.cellType === 'markdown') {
 			return 100;
 		} else {
@@ -398,18 +411,22 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				templateData.outputContainer?.appendChild(outputNode);
 			}
 
-			if (hasDynamicHeight && height !== undefined) {
+			if (element.hasDynamicHeight() && height !== undefined) {
 				let dimensions = DOM.getClientArea(templateData.outputContainer!);
 				const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
 					if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
 						let height = elementSizeObserver.getHeight();
 						if (dimensions.height !== height) {
+							element.setDynamicHeight(totalHeight + 32 + height);
 							this.handler.layoutElement(element, totalHeight + 32 + height);
 						}
 					}
 				});
 				elementSizeObserver.startObserving();
-				this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
+				if (!hasDynamicHeight && dimensions.height !== 0) {
+					element.setDynamicHeight(totalHeight + 32 + dimensions.height);
+					this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
+				}
 
 				this.disposables.set(templateData.outputContainer!, {
 					dispose: () => {
@@ -560,8 +577,13 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	}
 
 	layoutElement(cell: ViewCell, height: number) {
-		let index = this.model!.getNookbook().cells.indexOf(cell.cell);
-		this.list?.updateDynamicHeight(index, cell, height);
+		setTimeout(() => {
+			// list.splice -> renderElement -> resize -> layoutElement
+			// above flow will actually break how list view renders it self as it messes up with the internal state
+			// instead we run the layout update in next tick
+			let index = this.model!.getNookbook().cells.indexOf(cell.cell);
+			this.list?.updateDynamicHeight(index, cell, height);
+		}, 0);
 	}
 
 	insertEmptyNotebookCell(cell: ViewCell, direction: 'above' | 'below') {
