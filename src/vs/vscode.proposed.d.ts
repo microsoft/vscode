@@ -37,12 +37,11 @@ declare module 'vscode' {
 		remote: { port: number, host: string };
 		localPort?: number;
 		name?: string;
-		closeable?: boolean;
 	}
 
 	export interface Tunnel extends Disposable {
 		remote: { port: number, host: string };
-		local: { port: number, host: string };
+		localAddress: string;
 	}
 
 	/**
@@ -54,7 +53,7 @@ declare module 'vscode' {
 		 * The localAddress should be the complete local address(ex. localhost:1234) for connecting to the port. Tunnels provided through
 		 * detected are read-only from the forwarded ports UI.
 		 */
-		detectedTunnels?: { remotePort: number, localAddress: string }[];
+		detectedTunnels?: { remote: { port: number, host: string }, localAddress: string }[];
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -78,7 +77,7 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * Forwards a port.
+		 * Forwards a port. Currently only works for a remote host of localhost.
 		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
 		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;

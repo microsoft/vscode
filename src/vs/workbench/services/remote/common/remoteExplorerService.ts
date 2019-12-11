@@ -10,7 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 
@@ -63,7 +63,8 @@ export class TunnelModel extends Disposable {
 				this.forwarded.set(tunnel.tunnelRemotePort, {
 					remote: tunnel.tunnelRemotePort,
 					localAddress: tunnel.localAddress,
-					local: tunnel.tunnelLocalPort
+					local: tunnel.tunnelLocalPort,
+					closeable: true
 				});
 			}
 			this._onForwardPort.fire(this.forwarded.get(tunnel.tunnelRemotePort)!);
@@ -76,7 +77,7 @@ export class TunnelModel extends Disposable {
 		}));
 	}
 
-	async forward(remote: number, local?: number, name?: string): Promise<void> {
+	async forward(remote: number, local?: number, name?: string): Promise<RemoteTunnel | void> {
 		if (!this.forwarded.has(remote)) {
 			const tunnel = await this.tunnelService.openTunnel(remote, local);
 			if (tunnel && tunnel.localAddress) {
@@ -89,6 +90,7 @@ export class TunnelModel extends Disposable {
 				};
 				this.forwarded.set(remote, newForward);
 				this._onForwardPort.fire(newForward);
+				return tunnel;
 			}
 		}
 	}

@@ -47,6 +47,7 @@ import { createExtHostContextProxyIdentifier as createExtId, createMainContextPr
 import * as search from 'vs/workbench/services/search/common/search';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { TunnelOptions, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -776,6 +777,11 @@ export interface MainThreadWindowShape extends IDisposable {
 	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
 }
 
+export interface MainThreadTunnelServiceShape extends IDisposable {
+	$openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined>;
+	$closeTunnel(remotePort: number): Promise<void>;
+}
+
 // -- extension host
 
 export interface ExtHostCommandsShape {
@@ -1435,7 +1441,8 @@ export const MainContext = {
 	MainThreadSearch: createMainId<MainThreadSearchShape>('MainThreadSearch'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
-	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService')
+	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService'),
+	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService')
 };
 
 export const ExtHostContext = {
