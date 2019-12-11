@@ -12,7 +12,7 @@ const SEARCH_RESULT_SELECTOR = { language: 'search-result' };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
 const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
 
-let cachedLastParse: { version: number, parse: ParsedSearchResults } | undefined;
+let cachedLastParse: { version: number, parse: ParsedSearchResults, uri: vscode.Uri } | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
@@ -136,7 +136,7 @@ const isFileLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line i
 
 function parseSearchResults(document: vscode.TextDocument, token: vscode.CancellationToken): ParsedSearchResults {
 
-	if (cachedLastParse && cachedLastParse.version === document.version) {
+	if (cachedLastParse && cachedLastParse.uri === document.uri && cachedLastParse.version === document.version) {
 		return cachedLastParse.parse;
 	}
 
@@ -192,7 +192,8 @@ function parseSearchResults(document: vscode.TextDocument, token: vscode.Cancell
 
 	cachedLastParse = {
 		version: document.version,
-		parse: links
+		parse: links,
+		uri: document.uri
 	};
 
 	return links;
