@@ -380,6 +380,7 @@ declare namespace monaco {
 	export interface IMarkdownString {
 		readonly value: string;
 		readonly isTrusted?: boolean;
+		readonly supportThemeIcons?: boolean;
 		uris?: {
 			[href: string]: UriComponents;
 		};
@@ -4524,7 +4525,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeActionList | Promise<CodeActionList>;
+		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
 	}
 
 	/**

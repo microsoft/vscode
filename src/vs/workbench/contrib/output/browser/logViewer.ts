@@ -14,7 +14,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { LOG_SCHEME, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
+import { LOG_SCHEME } from 'vs/workbench/contrib/output/common/output';
+import { IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
