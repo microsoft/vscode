@@ -128,45 +128,40 @@ export class Configuration extends BaseConfiguration {
 	}
 
 	compareAndUpdateLocalUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
-		const { added, updated, removed } = compare(this.localUserConfiguration, user);
-		let changedKeys = [...added, ...updated, ...removed];
-		if (changedKeys.length) {
+		const { added, updated, removed, overrides } = compare(this.localUserConfiguration, user);
+		const keys = [...added, ...updated, ...removed];
+		if (keys.length) {
 			super.updateLocalUserConfiguration(user);
 		}
-		return new ConfigurationChangeEvent().change(changedKeys);
+		return new ConfigurationChangeEvent().change({ keys, overrides });
 	}
 
 	compareAndUpdateRemoteUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
-		const { added, updated, removed } = compare(this.remoteUserConfiguration, user);
-		let changedKeys = [...added, ...updated, ...removed];
-		if (changedKeys.length) {
+		const { added, updated, removed, overrides } = compare(this.remoteUserConfiguration, user);
+		let keys = [...added, ...updated, ...removed];
+		if (keys.length) {
 			super.updateRemoteUserConfiguration(user);
 		}
-		return new ConfigurationChangeEvent().change(changedKeys);
+		return new ConfigurationChangeEvent().change({ keys, overrides });
 	}
 
 	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): ConfigurationChangeEvent {
-		const { added, updated, removed } = compare(this.workspaceConfiguration, workspaceConfiguration);
-		let changedKeys = [...added, ...updated, ...removed];
-		if (changedKeys.length) {
+		const { added, updated, removed, overrides } = compare(this.workspaceConfiguration, workspaceConfiguration);
+		let keys = [...added, ...updated, ...removed];
+		if (keys.length) {
 			super.updateWorkspaceConfiguration(workspaceConfiguration);
 		}
-		return new ConfigurationChangeEvent().change(changedKeys);
+		return new ConfigurationChangeEvent().change({ keys, overrides });
 	}
 
 	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): ConfigurationChangeEvent {
 		const currentFolderConfiguration = this.folderConfigurations.get(resource);
-		if (currentFolderConfiguration) {
-			const { added, updated, removed } = compare(currentFolderConfiguration, folderConfiguration);
-			let changedKeys = [...added, ...updated, ...removed];
-			if (changedKeys.length) {
-				super.updateFolderConfiguration(resource, folderConfiguration);
-			}
-			return new ConfigurationChangeEvent().change(changedKeys, resource);
-		} else {
+		const { added, updated, removed, overrides } = compare(currentFolderConfiguration, folderConfiguration);
+		let keys = [...added, ...updated, ...removed];
+		if (keys.length) {
 			super.updateFolderConfiguration(resource, folderConfiguration);
-			return new ConfigurationChangeEvent().change(folderConfiguration.keys, resource);
 		}
+		return new ConfigurationChangeEvent().change({ keys, overrides }, resource);
 	}
 
 	compareAndDeleteFolderConfiguration(folder: URI): ConfigurationChangeEvent {
@@ -178,9 +173,9 @@ export class Configuration extends BaseConfiguration {
 		if (!folderConfig) {
 			throw new Error('Unknown folder');
 		}
-		const keys = folderConfig.keys;
 		super.deleteFolderConfiguration(folder);
-		return new ConfigurationChangeEvent().change(keys, folder);
+		const { added, updated, removed, overrides } = compare(folderConfig, undefined);
+		return new ConfigurationChangeEvent().change({ keys: [...added, ...updated, ...removed], overrides }, folder);
 	}
 
 	compare(other: Configuration): string[] {
@@ -208,7 +203,8 @@ export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChange
 	get changedConfiguration(): ConfigurationModel {
 		if (!this._changedConfiguration) {
 			this._changedConfiguration = new ConfigurationModel();
-			this.updateKeys(this._changedConfiguration, this.affectedKeys);
+			const { added, updated, removed, overrides } = compare(undefined, this._changedConfiguration);
+			this.updateKeys(this._changedConfiguration, { keys: [...added, ...updated, ...removed], overrides });
 		}
 		return this._changedConfiguration;
 	}

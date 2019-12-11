@@ -12,6 +12,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { ResourceMap } from 'vs/base/common/map';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -132,6 +133,7 @@ export interface IConfigurationModel {
 }
 
 export interface IOverrides {
+	keys: string[];
 	contents: any;
 	identifiers: string[];
 }
@@ -143,20 +145,74 @@ export interface IConfigurationData {
 	folders: [UriComponents, IConfigurationModel][];
 }
 
-export function compare(from: IConfigurationModel, to: IConfigurationModel): { added: string[], removed: string[], updated: string[] } {
-	const added = to.keys.filter(key => from.keys.indexOf(key) === -1);
-	const removed = from.keys.filter(key => to.keys.indexOf(key) === -1);
+export interface IConfigurationCompareResult {
+	added: string[];
+	removed: string[];
+	updated: string[];
+	overrides: [string, string[]][];
+}
+
+export function compare(from: IConfigurationModel | undefined, to: IConfigurationModel | undefined): IConfigurationCompareResult {
+	const added = to
+		? from ? to.keys.filter(key => from.keys.indexOf(key) === -1) : [...to.keys]
+		: [];
+	const removed = from
+		? to ? from.keys.filter(key => to.keys.indexOf(key) === -1) : [...from.keys]
+		: [];
 	const updated: string[] = [];
 
-	for (const key of from.keys) {
-		const value1 = getConfigurationValue(from.contents, key);
-		const value2 = getConfigurationValue(to.contents, key);
-		if (!objects.equals(value1, value2)) {
-			updated.push(key);
+	if (to && from) {
+		for (const key of from.keys) {
+			const value1 = getConfigurationValue(from.contents, key);
+			const value2 = getConfigurationValue(to.contents, key);
+			if (!objects.equals(value1, value2)) {
+				updated.push(key);
+			}
 		}
 	}
 
-	return { added, removed, updated };
+	const overrides: [string, string[]][] = [];
+	const byOverrideIdentifier = (overrides: IOverrides[]): IStringDictionary<IOverrides> => {
+		const result: IStringDictionary<IOverrides> = {};
+		for (const override of overrides) {
+			for (const identifier of override.identifiers) {
+				result[identifier] = override;
+			}
+		}
+		return result;
+	};
+	const toOverridesByIdentifier: IStringDictionary<IOverrides> = to ? byOverrideIdentifier(to.overrides) : {};
+	const fromOverridesByIdentifier: IStringDictionary<IOverrides> = from ? byOverrideIdentifier(from.overrides) : {};
+
+	if (Object.keys(toOverridesByIdentifier).length) {
+		for (const key of added) {
+			const override = toOverridesByIdentifier[key];
+			if (override) {
+				overrides.push([key, override.keys]);
+			}
+		}
+	}
+	if (Object.keys(fromOverridesByIdentifier).length) {
+		for (const key of removed) {
+			const override = fromOverridesByIdentifier[key];
+			if (override) {
+				overrides.push([key, override.keys]);
+			}
+		}
+	}
+
+	if (Object.keys(toOverridesByIdentifier).length && Object.keys(fromOverridesByIdentifier).length) {
+		for (const key of updated) {
+			const fromOverride = fromOverridesByIdentifier[key];
+			const toOverride = toOverridesByIdentifier[key];
+			if (fromOverride && toOverride) {
+				const result = compare({ contents: fromOverride.contents, keys: fromOverride.keys, overrides: [] }, { contents: toOverride.contents, keys: toOverride.keys, overrides: [] });
+				overrides.push([key, [...result.added, ...result.removed, ...result.updated]]);
+			}
+		}
+	}
+
+	return { added, removed, updated, overrides };
 }
 
 export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
@@ -172,6 +228,7 @@ export function toOverrides(raw: any, conflictReporter: (message: string) => voi
 			}
 			overrides.push({
 				identifiers: [overrideIdentifierFromKey(key).trim()],
+				keys: Object.keys(overrideRaw),
 				contents: toValuesTree(overrideRaw, conflictReporter)
 			});
 		}

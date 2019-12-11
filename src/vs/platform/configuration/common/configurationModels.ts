@@ -192,7 +192,8 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
 				overrides.push({
 					identifiers: [overrideIdentifierFromKey(key).trim()],
-					contents: toValuesTree(contents[key], message => console.error(`Conflict in default settings file: ${message}`))
+					keys: Object.keys(contents[key]),
+					contents: toValuesTree(contents[key], message => console.error(`Conflict in default settings file: ${message}`)),
 				});
 			}
 		}
@@ -638,11 +639,19 @@ export class AbstractConfigurationChangeEvent {
 		return true;
 	}
 
-	protected updateKeys(configuration: ConfigurationModel, keys: string[], resource?: URI): void {
+	protected updateKeys(configuration: ConfigurationModel, { keys, overrides }: IConfigurationChange, resource?: URI): void {
 		for (const key of keys) {
 			configuration.setValue(key, {});
 		}
+		for (const [overrideIdentifier, keys] of overrides) {
+			configuration.setValue(overrideIdentifier, keys.reduce((value: any, key) => { value[key] = {}; return value; }, {}));
+		}
 	}
+}
+
+export interface IConfigurationChange {
+	keys: string[];
+	overrides: [string, string[]][];
 }
 
 export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
@@ -665,8 +674,8 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 		return this._changedConfigurationByResource;
 	}
 
-	change(event: ConfigurationChangeEvent): ConfigurationChangeEvent;
-	change(keys: string[], resource?: URI): ConfigurationChangeEvent;
+	change(changeEvent: ConfigurationChangeEvent): ConfigurationChangeEvent;
+	change(change: IConfigurationChange, resource?: URI): ConfigurationChangeEvent;
 	change(arg1: any, arg2?: any): ConfigurationChangeEvent {
 		if (arg1 instanceof ConfigurationChangeEvent) {
 			this._changedConfiguration = this._changedConfiguration.merge(arg1._changedConfiguration);
@@ -716,9 +725,9 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 		return configurationModelsToSearch.some(configuration => this.doesConfigurationContains(configuration, config));
 	}
 
-	private changeWithKeys(keys: string[], resource?: URI): void {
+	private changeWithKeys(change: IConfigurationChange, resource?: URI): void {
 		let changedConfiguration = resource ? this.getOrSetChangedConfigurationForResource(resource) : this._changedConfiguration;
-		this.updateKeys(changedConfiguration, keys);
+		this.updateKeys(changedConfiguration, change);
 	}
 
 	private getOrSetChangedConfigurationForResource(resource: URI): ConfigurationModel {
