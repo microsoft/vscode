@@ -128,8 +128,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	private debounce(event: Event<TextFileModelChangeEvent>): Event<ReadonlyArray<TextFileModelChangeEvent>> {
-		return Event.debounce(event, (prev: TextFileModelChangeEvent[], cur: TextFileModelChangeEvent) => {
+	private debounce(event: Event<TextFileModelChangeEvent>): Event<TextFileModelChangeEvent[]> {
+		return Event.debounce<TextFileModelChangeEvent, TextFileModelChangeEvent[]>(event, (prev, cur) => {
 			if (!prev) {
 				prev = [cur];
 			} else {

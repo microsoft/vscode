@@ -10,7 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 
@@ -28,7 +28,7 @@ export interface Tunnel {
 
 export class TunnelModel extends Disposable {
 	readonly forwarded: Map<number, Tunnel>;
-	readonly published: Map<number, Tunnel>;
+	readonly detected: Map<number, Tunnel>;
 	readonly candidates: Map<number, Tunnel>;
 	private _onForwardPort: Emitter<Tunnel> = new Emitter();
 	public onForwardPort: Event<Tunnel> = this._onForwardPort.event;
@@ -53,7 +53,7 @@ export class TunnelModel extends Disposable {
 			});
 		});
 
-		this.published = new Map();
+		this.detected = new Map();
 		this.candidates = new Map();
 		this._register(this.tunnelService.onTunnelOpened(tunnel => {
 			if (this.candidates.has(tunnel.tunnelRemotePort)) {
@@ -63,7 +63,8 @@ export class TunnelModel extends Disposable {
 				this.forwarded.set(tunnel.tunnelRemotePort, {
 					remote: tunnel.tunnelRemotePort,
 					localAddress: tunnel.localAddress,
-					local: tunnel.tunnelLocalPort
+					local: tunnel.tunnelLocalPort,
+					closeable: true
 				});
 			}
 			this._onForwardPort.fire(this.forwarded.get(tunnel.tunnelRemotePort)!);
@@ -76,7 +77,7 @@ export class TunnelModel extends Disposable {
 		}));
 	}
 
-	async forward(remote: number, local?: number, name?: string): Promise<void> {
+	async forward(remote: number, local?: number, name?: string): Promise<RemoteTunnel | void> {
 		if (!this.forwarded.has(remote)) {
 			const tunnel = await this.tunnelService.openTunnel(remote, local);
 			if (tunnel && tunnel.localAddress) {
@@ -89,6 +90,7 @@ export class TunnelModel extends Disposable {
 				};
 				this.forwarded.set(remote, newForward);
 				this._onForwardPort.fire(newForward);
+				return tunnel;
 			}
 		}
 	}
@@ -96,6 +98,9 @@ export class TunnelModel extends Disposable {
 	name(remote: number, name: string) {
 		if (this.forwarded.has(remote)) {
 			this.forwarded.get(remote)!.name = name;
+			this._onPortName.fire(remote);
+		} else if (this.detected.has(remote)) {
+			this.detected.get(remote)!.name = name;
 			this._onPortName.fire(remote);
 		}
 	}
@@ -105,7 +110,17 @@ export class TunnelModel extends Disposable {
 	}
 
 	address(remote: number): string | undefined {
-		return (this.forwarded.get(remote) || this.published.get(remote))?.localAddress;
+		return (this.forwarded.get(remote) || this.detected.get(remote))?.localAddress;
+	}
+
+	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[]): void {
+		tunnels.forEach(tunnel => {
+			this.detected.set(tunnel.remote.port, {
+				remote: tunnel.remote.port,
+				localAddress: tunnel.localAddress,
+				closeable: false
+			});
+		});
 	}
 }
 
@@ -118,6 +133,9 @@ export interface IRemoteExplorerService {
 	onDidChangeEditable: Event<number | undefined>;
 	setEditable(remote: number | undefined, data: IEditableData | null): void;
 	getEditableData(remote: number | undefined): IEditableData | undefined;
+	forward(remote: number, local?: number, name?: string): Promise<RemoteTunnel | void>;
+	close(remote: number): Promise<void>;
+	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): void;
 }
 
 export interface HelpInformation {
@@ -217,6 +235,20 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	get tunnelModel(): TunnelModel {
 		return this._tunnelModel;
+	}
+
+	forward(remote: number, local?: number, name?: string): Promise<RemoteTunnel | void> {
+		return this.tunnelModel.forward(remote, local, name);
+	}
+
+	close(remote: number): Promise<void> {
+		return this.tunnelModel.close(remote);
+	}
+
+	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): void {
+		if (tunnels) {
+			this.tunnelModel.addDetected(tunnels);
+		}
 	}
 
 	setEditable(remote: number | undefined, data: IEditableData | null): void {

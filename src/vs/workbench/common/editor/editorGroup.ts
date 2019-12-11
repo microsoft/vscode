@@ -477,13 +477,12 @@ export class EditorGroup extends Disposable {
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
 		const editorToDeleteOrReplace = this.editors[index];
 
-		const args: (number | EditorInput)[] = [index, del ? 1 : 0];
-		if (editor) {
-			args.push(editor);
-		}
-
 		// Perform on editors array
-		this.editors.splice.apply(this.editors, args);
+		if (editor) {
+			this.editors.splice(index, del ? 1 : 0, editor);
+		} else {
+			this.editors.splice(index, del ? 1 : 0);
+		}
 
 		// Add
 		if (!del && editor) {
