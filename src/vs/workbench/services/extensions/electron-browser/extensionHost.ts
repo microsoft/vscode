@@ -112,7 +112,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
 		this._toDispose.add(toDisposable(() => {
-			process.removeListener('exit', globalExitListener);
+			process.removeListener('exit' as 'loaded', globalExitListener); // https://github.com/electron/electron/issues/21475
 		}));
 	}
 
