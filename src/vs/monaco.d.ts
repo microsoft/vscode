@@ -380,6 +380,7 @@ declare namespace monaco {
 	export interface IMarkdownString {
 		readonly value: string;
 		readonly isTrusted?: boolean;
+		readonly supportThemeIcons?: boolean;
 		uris?: {
 			[href: string]: UriComponents;
 		};
