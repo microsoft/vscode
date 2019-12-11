@@ -108,12 +108,12 @@ class CallStackEditorContribution implements IEditorContribution {
 	static readonly STICKINESS = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 	// we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
 	private static TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-		glyphMarginClassName: 'codicon-debug-breakpoint-stackframe',
+		glyphMarginClassName: 'codicon-debug-stackframe',
 		stickiness
 	};
 
 	private static FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-		glyphMarginClassName: 'codicon-debug-breakpoint-stackframe-focused',
+		glyphMarginClassName: 'codicon-debug-stackframe-focused',
 		stickiness
 	};
 
@@ -163,8 +163,8 @@ registerThemingParticipant((theme, collector) => {
 		.monaco-workbench .codicon-debug-breakpoint-data,
 		.monaco-workbench .codicon-debug-breakpoint-unsupported,
 		.monaco-workbench .codicon-debug-hint:not([class*='codicon-debug-breakpoint']),
-		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe-focused::after,
-		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-breakpoint-stackframe::after {
+		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
+		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe::after {
 			color: ${debugIconBreakpointColor} !important;
 		}
 		`);
@@ -191,7 +191,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointCurrentStackframeForegroundColor = theme.getColor(debugIconBreakpointCurrentStackframeForeground);
 	if (debugIconBreakpointCurrentStackframeForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon-debug-breakpoint-stackframe {
+		.monaco-workbench .codicon-debug-stackframe {
 			color: ${debugIconBreakpointCurrentStackframeForegroundColor} !important;
 		}
 		`);
@@ -200,7 +200,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointStackframeFocusedColor = theme.getColor(debugIconBreakpointStackframeForeground);
 	if (debugIconBreakpointStackframeFocusedColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon-debug-breakpoint-stackframe-focused {
+		.monaco-workbench .codicon-debug-stackframe-focused {
 			color: ${debugIconBreakpointStackframeFocusedColor} !important;
 		}
 		`);
