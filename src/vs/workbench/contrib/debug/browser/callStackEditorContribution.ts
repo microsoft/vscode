@@ -152,69 +152,9 @@ registerThemingParticipant((theme, collector) => {
 	if (focusedStackFrame) {
 		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
 	}
-
-	const debugIconBreakpointColor = theme.getColor(debugIconBreakpointForeground);
-	if (debugIconBreakpointColor) {
-		collector.addRule(`
-		.monaco-workbench .codicon-debug-breakpoint,
-		.monaco-workbench .codicon-debug-breakpoint-conditional,
-		.monaco-workbench .codicon-debug-breakpoint-log,
-		.monaco-workbench .codicon-debug-breakpoint-function,
-		.monaco-workbench .codicon-debug-breakpoint-data,
-		.monaco-workbench .codicon-debug-breakpoint-unsupported,
-		.monaco-workbench .codicon-debug-hint:not([class*='codicon-debug-breakpoint']),
-		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
-		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe::after {
-			color: ${debugIconBreakpointColor} !important;
-		}
-		`);
-	}
-
-	const debugIconBreakpointDisabledColor = theme.getColor(debugIconBreakpointDisabledForeground);
-	if (debugIconBreakpointDisabledColor) {
-		collector.addRule(`
-		.monaco-workbench .codicon[class*='-disabled'] {
-			color: ${debugIconBreakpointDisabledColor} !important;
-		}
-		`);
-	}
-
-	const debugIconBreakpointUnverifiedColor = theme.getColor(debugIconBreakpointUnverifiedForeground);
-	if (debugIconBreakpointUnverifiedColor) {
-		collector.addRule(`
-		.monaco-workbench .codicon[class*='-unverified'] {
-			color: ${debugIconBreakpointUnverifiedColor} !important;
-		}
-		`);
-	}
-
-	const debugIconBreakpointCurrentStackframeForegroundColor = theme.getColor(debugIconBreakpointCurrentStackframeForeground);
-	if (debugIconBreakpointCurrentStackframeForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .codicon-debug-stackframe {
-			color: ${debugIconBreakpointCurrentStackframeForegroundColor} !important;
-		}
-		`);
-	}
-
-	const debugIconBreakpointStackframeFocusedColor = theme.getColor(debugIconBreakpointStackframeForeground);
-	if (debugIconBreakpointStackframeFocusedColor) {
-		collector.addRule(`
-		.monaco-workbench .codicon-debug-stackframe-focused {
-			color: ${debugIconBreakpointStackframeFocusedColor} !important;
-		}
-		`);
-	}
-
 });
 
 const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#fff600' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
 const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#cee7ce' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
-
-const debugIconBreakpointForeground = registerColor('debugIcon.breakpointForeground', { dark: '#E51400', light: '#E51400', hc: '#E51400' }, localize('debugIcon.breakpointForeground', 'Icon color for breakpoints.'));
-const debugIconBreakpointDisabledForeground = registerColor('debugIcon.breakpointDisabledForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, localize('debugIcon.breakpointDisabledForeground', 'Icon color for disabled breakpoints.'));
-const debugIconBreakpointUnverifiedForeground = registerColor('debugIcon.breakpointUnverifiedForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, localize('debugIcon.breakpointUnverifiedForeground', 'Icon color for unverified breakpoints.'));
-const debugIconBreakpointCurrentStackframeForeground = registerColor('debugIcon.breakpointCurrentStackframeForeground', { dark: '#FFCC00', light: '#FFCC00', hc: '#FFCC00' }, localize('debugIcon.breakpointCurrentStackframeForeground', 'Icon color for the current breakpoint stack frame.'));
-const debugIconBreakpointStackframeForeground = registerColor('debugIcon.breakpointStackframeForeground', { dark: '#89D185', light: '#89D185', hc: '#89D185' }, localize('debugIcon.breakpointStackframeForeground', 'Icon color for all breakpoint stack frames.'));
 
 registerEditorContribution('editor.contrib.callStack', CallStackEditorContribution);
