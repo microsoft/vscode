@@ -10,8 +10,8 @@ import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { OVERRIDE_PROPERTY_PATTERN, ConfigurationScope, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides } from 'vs/platform/configuration/common/configuration';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides, IConfigurationValue, IConfigurationTargetValue } from 'vs/platform/configuration/common/configuration';
+import { Workspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export class ConfigurationModel implements IConfigurationModel {
@@ -43,6 +43,13 @@ export class ConfigurationModel implements IConfigurationModel {
 
 	getValue<V>(section: string | undefined): V {
 		return section ? getConfigurationValue<any>(this.contents, section) : this.contents;
+	}
+
+	getOverrideValue<V>(section: string | undefined, overrideIdentifier: string): V | undefined {
+		const overrideContents = this.getContentsForOverrideIdentifer(overrideIdentifier);
+		return overrideContents
+			? section ? getConfigurationValue<any>(this.contents, section) : overrideContents
+			: undefined;
 	}
 
 	override(identifier: string): ConfigurationModel {
@@ -359,6 +366,48 @@ export class Configuration {
 		if (!overrides.resource) {
 			this._workspaceConsolidatedConfiguration = null;
 		}
+	}
+
+	inspectValue<C>(key: string, workspace: Workspace | undefined): IConfigurationValue<C> {
+		const defaultValue = this.getConfigurationTargetValue<C>(key, this._defaultConfiguration.freeze());
+		const userLocalValue = this.getConfigurationTargetValue<C>(key, this.localUserConfiguration.freeze());
+		const userRemoteValue = this.getConfigurationTargetValue<C>(key, this.remoteUserConfiguration.freeze());
+		const workspaceValue = this.getConfigurationTargetValue<C>(key, this._workspaceConfiguration.freeze());
+		const workspaceFolderValues: [IWorkspaceFolder, IConfigurationTargetValue<C>][] = [];
+		if (workspace) {
+			for (const workspaceFolder of workspace.folders) {
+				const folderConfigurationModel = this.getFolderConfigurationModelForResource(workspaceFolder.uri, workspace);
+				if (folderConfigurationModel) {
+					const workspaceFolderValue = this.getConfigurationTargetValue<C>(key, folderConfigurationModel.freeze());
+					if (workspaceFolderValue) {
+						workspaceFolderValues.push([workspaceFolder, workspaceFolderValue]);
+					}
+				}
+			}
+		}
+		return {
+			default: defaultValue!,
+			userLocal: userLocalValue,
+			userRemote: userRemoteValue,
+			workspace: workspaceValue,
+			workspaceFolders: workspaceFolderValues.length ? workspaceFolderValues : undefined,
+			getWorkspaceFolderValue: (resource): IConfigurationTargetValue<C> | undefined => {
+				const folderConfigurationModel = this.getFolderConfigurationModelForResource(resource, workspace);
+				return folderConfigurationModel ? this.getConfigurationTargetValue<C>(key, folderConfigurationModel.freeze()) : undefined;
+			}
+		};
+	}
+
+	private getConfigurationTargetValue<C>(key: string, configurationModel: ConfigurationModel): IConfigurationTargetValue<C> | undefined {
+		const value = configurationModel.getValue<C>(key);
+		const overrides: { overrideIdentifier: string, value: C }[] = [];
+		for (const { identifiers } of configurationModel.overrides) {
+			const value = configurationModel.getOverrideValue<C>(key, identifiers[0]);
+			if (value !== undefined) {
+				overrides.push({ overrideIdentifier: identifiers[0], value });
+			}
+		}
+		return value !== undefined || overrides.length > 0 ? { value, overrides } : undefined;
 	}
 
 	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): {

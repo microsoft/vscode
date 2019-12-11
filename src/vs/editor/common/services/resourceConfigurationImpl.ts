@@ -10,7 +10,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService, IOverrides, IConfigurationOverrides, ConfigurationTarget, IConfigurationTargetValue } from 'vs/platform/configuration/common/configuration';
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
@@ -35,6 +35,29 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 			return this._getValue(resource, Position.isIPosition(arg2) ? arg2 : null, arg3);
 		}
 		return this._getValue(resource, null, typeof arg2 === 'string' ? arg2 : undefined);
+	}
+
+	updateValue<T>(resource: URI, key: string, value: any): Promise<void> {
+		const language = this.getLanguage(resource, null);
+
+		if (!language) {
+			return this.configurationService.updateValue(key, value);
+		}
+
+		const configurationValue = this.configurationService.inspectValue(key);
+		if (configurationValue.workspaceFolders) {
+			const workspaceFolderValue = configurationValue.getWorkspaceFolderValue(resource);
+			if (workspaceFolderValue) {
+
+			}
+		}
+		const overrides: IConfigurationOverrides = {};
+	}
+
+	private _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, configurationTargetValue: IConfigurationTargetValue<any>, overrides: IConfigurationOverrides): Promise<void> {
+		if (configurationTargetValue.overrides.some(({ overrideIdentifier }) => overrideIdentifier === overrides.overrideIdentifier)) {
+
+		}
 	}
 
 	private _getValue<T>(resource: URI, position: IPosition | null, section: string | undefined): T {

@@ -62,6 +62,20 @@ export interface IConfigurationChangeEvent {
 	changedConfigurationByResource: ResourceMap<IConfigurationModel>;
 }
 
+export interface IConfigurationTargetValue<T> {
+	value: T | undefined;
+	overrides: { overrideIdentifier: string, value: T }[];
+}
+
+export interface IConfigurationValue<T> {
+	default: IConfigurationTargetValue<T>;
+	userLocal: IConfigurationTargetValue<T> | undefined;
+	userRemote: IConfigurationTargetValue<T> | undefined;
+	workspace: IConfigurationTargetValue<T> | undefined;
+	workspaceFolders: [IWorkspaceFolder, IConfigurationTargetValue<T>][] | undefined;
+	getWorkspaceFolderValue(resource: URI): IConfigurationTargetValue<T> | undefined;
+}
+
 export interface IConfigurationService {
 	_serviceBrand: undefined;
 
@@ -86,6 +100,8 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
+
+	inspectValue<T>(key: string): IConfigurationValue<T>;
 
 	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void>;
 

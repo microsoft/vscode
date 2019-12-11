@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationChangeEvent, ConfigurationModel, AbstractConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
@@ -99,6 +99,10 @@ export class Configuration extends BaseConfiguration {
 
 	getValue(key: string | undefined, overrides: IConfigurationOverrides = {}): any {
 		return super.getValue(key, overrides, this._workspace);
+	}
+
+	inspectValue<C>(key: string): IConfigurationValue<C> {
+		return super.inspectValue(key, this._workspace);
 	}
 
 	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
