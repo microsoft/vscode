@@ -5,82 +5,65 @@
 
 import { Constants } from 'vs/base/common/uint';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
+import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
-interface IDebugEditorModelData {
-	model: ITextModel;
-	currentStackDecorations: string[];
-	topStackFrameRange: Range | undefined;
-}
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
-export class DebugCallStackContribution implements IWorkbenchContribution {
-	private modelDataMap = new Map<string, IDebugEditorModelData>();
+class CallStackEditorContribution implements IEditorContribution {
 	private toDispose: IDisposable[] = [];
+	private decorationIds: string[] = [];
+	private topStackFrameRange: Range | undefined;
 
 	constructor(
-		@IModelService private readonly modelService: IModelService,
+		private readonly editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 	) {
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.toDispose.push(this.modelService.onModelAdded(this.onModelAdded, this));
-		this.modelService.getModels().forEach(model => this.onModelAdded(model));
-		this.toDispose.push(this.modelService.onModelRemoved(this.onModelRemoved, this));
-
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
-			if (state === State.Inactive) {
-				this.modelDataMap.forEach(modelData => {
-					modelData.topStackFrameRange = undefined;
-				});
+		const setDecorations = () => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, this.createCallStackDecorations());
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+			setDecorations();
+		}));
+		this.toDispose.push(this.editor.onDidChangeModel(e => {
+			if (e.newModelUrl) {
+				setDecorations();
 			}
 		}));
 	}
 
-	private onModelAdded(model: ITextModel): void {
-		const modelUriStr = model.uri.toString();
-		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUriStr));
+	private createCallStackDecorations(): IModelDeltaDecoration[] {
+		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+		const decorations: IModelDeltaDecoration[] = [];
+		this.debugService.getModel().getSessions().forEach(s => {
+			s.getAllThreads().forEach(t => {
+				if (t.stopped) {
+					let candidateStackFrame = t === focusedStackFrame?.thread ? focusedStackFrame : undefined;
+					if (!candidateStackFrame) {
+						const callStack = t.getCallStack();
+						if (callStack.length) {
+							candidateStackFrame = callStack[0];
+						}
+					}
 
-		this.modelDataMap.set(modelUriStr, {
-			model: model,
-			currentStackDecorations: currentStackDecorations,
-			topStackFrameRange: undefined
+					if (candidateStackFrame && candidateStackFrame.source.uri.toString() === this.editor.getModel()?.uri.toString()) {
+						decorations.push(...this.createDecorationsForStackFrame(candidateStackFrame));
+					}
+				}
+			});
 		});
+
+		return decorations;
 	}
 
-	private onModelRemoved(model: ITextModel): void {
-		const modelUriStr = model.uri.toString();
-		const data = this.modelDataMap.get(modelUriStr);
-		if (data) {
-			this.modelDataMap.delete(modelUriStr);
-		}
-	}
-
-	private onFocusStackFrame(): void {
-		this.modelDataMap.forEach((modelData, uri) => {
-			modelData.currentStackDecorations = modelData.model.deltaDecorations(modelData.currentStackDecorations, this.createCallStackDecorations(uri));
-		});
-	}
-
-	private createCallStackDecorations(modelUriStr: string): IModelDeltaDecoration[] {
-		const result: IModelDeltaDecoration[] = [];
-		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (!stackFrame || stackFrame.source.uri.toString() !== modelUriStr) {
-			return result;
-		}
-
+	private createDecorationsForStackFrame(stackFrame: IStackFrame): IModelDeltaDecoration[] {
 		// only show decorations for the currently focused thread.
+		const result: IModelDeltaDecoration[] = [];
 		const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
 		const range = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1);
 
@@ -89,33 +72,30 @@ export class DebugCallStackContribution implements IWorkbenchContribution {
 		const callStack = stackFrame.thread.getCallStack();
 		if (callStack && callStack.length && stackFrame === callStack[0]) {
 			result.push({
-				options: DebugCallStackContribution.TOP_STACK_FRAME_MARGIN,
+				options: CallStackEditorContribution.TOP_STACK_FRAME_MARGIN,
 				range
 			});
 
 			result.push({
-				options: DebugCallStackContribution.TOP_STACK_FRAME_DECORATION,
+				options: CallStackEditorContribution.TOP_STACK_FRAME_DECORATION,
 				range: columnUntilEOLRange
 			});
 
-			const modelData = this.modelDataMap.get(modelUriStr);
-			if (modelData) {
-				if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === stackFrame.range.startLineNumber && modelData.topStackFrameRange.startColumn !== stackFrame.range.startColumn) {
-					result.push({
-						options: DebugCallStackContribution.TOP_STACK_FRAME_INLINE_DECORATION,
-						range: columnUntilEOLRange
-					});
-				}
-				modelData.topStackFrameRange = columnUntilEOLRange;
+			if (this.topStackFrameRange && this.topStackFrameRange.startLineNumber === stackFrame.range.startLineNumber && this.topStackFrameRange.startColumn !== stackFrame.range.startColumn) {
+				result.push({
+					options: CallStackEditorContribution.TOP_STACK_FRAME_INLINE_DECORATION,
+					range: columnUntilEOLRange
+				});
 			}
+			this.topStackFrameRange = columnUntilEOLRange;
 		} else {
 			result.push({
-				options: DebugCallStackContribution.FOCUSED_STACK_FRAME_MARGIN,
+				options: CallStackEditorContribution.FOCUSED_STACK_FRAME_MARGIN,
 				range
 			});
 
 			result.push({
-				options: DebugCallStackContribution.FOCUSED_STACK_FRAME_DECORATION,
+				options: CallStackEditorContribution.FOCUSED_STACK_FRAME_DECORATION,
 				range: columnUntilEOLRange
 			});
 		}
@@ -156,12 +136,8 @@ export class DebugCallStackContribution implements IWorkbenchContribution {
 	};
 
 	dispose(): void {
-		this.modelDataMap.forEach(modelData => {
-			modelData.model.deltaDecorations(modelData.currentStackDecorations, []);
-		});
+		this.editor.deltaDecorations(this.decorationIds, []);
 		this.toDispose = dispose(this.toDispose);
-
-		this.modelDataMap.clear();
 	}
 }
 
@@ -240,3 +216,5 @@ const debugIconBreakpointDisabledForeground = registerColor('debugIcon.breakpoin
 const debugIconBreakpointUnverifiedForeground = registerColor('debugIcon.breakpointUnverifiedForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, localize('debugIcon.breakpointUnverifiedForeground', 'Icon color for unverified breakpoints.'));
 const debugIconBreakpointCurrentStackframeForeground = registerColor('debugIcon.breakpointCurrentStackframeForeground', { dark: '#FFCC00', light: '#FFCC00', hc: '#FFCC00' }, localize('debugIcon.breakpointCurrentStackframeForeground', 'Icon color for the current breakpoint stack frame.'));
 const debugIconBreakpointStackframeForeground = registerColor('debugIcon.breakpointStackframeForeground', { dark: '#89D185', light: '#89D185', hc: '#89D185' }, localize('debugIcon.breakpointStackframeForeground', 'Icon color for all breakpoint stack frames.'));
+
+registerEditorContribution('editor.contrib.callStack', CallStackEditorContribution);
