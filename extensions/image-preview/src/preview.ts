@@ -75,6 +75,8 @@ class Preview extends Disposable {
 	private _imageBinarySize: number | undefined;
 	private _imageZoom: Scale | undefined;
 
+	private readonly emptyPngDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==';
+
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
 		private readonly resource: vscode.Uri,
@@ -167,9 +169,9 @@ class Preview extends Disposable {
 		}
 	}
 
-	private render() {
+	private async render() {
 		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewEditor.webview.html = this.getWebiewContents();
+			this.webviewEditor.webview.html = await this.getWebiewContents();
 		}
 	}
 
@@ -193,11 +195,11 @@ class Preview extends Disposable {
 		}
 	}
 
-	private getWebiewContents(): string {
+	private async getWebiewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const settings = {
 			isMac: process.platform === 'darwin',
-			src: this.getResourcePath(this.webviewEditor, this.resource, version),
+			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
 		};
 
 		const nonce = Date.now().toString();
@@ -226,22 +228,19 @@ class Preview extends Disposable {
 </html>`;
 	}
 
-	private getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string) {
-		switch (resource.scheme) {
-			case 'data':
-				return resource.toString(true);
-
-			case 'git':
-				// Show blank image
-				return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==';
-
-			default:
-				// Avoid adding cache busting if there is already a query string
-				if (resource.query) {
-					return webviewEditor.webview.asWebviewUri(resource).toString(true);
-				}
-				return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString(true);
+	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string> {
+		if (resource.scheme === 'gitfs') {
+			const stat = await vscode.workspace.fs.stat(resource);
+			if (stat.size === 0) {
+				return this.emptyPngDataUri;
+			}
 		}
+
+		// Avoid adding cache busting if there is already a query string
+		if (resource.query) {
+			return webviewEditor.webview.asWebviewUri(resource).toString(true);
+		}
+		return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString(true);
 	}
 
 	private extensionResource(path: string) {
