@@ -768,6 +768,7 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({
 			appender: testAppender
 		}, new class extends TestConfigurationService {
+			onDidChangeConfiguration = emitter.event;
 			getValue() {
 				return {
 					enableTelemetry: enableTelemetry
