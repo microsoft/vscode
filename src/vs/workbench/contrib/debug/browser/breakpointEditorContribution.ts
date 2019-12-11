@@ -54,18 +54,19 @@ const breakpointHelperDecoration: IModelDecorationOptions = {
 function createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>, debugService: IDebugService, debugSettings: IDebugConfiguration): { range: Range; options: IModelDecorationOptions; }[] {
 	const result: { range: Range; options: IModelDecorationOptions; }[] = [];
 	breakpoints.forEach((breakpoint) => {
-		if (breakpoint.lineNumber <= model.getLineCount()) {
-			const column = model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber);
-			const range = model.validateRange(
-				breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
-					: new Range(breakpoint.lineNumber, column, breakpoint.lineNumber, column + 1) // Decoration has to have a width #20688
-			);
-
-			result.push({
-				options: getBreakpointDecorationOptions(model, breakpoint, debugService, debugSettings),
-				range
-			});
+		if (breakpoint.lineNumber > model.getLineCount()) {
+			return;
 		}
+		const column = model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber);
+		const range = model.validateRange(
+			breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
+				: new Range(breakpoint.lineNumber, column, breakpoint.lineNumber, column + 1) // Decoration has to have a width #20688
+		);
+
+		result.push({
+			options: getBreakpointDecorationOptions(model, breakpoint, debugService, debugSettings),
+			range
+		});
 	});
 
 	return result;
@@ -113,8 +114,14 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 				const positions = await session.breakpointsLocations(model.uri, lineNumber);
 				if (positions.length > 1) {
 					// Do not render candidates if there is only one, since it is already covered by the line breakpoint
+					const firstColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
 					positions.forEach(p => {
 						const range = new Range(p.lineNumber, p.column, p.lineNumber, p.column + 1);
+						if (p.column <= firstColumn) {
+							// Do not render candidates on the start of the line.
+							return;
+						}
+
 						const breakpointAtPosition = breakpointDecorations.filter(bpd => bpd.range.equalsRange(range)).pop();
 						if (breakpointAtPosition && breakpointAtPosition.inlineWidget) {
 							// Space already occupied, do not render candidate.
