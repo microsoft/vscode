@@ -10,11 +10,6 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { Schemas } from 'vs/base/common/network';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { dirname } from 'vs/base/common/resources';
-import { IExtHostContribution, IExtHostContributionsRegistry, Extensions } from 'vs/workbench/api/common/extHostContributions';
-import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
 
 export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
 
@@ -29,19 +24,3 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 		this.setLevel(level);
 	}
 }
-
-class ExtHostLogChannelContribution extends Disposable implements IExtHostContribution {
-
-	constructor(
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostOutputService outputSerice: IExtHostOutputService,
-	) {
-		super();
-		outputSerice.createOutputChannelFromLogFile(
-			initData.remote.isRemote ? localize('remote extension host Log', "Remote Extension Host") : localize('extension host Log', "Extension Host"),
-			initData.logFile);
-	}
-
-}
-
-Registry.as<IExtHostContributionsRegistry>(Extensions.ExtHost).registerExtHostContribution(ExtHostLogChannelContribution);
