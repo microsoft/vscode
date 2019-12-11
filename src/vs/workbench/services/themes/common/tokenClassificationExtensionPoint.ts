@@ -35,7 +35,7 @@ interface ITokenStyleDefaultExtensionPoint {
 	};
 }
 
-const selectorPattern = '^[-_\\w]+|\\*(\\.[-_\\w+]+)*$';
+const selectorPattern = '^([-_\\w]+|\\*)(\\.[-_\\w+]+)*$';
 const colorPattern = '^#([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$';
 
 const tokenClassificationRegistry: ITokenClassificationRegistry = getTokenClassificationRegistry();
