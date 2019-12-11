@@ -48,7 +48,7 @@ export class ConfigurationModel implements IConfigurationModel {
 	getOverrideValue<V>(section: string | undefined, overrideIdentifier: string): V | undefined {
 		const overrideContents = this.getContentsForOverrideIdentifer(overrideIdentifier);
 		return overrideContents
-			? section ? getConfigurationValue<any>(this.contents, section) : overrideContents
+			? section ? getConfigurationValue<any>(overrideContents, section) : overrideContents
 			: undefined;
 	}
 
