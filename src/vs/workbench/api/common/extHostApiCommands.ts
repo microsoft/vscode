@@ -83,6 +83,21 @@ export class ApiCommand {
 
 
 const newCommands: ApiCommand[] = [
+	// -- symbol search
+	new ApiCommand(
+		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol provider.',
+		[new ApiCommandArgument('query', 'Search string', v => typeof v === 'string', v => v)],
+		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
+			const result: types.SymbolInformation[] = [];
+			if (Array.isArray(value)) {
+				for (let tuple of value) {
+					result.push(...tuple[1].map(typeConverters.WorkspaceSymbol.to));
+				}
+			}
+			return result;
+		})
+	),
+	// --- call hierarchy
 	new ApiCommand(
 		'vscode.prepareCallHierarchy', '_executePrepareCallHierarchy', 'Prepare call hierarchy at a position inside a document',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
@@ -121,12 +136,6 @@ export class ExtHostApiCommands {
 	}
 
 	registerCommands() {
-		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
-			description: 'Execute all workspace symbol provider.',
-			args: [{ name: 'query', description: 'Search string', constraint: String }],
-			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
-
-		});
 		this._register('vscode.executeDefinitionProvider', this._executeDefinitionProvider, {
 			description: 'Execute all definition provider.',
 			args: [
@@ -360,24 +369,6 @@ export class ExtHostApiCommands {
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
 		const disposable = this._commands.registerCommand(false, id, handler, this, description);
 		this._disposables.add(disposable);
-	}
-
-	/**
-	 * Execute workspace symbol provider.
-	 *
-	 * @param query Search string to match query symbol names
-	 * @return A promise that resolves to an array of symbol information.
-	 */
-	private _executeWorkspaceSymbolProvider(query: string): Promise<types.SymbolInformation[]> {
-		return this._commands.executeCommand<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
-			const result: types.SymbolInformation[] = [];
-			if (Array.isArray(value)) {
-				for (let tuple of value) {
-					result.push(...tuple[1].map(typeConverters.WorkspaceSymbol.to));
-				}
-			}
-			return result;
-		});
 	}
 
 	private _executeDefinitionProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
