@@ -18,7 +18,6 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import * as marked from 'vs/base/common/marked/marked';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { deepClone } from 'vs/base/common/objects';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -38,14 +37,92 @@ import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/t
 import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/output';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ITextModel } from 'vs/editor/common/model';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 const $ = DOM.$;
 
+class ViewCell {
+	private _textModel: ITextModel | null = null;
+	private _mdRenderer: marked.Renderer | null = null;
+	private _html: string | null = null;
+
+	get cellType() {
+		return this.cell.cell_type;
+	}
+
+	get lineCount() {
+		return this.cell.source.length;
+	}
+
+	get outputs() {
+		return this.cell.outputs;
+	}
+
+	constructor(
+		public cell: ICell,
+		public isEditing: boolean,
+		private readonly modelService: IModelService,
+		private readonly modeService: IModeService
+	) {
+
+	}
+
+	hasDynamicHeight() {
+		return true;
+	}
+
+	getHeight(lineHeight: number) {
+		if (this.cellType === 'markdown') {
+			return 100;
+		} else {
+			return Math.max(this.lineCount + 1, 5) * lineHeight + 16;
+		}
+	}
+
+	getText(): string {
+		return this.cell.source.join('');
+	}
+
+	getHTML(): string | null {
+		if (this.cellType === 'markdown') {
+
+			if (this._html) {
+				return this._html;
+			}
+
+			let renderer = this.getMDRenderer();
+			this._html = marked(this.getText(), { renderer: renderer });
+			return this._html;
+		}
+
+		return null;
+	}
+
+	getTextModel(): ITextModel {
+		if (!this._textModel) {
+			const resource = URI.parse(`notebookcell-${Date.now()}.py`);
+			let content = this.cell.source.join('');
+			this._textModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+		}
+
+		return this._textModel;
+	}
+
+	private getMDRenderer() {
+
+		if (!this._mdRenderer) {
+			this._mdRenderer = new marked.Renderer();
+		}
+
+		return this._mdRenderer;
+
+	}
+}
 
 interface NotebookHandler {
-	insertEmptyNotebookCell(cell: ICell, direction: 'above' | 'below'): void;
-	deleteNotebookCell(cell: ICell): void;
-	layoutElement(cell: ICell, height: number): void;
+	insertEmptyNotebookCell(cell: ViewCell, direction: 'above' | 'below'): void;
+	deleteNotebookCell(cell: ViewCell): void;
+	layoutElement(cell: ViewCell, height: number): void;
 }
 
 interface CellRenderTemplate {
@@ -53,43 +130,29 @@ interface CellRenderTemplate {
 	cellContainer: HTMLElement;
 	menuContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
-	renderer?: marked.Renderer; // TODO this can be cached
 	editor?: CodeEditorWidget;
 	model?: ITextModel;
 }
 
-export class NotebookCellListDelegate implements IListVirtualDelegate<ICell> {
+export class NotebookCellListDelegate implements IListVirtualDelegate<ViewCell> {
 	private _lineHeight: number;
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-
 		this._lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
-	getHeight(element: ICell): number {
-		if (element.cell_type === 'markdown') {
-			return 100;
-		} else {
-			return Math.max(element.source.length + 1, 5) * this._lineHeight + 16;
-		}
+	getHeight(element: ViewCell): number {
+		return element.getHeight(this._lineHeight);
 	}
 
-	hasDynamicHeight(element: ICell): boolean {
-		if (element.cell_type === 'code') {
-			// if (!element.outputs || element.outputs.length === 0) {
-			// 	return false;
-			// }
-			return false;
-		}
-
-		return true;
+	hasDynamicHeight(element: ViewCell): boolean {
+		return element.hasDynamicHeight();
 	}
 
-	getTemplateId(element: ICell): string {
-
-		if (element.cell_type === 'markdown') {
+	getTemplateId(element: ViewCell): string {
+		if (element.cellType === 'markdown') {
 			return MarkdownCellRenderer.TEMPLATE_ID;
 		} else {
 			return CodeCellRenderer.TEMPLATE_ID;
@@ -103,7 +166,7 @@ class AbstractCellRenderer {
 		private contextMenuService: IContextMenuService
 	) { }
 
-	showContextMenu(element: ICell, x: number, y: number) {
+	showContextMenu(element: ViewCell, x: number, y: number) {
 		const actions: Action[] = [];
 		const insertAbove = new Action(
 			'workbench.notebook.code.insertCellAbove',
@@ -154,7 +217,7 @@ class AbstractCellRenderer {
 	}
 }
 
-export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
+export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ViewCell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 	private disposables: Map<HTMLElement, IDisposable> = new Map();
 
@@ -172,7 +235,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	renderTemplate(container: HTMLElement): CellRenderTemplate {
 		const innerContent = document.createElement('div');
 		DOM.addClasses(innerContent, 'cell', 'markdown');
-		const renderer = new marked.Renderer();
 		container.appendChild(innerContent);
 
 		const action = document.createElement('div');
@@ -183,12 +245,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			container: container,
 			cellContainer: innerContent,
 			menuContainer: action,
-			renderer: renderer
 		};
 	}
 
-	renderElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		templateData.cellContainer.innerHTML = marked(element.source.join(''), { renderer: templateData.renderer });
+	renderElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+		templateData.cellContainer.innerHTML = element.getHTML() || '';
 		let disposable = this.disposables.get(templateData.menuContainer!);
 
 		if (disposable) {
@@ -211,10 +272,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 }
 
-export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ICell, CellRenderTemplate> {
+export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ViewCell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private editorOptions: IEditorOptions;
-	private widgetOptions: ICodeEditorWidgetOptions;
 	private disposables: Map<HTMLElement, IDisposable> = new Map();
 
 	constructor(
@@ -222,8 +282,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 		super(handler, contextMenuService);
@@ -245,8 +303,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			lineNumbersMinChars: 1,
 			minimap: { enabled: false },
 		};
-
-		this.widgetOptions = this.getSimpleCodeEditorWidgetOptions();
 	}
 
 	get templateId() {
@@ -281,14 +337,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		};
 	}
 
-	renderElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	renderElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		const innerContent = templateData.cellContainer;
 		const width = innerContent.clientWidth;
-		const lineNum = element.source.length;
+		const lineNum = element.lineCount;
 		const totalHeight = Math.max(lineNum + 1, 5) * 21;
-		const resource = URI.parse(`notebookcell-${index}-${Date.now()}.py`);
-
-		const model = this.modelService.createModel(element.source.join(''), this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+		const model = element.getTextModel();
 		templateData.editor?.setModel(model);
 		templateData.editor?.layout(
 			{
@@ -312,6 +366,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		if (element.outputs.length > 0) {
 			const outputNodes = [];
+			let hasDynamicHeight = false;
 			for (let i = 0; i < element.outputs.length; i++) {
 				const outputNode = document.createElement('div');
 				if (element.outputs[i].output_type === 'stream') {
@@ -335,20 +390,22 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 						image.src = `data:image/png;base64,${element.outputs[i].data['image/png']}`;
 						display.appendChild(image);
 						outputNode.appendChild(display);
-						shouldResize = true;
 						outputNodes.push(outputNode);
+						hasDynamicHeight = true;
 					}
 				}
 
 				templateData.outputContainer?.appendChild(outputNode);
 			}
 
-			if (height !== undefined) {
+			if (hasDynamicHeight && height !== undefined) {
 				let dimensions = DOM.getClientArea(templateData.outputContainer!);
 				const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
 					if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
 						let height = elementSizeObserver.getHeight();
-						this.handler.layoutElement(element, totalHeight + 32 + height);
+						if (dimensions.height !== height) {
+							this.handler.layoutElement(element, totalHeight + 32 + height);
+						}
 					}
 				});
 				elementSizeObserver.startObserving();
@@ -360,7 +417,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 						elementSizeObserver.dispose();
 					}
 				});
-
 			}
 		}
 
@@ -371,7 +427,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 
-	disposeElement(element: ICell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+	disposeElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		let cellDisposable = this.disposables.get(templateData.cellContainer);
 
 		if (cellDisposable) {
@@ -408,13 +464,15 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
-	private list: WorkbenchList<ICell> | undefined;
+	private list: WorkbenchList<ViewCell> | undefined;
 	private model: NotebookEditorModel | undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
@@ -448,7 +506,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			this.instantiationService.createInstance(CodeCellRenderer, this)
 		];
 
-		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<ICell>>(
+		this.list = this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<ViewCell>>(
 			WorkbenchList,
 			'NotebookCellList',
 			this.body,
@@ -493,44 +551,45 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				}
 
 				this.model = model;
-				let cells = model.getNookbook().cells;
+				let cells = model.getNookbook().cells.map(cell => {
+					return new ViewCell(cell, false, this.modelService, this.modeService);
+				});
 				this.list?.splice(0, this.list?.length, cells);
 				this.list?.layout();
 			});
 	}
 
-	layoutElement(cell: ICell, height: number) {
-		let index = this.model!.getNookbook().cells.indexOf(cell);
+	layoutElement(cell: ViewCell, height: number) {
+		let index = this.model!.getNookbook().cells.indexOf(cell.cell);
 		this.list?.updateDynamicHeight(index, cell, height);
 	}
 
-	insertEmptyNotebookCell(cell: ICell, direction: 'above' | 'below') {
-		let newCell: ICell = {
+	insertEmptyNotebookCell(cell: ViewCell, direction: 'above' | 'below') {
+		let newCell = new ViewCell({
 			source: [],
 			cell_type: 'code',
 			outputs: []
-		};
+		}, false, this.modelService, this.modeService);
 
-		let index = this.model!.getNookbook().cells.indexOf(cell);
+		let index = this.model!.getNookbook().cells.indexOf(cell.cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 
-		this.model!.getNookbook().cells.splice(insertIndex, 0, newCell);
+		this.model!.getNookbook().cells.splice(insertIndex, 0, newCell.cell);
 		this.list?.splice(insertIndex, 0, [newCell]);
 	}
 
-	deleteNotebookCell(cell: ICell) {
-		let index = this.model!.getNookbook().cells.indexOf(cell);
+	deleteNotebookCell(cell: ViewCell) {
+		let index = this.model!.getNookbook().cells.indexOf(cell.cell);
 
 		this.model!.getNookbook().cells.splice(index, 1);
 		this.list?.splice(index, 1);
 	}
 
-
 	layout(dimension: DOM.Dimension): void {
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
-		DOM.size(this.body, dimension.width - 20, dimension.height);
-		this.list?.layout(dimension.height, dimension.width - 20);
+		DOM.size(this.body, dimension.width - 40, dimension.height);
+		this.list?.layout(dimension.height, dimension.width - 40);
 	}
 }
 
