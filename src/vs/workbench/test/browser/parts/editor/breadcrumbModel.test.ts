@@ -25,6 +25,9 @@ suite('Breadcrumb Model', function () {
 			}
 			return super.getValue(...args);
 		}
+		updateValue() {
+			return Promise.resolve();
+		}
 	};
 
 	test('only uri, inside workspace', function () {

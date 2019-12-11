@@ -5,12 +5,16 @@
 
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 
 export class TestConfigurationService implements IConfigurationService {
 	public _serviceBrand: undefined;
 
-	private configuration = Object.create(null);
+	private configuration: any;
+
+	constructor(configuration?: any) {
+		this.configuration = configuration || Object.create(null);
+	}
 
 	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
 
@@ -33,7 +37,7 @@ export class TestConfigurationService implements IConfigurationService {
 		return configuration;
 	}
 
-	public updateValue(key: string, overrides?: IConfigurationOverrides): Promise<void> {
+	public updateValue(key: string, value: any): Promise<void> {
 		return Promise.resolve(undefined);
 	}
 
@@ -51,6 +55,18 @@ export class TestConfigurationService implements IConfigurationService {
 
 	public onDidChangeConfiguration() {
 		return { dispose() { } };
+	}
+
+	public inspectValue<T>(key: string): IConfigurationValue<T> {
+		const inspect = this.inspect<T>(key);
+		return {
+			default: inspect.default ? { value: inspect.default, overrides: [] } : undefined,
+			userLocal: inspect.userLocal ? { value: inspect.userLocal, overrides: [] } : undefined,
+			userRemote: undefined,
+			workspace: undefined,
+			workspaceFolders: undefined,
+			getWorkspaceFolderValue() { return undefined; }
+		};
 	}
 
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): {

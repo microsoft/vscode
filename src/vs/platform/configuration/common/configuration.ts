@@ -68,7 +68,7 @@ export interface IConfigurationTargetValue<T> {
 }
 
 export interface IConfigurationValue<T> {
-	default: IConfigurationTargetValue<T>;
+	default: IConfigurationTargetValue<T> | undefined;
 	userLocal: IConfigurationTargetValue<T> | undefined;
 	userRemote: IConfigurationTargetValue<T> | undefined;
 	workspace: IConfigurationTargetValue<T> | undefined;

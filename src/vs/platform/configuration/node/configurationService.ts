@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, compare, isConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, compare, isConfigurationOverrides, IConfigurationData, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { DefaultConfigurationModel, Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -77,6 +77,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
 		return Promise.reject(new Error('not supported'));
+	}
+
+	inspectValue<T>(key: string): IConfigurationValue<T> {
+		return this.configuration.inspectValue<T>(key, undefined);
 	}
 
 	inspect<T>(key: string): {

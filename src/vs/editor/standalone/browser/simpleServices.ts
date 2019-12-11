@@ -25,7 +25,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
@@ -460,6 +460,10 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return Promise.resolve();
 	}
 
+	public inspectValue<T>(key: string): IConfigurationValue<T> {
+		return this.configuration().inspectValue(key, undefined);
+	}
+
 	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
 		default: C,
 		user: C,
@@ -515,6 +519,10 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 			return this.configurationService.getValue<T>();
 		}
 		return this.configurationService.getValue<T>(section);
+	}
+
+	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+		return this.configurationService.updateValue(key, value, { resource }, configurationTarget);
 	}
 }
 
