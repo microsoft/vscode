@@ -34,7 +34,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/output';
+import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/output';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -92,13 +92,23 @@ class ViewCell {
 		}
 	}
 
+	setText(strs: string[]) {
+		this.cell.source = strs.map(str => str + '\n');
+		this._html = null;
+	}
+
+	save() {
+		if (this._textModel && this.isEditing) {
+			this.cell.source = this._textModel.getLinesContent().map(str => str + '\n');
+		}
+	}
+
 	getText(): string {
 		return this.cell.source.join('');
 	}
 
 	getHTML(): string | null {
 		if (this.cellType === 'markdown') {
-
 			if (this._html) {
 				return this._html;
 			}
@@ -113,7 +123,8 @@ class ViewCell {
 
 	getTextModel(): ITextModel {
 		if (!this._textModel) {
-			const resource = URI.parse(`notebookcell-${Date.now()}.py`);
+			let ext = this.cellType === 'markdown' ? 'md' : 'py';
+			const resource = URI.parse(`notebookcell-${Date.now()}.${ext}`);
 			let content = this.cell.source.join('');
 			this._textModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource), resource, false);
 		}
@@ -133,7 +144,7 @@ class ViewCell {
 }
 
 interface NotebookHandler {
-	insertEmptyNotebookCell(cell: ViewCell, direction: 'above' | 'below'): void;
+	insertEmptyNotebookCell(cell: ViewCell, type: 'markdown' | 'code', direction: 'above' | 'below'): void;
 	deleteNotebookCell(cell: ViewCell): void;
 	layoutElement(cell: ViewCell, height: number): void;
 }
@@ -142,6 +153,7 @@ interface CellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	menuContainer?: HTMLElement;
+	editingContainer?: HTMLElement;
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;
 	model?: ITextModel;
@@ -187,7 +199,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(element, 'above');
+				this.handler.insertEmptyNotebookCell(element, 'code', 'above');
 			}
 		);
 
@@ -197,7 +209,27 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(element, 'below');
+				this.handler.insertEmptyNotebookCell(element, 'code', 'below');
+			}
+		);
+
+		const insertMarkdownAbove = new Action(
+			'workbench.notebook.markdown.insertCellAbove',
+			'Insert Markdown Cell Above',
+			undefined,
+			true,
+			async () => {
+				this.handler.insertEmptyNotebookCell(element, 'markdown', 'above');
+			}
+		);
+
+		const insertMarkdownBelow = new Action(
+			'workbench.notebook.markdown.insertCellBelow',
+			'Insert Markdown Cell Below',
+			undefined,
+			true,
+			async () => {
+				this.handler.insertEmptyNotebookCell(element, 'markdown', 'below');
 			}
 		);
 
@@ -211,6 +243,8 @@ class AbstractCellRenderer {
 			}
 		);
 
+		actions.push(insertMarkdownAbove);
+		actions.push(insertMarkdownBelow);
 		actions.push(insertAbove);
 		actions.push(insertBelow);
 		actions.push(deleteCell);
@@ -233,12 +267,32 @@ class AbstractCellRenderer {
 export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ViewCell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 	private disposables: Map<HTMLElement, IDisposable> = new Map();
+	private editorOptions: IEditorOptions;
 
 	constructor(
 		handler: NotebookHandler,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super(handler, contextMenuService);
+		const language = 'python';
+		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
+		this.editorOptions = {
+			...editorOptions,
+			scrollBeyondLastLine: false,
+			scrollbar: {
+				verticalScrollbarSize: 14,
+				horizontal: 'auto',
+				useShadows: true,
+				verticalHasArrows: false,
+				horizontalHasArrows: false
+			},
+			overviewRulerLanes: 3,
+			fixedOverflowWidgets: false,
+			lineNumbersMinChars: 1,
+			minimap: { enabled: false },
+		};
 	}
 
 	get templateId() {
@@ -246,6 +300,12 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	renderTemplate(container: HTMLElement): CellRenderTemplate {
+		const codeInnerContent = document.createElement('div');
+		DOM.addClasses(codeInnerContent, 'cell', 'code');
+		codeInnerContent.style.display = 'none';
+
+		container.appendChild(codeInnerContent);
+
 		const innerContent = document.createElement('div');
 		DOM.addClasses(innerContent, 'cell', 'markdown');
 		container.appendChild(innerContent);
@@ -258,11 +318,44 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			container: container,
 			cellContainer: innerContent,
 			menuContainer: action,
+			editingContainer: codeInnerContent
 		};
 	}
 
 	renderElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		templateData.cellContainer.innerHTML = element.getHTML() || '';
+		if (element.isEditing) {
+			templateData.editingContainer!.style.display = 'block';
+			const width = templateData.container.clientWidth;
+			const lineNum = element.lineCount;
+			const totalHeight = Math.max(lineNum + 1, 5) * 21;
+
+			templateData.editingContainer!.innerHTML = '';
+			const editor = this.instantiationService.createInstance(CodeEditorWidget, templateData.editingContainer!, {
+				...this.editorOptions,
+				dimension: {
+					width: width,
+					height: totalHeight
+				}
+			}, {});
+			const model = element.getTextModel();
+			editor.setModel(model);
+			templateData.cellContainer.innerHTML = element.getHTML() || '';
+
+			if (height) {
+				model.onDidChangeContent(e => {
+					element.setText(model.getLinesContent());
+					templateData.cellContainer.innerHTML = element.getHTML() || '';
+
+					const clientHeight = templateData.cellContainer.clientHeight;
+					this.handler.layoutElement(element, totalHeight + 32 + clientHeight);
+				});
+			}
+		} else {
+			templateData.editingContainer!.style.display = 'none';
+			templateData.editingContainer!.innerHTML = '';
+			templateData.cellContainer.innerHTML = element.getHTML() || '';
+		}
+
 		let disposable = this.disposables.get(templateData.menuContainer!);
 
 		if (disposable) {
@@ -378,37 +471,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 
 		if (element.outputs.length > 0) {
-			const outputNodes = [];
 			let hasDynamicHeight = false;
 			for (let i = 0; i < element.outputs.length; i++) {
-				const outputNode = document.createElement('div');
-				if (element.outputs[i].output_type === 'stream') {
-					outputNode.innerText = element.outputs[i].text;
-					outputNodes.push(outputNode);
-				} else if (element.outputs[i].output_type === 'error') {
-					const traceback = document.createElement('pre');
-					DOM.addClasses(traceback, 'traceback');
-					if (element.outputs[i].traceback) {
-						for (let j = 0; j < element.outputs[i].traceback.length; j++) {
-							traceback.appendChild(handleANSIOutput(element.outputs[i].traceback[j], this.themeService));
-							outputNode.appendChild(traceback);
-						}
-					}
-					outputNodes.push(outputNode);
-				} else if (element.outputs[i].output_type === 'display_data') {
-					const display = document.createElement('div');
-					DOM.addClasses(display, 'display');
-					if (element.outputs[i].data && element.outputs[i].data['image/png']) {
-						const image = document.createElement('img');
-						image.src = `data:image/png;base64,${element.outputs[i].data['image/png']}`;
-						display.appendChild(image);
-						outputNode.appendChild(display);
-						outputNodes.push(outputNode);
-						hasDynamicHeight = true;
-					}
+				let result = MimeTypeRenderer.render(element.outputs[i], this.themeService);
+				if (result) {
+					hasDynamicHeight = result?.hasDynamicHeight;
+					templateData.outputContainer?.appendChild(result.element);
 				}
-
-				templateData.outputContainer?.appendChild(outputNode);
 			}
 
 			if (element.hasDynamicHeight() && height !== undefined) {
@@ -483,6 +552,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private body!: HTMLElement;
 	private list: WorkbenchList<ViewCell> | undefined;
 	private model: NotebookEditorModel | undefined;
+	private viewCells: ViewCell[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -494,6 +564,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 	}
+
 	get minimumWidth(): number { return 375; }
 	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
@@ -508,7 +579,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	}
 
 	private createBody(parent: HTMLElement): void {
-		this.body = document.createElement('div'); //DOM.append(parent, $('.notebook-body'));
+		this.body = document.createElement('div');
 		DOM.addClass(this.body, 'cell-list-container');
 		this.createCellList();
 		DOM.append(parent, this.body);
@@ -518,7 +589,6 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		DOM.addClass(this.body, 'cell-list-container');
 
 		const renders = [
-			// this.instantiationService.createInstance(OutputCellRenderer, this),
 			this.instantiationService.createInstance(MarkdownCellRenderer, this),
 			this.instantiationService.createInstance(CodeCellRenderer, this)
 		];
@@ -557,6 +627,12 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		);
 	}
 
+	onHide() {
+		super.onHide();
+
+		this.viewCells.forEach(cell => cell.isEditing = false);
+	}
+
 	setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		return super.setInput(input, options, token)
 			.then(() => {
@@ -567,11 +643,15 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 					return;
 				}
 
+				this.viewCells.forEach(cell => {
+					cell.save();
+				});
+
 				this.model = model;
-				let cells = model.getNookbook().cells.map(cell => {
+				this.viewCells = model.getNotebook().cells.map(cell => {
 					return new ViewCell(cell, false, this.modelService, this.modeService);
 				});
-				this.list?.splice(0, this.list?.length, cells);
+				this.list?.splice(0, this.list?.length, this.viewCells);
 				this.list?.layout();
 			});
 	}
@@ -581,31 +661,34 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			// list.splice -> renderElement -> resize -> layoutElement
 			// above flow will actually break how list view renders it self as it messes up with the internal state
 			// instead we run the layout update in next tick
-			let index = this.model!.getNookbook().cells.indexOf(cell.cell);
+			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			this.list?.updateDynamicHeight(index, cell, height);
 		}, 0);
 	}
 
-	insertEmptyNotebookCell(cell: ViewCell, direction: 'above' | 'below') {
+	insertEmptyNotebookCell(cell: ViewCell, type: 'code' | 'markdown', direction: 'above' | 'below') {
 		let newCell = new ViewCell({
+			cell_type: type,
 			source: [],
-			cell_type: 'code',
 			outputs: []
-		}, false, this.modelService, this.modeService);
+		}, type === 'markdown', this.modelService, this.modeService);
 
-		let index = this.model!.getNookbook().cells.indexOf(cell.cell);
+		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 
-		this.model!.getNookbook().cells.splice(insertIndex, 0, newCell.cell);
+		this.viewCells!.splice(insertIndex, 0, newCell);
+		this.model!.insertCell(newCell.cell, insertIndex);
 		this.list?.splice(insertIndex, 0, [newCell]);
 	}
 
 	deleteNotebookCell(cell: ViewCell) {
-		let index = this.model!.getNookbook().cells.indexOf(cell.cell);
+		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 
-		this.model!.getNookbook().cells.splice(index, 1);
+		this.viewCells!.splice(index, 1);
+		this.model!.deleteCell(cell.cell);
 		this.list?.splice(index, 1);
 	}
+
 
 	layout(dimension: DOM.Dimension): void {
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);

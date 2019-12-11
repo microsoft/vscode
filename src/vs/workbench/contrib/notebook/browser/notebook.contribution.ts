@@ -31,6 +31,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 export class NotebookContribution implements IWorkbenchContribution {
 	private editorOpeningListener: IDisposable | undefined;
+	private _resourceMapping: Map<string, NotebookEditorInput> = new Map<string, NotebookEditorInput>();
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -50,9 +51,16 @@ export class NotebookContribution implements IWorkbenchContribution {
 			return undefined;
 		}
 
-		const input = this.instantiationService.createInstance(NotebookEditorInput, editor);
+		if (this._resourceMapping.has(resource.path)) {
+			const input = this._resourceMapping.get(resource.path);
 
-		return { override: this.editorService.openEditor(input, options, group) };
+			return { override: this.editorService.openEditor(input!, options, group) };
+		}
+
+		const input = this.instantiationService.createInstance(NotebookEditorInput, editor);
+		this._resourceMapping.set(resource.path, input);
+
+		return { override: this.editorService.openEditor(input, { ...options, ignoreOverrides: true }, group) };
 	}
 }
 

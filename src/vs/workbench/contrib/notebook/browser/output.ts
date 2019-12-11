@@ -3,9 +3,93 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { IOutput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+
+export function registerMineTypeRenderer(type: string, renderer: IMimeRenderer) {
+	MimeTypeRenderer.instance.register(type, renderer);
+}
+
+export interface IRenderOutput {
+	element: HTMLElement;
+	hasDynamicHeight: boolean;
+}
+
+interface IMimeRenderer {
+	render(output: IOutput, themeService: IThemeService): IRenderOutput;
+}
+
+export class MimeTypeRenderer {
+	static instance = new MimeTypeRenderer();
+	private readonly _renderers = new Map<string, IMimeRenderer>();
+
+	register(type: string, renderer: IMimeRenderer) {
+		this._renderers.set(type, renderer);
+	}
+
+	getRenderer(type: string) {
+		return this._renderers.get(type);
+	}
+
+	static render(output: IOutput, themeService: IThemeService): IRenderOutput | null {
+		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, themeService) ?? null;
+	}
+}
+
+registerMineTypeRenderer('stream', {
+	render: (output: IOutput, themeService: IThemeService) => {
+		const outputNode = document.createElement('div');
+		outputNode.innerText = output.text;
+		return {
+			element: outputNode,
+			hasDynamicHeight: false
+		};
+	}
+});
+
+registerMineTypeRenderer('error', {
+	render: (output: IOutput, themeService: IThemeService) => {
+		const outputNode = document.createElement('div');
+		const traceback = document.createElement('pre');
+		DOM.addClasses(traceback, 'traceback');
+		if (output.traceback) {
+			for (let j = 0; j < output.traceback.length; j++) {
+				traceback.appendChild(handleANSIOutput(output.traceback[j], themeService));
+			}
+		}
+		outputNode.appendChild(traceback);
+		return {
+			element: outputNode,
+			hasDynamicHeight: false
+		};
+	}
+});
+
+registerMineTypeRenderer('display_data', {
+	render: (output: IOutput, themeService: IThemeService) => {
+		const display = document.createElement('div');
+		const outputNode = document.createElement('div');
+		let hasDynamicHeight = false;
+		DOM.addClasses(display, 'display');
+
+		if (output.data && output.data['image/png']) {
+			const image = document.createElement('img');
+			image.src = `data:image/png;base64,${output.data['image/png']}`;
+			display.appendChild(image);
+			outputNode.appendChild(display);
+			hasDynamicHeight = true;
+		}
+
+		return {
+			element: outputNode,
+			hasDynamicHeight
+		};
+	}
+});
+
 
 /**
  * @param text The content to stylize.
