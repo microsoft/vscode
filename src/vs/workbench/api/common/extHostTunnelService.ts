@@ -22,13 +22,16 @@ export interface TunnelDto {
 }
 
 export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
+	readonly _serviceBrand: undefined;
 	makeTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
+	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): Promise<void>;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
 
 
 export class ExtHostTunnelService extends Disposable implements IExtHostTunnelService {
+	readonly _serviceBrand: undefined;
 	private readonly _proxy: MainThreadTunnelServiceShape;
 
 	constructor(
@@ -52,5 +55,12 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 		return undefined;
 	}
+
+	async addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): Promise<void> {
+		if (tunnels) {
+			return this._proxy.$addDetected(tunnels);
+		}
+	}
+
 }
 

@@ -21,7 +21,7 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined> {
-		const tunnel = await this.remoteExplorerService.tunnelModel.forward(tunnelOptions.remote.port, tunnelOptions.localPort, tunnelOptions.name);
+		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remote.port, tunnelOptions.localPort, tunnelOptions.name);
 		if (tunnel) {
 			return { remote: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, localAddress: tunnel.localAddress };
 		}
@@ -29,7 +29,11 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 	}
 
 	async $closeTunnel(remotePort: number): Promise<void> {
-		return this.remoteExplorerService.tunnelModel.close(remotePort);
+		return this.remoteExplorerService.close(remotePort);
+	}
+
+	$addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[]): Promise<void> {
+		return Promise.resolve(this.remoteExplorerService.addDetected(tunnels));
 	}
 
 	dispose(): void {

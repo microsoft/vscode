@@ -780,6 +780,7 @@ export interface MainThreadWindowShape extends IDisposable {
 export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined>;
 	$closeTunnel(remotePort: number): Promise<void>;
+	$addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[]): Promise<void>;
 }
 
 // -- extension host
