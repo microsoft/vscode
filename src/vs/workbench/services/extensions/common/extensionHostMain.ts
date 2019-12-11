@@ -5,7 +5,7 @@
 
 import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -21,10 +21,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtHostContributionsRegistry, Extensions } from 'vs/workbench/api/common/extHostContributions';
-import { joinPath } from 'vs/base/common/resources';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -56,17 +52,12 @@ export class ExtensionHostMain {
 
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
-		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData, logFile: joinPath(initData.logsLocation, `${ExtensionHostLogFileName}.log`) });
+		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
 		services.set(IExtHostRpcService, new ExtHostRpcService(rpcProtocol));
 		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 		services.set(IHostUtils, hostUtils);
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
-
-		// start ext host contributions
-		const extHostContributionsRegistry = Registry.as<IExtHostContributionsRegistry>(Extensions.ExtHost);
-		instaService.invokeFunction(accessor => extHostContributionsRegistry.start(accessor));
-		this._disposables.add(toDisposable(() => extHostContributionsRegistry.stop()));
 
 		// todo@joh
 		// ugly self - inject
@@ -150,6 +141,7 @@ export class ExtensionHostMain {
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
 		initData.environment.userHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.userHome));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
+		initData.logFile = URI.revive(rpcProtocol.transformIncomingURIs(initData.logFile));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;
 	}

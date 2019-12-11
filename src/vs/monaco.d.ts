@@ -4524,7 +4524,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeActionList | Promise<CodeActionList>;
+		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
 	}
 
 	/**
