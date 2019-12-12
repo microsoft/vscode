@@ -29,13 +29,14 @@ export interface Tunnel {
 export class TunnelModel extends Disposable {
 	readonly forwarded: Map<number, Tunnel>;
 	readonly detected: Map<number, Tunnel>;
-	readonly candidates: Map<number, Tunnel>;
 	private _onForwardPort: Emitter<Tunnel> = new Emitter();
 	public onForwardPort: Event<Tunnel> = this._onForwardPort.event;
 	private _onClosePort: Emitter<number> = new Emitter();
 	public onClosePort: Event<number> = this._onClosePort.event;
 	private _onPortName: Emitter<number> = new Emitter();
 	public onPortName: Event<number> = this._onPortName.event;
+	private _candidateFinder: (() => Promise<{ port: number, detail: string }[]>) | undefined;
+
 	constructor(
 		@ITunnelService private readonly tunnelService: ITunnelService
 	) {
@@ -54,11 +55,7 @@ export class TunnelModel extends Disposable {
 		});
 
 		this.detected = new Map();
-		this.candidates = new Map();
 		this._register(this.tunnelService.onTunnelOpened(tunnel => {
-			if (this.candidates.has(tunnel.tunnelRemotePort)) {
-				this.candidates.delete(tunnel.tunnelRemotePort);
-			}
 			if (!this.forwarded.has(tunnel.tunnelRemotePort) && tunnel.localAddress) {
 				this.forwarded.set(tunnel.tunnelRemotePort, {
 					remote: tunnel.tunnelRemotePort,
@@ -122,6 +119,17 @@ export class TunnelModel extends Disposable {
 			});
 		});
 	}
+
+	registerCandidateFinder(finder: () => Promise<{ port: number, detail: string }[]>): void {
+		this._candidateFinder = finder;
+	}
+
+	get candidates(): Promise<{ port: number, detail: string }[]> {
+		if (this._candidateFinder) {
+			return this._candidateFinder();
+		}
+		return Promise.resolve([]);
+	}
 }
 
 export interface IRemoteExplorerService {
@@ -136,6 +144,7 @@ export interface IRemoteExplorerService {
 	forward(remote: number, local?: number, name?: string): Promise<RemoteTunnel | void>;
 	close(remote: number): Promise<void>;
 	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): void;
+	registerCandidateFinder(finder: () => Promise<{ port: number, detail: string }[]>): void;
 }
 
 export interface HelpInformation {
@@ -180,7 +189,7 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	public readonly onDidChangeTargetType: Event<string> = this._onDidChangeTargetType.event;
 	private _helpInformation: HelpInformation[] = [];
 	private _tunnelModel: TunnelModel;
-	private editable: { remote: number | undefined, data: IEditableData } | undefined;
+	private _editable: { remote: number | undefined, data: IEditableData } | undefined;
 	private readonly _onDidChangeEditable: Emitter<number | undefined> = new Emitter();
 	public readonly onDidChangeEditable: Event<number | undefined> = this._onDidChangeEditable.event;
 
@@ -253,16 +262,21 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	setEditable(remote: number | undefined, data: IEditableData | null): void {
 		if (!data) {
-			this.editable = undefined;
+			this._editable = undefined;
 		} else {
-			this.editable = { remote, data };
+			this._editable = { remote, data };
 		}
 		this._onDidChangeEditable.fire(remote);
 	}
 
 	getEditableData(remote: number | undefined): IEditableData | undefined {
-		return this.editable && this.editable.remote === remote ? this.editable.data : undefined;
+		return this._editable && this._editable.remote === remote ? this._editable.data : undefined;
 	}
+
+	registerCandidateFinder(finder: () => Promise<{ port: number, detail: string }[]>): void {
+		this.tunnelModel.registerCandidateFinder(finder);
+	}
+
 }
 
 registerSingleton(IRemoteExplorerService, RemoteExplorerService, true);

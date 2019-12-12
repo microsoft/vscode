@@ -21,7 +21,6 @@ import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensio
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/worker/extHostLogService';
-import { IExtHostTunnelService, ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 
 // register singleton services
 registerSingleton(ILogService, ExtHostLogService);
@@ -34,7 +33,6 @@ registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors);
 registerSingleton(IExtHostStorage, ExtHostStorage);
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
 registerSingleton(IExtHostSearch, ExtHostSearch);
-registerSingleton(IExtHostTunnelService, ExtHostTunnelService);
 
 // register services that only throw errors
 function NotImplementedProxy<T>(name: ServiceIdentifier<T>): { new(): T } {

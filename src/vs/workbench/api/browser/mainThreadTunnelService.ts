@@ -10,7 +10,6 @@ import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remo
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
-	// @ts-ignore
 	private readonly _proxy: ExtHostTunnelServiceShape;
 
 	constructor(
@@ -34,6 +33,10 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 
 	$addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[]): Promise<void> {
 		return Promise.resolve(this.remoteExplorerService.addDetected(tunnels));
+	}
+
+	async $registerCandidateFinder(): Promise<void> {
+		this.remoteExplorerService.registerCandidateFinder(() => this._proxy.$findCandidatePorts());
 	}
 
 	dispose(): void {

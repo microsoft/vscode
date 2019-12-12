@@ -52,8 +52,8 @@ export interface ITunnelViewModel {
 	onForwardedPortsChanged: Event<void>;
 	readonly forwarded: TunnelItem[];
 	readonly detected: TunnelItem[];
-	readonly candidates: TunnelItem[];
-	readonly groups: ITunnelGroup[];
+	readonly candidates: Promise<TunnelItem[]>;
+	groups(): Promise<ITunnelGroup[]>;
 }
 
 export class TunnelViewModel extends Disposable implements ITunnelViewModel {
@@ -70,7 +70,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		this._register(this.model.onPortName(() => this._onForwardedPortsChanged.fire()));
 	}
 
-	get groups(): ITunnelGroup[] {
+	async groups(): Promise<ITunnelGroup[]> {
 		const groups: ITunnelGroup[] = [];
 		if (this.model.forwarded.size > 0) {
 			groups.push({
@@ -86,8 +86,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 				items: this.detected
 			});
 		}
-		const candidates = this.candidates;
-		if (this.candidates.length > 0) {
+		const candidates = await this.candidates;
+		if (candidates.length > 0) {
 			groups.push({
 				label: nls.localize('remote.tunnelsView.candidates', "Candidates"),
 				tunnelType: TunnelType.Candidate,
@@ -113,17 +113,16 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		});
 	}
 
-	get candidates(): TunnelItem[] {
-		const candidates: TunnelItem[] = [];
-		const values = this.model.candidates.values();
-		let iterator = values.next();
-		while (!iterator.done) {
-			if (!this.model.forwarded.has(iterator.value.remote) && !this.model.detected.has(iterator.value.remote)) {
-				candidates.push(new TunnelItem(TunnelType.Candidate, iterator.value.remote, iterator.value.localAddress, false, undefined, iterator.value.description));
-			}
-			iterator = values.next();
-		}
-		return candidates;
+	get candidates(): Promise<TunnelItem[]> {
+		return this.model.candidates.then(values => {
+			const candidates: TunnelItem[] = [];
+			values.forEach(value => {
+				if (!this.model.forwarded.has(value.port) && !this.model.detected.has(value.port)) {
+					candidates.push(new TunnelItem(TunnelType.Candidate, value.port, undefined, false, undefined, value.detail));
+				}
+			});
+			return candidates;
+		});
 	}
 
 	dispose() {
@@ -312,7 +311,7 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 
 	getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
 		if (element instanceof TunnelViewModel) {
-			return element.groups;
+			return element.groups();
 		} else if (element instanceof TunnelItem) {
 			return [];
 		} else if ((<ITunnelGroup>element).items) {
@@ -332,7 +331,7 @@ enum TunnelType {
 interface ITunnelGroup {
 	tunnelType: TunnelType;
 	label: string;
-	items?: ITunnelItem[];
+	items?: ITunnelItem[] | Promise<ITunnelItem[]>;
 }
 
 interface ITunnelItem {
