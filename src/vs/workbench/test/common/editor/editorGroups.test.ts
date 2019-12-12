@@ -521,8 +521,8 @@ suite('Workbench editor groups', () => {
 
 		const mru = group.getEditors(true);
 		assert.equal(mru[0], input1);
-		assert.equal(mru[1], input2);
-		assert.equal(mru[2], input3);
+		assert.equal(mru[1], input3);
+		assert.equal(mru[2], input2);
 	});
 
 	test('Multiple Editors - Preview gets overwritten', function () {
@@ -1115,12 +1115,12 @@ suite('Workbench editor groups', () => {
 		assert.equal(group2.previewEditor!.matches(g2_input2), true);
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
-		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
-		assert.equal(group1.getEditors(true)[2].matches(g1_input3), true);
+		assert.equal(group1.getEditors(true)[1].matches(g1_input3), true);
+		assert.equal(group1.getEditors(true)[2].matches(g1_input1), true);
 
 		assert.equal(group2.getEditors(true)[0].matches(g2_input1), true);
-		assert.equal(group2.getEditors(true)[1].matches(g2_input2), true);
-		assert.equal(group2.getEditors(true)[2].matches(g2_input3), true);
+		assert.equal(group2.getEditors(true)[1].matches(g2_input3), true);
+		assert.equal(group2.getEditors(true)[2].matches(g2_input2), true);
 
 		// Create model again - should load from storage
 		group1 = inst.createInstance(EditorGroup, group1.serialize());
@@ -1134,12 +1134,12 @@ suite('Workbench editor groups', () => {
 		assert.equal(group2.previewEditor!.matches(g2_input2), true);
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
-		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
-		assert.equal(group1.getEditors(true)[2].matches(g1_input3), true);
+		assert.equal(group1.getEditors(true)[1].matches(g1_input3), true);
+		assert.equal(group1.getEditors(true)[2].matches(g1_input1), true);
 
 		assert.equal(group2.getEditors(true)[0].matches(g2_input1), true);
-		assert.equal(group2.getEditors(true)[1].matches(g2_input2), true);
-		assert.equal(group2.getEditors(true)[2].matches(g2_input3), true);
+		assert.equal(group2.getEditors(true)[1].matches(g2_input3), true);
+		assert.equal(group2.getEditors(true)[2].matches(g2_input2), true);
 	});
 
 	test('Single group, multiple editors - persist (some not persistable)', function () {
@@ -1172,18 +1172,18 @@ suite('Workbench editor groups', () => {
 		assert.equal(group.previewEditor!.matches(nonSerializableInput2), true);
 
 		assert.equal(group.getEditors(true)[0].matches(nonSerializableInput2), true);
-		assert.equal(group.getEditors(true)[1].matches(serializableInput1), true);
-		assert.equal(group.getEditors(true)[2].matches(serializableInput2), true);
+		assert.equal(group.getEditors(true)[1].matches(serializableInput2), true);
+		assert.equal(group.getEditors(true)[2].matches(serializableInput1), true);
 
 		// Create model again - should load from storage
 		group = inst.createInstance(EditorGroup, group.serialize());
 
 		assert.equal(group.count, 2);
-		assert.equal(group.activeEditor!.matches(serializableInput1), true);
+		assert.equal(group.activeEditor!.matches(serializableInput2), true);
 		assert.equal(group.previewEditor, null);
 
-		assert.equal(group.getEditors(true)[0].matches(serializableInput1), true);
-		assert.equal(group.getEditors(true)[1].matches(serializableInput2), true);
+		assert.equal(group.getEditors(true)[0].matches(serializableInput2), true);
+		assert.equal(group.getEditors(true)[1].matches(serializableInput1), true);
 	});
 
 	test('Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
