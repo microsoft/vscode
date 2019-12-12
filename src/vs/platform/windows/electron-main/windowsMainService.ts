@@ -326,7 +326,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Persist
-		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, getWindowsStateStoreData(currentWindowsState));
+		const state = getWindowsStateStoreData(currentWindowsState);
+		this.logService.trace('onBeforeShutdown', state);
+		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, state);
 	}
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
