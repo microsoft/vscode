@@ -44,6 +44,7 @@ import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHo
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { TaskRunResult, DebugTaskRunner } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -71,6 +72,7 @@ export class DebugService implements IDebugService {
 	private initializing = false;
 	private previousState: State | undefined;
 	private initCancellationToken: CancellationTokenSource | undefined;
+	private activity: IDisposable | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -89,7 +91,8 @@ export class DebugService implements IDebugService {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService
+		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
+		@IActivityService private readonly activityService: IActivityService
 	) {
 		this.toDispose = [];
 
@@ -154,6 +157,16 @@ export class DebugService implements IDebugService {
 		}));
 		this.toDispose.push(this.configurationManager.onDidSelectConfiguration(() => {
 			this.debugUx.set(!!(this.state !== State.Inactive || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+		}));
+		this.toDispose.push(Event.any(this.onDidNewSession, this.onDidEndSession)(() => {
+			const numberOfSessions = this.model.getSessions().length;
+			if (numberOfSessions === 0) {
+				if (this.activity) {
+					this.activity.dispose();
+				}
+			} else {
+				this.activity = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(numberOfSessions, n => n === 1 ? nls.localize('1activeSession', "1 active session") : nls.localize('nActiveSessions', "{0} active sessions", n)));
+			}
 		}));
 	}
 

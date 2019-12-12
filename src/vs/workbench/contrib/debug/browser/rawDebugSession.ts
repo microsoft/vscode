@@ -80,7 +80,6 @@ export class RawDebugSession implements IDisposable {
 		public readonly customTelemetryService: ITelemetryService | undefined,
 		private readonly extensionHostDebugService: IExtensionHostDebugService,
 		private readonly openerService: IOpenerService
-
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
