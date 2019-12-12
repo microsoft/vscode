@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?c4e66586cd3ad4acc55fc456c0760dec") format("truetype");
+	src: url("./codicon.ttf?492a6fd01b6016b3b49ce30bcd89656e") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -396,6 +396,7 @@
 .codicon-debug-breakpoint-function:before { content: "\eb88" }
 .codicon-debug-breakpoint-function-disabled:before { content: "\eb88" }
 .codicon-debug-stackframe-active:before { content: "\eb89" }
+.codicon-debug-stackframe-dot:before { content: "\eb8a" }
 .codicon-debug-stackframe:before { content: "\eb8b" }
 .codicon-debug-stackframe-focused:before { content: "\eb8b" }
 .codicon-debug-breakpoint-unsupported:before { content: "\eb8c" }
@@ -404,4 +405,6 @@
 .codicon-debug-step-back:before { content: "\eb8f" }
 .codicon-debug-restart-frame:before { content: "\eb90" }
 .codicon-debug-alternate:before { content: "\eb91" }
+.codicon-call-incoming:before { content: "\eb92" }
+.codicon-call-outgoing:before { content: "\eb93" }
 .codicon-debug-alt:before { content: "\f101" }
