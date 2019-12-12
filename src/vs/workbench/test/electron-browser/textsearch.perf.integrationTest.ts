@@ -60,18 +60,19 @@ suite.skip('TextSearch performance (integration)', () => {
 		const telemetryService = new TestTelemetryService();
 		const configurationService = new TestConfigurationService();
 		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
+		const logService = new NullLogService();
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService())],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), logService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledTextEditorService, createSyncDescriptor(UntitledTextEditorService)],
 			[ISearchService, createSyncDescriptor(LocalSearchService)],
-			[ILogService, new NullLogService()]
+			[ILogService, logService]
 		));
 
 		const queryOptions: ITextQueryBuilderOptions = {
