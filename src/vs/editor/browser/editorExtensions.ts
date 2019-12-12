@@ -20,7 +20,7 @@ import { IConstructorSignature1, ServicesAccessor as InstantiationServicesAccess
 import { IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, assertType } from 'vs/base/common/types';
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
@@ -300,6 +300,60 @@ export function registerDefaultLanguageCommand(id: string, handler: (model: ITex
 			return new Promise((resolve, reject) => {
 				try {
 					const result = handler(reference.object.textEditorModel, Position.lift(position), args);
+					resolve(result);
+				} catch (err) {
+					reject(err);
+				}
+			}).finally(() => {
+				reference.dispose();
+			});
+		});
+	});
+}
+
+export function registerModelAndPositionCommand(id: string, handler: (model: ITextModel, position: Position, ...args: any[]) => any) {
+	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+
+		const [resource, position] = args;
+		assertType(URI.isUri(resource));
+		assertType(Position.isIPosition(position));
+
+		const model = accessor.get(IModelService).getModel(resource);
+		if (model) {
+			const editorPosition = Position.lift(position);
+			return handler(model, editorPosition, args.slice(2));
+		}
+
+		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
+			return new Promise((resolve, reject) => {
+				try {
+					const result = handler(reference.object.textEditorModel, Position.lift(position), args.slice(2));
+					resolve(result);
+				} catch (err) {
+					reject(err);
+				}
+			}).finally(() => {
+				reference.dispose();
+			});
+		});
+	});
+}
+
+export function registerModelCommand(id: string, handler: (model: ITextModel, ...args: any[]) => any) {
+	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+
+		const [resource] = args;
+		assertType(URI.isUri(resource));
+
+		const model = accessor.get(IModelService).getModel(resource);
+		if (model) {
+			return handler(model, args.slice(1));
+		}
+
+		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
+			return new Promise((resolve, reject) => {
+				try {
+					const result = handler(reference.object.textEditorModel, args.slice(1));
 					resolve(result);
 				} catch (err) {
 					reject(err);

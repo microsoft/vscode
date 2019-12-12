@@ -603,14 +603,13 @@ class PreferencesRenderersController extends Disposable {
 				} else {
 					/* __GDPR__
 						"defaultSettings.searchError" : {
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" },
-							"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 						}
 					*/
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
+						this.telemetryService.publicLog('defaultSettings.searchError', { message });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return undefined;

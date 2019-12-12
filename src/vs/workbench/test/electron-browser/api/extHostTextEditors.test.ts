@@ -11,6 +11,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 
@@ -28,7 +29,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 				return Promise.resolve(true);
 			}
 		});
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null), new NullLogService());
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,

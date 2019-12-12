@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
@@ -586,7 +586,7 @@ function convertValidationType(type: InputValidationType): MessageType {
 	}
 }
 
-export class RepositoryPane extends ViewletPane {
+export class RepositoryPane extends ViewPane {
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
@@ -603,7 +603,7 @@ export class RepositoryPane extends ViewletPane {
 
 	constructor(
 		readonly repository: ISCMRepository,
-		options: IViewletPaneOptions,
+		options: IViewPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,

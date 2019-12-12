@@ -63,6 +63,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
+
 	static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
 	static WHITELIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
 
@@ -743,7 +744,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: lastResolvedFileStat.mtime,
 				encoding: this.getEncoding(),
-				etag: lastResolvedFileStat.etag,
+				etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 				writeElevated: options.writeElevated
 			}).then(stat => {
 				this.logService.trace(`doSave(${versionId}) - after write()`, this.resource);

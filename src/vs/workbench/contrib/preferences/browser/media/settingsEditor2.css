@@ -346,16 +346,17 @@
 	margin-top: 3px;
 	user-select: text;
 	-webkit-user-select: text;
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message {
+	display: block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description {
 	margin-top: -1px;
 	user-select: text;
 	-webkit-user-select: text;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message {
-	position: absolute;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message {

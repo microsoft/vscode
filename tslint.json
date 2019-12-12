@@ -75,6 +75,7 @@
 				"target": "**/vs/base/test/common/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/test/common/**"
@@ -101,6 +102,7 @@
 				"target": "**/vs/base/test/browser/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**"
@@ -237,6 +239,7 @@
 				"target": "**/vs/editor/test/common/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -259,6 +262,7 @@
 				"target": "**/vs/editor/test/browser/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -281,6 +285,7 @@
 				"target": "**/vs/editor/standalone/test/common/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -306,6 +311,7 @@
 				"target": "**/vs/editor/standalone/test/browser/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -319,6 +325,7 @@
 				"target": "**/vs/editor/contrib/*/test/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**",

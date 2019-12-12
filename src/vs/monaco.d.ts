@@ -380,6 +380,7 @@ declare namespace monaco {
 	export interface IMarkdownString {
 		readonly value: string;
 		readonly isTrusted?: boolean;
+		readonly supportThemeIcons?: boolean;
 		uris?: {
 			[href: string]: UriComponents;
 		};
@@ -2731,6 +2732,10 @@ declare namespace monaco.editor {
 		 */
 		accessibilitySupport?: 'auto' | 'off' | 'on';
 		/**
+		 * Controls the number of lines in the editor that can be read out by a screen reader
+		 */
+		accessibilityPageSize?: number;
+		/**
 		 * Suggest options.
 		 */
 		suggest?: ISuggestOptions;
@@ -2775,7 +2780,7 @@ declare namespace monaco.editor {
 		 * Enable auto indentation adjustment.
 		 * Defaults to false.
 		 */
-		autoIndent?: boolean;
+		autoIndent?: 'none' | 'keep' | 'brackets' | 'advanced' | 'full';
 		/**
 		 * Enable format on type.
 		 * Defaults to false.
@@ -2876,9 +2881,9 @@ declare namespace monaco.editor {
 		showFoldingControls?: 'always' | 'mouseover';
 		/**
 		 * Enable highlighting of matching brackets.
-		 * Defaults to true.
+		 * Defaults to 'always'.
 		 */
-		matchBrackets?: boolean;
+		matchBrackets?: 'never' | 'near' | 'always';
 		/**
 		 * Enable rendering of whitespace.
 		 * Defaults to none.
@@ -3356,6 +3361,11 @@ declare namespace monaco.editor {
 		 */
 		handleMouseWheel?: boolean;
 		/**
+		 * Always consume mouse wheel events (always call preventDefault() and stopPropagation() on the browser events).
+		 * Defaults to true.
+		 */
+		alwaysConsumeMouseWheel?: boolean;
+		/**
 		 * Height in pixels for the horizontal scrollbar.
 		 * Defaults to 10 (px).
 		 */
@@ -3385,6 +3395,7 @@ declare namespace monaco.editor {
 		readonly verticalHasArrows: boolean;
 		readonly horizontalHasArrows: boolean;
 		readonly handleMouseWheel: boolean;
+		readonly alwaysConsumeMouseWheel: boolean;
 		readonly horizontalScrollbarSize: number;
 		readonly horizontalSliderSize: number;
 		readonly verticalScrollbarSize: number;
@@ -4514,7 +4525,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeActionList | Promise<CodeActionList>;
+		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
 	}
 
 	/**
@@ -5513,9 +5524,9 @@ declare namespace monaco.languages {
 	}
 
 	export interface ResourceFileEdit {
-		oldUri: Uri;
-		newUri: Uri;
-		options: {
+		oldUri?: Uri;
+		newUri?: Uri;
+		options?: {
 			overwrite?: boolean;
 			ignoreIfNotExists?: boolean;
 			ignoreIfExists?: boolean;
@@ -5571,30 +5582,31 @@ declare namespace monaco.languages {
 		resolveCodeLens?(model: editor.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 	}
 
-	export interface SemanticColoringLegend {
+	export interface SemanticTokensLegend {
 		readonly tokenTypes: string[];
 		readonly tokenModifiers: string[];
 	}
 
-	export interface SemanticColoringArea {
-		/**
-		 * The zero-based line value where this token block begins.
-		 */
-		readonly line: number;
-		/**
-		 * The actual token block encoded data.
-		 */
+	export interface SemanticTokens {
+		readonly resultId?: string;
 		readonly data: Uint32Array;
 	}
 
-	export interface SemanticColoring {
-		readonly areas: SemanticColoringArea[];
-		dispose(): void;
+	export interface SemanticTokensEdit {
+		readonly start: number;
+		readonly deleteCount: number;
+		readonly data?: Uint32Array;
 	}
 
-	export interface SemanticColoringProvider {
-		getLegend(): SemanticColoringLegend;
-		provideSemanticColoring(model: editor.ITextModel, token: CancellationToken): ProviderResult<SemanticColoring>;
+	export interface SemanticTokensEdits {
+		readonly resultId?: string;
+		readonly edits: SemanticTokensEdit[];
+	}
+
+	export interface SemanticTokensProvider {
+		getLegend(): SemanticTokensLegend;
+		provideSemanticTokens(model: editor.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+		releaseSemanticTokens(resultId: string | undefined): void;
 	}
 
 	export interface ILanguageExtensionPoint {

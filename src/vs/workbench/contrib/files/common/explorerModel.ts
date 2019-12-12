@@ -197,7 +197,9 @@ export class ExplorerItem {
 
 		// Properties
 		local.resource = disk.resource;
-		local.updateName(disk.name);
+		if (!local.isRoot) {
+			local.updateName(disk.name);
+		}
 		local._isDirectory = disk.isDirectory;
 		local._mtime = disk.mtime;
 		local._isDirectoryResolved = disk._isDirectoryResolved;

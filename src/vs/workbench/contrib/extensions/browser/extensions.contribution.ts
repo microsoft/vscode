@@ -12,7 +12,7 @@ import { ExtensionsLabel, ExtensionsChannelId, PreferencesLabel, IExtensionManag
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/contrib/output/common/output';
+import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
@@ -24,7 +24,7 @@ import {
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
-import { StatusUpdater, ExtensionsViewlet, MaliciousExtensionChecker, ExtensionsViewletViewsContribution } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
+import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewlet } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';

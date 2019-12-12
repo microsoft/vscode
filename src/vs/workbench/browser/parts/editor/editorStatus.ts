@@ -851,6 +851,7 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 
 	update(editor: ICodeEditor | undefined): void {
 		this.editor = editor;
+		this.updateMarkers();
 		this.updateStatus();
 	}
 

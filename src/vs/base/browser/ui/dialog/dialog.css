@@ -28,6 +28,7 @@
 	max-width: 90%;
 	min-height: 75px;
 	padding: 10px;
+	transform: translate3d(0px, 0px, 0px);
 }
 
 /** Dialog: Title Actions Row */

@@ -36,7 +36,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -56,7 +56,7 @@ import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/servic
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { relativePath } from 'vs/base/common/resources';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -66,6 +66,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { Color, RGBA } from 'vs/base/common/color';
 
 const $ = dom.$;
 
@@ -81,7 +82,7 @@ export enum SearchViewPosition {
 }
 
 const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
-export class SearchView extends ViewletPane {
+export class SearchView extends ViewPane {
 
 	private static readonly MAX_TEXT_RESULTS = 10000;
 
@@ -144,7 +145,7 @@ export class SearchView extends ViewletPane {
 
 	constructor(
 		private position: SearchViewPosition,
-		options: IViewletPaneOptions,
+		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -205,7 +206,7 @@ export class SearchView extends ViewletPane {
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
 
-		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(500));
+		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(2000));
 
 		this.actions = [
 			this._register(this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)),
@@ -962,13 +963,15 @@ export class SearchView extends ViewletPane {
 		return this.searchWidget && this.searchWidget.searchInput.getValue().length > 0;
 	}
 
-	clearSearchResults(): void {
+	clearSearchResults(clearInput = true): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage(true);
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.showSearchWithoutFolderMessage();
 		}
-		this.searchWidget.clear();
+		if (clearInput) {
+			this.searchWidget.clear();
+		}
 		this.viewModel.cancelSearch();
 		this.updateActions();
 
@@ -1201,7 +1204,7 @@ export class SearchView extends ViewletPane {
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 
 		if (contentPattern.length === 0) {
-			this.clearSearchResults();
+			this.clearSearchResults(false);
 			this.clearMessage();
 			return;
 		}
@@ -1283,9 +1286,11 @@ export class SearchView extends ViewletPane {
 	}
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
-		this.addToSearchHistoryDelayer.trigger(() => this.searchWidget.searchInput.onSearchSubmit());
-		this.inputPatternExcludes.onSearchSubmit();
-		this.inputPatternIncludes.onSearchSubmit();
+		this.addToSearchHistoryDelayer.trigger(() => {
+			this.searchWidget.searchInput.onSearchSubmit();
+			this.inputPatternExcludes.onSearchSubmit();
+			this.inputPatternIncludes.onSearchSubmit();
+		});
 
 		this.viewModel.cancelSearch();
 
@@ -1795,5 +1800,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const outlineSelectionColor = theme.getColor(listActiveSelectionForeground);
 	if (outlineSelectionColor) {
 		collector.addRule(`.monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus { outline-color: ${outlineSelectionColor} }`);
+	}
+
+	const foregroundColor = theme.getColor(foreground);
+	if (foregroundColor) {
+		const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.5));
+		collector.addRule(`.vs-dark .search-view .message { color: ${fgWithOpacity}; }`);
 	}
 });

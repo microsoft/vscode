@@ -67,6 +67,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -86,6 +87,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const rpcProtocol = accessor.get(IExtHostRpcService);
 	const extHostStorage = accessor.get(IExtHostStorage);
 	const extHostLogService = accessor.get(ILogService);
+	const extHostTunnelService = accessor.get(IExtHostTunnelService);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostLogService, <ExtHostLogServiceShape><any>extHostLogService);
@@ -93,6 +95,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
+	rpcProtocol.set(ExtHostContext.ExtHostTunnelService, extHostTunnelService);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -225,10 +228,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appName() { return initData.environment.appName; },
 			get appRoot() { return initData.environment.appRoot!.fsPath; },
 			get uriScheme() { return initData.environment.appUriScheme; },
-			createAppUri(options?) {
-				checkProposedApiEnabled(extension);
-				return extHostUrls.proposedCreateAppUri(extension.identifier, options);
-			},
 			get logLevel() {
 				checkProposedApiEnabled(extension);
 				return typeConverters.LogLevel.to(extHostLogService.getLevel());
@@ -351,9 +350,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
 				return extHostLanguageFeatures.registerOnTypeFormattingEditProvider(extension, checkSelector(selector), provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
 			},
-			registerSemanticColoringProvider(selector: vscode.DocumentSelector, provider: vscode.SemanticColoringProvider, legend: vscode.SemanticColoringLegend): vscode.Disposable {
+			registerSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.SemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
 				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerSemanticColoringProvider(extension, checkSelector(selector), provider, legend);
+				return extHostLanguageFeatures.registerSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
 			},
 			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, firstItem?: string | vscode.SignatureHelpProviderMetadata, ...remaining: string[]): vscode.Disposable {
 				if (typeof firstItem === 'object') {
@@ -500,7 +499,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
 			},
 			withScmProgress<R>(task: (progress: vscode.Progress<number>) => Thenable<R>) {
-				console.warn(`[Deprecation Warning] function 'withScmProgress' is deprecated and should no longer be used. Use 'withProgress' instead.`);
 				return extHostProgress.withProgress(extension, { location: extHostTypes.ProgressLocation.SourceControl }, (progress, token) => task({ report(n: number) { /*noop*/ } }));
 			},
 			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
@@ -559,7 +557,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get rootPath() {
 				if (extension.isUnderDevelopment && !warnedRootPathDeprecated) {
 					warnedRootPathDeprecated = true;
-					console.warn(`[Deprecation Warning] 'workspace.rootPath' is deprecated and should no longer be used. Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/vscode-eliminating-rootpath`);
+					extHostLogService.warn(`[Deprecation Warning] 'workspace.rootPath' is deprecated and should no longer be used. Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/vscode-eliminating-rootpath`);
 				}
 
 				return extHostWorkspace.getPath();
@@ -699,28 +697,26 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLabelService.$registerResourceLabelFormatter(formatter);
 			},
 			onDidCreateFiles: (listener, thisArg, disposables) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidCreateFile(listener, thisArg, disposables);
 			},
 			onDidDeleteFiles: (listener, thisArg, disposables) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidDeleteFile(listener, thisArg, disposables);
 			},
 			onDidRenameFiles: (listener, thisArg, disposables) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			},
 			onWillCreateFiles: (listener: (e: vscode.FileWillCreateEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillCreateFileEvent(extension)(listener, thisArg, disposables);
 			},
 			onWillDeleteFiles: (listener: (e: vscode.FileWillDeleteEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillDeleteFileEvent(extension)(listener, thisArg, disposables);
 			},
 			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
-				checkProposedApiEnabled(extension);
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
+			},
+			makeTunnel: (forward: vscode.TunnelOptions) => {
+				checkProposedApiEnabled(extension);
+				return extHostTunnelService.makeTunnel(forward);
 			}
 		};
 
@@ -789,8 +785,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			removeBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.removeBreakpoints(breakpoints);
 			},
-			asDebugSourceUri(source: vscode.DebugSource, session?: vscode.DebugSession): vscode.Uri {
-				checkProposedApiEnabled(extension);
+			asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri {
 				return extHostDebugService.asDebugSourceUri(source, session);
 			}
 		};
@@ -857,6 +852,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			DebugAdapterServer: extHostTypes.DebugAdapterServer,
+			DebugAdapterInlineImplementation: extHostTypes.DebugAdapterInlineImplementation,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
@@ -893,9 +889,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			RelativePattern: extHostTypes.RelativePattern,
 			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
-			SemanticColoring: extHostTypes.SemanticColoring,
-			SemanticColoringArea: extHostTypes.SemanticColoringArea,
-			SemanticColoringLegend: extHostTypes.SemanticColoringLegend,
+			SemanticTokensLegend: extHostTypes.SemanticTokensLegend,
+			SemanticTokensBuilder: extHostTypes.SemanticTokensBuilder,
+			SemanticTokens: extHostTypes.SemanticTokens,
+			SemanticTokensEdits: extHostTypes.SemanticTokensEdits,
+			SemanticTokensEdit: extHostTypes.SemanticTokensEdit,
 			Selection: extHostTypes.Selection,
 			SelectionRange: extHostTypes.SelectionRange,
 			ShellExecution: extHostTypes.ShellExecution,

@@ -42,6 +42,7 @@
 	max-height: 134px;
 }
 
+/* NOTE: height is also used in searchWidget.ts as a constant*/
 .search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
 	overflow: initial;
 	height: 24px; /* set initial height before measure */
@@ -300,10 +301,6 @@
 
 .vs-dark .search-view .search-widget .toggle-replace-button:hover {
 	background-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-.vs-dark .search-view .message {
-	opacity: .5;
 }
 
 .vs-dark .search-view .foldermatch,

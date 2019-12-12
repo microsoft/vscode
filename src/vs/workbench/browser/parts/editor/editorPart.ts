@@ -121,7 +121,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private _partOptions: IEditorPartOptions;
 
-	private groupViews: Map<GroupIdentifier, IEditorGroupView> = new Map<GroupIdentifier, IEditorGroupView>();
+	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	private container: HTMLElement | undefined;

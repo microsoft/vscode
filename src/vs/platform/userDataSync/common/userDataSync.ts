@@ -15,6 +15,9 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { URI } from 'vs/base/common/uri';
 
 const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
@@ -49,6 +52,18 @@ export function registerConfiguration(): IDisposable {
 			'sync.enableExtensions': {
 				type: 'boolean',
 				description: localize('sync.enableExtensions', "Enable synchronizing extensions."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'sync.enableKeybindings': {
+				type: 'boolean',
+				description: localize('sync.enableKeybindings', "Enable synchronizing keybindings."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'sync.keybindingsPerPlatform': {
+				type: 'boolean',
+				description: localize('sync.keybindingsPerPlatform', "Synchronize keybindings per platform."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
@@ -132,6 +147,7 @@ export interface ISyncExtension {
 
 export const enum SyncSource {
 	Settings = 1,
+	Keybindings,
 	Extensions
 }
 
@@ -161,15 +177,15 @@ export interface IUserDataSyncService extends ISynchroniser {
 	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
 }
 
-export const ISettingsMergeService = createDecorator<ISettingsMergeService>('ISettingsMergeService');
+export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
 
-export interface ISettingsMergeService {
+export interface IUserDataSyncUtilService {
 
 	_serviceBrand: undefined;
 
-	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[]): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
+	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 
-	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[]): Promise<string>;
+	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 
 }
 

@@ -256,10 +256,11 @@ import product from 'vs/platform/product/common/product';
 			},
 			'window.newWindowDimensions': {
 				'type': 'string',
-				'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
+				'enum': ['default', 'inherit', 'offset', 'maximized', 'fullscreen'],
 				'enumDescriptions': [
 					nls.localize('window.newWindowDimensions.default', "Open new windows in the center of the screen."),
 					nls.localize('window.newWindowDimensions.inherit', "Open new windows with same dimension as last active one."),
+					nls.localize('window.newWindowDimensions.offset', "Open new windows with same dimension as last active one with an offset position."),
 					nls.localize('window.newWindowDimensions.maximized', "Open new windows maximized."),
 					nls.localize('window.newWindowDimensions.fullscreen', "Open new windows in full screen mode.")
 				],

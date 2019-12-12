@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { timeout } from 'vs/base/common/async';
 import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
+import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -31,6 +30,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	get conflictsSource(): SyncSource | null { return this._conflictsSource; }
 
 	private readonly settingsSynchroniser: SettingsSynchroniser;
+	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
 	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
 
 	constructor(
@@ -40,8 +40,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	) {
 		super();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
+		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
 		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));
-		this.synchronisers = [this.settingsSynchroniser, this.extensionsSynchroniser];
+		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
 
 		if (this.userDataSyncStoreService.userDataSyncStore) {
@@ -111,6 +112,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			if (source instanceof SettingsSynchroniser) {
 				return SyncSource.Settings;
 			}
+			if (source instanceof KeybindingsSynchroniser) {
+				return SyncSource.Keybindings;
+			}
 		}
 		return null;
 	}
@@ -119,68 +123,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
 			this.stop();
 		}
-	}
-
-}
-
-export class UserDataAutoSync extends Disposable {
-
-	private enabled: boolean = false;
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
-	) {
-		super();
-		this.updateEnablement(false);
-		this._register(Event.any<any>(authTokenService.onDidChangeStatus, userDataSyncService.onDidChangeStatus)(() => this.updateEnablement(true)));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('sync.enable'))(() => this.updateEnablement(true)));
-
-		// Sync immediately if there is a local change.
-		this._register(Event.debounce(this.userDataSyncService.onDidChangeLocal, () => undefined, 500)(() => this.sync(false)));
-	}
-
-	private updateEnablement(stopIfDisabled: boolean): void {
-		const enabled = this.isSyncEnabled();
-		if (this.enabled === enabled) {
-			return;
-		}
-
-		this.enabled = enabled;
-		if (this.enabled) {
-			this.logService.info('Syncing configuration started');
-			this.sync(true);
-			return;
-		} else {
-			if (stopIfDisabled) {
-				this.userDataSyncService.stop();
-				this.logService.info('Syncing configuration stopped.');
-			}
-		}
-
-	}
-
-	private async sync(loop: boolean): Promise<void> {
-		if (this.enabled) {
-			try {
-				await this.userDataSyncService.sync();
-			} catch (e) {
-				this.logService.error(e);
-			}
-			if (loop) {
-				await timeout(1000 * 5); // Loop sync for every 5s.
-				this.sync(loop);
-			}
-		}
-	}
-
-	private isSyncEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('sync.enable')
-			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
-			&& this.authTokenService.status === AuthTokenStatus.SignedIn;
 	}
 
 }

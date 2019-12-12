@@ -14,6 +14,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { markdownUnescapeCodicons, escapeCodicons } from 'vs/base/common/codicons';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -1231,21 +1232,26 @@ export class MarkdownString {
 
 	value: string;
 	isTrusted?: boolean;
+	readonly supportThemeIcons?: boolean;
 
-	constructor(value?: string) {
-		this.value = value || '';
+	constructor(value?: string, { supportThemeIcons }: { supportThemeIcons?: boolean } = {}) {
+		this.value = value ?? '';
+		this.supportThemeIcons = supportThemeIcons ?? false;
 	}
 
 	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += value
+		value = value
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
 			.replace('\n', '\n\n');
+		this.value += this.supportThemeIcons ? markdownUnescapeCodicons(value) : value;
+
 		return this;
 	}
 
 	appendMarkdown(value: string): MarkdownString {
 		this.value += value;
+
 		return this;
 	}
 
@@ -1256,6 +1262,10 @@ export class MarkdownString {
 		this.value += code;
 		this.value += '\n```\n';
 		return this;
+	}
+
+	static escapeThemeIcons(value: string): string {
+		return escapeCodicons(value);
 	}
 }
 
@@ -2250,16 +2260,14 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	}
 }
 
-/*
 @es5ClassCompat
-export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
-	readonly implementation: any;
+export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInlineImplementation {
+	readonly implementation: vscode.DebugAdapter;
 
-	constructor(transport: any) {
-		this.implementation = transport;
+	constructor(impl: vscode.DebugAdapter) {
+		this.implementation = impl;
 	}
 }
-*/
 
 export enum LogLevel {
 	Trace = 1,
@@ -2370,7 +2378,7 @@ export enum CommentMode {
 
 //#region Semantic Coloring
 
-export class SemanticColoringLegend {
+export class SemanticTokensLegend {
 	public readonly tokenTypes: string[];
 	public readonly tokenModifiers: string[];
 
@@ -2380,21 +2388,74 @@ export class SemanticColoringLegend {
 	}
 }
 
-export class SemanticColoringArea {
-	public readonly line: number;
-	public readonly data: Uint32Array;
+export class SemanticTokensBuilder {
 
-	constructor(line: number, data: Uint32Array) {
-		this.line = line;
+	private _prevLine: number;
+	private _prevChar: number;
+	private _data: number[];
+	private _dataLen: number;
+
+	constructor() {
+		this._prevLine = 0;
+		this._prevChar = 0;
+		this._data = [];
+		this._dataLen = 0;
+	}
+
+	public push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void {
+		let pushLine = line;
+		let pushChar = char;
+		if (this._dataLen > 0) {
+			pushLine -= this._prevLine;
+			if (pushLine === 0) {
+				pushChar -= this._prevChar;
+			}
+		}
+
+		this._data[this._dataLen++] = pushLine;
+		this._data[this._dataLen++] = pushChar;
+		this._data[this._dataLen++] = length;
+		this._data[this._dataLen++] = tokenType;
+		this._data[this._dataLen++] = tokenModifiers;
+
+		this._prevLine = line;
+		this._prevChar = char;
+	}
+
+	public build(): Uint32Array {
+		return new Uint32Array(this._data);
+	}
+}
+
+export class SemanticTokens {
+	readonly resultId?: string;
+	readonly data: Uint32Array;
+
+	constructor(data: Uint32Array, resultId?: string) {
+		this.resultId = resultId;
 		this.data = data;
 	}
 }
 
-export class SemanticColoring {
-	public readonly areas: SemanticColoringArea[];
+export class SemanticTokensEdit {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly data?: Uint32Array;
 
-	constructor(areas: SemanticColoringArea[]) {
-		this.areas = areas;
+	constructor(start: number, deleteCount: number, data?: Uint32Array) {
+		this.start = start;
+		this.deleteCount = deleteCount;
+		this.data = data;
+	}
+}
+
+export class SemanticTokensEdits {
+	readonly resultId?: string;
+	readonly edits: SemanticTokensEdit[];
+
+	constructor(edits: SemanticTokensEdit[], resultId?: string) {
+		this.resultId = resultId;
+		this.edits = edits;
 	}
 }
 

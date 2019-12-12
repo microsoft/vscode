@@ -129,6 +129,11 @@ export interface ITextFileService extends IDisposable {
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
 	 */
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * Copy a file. If the file is dirty, its contents will be preserved and restored.
+	 */
+	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 }
 
 export interface FileOperationWillRunEvent extends IWaitUntil {
@@ -407,6 +412,7 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
 	writeElevated?: boolean;
+	ignoreModifiedSince?: boolean;
 }
 
 export interface ILoadOptions {

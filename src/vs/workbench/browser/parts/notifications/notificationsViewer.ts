@@ -85,7 +85,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
 			actions++; // secondary actions
 		}
-		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 24 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
+		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 26 /* severity icon */ + (actions * 24) /* 24px per action */)}px`;
 
 		// Render message into offset helper
 		const renderedMessage = NotificationMessageRenderer.render(notification.message);

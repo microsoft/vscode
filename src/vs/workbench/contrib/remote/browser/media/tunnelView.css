@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'semver-umd' {
+.customview-tree .tunnel-view-label {
+	flex: 1;
+}
 
-	export * from "semver";
-
+.customview-tree .tunnel-view-label .action-label.codicon {
+	margin-top: 4px;
 }

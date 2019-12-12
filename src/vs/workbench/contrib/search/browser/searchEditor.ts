@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextQuery, IPatternInfo, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import * as network from 'vs/base/common/network';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ITextModel, TrackedRangeStickiness, EndOfLinePreference } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
@@ -20,6 +20,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { localize } from 'vs/nls';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
@@ -45,7 +47,7 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 			const prefix = `  ${lineNumber}: ${paddingStr}`;
 			const prefixOffset = prefix.length;
 
-			const line = (prefix + sourceLine);
+			const line = (prefix + sourceLine).replace(/\r?\n?$/, '');
 
 			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 
@@ -65,6 +67,7 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 };
 
 type SearchResultSerialization = { text: string[], matchRanges: Range[] };
+
 function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
 	const serializedMatches = flatten(fileMatch.matches()
 		.sort(searchMatchComparer)
@@ -76,17 +79,37 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 
 	const targetLineNumberToOffset: Record<string, number> = {};
 
+	const context: { line: string, lineNumber: number }[] = [];
+	fileMatch.context.forEach((line, lineNumber) => context.push({ line, lineNumber }));
+	context.sort((a, b) => a.lineNumber - b.lineNumber);
+
+	let lastLine: number | undefined = undefined;
+
 	const seenLines = new Set<string>();
 	serializedMatches.forEach(match => {
 		if (!seenLines.has(match.line)) {
+			while (context.length && context[0].lineNumber < +match.lineNumber) {
+				const { line, lineNumber } = context.shift()!;
+				if (lastLine !== undefined && lineNumber !== lastLine + 1) {
+					text.push('');
+				}
+				text.push(`  ${lineNumber}  ${line}`);
+				lastLine = lineNumber;
+			}
+
 			targetLineNumberToOffset[match.lineNumber] = text.length;
 			seenLines.add(match.line);
 			text.push(match.line);
+			lastLine = +match.lineNumber;
 		}
 
 		matchRanges.push(...match.ranges.map(translateRangeLines(targetLineNumberToOffset[match.lineNumber])));
 	});
 
+	while (context.length) {
+		const { line, lineNumber } = context.shift()!;
+		text.push(`  ${lineNumber}  ${line}`);
+	}
 
 	return { text, matchRanges };
 }
@@ -104,7 +127,7 @@ const flattenSearchResultSerializations = (serializations: SearchResultSerializa
 	return { text, matchRanges };
 };
 
-const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes: string, excludes: string): string[] => {
+const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes: string, excludes: string, contextLines: number): string[] => {
 	if (!pattern) { return []; }
 
 	const removeNullFalseAndUndefined = <T>(a: (T | null | false | undefined)[]) => a.filter(a => a !== false && a !== null && a !== undefined) as T[];
@@ -123,19 +146,56 @@ const contentPatternToSearchResultHeader = (pattern: ITextQuery | null, includes
 		]).join(' ')}`,
 		includes ? `# Including: ${includes}` : undefined,
 		excludes ? `# Excluding: ${excludes}` : undefined,
+		contextLines ? `# ContextLines: ${contextLines}` : undefined,
 		''
 	]);
 };
 
-const searchHeaderToContentPattern = (header: string[]): { pattern: string, flags: { regex: boolean, wholeWord: boolean, caseSensitive: boolean, ignoreExcludes: boolean }, includes: string, excludes: string } => {
-	const query = {
+
+type SearchHeader = {
+	pattern: string;
+	flags: {
+		regex: boolean;
+		wholeWord: boolean;
+		caseSensitive: boolean;
+		ignoreExcludes: boolean;
+	};
+	includes: string;
+	excludes: string;
+	context: number | undefined;
+};
+
+const searchHeaderToContentPattern = (header: string[]): SearchHeader => {
+	const query: SearchHeader = {
 		pattern: '',
 		flags: { regex: false, caseSensitive: false, ignoreExcludes: false, wholeWord: false },
 		includes: '',
-		excludes: ''
+		excludes: '',
+		context: undefined
 	};
 
-	const unescapeNewlines = (str: string) => str.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
+	const unescapeNewlines = (str: string) => {
+		let out = '';
+		for (let i = 0; i < str.length; i++) {
+			if (str[i] === '\\') {
+				i++;
+				const escaped = str[i];
+
+				if (escaped === 'n') {
+					out += '\n';
+				}
+				else if (escaped === '\\') {
+					out += '\\';
+				}
+				else {
+					throw Error(localize('invalidQueryStringError', "All backslashes in Query string must be escaped (\\\\)"));
+				}
+			} else {
+				out += str[i];
+			}
+		}
+		return out;
+	};
 	const parseYML = /^# ([^:]*): (.*)$/;
 	for (const line of header) {
 		const parsed = parseYML.exec(line);
@@ -145,6 +205,7 @@ const searchHeaderToContentPattern = (header: string[]): { pattern: string, flag
 			case 'Query': query.pattern = unescapeNewlines(value); break;
 			case 'Including': query.includes = value; break;
 			case 'Excluding': query.excludes = value; break;
+			case 'ContextLines': query.context = +value; break;
 			case 'Flags': {
 				query.flags = {
 					regex: value.indexOf('RegExp') !== -1,
@@ -159,25 +220,26 @@ const searchHeaderToContentPattern = (header: string[]): { pattern: string, flag
 	return query;
 };
 
-const serializeSearchResultForEditor = (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, labelFormatter: (x: URI) => string): SearchResultSerialization => {
-	const header = contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern);
+const serializeSearchResultForEditor = (searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string): SearchResultSerialization => {
+	const header = contentPatternToSearchResultHeader(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
 	const allResults =
 		flattenSearchResultSerializations(
-			flatten(searchResult.folderMatches().sort(searchMatchComparer)
-				.map(folderMatch => folderMatch.matches().sort(searchMatchComparer)
-					.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
+			flatten(
+				searchResult.folderMatches().sort(searchMatchComparer)
+					.map(folderMatch => folderMatch.matches().sort(searchMatchComparer)
+						.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
 
 	return { matchRanges: allResults.matchRanges.map(translateRangeLines(header.length)), text: header.concat(allResults.text) };
 };
 
 export const refreshActiveEditorSearch =
-	async (editorService: IEditorService, instantiationService: IInstantiationService, contextService: IWorkspaceContextService, labelService: ILabelService, configurationService: IConfigurationService) => {
+	async (contextLines: number | undefined, editorService: IEditorService, instantiationService: IInstantiationService, contextService: IWorkspaceContextService, labelService: ILabelService, configurationService: IConfigurationService) => {
 		const model = editorService.activeTextEditorWidget?.getModel();
 		if (!model) { return; }
 
 		const textModel = model as ITextModel;
 
-		const header = textModel.getValueInRange(new Range(1, 1, 5, 1))
+		const header = textModel.getValueInRange(new Range(1, 1, 5, 1), EndOfLinePreference.LF)
 			.split(lineDelimiter)
 			.filter(line => line.indexOf('# ') === 0);
 
@@ -189,6 +251,8 @@ export const refreshActiveEditorSearch =
 			isCaseSensitive: contentPattern.flags.caseSensitive,
 			isWordMatch: contentPattern.flags.wholeWord
 		};
+
+		contextLines = contextLines ?? contentPattern.context ?? 0;
 
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchEditor',
@@ -202,6 +266,8 @@ export const refreshActiveEditorSearch =
 				matchLines: 1,
 				charsPerLine: 1000
 			},
+			afterContext: contextLines,
+			beforeContext: contextLines,
 			isSmartCase: configurationService.getValue<ISearchConfigurationProperties>('search').smartCase,
 			expandPatterns: true
 		};
@@ -220,7 +286,7 @@ export const refreshActiveEditorSearch =
 		await searchModel.search(query);
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(searchModel.searchResult, '', '', labelFormatter);
+		const results = serializeSearchResultForEditor(searchModel.searchResult, contentPattern.includes, contentPattern.excludes, contextLines, labelFormatter);
 
 		textModel.setValue(results.text.join(lineDelimiter));
 		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
@@ -233,29 +299,35 @@ export const createEditorFromSearchResult =
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
-		const results = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, labelFormatter);
-
+		const results = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter);
+		const contents = results.text.join(lineDelimiter);
 		let possible = {
-			contents: results.text.join(lineDelimiter),
+			contents,
 			mode: 'search-result',
 			resource: URI.from({ scheme: network.Schemas.untitled, path: searchTerm })
 		};
 
 		let id = 0;
-		while (editorService.getOpened(possible)) {
+		let existing = editorService.getOpened(possible);
+		while (existing) {
+			if (existing instanceof UntitledTextEditorInput) {
+				const model = await existing.resolve();
+				const existingContents = model.textEditorModel.getValue(EndOfLinePreference.LF);
+				if (existingContents === contents) {
+					break;
+				}
+			}
 			possible.resource = possible.resource.with({ path: searchTerm + '-' + ++id });
+			existing = editorService.getOpened(possible);
 		}
 
 		const editor = await editorService.openEditor(possible);
 		const control = editor?.getControl()!;
-		control.updateOptions({ lineNumbers: 'off' });
-
 		const model = control.getModel() as ITextModel;
 
 		model.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 	};
 
-// theming
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.monaco-editor .searchEditorFindMatch { background-color: ${theme.getColor(searchEditorFindMatch)}; }`);
 
