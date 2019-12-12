@@ -662,7 +662,7 @@ registerThemingParticipant((theme, collector) => {
 	if (debugIconBreakpointUnverifiedColor) {
 		collector.addRule(`
 		.monaco-workbench .codicon[class*='-unverified'] {
-			color: ${debugIconBreakpointUnverifiedColor} !important;
+			color: ${debugIconBreakpointUnverifiedColor};
 		}
 		`);
 	}

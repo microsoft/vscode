@@ -119,7 +119,6 @@ class CallStackEditorContribution implements IEditorContribution {
 
 	private static TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
-		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-top-stack-frame-line',
 		stickiness
 	};
@@ -130,7 +129,6 @@ class CallStackEditorContribution implements IEditorContribution {
 
 	private static FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
-		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-focused-stack-frame-line',
 		stickiness
 	};

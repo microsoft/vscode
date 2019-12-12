@@ -182,7 +182,3 @@
 .hc-black .monaco-workbench .monaco-list-row .expression .name {
 	color: inherit;
 }
-
-.hc-black .monaco-editor .debug-remove-token-colors {
-	color:black;
-}
