@@ -29,17 +29,19 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
+	let currentScriptKind: ts.ScriptKind;
 	let scriptFileVersion: number = 0;
-	function updateCurrentTextDocument(doc: TextDocument) {
+	function updateCurrentTextDocument(doc: TextDocument, scriptKind = ts.ScriptKind.JS) {
 		if (!currentTextDocument || doc.uri !== currentTextDocument.uri || doc.version !== currentTextDocument.version) {
 			currentTextDocument = jsDocuments.get(doc);
 			scriptFileVersion++;
 		}
+		currentScriptKind = scriptKind;
 	}
 	const host: ts.LanguageServiceHost = {
 		getCompilationSettings: () => compilerOptions,
 		getScriptFileNames: () => [FILE_NAME, jquery_d_ts],
-		getScriptKind: () => ts.ScriptKind.JS,
+		getScriptKind: (fileName) => fileName === FILE_NAME ? currentScriptKind : ts.ScriptKind.JS,
 		getScriptVersion: (fileName: string) => {
 			if (fileName === FILE_NAME) {
 				return String(scriptFileVersion);
@@ -315,7 +317,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			jsDocuments.onDocumentRemoved(document);
 		},
 		getSemanticTokens(document: TextDocument, ranges: Range[] | undefined): number[] {
-			updateCurrentTextDocument(document);
+			updateCurrentTextDocument(document, ts.ScriptKind.TS);
 			if (!ranges) {
 				ranges = [Range.create(Position.create(0, 0), document.positionAt(document.getText().length))];
 			}
