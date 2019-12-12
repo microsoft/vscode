@@ -8,7 +8,7 @@
 }
 
 .codicon-debug-hint:not([class*='codicon-debug-breakpoint']) {
-	opacity: .4 !important;
+	opacity: 0.4 !important;
 }
 
 .inline-breakpoint-widget.codicon {
@@ -18,7 +18,7 @@
 
 .codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
 .codicon-debug-breakpoint.codicon-debug-stackframe::after {
-	content: "\eb8a";
+	content: '\eb8a';
 	position: absolute;
 }
 
@@ -28,24 +28,36 @@
 
 .monaco-editor .debug-breakpoint-placeholder::before,
 .monaco-editor .debug-top-stack-frame-column::before {
-	content: " ";
+	content: ' ';
 	width: 0.9em;
-	display: inline-block;
-	vertical-align: text-bottom;
+	display: inline-flex;
+	vertical-align: middle;
 	margin-right: 2px;
 	margin-left: 2px;
+	margin-top: -1px; /* TODO @misolori: figure out a way to not use negative margin for alignment */
+}
+
+.monaco-editor .debug-top-stack-frame-column {
+	display: inline-flex;
+	vertical-align: middle;
+}
+
+.monaco-editor .debug-top-stack-frame-column::before {
+	content: '\eb8b';
+	font: normal normal normal 16px/1 codicon;
+	text-rendering: auto;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	margin-left: 0;
+	margin-right: 4px;
 }
 
 /* Do not show call stack decoration when we plan to show breakpoint and top stack frame in one decoration */
 .monaco-editor .debug-breakpoint-placeholder ~ .debug-top-stack-frame-column::before {
 	width: 0em;
-	content: "";
+	content: '';
 	margin-right: 0px;
 	margin-left: 0px;
-}
-
-.monaco-editor .debug-top-stack-frame-column::before {
-	height: 1.3em;
 }
 
 .monaco-editor .inline-breakpoint-widget {
@@ -104,7 +116,7 @@
 }
 
 .monaco-workbench .monaco-list-row .expression .name {
-	color: #9B46B0;
+	color: #9b46b0;
 }
 
 .monaco-workbench .monaco-list-row .expression .name.virtual {
@@ -120,61 +132,61 @@
 }
 
 .monaco-workbench .monaco-list-row .expression .error {
-	color: #E51400;
+	color: #e51400;
 }
 
 .monaco-workbench .monaco-list-row .expression .value.number {
-	color: #09885A;
+	color: #09885a;
 }
 
 .monaco-workbench .monaco-list-row .expression .value.boolean {
-	color: #0000FF;
+	color: #0000ff;
 }
 
 .monaco-workbench .monaco-list-row .expression .value.string {
-	color: #A31515;
+	color: #a31515;
 }
 
-.vs-dark .monaco-workbench  > .monaco-list-row .expression .value {
+.vs-dark .monaco-workbench > .monaco-list-row .expression .value {
 	color: rgba(204, 204, 204, 0.6);
 }
 
-.vs-dark .monaco-workbench  .monaco-list-row .expression .error {
-	color: #F48771;
-}
-
-.vs-dark .monaco-workbench  .monaco-list-row .expression .value.number {
-	color: #B5CEA8;
-}
-
-.hc-black .monaco-workbench  .monaco-list-row .expression .value.number {
-	color: #89d185;
-}
-
-.hc-black .monaco-workbench  .monaco-list-row .expression .value.boolean {
-	color: #75bdfe;
-}
-
-.hc-black .monaco-workbench  .monaco-list-row .expression .value.string {
+.vs-dark .monaco-workbench .monaco-list-row .expression .error {
 	color: #f48771;
 }
 
-.vs-dark .monaco-workbench  .monaco-list-row .expression .value.boolean {
-	color: #4E94CE;
+.vs-dark .monaco-workbench .monaco-list-row .expression .value.number {
+	color: #b5cea8;
 }
 
-.vs-dark .monaco-workbench  .monaco-list-row .expression .value.string {
-	color: #CE9178;
+.hc-black .monaco-workbench .monaco-list-row .expression .value.number {
+	color: #89d185;
+}
+
+.hc-black .monaco-workbench .monaco-list-row .expression .value.boolean {
+	color: #75bdfe;
+}
+
+.hc-black .monaco-workbench .monaco-list-row .expression .value.string {
+	color: #f48771;
+}
+
+.vs-dark .monaco-workbench .monaco-list-row .expression .value.boolean {
+	color: #4e94ce;
+}
+
+.vs-dark .monaco-workbench .monaco-list-row .expression .value.string {
+	color: #ce9178;
 }
 
 .hc-black .monaco-workbench .monaco-list-row .expression .error {
-	color: #F48771;
+	color: #f48771;
 }
 
 /* Dark theme */
 
 .vs-dark .monaco-workbench .monaco-list-row .expression .name {
-	color: #C586C0;
+	color: #c586c0;
 }
 
 /* High Contrast Theming */
