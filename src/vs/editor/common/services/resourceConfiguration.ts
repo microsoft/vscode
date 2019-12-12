@@ -12,8 +12,16 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IResourceConfigurationService = createDecorator<IResourceConfigurationService>('resourceConfigurationService');
 
 export interface IResourceConfigurationChangeEvent {
+	/**
+	 * All affected keys. Also includes language overrides and keys changed under language overrides.
+	 */
 	readonly affectedKeys: string[];
-	affectsConfiguration(resource: URI, configuration: string): boolean;
+	/**
+	 * Returns `true` if the given section has changed for the given resource.
+	 * @param resource Resource for which the configuration has to be checked.
+	 * @param section Section of the configuration
+	 */
+	affectsConfiguration(resource: URI, section: string): boolean;
 }
 
 export interface IResourceConfigurationService {
@@ -37,6 +45,18 @@ export interface IResourceConfigurationService {
 	getValue<T>(resource: URI | undefined, section?: string): T;
 	getValue<T>(resource: URI | undefined, position?: IPosition, section?: string): T;
 
+	/**
+	 * Update the configuration value for the given resource at the effective location.
+	 *
+	 * - If configurationTarget is not specified, target will be derived by checking where the configuration is defined.
+	 * - If the language overrides for the give resource contains the configuration, then it is updated.
+	 *
+	 * @param resource Resource for which the configuration has to be updated
+	 * @param key Configuration key
+	 * @param value Configuration value
+	 * @param configurationTarget Optional target into which the configuration has to be updated.
+	 * If not specified, target will be derived by checking where the configuration is defined.
+	 */
 	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void>;
 
 }
