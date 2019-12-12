@@ -9,10 +9,10 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourceConfigurationService, IResourceConfigurationChangeEvent } from 'vs/editor/common/services/resourceConfiguration';
+import { IResourceConfigurationService, IResourceConfigurationChangeEvent } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
-export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
+export class TextResourceConfigurationService extends Disposable implements IResourceConfigurationService {
 
 	public _serviceBrand: undefined;
 

@@ -9,14 +9,14 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const ITextResourceConfigurationService = createDecorator<ITextResourceConfigurationService>('textResourceConfigurationService');
+export const IResourceConfigurationService = createDecorator<IResourceConfigurationService>('resourceConfigurationService');
 
 export interface IResourceConfigurationChangeEvent {
 	readonly affectedKeys: string[];
 	affectsConfiguration(resource: URI, configuration: string): boolean;
 }
 
-export interface ITextResourceConfigurationService {
+export interface IResourceConfigurationService {
 
 	_serviceBrand: undefined;
 

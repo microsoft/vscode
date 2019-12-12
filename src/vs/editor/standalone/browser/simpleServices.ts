@@ -23,7 +23,7 @@ import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService, IResourceConfigurationChangeEvent } from 'vs/editor/common/services/resourceConfiguration';
+import { IResourceConfigurationService, ITextResourcePropertiesService, IResourceConfigurationChangeEvent } from 'vs/editor/common/services/resourceConfiguration';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -487,7 +487,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 }
 
-export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
+export class SimpleResourceConfigurationService implements IResourceConfigurationService {
 
 	_serviceBrand: undefined;
 
