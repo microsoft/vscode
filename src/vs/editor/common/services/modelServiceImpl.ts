@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier, SemanticTokensProviderRegistry, SemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/modes';
+import { LanguageIdentifier, SemanticTokensProviderRegistry, SemanticTokensProvider, SemanticTokensLegend, SemanticTokens, SemanticTokensEdits, TokenMetadata } from 'vs/editor/common/modes';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -24,6 +24,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { SparseEncodedTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -120,7 +121,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@ILogService logService: ILogService
 	) {
 		super();
 		this._configurationService = configurationService;
@@ -131,7 +133,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
 
-		this._register(new SemanticColoringFeature(this, themeService));
+		this._register(new SemanticColoringFeature(this, themeService, logService));
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -443,10 +445,10 @@ class SemanticColoringFeature extends Disposable {
 	private _watchers: Record<string, ModelSemanticColoring>;
 	private _semanticStyling: SemanticStyling;
 
-	constructor(modelService: IModelService, themeService: IThemeService) {
+	constructor(modelService: IModelService, themeService: IThemeService, logService: ILogService) {
 		super();
 		this._watchers = Object.create(null);
-		this._semanticStyling = this._register(new SemanticStyling(themeService));
+		this._semanticStyling = this._register(new SemanticStyling(themeService, logService));
 		this._register(modelService.onModelAdded((model) => {
 			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, this._semanticStyling);
 		}));
@@ -462,7 +464,8 @@ class SemanticStyling extends Disposable {
 	private _caches: WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>;
 
 	constructor(
-		private readonly _themeService: IThemeService
+		private readonly _themeService: IThemeService,
+		private readonly _logService: ILogService
 	) {
 		super();
 		this._caches = new WeakMap<SemanticTokensProvider, SemanticColoringProviderStyling>();
@@ -476,7 +479,7 @@ class SemanticStyling extends Disposable {
 
 	public get(provider: SemanticTokensProvider): SemanticColoringProviderStyling {
 		if (!this._caches.has(provider)) {
-			this._caches.set(provider, new SemanticColoringProviderStyling(provider.getLegend(), this._themeService));
+			this._caches.set(provider, new SemanticColoringProviderStyling(provider.getLegend(), this._themeService, this._logService));
 		}
 		return this._caches.get(provider)!;
 	}
@@ -581,7 +584,8 @@ class SemanticColoringProviderStyling {
 
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
-		private readonly _themeService: IThemeService
+		private readonly _themeService: IThemeService,
+		private readonly _logService: ILogService
 	) {
 		this._hashTable = new HashTable();
 	}
@@ -604,6 +608,9 @@ class SemanticColoringProviderStyling {
 		let metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
 		if (typeof metadata === 'undefined') {
 			metadata = Constants.NO_STYLING;
+		}
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			this._logService.trace(`getTokenStyleMetadata(${tokenType}${tokenModifiers.length ? ', ' + tokenModifiers.join(' ') : ''}): foreground: ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
 		}
 
 		this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);

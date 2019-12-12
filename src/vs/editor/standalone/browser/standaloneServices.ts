@@ -146,7 +146,9 @@ export module StaticServices {
 
 	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o)));
+	export const logService = define(ILogService, () => new NullLogService());
+
+	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o), logService.get(o)));
 
 	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
 
@@ -155,8 +157,6 @@ export module StaticServices {
 	export const editorProgressService = define(IEditorProgressService, () => new SimpleEditorProgressService());
 
 	export const storageService = define(IStorageService, () => new InMemoryStorageService());
-
-	export const logService = define(ILogService, () => new NullLogService());
 
 	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o)));
 }

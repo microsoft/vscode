@@ -155,7 +155,10 @@ export class ColorThemeData implements IColorTheme {
 			for (const rule of tokenClassificationRegistry.getTokenStylingDefaultRules()) {
 				const matchScore = matchTokenStylingRule(rule, classification);
 				if (matchScore >= 0) {
-					let style = this.resolveScopes(rule.defaults.scopesToProbe);
+					let style: TokenStyle | undefined;
+					if (rule.defaults.scopesToProbe) {
+						style = this.resolveScopes(rule.defaults.scopesToProbe);
+					}
 					if (!style && useDefault !== false) {
 						style = this.resolveTokenStyleValue(rule.defaults[this.type]);
 					}
@@ -185,8 +188,8 @@ export class ColorThemeData implements IColorTheme {
 	/**
 	 * @param tokenStyleValue Resolve a tokenStyleValue in the context of a theme
 	 */
-	private resolveTokenStyleValue(tokenStyleValue: TokenStyleValue | null): TokenStyle | undefined {
-		if (tokenStyleValue === null) {
+	private resolveTokenStyleValue(tokenStyleValue: TokenStyleValue | undefined): TokenStyle | undefined {
+		if (tokenStyleValue === undefined) {
 			return undefined;
 		} else if (typeof tokenStyleValue === 'string') {
 			const [type, ...modifiers] = tokenStyleValue.split('.');
@@ -289,7 +292,7 @@ export class ColorThemeData implements IColorTheme {
 			findTokenStyleForScopeInScopes(this.themeTokenScopeMatchers, this.themeTokenColors);
 			findTokenStyleForScopeInScopes(this.customTokenScopeMatchers, this.customTokenColors);
 			if (foreground !== undefined || fontStyle !== undefined) {
-				return getTokenStyle(foreground, fontStyle);
+				return TokenStyle.fromSettings(foreground, fontStyle);
 			}
 		}
 		return undefined;
@@ -682,34 +685,7 @@ function getScopeMatcher(rule: ITextMateThemingRule): Matcher<ProbeScope> {
 	};
 }
 
-function getTokenStyle(foreground: string | undefined, fontStyle: string | undefined): TokenStyle {
-	let foregroundColor = undefined;
-	if (foreground !== undefined) {
-		foregroundColor = Color.fromHex(foreground);
-	}
-	let bold, underline, italic;
-	if (fontStyle !== undefined) {
-		fontStyle = fontStyle.trim();
-		if (fontStyle.length === 0) {
-			bold = italic = underline = false;
-		} else {
-			const expression = /-?italic|-?bold|-?underline/g;
-			let match;
-			while ((match = expression.exec(fontStyle))) {
-				switch (match[0]) {
-					case 'bold': bold = true; break;
-					case '-bold': bold = false; break;
-					case 'italic': italic = true; break;
-					case '-italic': italic = false; break;
-					case 'underline': underline = true; break;
-					case '-underline': underline = false; break;
-				}
-			}
-		}
-	}
-	return new TokenStyle(foregroundColor, bold, underline, italic);
 
-}
 
 function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenStyleCustomizations, result: TokenStylingRule[] = []) {
 	for (let key in tokenStylingRuleSection) {
@@ -720,9 +696,9 @@ function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenSt
 				const settings = tokenStylingRuleSection[key];
 				let style: TokenStyle | undefined;
 				if (typeof settings === 'string') {
-					style = getTokenStyle(settings, undefined);
+					style = TokenStyle.fromSettings(settings, undefined);
 				} else if (isTokenColorizationSetting(settings)) {
-					style = getTokenStyle(settings.foreground, settings.fontStyle);
+					style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle);
 				}
 				if (style) {
 					result.push(tokenClassificationRegistry.getTokenStylingRule(classification, style));
