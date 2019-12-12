@@ -328,12 +328,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 			if (menubarActiveWindowFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar > .menubar-menu-button {
-					color: ${menubarActiveWindowFgColor};
-				}
-
+				.monaco-workbench .menubar > .menubar-menu-button,
 				.monaco-workbench .menubar .toolbar-toggle-more {
-					color: ${menubarActiveWindowFgColor}
+					color: ${menubarActiveWindowFgColor};
 				}
 				`);
 			}
@@ -341,12 +338,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const activityBarInactiveFgColor = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND);
 			if (activityBarInactiveFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button {
-					color: ${activityBarInactiveFgColor};
-				}
-
+				.monaco-workbench .menubar.compact > .menubar-menu-button,
 				.monaco-workbench .menubar.compact .toolbar-toggle-more {
-					color: ${activityBarInactiveFgColor}
+					color: ${activityBarInactiveFgColor};
 				}
 				`);
 
