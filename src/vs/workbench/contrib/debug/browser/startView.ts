@@ -25,7 +25,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 const $ = dom.$;
 
-
 export class StartView extends ViewPane {
 
 	static ID = 'workbench.debug.startView';
