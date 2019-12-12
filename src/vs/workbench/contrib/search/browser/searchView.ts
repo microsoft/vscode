@@ -137,6 +137,7 @@ export class SearchView extends ViewPane {
 
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean = false;
+	private updatedActionsWhileHidden = false;
 
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
@@ -348,6 +349,13 @@ export class SearchView extends ViewPane {
 				this.refreshAndUpdateCount();
 				this.changedWhileHidden = false;
 			}
+
+			if (this.updatedActionsWhileHidden) {
+				// The actions can only run or update their enablement when the view is visible,
+				// because they can only access the view when it's visible
+				this.updateActions();
+				this.updatedActionsWhileHidden = false;
+			}
 		}
 
 		// Enable highlights if there are searchresults
@@ -372,6 +380,10 @@ export class SearchView extends ViewPane {
 	 * Warning: a bit expensive due to updating the view title
 	 */
 	protected updateActions(): void {
+		if (!this.isVisible()) {
+			this.updatedActionsWhileHidden = true;
+		}
+
 		for (const action of this.actions) {
 			action.update();
 		}
