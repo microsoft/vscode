@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
+import { toValuesTree, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IConfigurationChange, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
 import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
@@ -115,62 +115,39 @@ export class Configuration extends BaseConfiguration {
 		return super.keys(this._workspace);
 	}
 
-	compareAndUpdateRemoteUserConfiguration(user: ConfigurationModel): IConfigurationChange {
-		const { added, updated, removed, overrides } = compare(this.remoteUserConfiguration, user);
-		let keys = [...added, ...updated, ...removed];
-		if (keys.length) {
-			super.updateRemoteUserConfiguration(user);
-		}
-		return { keys, overrides };
-	}
-
-	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): IConfigurationChange {
-		const { added, updated, removed, overrides } = compare(this.workspaceConfiguration, workspaceConfiguration);
-		let keys = [...added, ...updated, ...removed];
-		if (keys.length) {
-			super.updateWorkspaceConfiguration(workspaceConfiguration);
-		}
-		return { keys, overrides };
-	}
-
-	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): IConfigurationChange {
-		const currentFolderConfiguration = this.folderConfigurations.get(resource);
-		const { added, updated, removed, overrides } = compare(currentFolderConfiguration, folderConfiguration);
-		let keys = [...added, ...updated, ...removed];
-		if (keys.length) {
-			super.updateFolderConfiguration(resource, folderConfiguration);
-		}
-		return { keys, overrides };
-	}
-
 	compareAndDeleteFolderConfiguration(folder: URI): IConfigurationChange {
 		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.toString() === folder.toString()) {
 			// Do not remove workspace configuration
 			return { keys: [], overrides: [] };
 		}
-		const folderConfig = this.folderConfigurations.get(folder);
-		if (!folderConfig) {
-			throw new Error('Unknown folder');
-		}
-		super.deleteFolderConfiguration(folder);
-		const { added, updated, removed, overrides } = compare(folderConfig, undefined);
-		return { keys: [...added, ...updated, ...removed], overrides };
+		return super.compareAndDeleteFolderConfiguration(folder);
 	}
 
 	compare(other: Configuration): IConfigurationChange {
 		const compare = (fromKeys: string[], toKeys: string[], overrideIdentifier?: string): string[] => {
-			return [
-				...toKeys.filter(key => fromKeys.indexOf(key) === -1),
-				...fromKeys.filter(key => toKeys.indexOf(key) === -1),
-				...fromKeys.filter(key => !equals(this.getValue(key, { overrideIdentifier }), other.getValue(key, { overrideIdentifier }))
-					|| (this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri, overrideIdentifier }), other.getValue(key, { resource: folder.uri, overrideIdentifier })))))
-			];
+			const keys: string[] = [];
+			keys.push(...toKeys.filter(key => fromKeys.indexOf(key) === -1));
+			keys.push(...fromKeys.filter(key => toKeys.indexOf(key) === -1));
+			keys.push(...fromKeys.filter(key => {
+				// Ignore if the key does not exist in both models
+				if (toKeys.indexOf(key) === -1) {
+					return false;
+				}
+				// Compare workspace value
+				if (!equals(this.getValue(key, { overrideIdentifier }), other.getValue(key, { overrideIdentifier }))) {
+					return true;
+				}
+				// Compare workspace folder value
+				return this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri, overrideIdentifier }), other.getValue(key, { resource: folder.uri, overrideIdentifier })));
+			}));
+			return keys;
 		};
 		const keys = compare(this.allKeys(), other.allKeys());
 		const overrides: [string, string[]][] = [];
 		for (const key of keys) {
 			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-				overrides.push([key, compare(this.getAllKeysForOverrideIdentifier(key), other.getAllKeysForOverrideIdentifier(key), key)]);
+				const overrideIdentifier = overrideIdentifierFromKey(key);
+				overrides.push([overrideIdentifier, compare(this.getAllKeysForOverrideIdentifier(overrideIdentifier), other.getAllKeysForOverrideIdentifier(overrideIdentifier), overrideIdentifier)]);
 			}
 		}
 		return { keys, overrides };

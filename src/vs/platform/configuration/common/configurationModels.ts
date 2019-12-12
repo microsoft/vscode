@@ -466,7 +466,8 @@ export class Configuration {
 	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel, keys: string[]): IConfigurationChange {
 		const overrides: [string, string[]][] = keys
 			.filter(key => OVERRIDE_PROPERTY_PATTERN.test(key))
-			.map(overrideIdentifier => {
+			.map(key => {
+				const overrideIdentifier = overrideIdentifierFromKey(key);
 				const fromKeys = this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier);
 				const toKeys = defaults.getKeysForOverrideIdentifier(overrideIdentifier);
 				const keys = [
@@ -487,6 +488,44 @@ export class Configuration {
 			this.updateLocalUserConfiguration(user);
 		}
 		return { keys, overrides };
+	}
+
+	compareAndUpdateRemoteUserConfiguration(user: ConfigurationModel): IConfigurationChange {
+		const { added, updated, removed, overrides } = compare(this.remoteUserConfiguration, user);
+		let keys = [...added, ...updated, ...removed];
+		if (keys.length) {
+			this.updateRemoteUserConfiguration(user);
+		}
+		return { keys, overrides };
+	}
+
+	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): IConfigurationChange {
+		const { added, updated, removed, overrides } = compare(this.workspaceConfiguration, workspaceConfiguration);
+		let keys = [...added, ...updated, ...removed];
+		if (keys.length) {
+			this.updateWorkspaceConfiguration(workspaceConfiguration);
+		}
+		return { keys, overrides };
+	}
+
+	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): IConfigurationChange {
+		const currentFolderConfiguration = this.folderConfigurations.get(resource);
+		const { added, updated, removed, overrides } = compare(currentFolderConfiguration, folderConfiguration);
+		let keys = [...added, ...updated, ...removed];
+		if (keys.length) {
+			this.updateFolderConfiguration(resource, folderConfiguration);
+		}
+		return { keys, overrides };
+	}
+
+	compareAndDeleteFolderConfiguration(folder: URI): IConfigurationChange {
+		const folderConfig = this.folderConfigurations.get(folder);
+		if (!folderConfig) {
+			throw new Error('Unknown folder');
+		}
+		this.deleteFolderConfiguration(folder);
+		const { added, updated, removed, overrides } = compare(folderConfig, undefined);
+		return { keys: [...added, ...updated, ...removed], overrides };
 	}
 
 	get defaults(): ConfigurationModel {
@@ -675,7 +714,7 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 		this.affectedKeys = values(keysSet);
 
 		const configurationModel = new ConfigurationModel();
-		this.affectedKeys.forEach(key => this.affectedKeysTree.setValue(key, {}));
+		this.affectedKeys.forEach(key => configurationModel.setValue(key, {}));
 		this.affectedKeysTree = configurationModel.contents;
 	}
 

@@ -608,7 +608,7 @@ suite('ExtHostConfiguration', function () {
 			createConfigurationData({
 				'farboo': {
 					'config': false,
-					'updatedconfig': false
+					'updatedConfig': false
 				}
 			}),
 			new NullLogService()
@@ -617,16 +617,16 @@ suite('ExtHostConfiguration', function () {
 		const newConfigData = createConfigurationData({
 			'farboo': {
 				'config': false,
-				'updatedconfig': true,
+				'updatedConfig': true,
 				'newConfig': true,
 			}
 		});
-		const configEventData: IConfigurationChange = { keys: ['farboo.updatedConfig'], overrides: [] };
+		const configEventData: IConfigurationChange = { keys: ['farboo.updatedConfig', 'farboo.newConfig'], overrides: [] };
 		testObject.onDidChangeConfiguration(e => {
 
 			assert.deepEqual(testObject.getConfiguration().get('farboo'), {
 				'config': false,
-				'updatedconfig': true,
+				'updatedConfig': true,
 				'newConfig': true,
 			});
 
@@ -640,7 +640,7 @@ suite('ExtHostConfiguration', function () {
 
 			assert.ok(e.affectsConfiguration('farboo.newConfig'));
 			assert.ok(e.affectsConfiguration('farboo.newConfig', workspaceFolder.uri));
-			assert.ok(!e.affectsConfiguration('farboo.newConfig', URI.file('any')));
+			assert.ok(e.affectsConfiguration('farboo.newConfig', URI.file('any')));
 
 			assert.ok(!e.affectsConfiguration('farboo.config'));
 			assert.ok(!e.affectsConfiguration('farboo.config', workspaceFolder.uri));

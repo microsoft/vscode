@@ -160,10 +160,12 @@ export function compare(from: IConfigurationModel | undefined, to: IConfiguratio
 
 	if (to && from) {
 		for (const key of from.keys) {
-			const value1 = getConfigurationValue(from.contents, key);
-			const value2 = getConfigurationValue(to.contents, key);
-			if (!objects.equals(value1, value2)) {
-				updated.push(key);
+			if (to.keys.indexOf(key) !== -1) {
+				const value1 = getConfigurationValue(from.contents, key);
+				const value2 = getConfigurationValue(to.contents, key);
+				if (!objects.equals(value1, value2)) {
+					updated.push(key);
+				}
 			}
 		}
 	}
@@ -173,7 +175,7 @@ export function compare(from: IConfigurationModel | undefined, to: IConfiguratio
 		const result: IStringDictionary<IOverrides> = {};
 		for (const override of overrides) {
 			for (const identifier of override.identifiers) {
-				result[identifier] = override;
+				result[keyFromOverrideIdentifier(identifier)] = override;
 			}
 		}
 		return result;
@@ -185,7 +187,7 @@ export function compare(from: IConfigurationModel | undefined, to: IConfiguratio
 		for (const key of added) {
 			const override = toOverridesByIdentifier[key];
 			if (override) {
-				overrides.push([key, override.keys]);
+				overrides.push([overrideIdentifierFromKey(key), override.keys]);
 			}
 		}
 	}
@@ -193,7 +195,7 @@ export function compare(from: IConfigurationModel | undefined, to: IConfiguratio
 		for (const key of removed) {
 			const override = fromOverridesByIdentifier[key];
 			if (override) {
-				overrides.push([key, override.keys]);
+				overrides.push([overrideIdentifierFromKey(key), override.keys]);
 			}
 		}
 	}
@@ -204,7 +206,7 @@ export function compare(from: IConfigurationModel | undefined, to: IConfiguratio
 			const toOverride = toOverridesByIdentifier[key];
 			if (fromOverride && toOverride) {
 				const result = compare({ contents: fromOverride.contents, keys: fromOverride.keys, overrides: [] }, { contents: toOverride.contents, keys: toOverride.keys, overrides: [] });
-				overrides.push([key, [...result.added, ...result.removed, ...result.updated]]);
+				overrides.push([overrideIdentifierFromKey(key), [...result.added, ...result.removed, ...result.updated]]);
 			}
 		}
 	}

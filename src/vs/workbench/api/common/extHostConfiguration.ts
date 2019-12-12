@@ -257,7 +257,7 @@ export class ExtHostConfigProvider {
 	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData, workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
 		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace);
 		return Object.freeze({
-			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, { resource })
+			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, resource ? { resource } : undefined)
 		});
 	}
 
