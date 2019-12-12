@@ -196,13 +196,13 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed: boolean | undefined = false;
-		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined) {
+		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined || envConfigValue.workspace !== undefined) {
 			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
 		}
 
 		// Always allow [] args as it would lead to an odd error message and should not be dangerous
-		if (shellConfigValue.workspaceValue === undefined && envConfigValue.workspaceValue === undefined &&
-			shellArgsConfigValue.workspaceValue && shellArgsConfigValue.workspaceValue.length === 0) {
+		if (shellConfigValue.workspace === undefined && envConfigValue.workspace === undefined &&
+			shellArgsConfigValue.workspace && shellArgsConfigValue.workspace.length === 0) {
 			isWorkspaceShellAllowed = true;
 		}
 
@@ -210,16 +210,16 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		// permission
 		if (isWorkspaceShellAllowed === undefined) {
 			let shellString: string | undefined;
-			if (shellConfigValue.workspaceValue) {
-				shellString = `shell: "${shellConfigValue.workspaceValue}"`;
+			if (shellConfigValue.workspace) {
+				shellString = `shell: "${shellConfigValue.workspace}"`;
 			}
 			let argsString: string | undefined;
-			if (shellArgsConfigValue.workspaceValue) {
-				argsString = `shellArgs: [${shellArgsConfigValue.workspaceValue.map(v => '"' + v + '"').join(', ')}]`;
+			if (shellArgsConfigValue.workspace) {
+				argsString = `shellArgs: [${shellArgsConfigValue.workspace.map(v => '"' + v + '"').join(', ')}]`;
 			}
 			let envString: string | undefined;
-			if (envConfigValue.workspaceValue) {
-				envString = `env: {${Object.keys(envConfigValue.workspaceValue).map(k => `${k}:${envConfigValue.workspaceValue![k]}`).join(', ')}}`;
+			if (envConfigValue.workspace) {
+				envString = `env: {${Object.keys(envConfigValue.workspace).map(k => `${k}:${envConfigValue.workspace![k]}`).join(', ')}}`;
 			}
 			// Should not be localized as it's json-like syntax referencing settings keys
 			const workspaceConfigStrings: string[] = [];

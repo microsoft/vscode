@@ -309,7 +309,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 					continue;
 				}
 
-				targetWorkspaceConfiguration[key] = this.configurationService.inspect(key).workspaceValue;
+				targetWorkspaceConfiguration[key] = this.configurationService.inspect(key).workspace;
 			}
 		}
 

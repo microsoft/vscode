@@ -155,23 +155,23 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	update(inspectResult: IInspectResult): void {
 		const { isConfigured, inspected, targetSelector } = inspectResult;
 
-		const displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
+		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
 		const overriddenScopeList: string[] = [];
-		if (targetSelector !== 'workspace' && typeof inspected.workspaceValue !== 'undefined') {
+		if (targetSelector !== 'workspace' && typeof inspected.workspace !== 'undefined') {
 			overriddenScopeList.push(localize('workspace', "Workspace"));
 		}
 
-		if (targetSelector !== 'userRemote' && typeof inspected.userRemoteValue !== 'undefined') {
+		if (targetSelector !== 'userRemote' && typeof inspected.userRemote !== 'undefined') {
 			overriddenScopeList.push(localize('remote', "Remote"));
 		}
 
-		if (targetSelector !== 'userLocal' && typeof inspected.userLocalValue !== 'undefined') {
+		if (targetSelector !== 'userLocal' && typeof inspected.userLocal !== 'undefined') {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
 		this.value = displayValue;
 		this.scopeValue = isConfigured && inspected[targetSelector];
-		this.defaultValue = inspected.defaultValue;
+		this.defaultValue = inspected.default;
 
 		this.isConfigured = isConfigured;
 		if (isConfigured || this.setting.tags || this.tags) {

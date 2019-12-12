@@ -204,10 +204,10 @@ export class ExtHostConfigProvider {
 				if (config) {
 					return {
 						key,
-						defaultValue: config.defaultValue,
-						globalValue: config.userValue,
-						workspaceValue: config.workspaceValue,
-						workspaceFolderValue: config.workspaceFolderValue
+						defaultValue: config.default,
+						globalValue: config.user,
+						workspaceValue: config.workspace,
+						workspaceFolderValue: config.workspaceFolder
 					};
 				}
 				return undefined;

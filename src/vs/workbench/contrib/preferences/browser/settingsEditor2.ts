@@ -799,7 +799,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		// If the user is changing the value back to the default, do a 'reset' instead
 		const inspected = this.configurationService.inspect(key, overrides);
-		if (inspected.defaultValue === value) {
+		if (inspected.default === value) {
 			value = undefined;
 		}
 

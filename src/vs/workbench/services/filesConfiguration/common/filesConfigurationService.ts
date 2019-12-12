@@ -184,9 +184,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	async toggleAutoSave(): Promise<void> {
 		const setting = this.configurationService.inspect('files.autoSave');
-		let userAutoSaveConfig = setting.userValue;
+		let userAutoSaveConfig = setting.user;
 		if (isUndefinedOrNull(userAutoSaveConfig)) {
-			userAutoSaveConfig = setting.defaultValue; // use default if setting not defined
+			userAutoSaveConfig = setting.default; // use default if setting not defined
 		}
 
 		let newAutoSaveValue: string;
