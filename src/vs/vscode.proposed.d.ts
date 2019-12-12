@@ -797,10 +797,10 @@ declare module 'vscode' {
 	export interface DebugAdapter extends Disposable {
 
 		/**
-		 * An event which fires when the debug adapter sends a Debug Adapter Protocol message to VS Code.
+		 * An event which fires after the debug adapter has sent a Debug Adapter Protocol message to VS Code.
 		 * Messages can be requests, responses, or events.
 		 */
-		readonly onSendMessage: Event<DebugProtocolMessage>;
+		readonly onDidSendMessage: Event<DebugProtocolMessage>;
 
 		/**
 		 * Handle a Debug Adapter Protocol message.

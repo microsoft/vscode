@@ -1049,8 +1049,8 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 	constructor(private implementation: vscode.DebugAdapter) {
 		super();
 
-		if (this.implementation.onSendMessage) {
-			implementation.onSendMessage((message: DebugProtocol.ProtocolMessage) => {
+		if (this.implementation.onDidSendMessage) {
+			implementation.onDidSendMessage((message: DebugProtocol.ProtocolMessage) => {
 				this.acceptMessage(message);
 			});
 		}
