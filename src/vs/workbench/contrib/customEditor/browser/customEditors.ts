@@ -29,7 +29,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CustomFileEditorInput } from './customEditorInput';
-const defaultEditorId = 'default';
+export const defaultEditorId = 'default';
 
 const defaultEditorInfo = new CustomEditorInfo({
 	id: defaultEditorId,

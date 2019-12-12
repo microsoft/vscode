@@ -691,6 +691,11 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
+	initializeForTest(raw: RawDebugSession): void {
+		this.raw = raw;
+		this.registerListeners();
+	}
+
 	//---- private
 
 	private registerListeners(): void {

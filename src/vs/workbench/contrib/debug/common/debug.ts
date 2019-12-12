@@ -548,7 +548,7 @@ export interface IDebugAdapterServer {
 }
 
 export interface IDebugAdapterInlineImpl extends IDisposable {
-	readonly onSendMessage: Event<DebugProtocol.Message>;
+	readonly onDidSendMessage: Event<DebugProtocol.Message>;
 	handleMessage(message: DebugProtocol.Message): void;
 }
 

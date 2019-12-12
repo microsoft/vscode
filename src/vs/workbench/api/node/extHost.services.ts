@@ -26,7 +26,8 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import { IExtHostTunnelService, ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
+import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
+import { ExtHostTunnelService } from 'vs/workbench/api/node/extHostTunnelService';
 
 // register singleton services
 registerSingleton(ILogService, ExtHostLogService);

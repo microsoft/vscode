@@ -389,7 +389,7 @@ class CodeActionAdapter {
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
 						isPreferred: candidate.isPreferred,
-						disabled: candidate.disabled
+						disabled: candidate.disabled?.reason
 					});
 				}
 			}

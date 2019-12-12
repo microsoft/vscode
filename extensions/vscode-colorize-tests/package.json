@@ -24,5 +24,34 @@
 		"mocha-junit-reporter": "^1.17.0",
 		"mocha-multi-reporters": "^1.1.7",
 		"vscode": "1.1.5"
+	},
+	"contributes": {
+		"tokenTypes": [
+			{
+				"id": "testToken",
+				"description": "A test token"
+			}
+		],
+		"tokenModifiers": [
+			{
+				"id": "testModifier",
+				"description": "A test modifier"
+			}
+		],
+		"tokenStyleDefaults": [
+			{
+				"selector": "testToken.testModifier",
+				"light": {
+					"fontStyle": "bold"
+				},
+				"dark": {
+					"fontStyle": "bold"
+				},
+				"highContrast": {
+					"fontStyle": "bold"
+				}
+
+			}
+		]
 	}
 }

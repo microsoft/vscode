@@ -9,27 +9,27 @@ import * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from './configuration';
 
 export function isImplicitProjectConfigFile(configFileName: string) {
-	return configFileName.indexOf('/dev/null/') === 0;
+	return configFileName.startsWith('/dev/null/');
 }
 
 export function inferredProjectConfig(
-	config: TypeScriptServiceConfiguration
+	serviceConfig: TypeScriptServiceConfiguration,
 ): Proto.ExternalProjectCompilerOptions {
-	const base: Proto.ExternalProjectCompilerOptions = {
+	const projectConfig: Proto.ExternalProjectCompilerOptions = {
 		module: 'commonjs' as Proto.ModuleKind,
 		target: 'es2016' as Proto.ScriptTarget,
-		jsx: 'preserve' as Proto.JsxEmit
+		jsx: 'preserve' as Proto.JsxEmit,
 	};
 
-	if (config.checkJs) {
-		base.checkJs = true;
+	if (serviceConfig.checkJs) {
+		projectConfig.checkJs = true;
 	}
 
-	if (config.experimentalDecorators) {
-		base.experimentalDecorators = true;
+	if (serviceConfig.experimentalDecorators) {
+		projectConfig.experimentalDecorators = true;
 	}
 
-	return base;
+	return projectConfig;
 }
 
 function inferredProjectConfigSnippet(

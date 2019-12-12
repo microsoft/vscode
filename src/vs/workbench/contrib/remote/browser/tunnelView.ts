@@ -51,9 +51,9 @@ class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 export interface ITunnelViewModel {
 	onForwardedPortsChanged: Event<void>;
 	readonly forwarded: TunnelItem[];
-	readonly published: TunnelItem[];
-	readonly candidates: TunnelItem[];
-	readonly groups: ITunnelGroup[];
+	readonly detected: TunnelItem[];
+	readonly candidates: Promise<TunnelItem[]>;
+	groups(): Promise<ITunnelGroup[]>;
 }
 
 export class TunnelViewModel extends Disposable implements ITunnelViewModel {
@@ -70,7 +70,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		this._register(this.model.onPortName(() => this._onForwardedPortsChanged.fire()));
 	}
 
-	get groups(): ITunnelGroup[] {
+	async groups(): Promise<ITunnelGroup[]> {
 		const groups: ITunnelGroup[] = [];
 		if (this.model.forwarded.size > 0) {
 			groups.push({
@@ -79,15 +79,15 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 				items: this.forwarded
 			});
 		}
-		if (this.model.published.size > 0) {
+		if (this.model.detected.size > 0) {
 			groups.push({
-				label: nls.localize('remote.tunnelsView.published', "Published"),
-				tunnelType: TunnelType.Published,
-				items: this.published
+				label: nls.localize('remote.tunnelsView.detected', "Detected"),
+				tunnelType: TunnelType.Detected,
+				items: this.detected
 			});
 		}
-		const candidates = this.candidates;
-		if (this.candidates.length > 0) {
+		const candidates = await this.candidates;
+		if (candidates.length > 0) {
 			groups.push({
 				label: nls.localize('remote.tunnelsView.candidates', "Candidates"),
 				tunnelType: TunnelType.Candidate,
@@ -107,23 +107,22 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		});
 	}
 
-	get published(): TunnelItem[] {
-		return Array.from(this.model.published.values()).map(tunnel => {
-			return new TunnelItem(TunnelType.Published, tunnel.remote, tunnel.localAddress, false, tunnel.name, tunnel.description);
+	get detected(): TunnelItem[] {
+		return Array.from(this.model.detected.values()).map(tunnel => {
+			return new TunnelItem(TunnelType.Detected, tunnel.remote, tunnel.localAddress, false, tunnel.name, tunnel.description);
 		});
 	}
 
-	get candidates(): TunnelItem[] {
-		const candidates: TunnelItem[] = [];
-		const values = this.model.candidates.values();
-		let iterator = values.next();
-		while (!iterator.done) {
-			if (!this.model.forwarded.has(iterator.value.remote) && !this.model.published.has(iterator.value.remote)) {
-				candidates.push(new TunnelItem(TunnelType.Candidate, iterator.value.remote, iterator.value.localAddress, false, undefined, iterator.value.description));
-			}
-			iterator = values.next();
-		}
-		return candidates;
+	get candidates(): Promise<TunnelItem[]> {
+		return this.model.candidates.then(values => {
+			const candidates: TunnelItem[] = [];
+			values.forEach(value => {
+				if (!this.model.forwarded.has(value.port) && !this.model.detected.has(value.port)) {
+					candidates.push(new TunnelItem(TunnelType.Candidate, value.port, undefined, false, undefined, value.detail));
+				}
+			});
+			return candidates;
+		});
 	}
 
 	dispose() {
@@ -312,7 +311,7 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 
 	getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
 		if (element instanceof TunnelViewModel) {
-			return element.groups;
+			return element.groups();
 		} else if (element instanceof TunnelItem) {
 			return [];
 		} else if ((<ITunnelGroup>element).items) {
@@ -324,7 +323,7 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 
 enum TunnelType {
 	Candidate = 'Candidate',
-	Published = 'Published',
+	Detected = 'Detected',
 	Forwarded = 'Forwarded',
 	Add = 'Add'
 }
@@ -332,7 +331,7 @@ enum TunnelType {
 interface ITunnelGroup {
 	tunnelType: TunnelType;
 	label: string;
-	items?: ITunnelItem[];
+	items?: ITunnelItem[] | Promise<ITunnelItem[]>;
 }
 
 interface ITunnelItem {
@@ -645,7 +644,7 @@ namespace OpenPortInBrowserAction {
 			if (arg instanceof TunnelItem) {
 				const model = accessor.get(IRemoteExplorerService).tunnelModel;
 				const openerService = accessor.get(IOpenerService);
-				const tunnel = model.forwarded.has(arg.remote) ? model.forwarded.get(arg.remote) : model.published.get(arg.remote);
+				const tunnel = model.forwarded.has(arg.remote) ? model.forwarded.get(arg.remote) : model.detected.get(arg.remote);
 				let address: string | undefined;
 				if (tunnel && tunnel.localAddress && (address = model.address(tunnel.remote))) {
 					return openerService.open(URI.parse('http://' + address));
@@ -696,7 +695,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		id: CopyAddressAction.ID,
 		title: CopyAddressAction.LABEL,
 	},
-	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
+	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
@@ -705,7 +704,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		id: OpenPortInBrowserAction.ID,
 		title: OpenPortInBrowserAction.LABEL,
 	},
-	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
+	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
@@ -723,7 +722,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		id: ForwardPortAction.ID,
 		title: ForwardPortAction.LABEL,
 	},
-	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Candidate), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
+	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
@@ -742,7 +741,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 		title: OpenPortInBrowserAction.LABEL,
 		icon: { id: 'codicon/globe' }
 	},
-	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
+	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	order: 0,
@@ -751,7 +750,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 		title: ForwardPortAction.LABEL,
 		icon: { id: 'codicon/plus' }
 	},
-	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Candidate), TunnelTypeContextKey.isEqualTo(TunnelType.Published))
+	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	order: 2,

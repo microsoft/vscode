@@ -37,12 +37,11 @@ declare module 'vscode' {
 		remote: { port: number, host: string };
 		localPort?: number;
 		name?: string;
-		closeable?: boolean;
 	}
 
 	export interface Tunnel extends Disposable {
 		remote: { port: number, host: string };
-		local: { port: number, host: string };
+		localAddress: string;
 	}
 
 	/**
@@ -54,7 +53,7 @@ declare module 'vscode' {
 		 * The localAddress should be the complete local address(ex. localhost:1234) for connecting to the port. Tunnels provided through
 		 * detected are read-only from the forwarded ports UI.
 		 */
-		detectedTunnels?: { remotePort: number, localAddress: string }[];
+		detectedTunnels?: { remote: { port: number, host: string }, localAddress: string }[];
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -78,7 +77,7 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * Forwards a port.
+		 * Forwards a port. Currently only works for a remote host of localhost.
 		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
 		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;
@@ -798,10 +797,10 @@ declare module 'vscode' {
 	export interface DebugAdapter extends Disposable {
 
 		/**
-		 * An event which fires when the debug adapter sends a Debug Adapter Protocol message to VS Code.
+		 * An event which fires after the debug adapter has sent a Debug Adapter Protocol message to VS Code.
 		 * Messages can be requests, responses, or events.
 		 */
-		readonly onSendMessage: Event<DebugProtocolMessage>;
+		readonly onDidSendMessage: Event<DebugProtocolMessage>;
 
 		/**
 		 * Handle a Debug Adapter Protocol message.
@@ -1332,10 +1331,28 @@ declare module 'vscode' {
 		/**
 		 * Marks that the code action cannot currently be applied.
 		 *
-		 * This should be a human readable description of why the code action is currently disabled. Disabled code actions
-		 * will be surfaced in the refactor UI but cannot be applied.
+		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
 		 */
-		disabled?: string;
+		disabled?: {
+			/**
+			 * Human readable description of why the code action is currently disabled.
+			 *
+			 * This is displayed in the UI.
+			 */
+			reason: string;
+		};
+	}
+
+	//#endregion
+
+	//#region Allow theme icons in hovers: https://github.com/microsoft/vscode/issues/84695
+
+	export interface MarkdownString {
+
+		/**
+		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
+		 */
+		readonly supportThemeIcons?: boolean;
 	}
 
 	//#endregion

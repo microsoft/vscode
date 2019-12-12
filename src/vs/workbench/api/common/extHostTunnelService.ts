@@ -4,18 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as vscode from 'vscode';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import * as vscode from 'vscode';
+
+export interface TunnelOptions {
+	remote: { port: number, host: string };
+	localPort?: number;
+	name?: string;
+	closeable?: boolean;
+}
+
+export interface TunnelDto {
+	remote: { port: number, host: string };
+	localAddress: string;
+}
 
 export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
-	makeTunnel(forward: vscode.TunnelOptions): Promise<vscode.Tunnel>;
+	readonly _serviceBrand: undefined;
+	makeTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
+	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): Promise<void>;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
-
-export class ExtHostTunnelService implements IExtHostTunnelService {
-	makeTunnel(forward: vscode.TunnelOptions): Promise<vscode.Tunnel> {
-		throw new Error('Method not implemented.');
-	}
-}
-
