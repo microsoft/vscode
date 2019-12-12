@@ -17,6 +17,7 @@ import * as ts from 'typescript';
 import { join } from 'path';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
+const TS_FILE_NAME = 'vscode://javascript/2.ts';
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
 let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts'); // when packaged
@@ -29,21 +30,19 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
-	let currentScriptKind: ts.ScriptKind;
 	let scriptFileVersion: number = 0;
-	function updateCurrentTextDocument(doc: TextDocument, scriptKind = ts.ScriptKind.JS) {
+	function updateCurrentTextDocument(doc: TextDocument) {
 		if (!currentTextDocument || doc.uri !== currentTextDocument.uri || doc.version !== currentTextDocument.version) {
 			currentTextDocument = jsDocuments.get(doc);
 			scriptFileVersion++;
 		}
-		currentScriptKind = scriptKind;
 	}
 	const host: ts.LanguageServiceHost = {
 		getCompilationSettings: () => compilerOptions,
-		getScriptFileNames: () => [FILE_NAME, jquery_d_ts],
-		getScriptKind: (fileName) => fileName === FILE_NAME ? currentScriptKind : ts.ScriptKind.JS,
+		getScriptFileNames: () => [FILE_NAME, TS_FILE_NAME, jquery_d_ts],
+		getScriptKind: (fileName) => fileName === TS_FILE_NAME ? ts.ScriptKind.TS : ts.ScriptKind.JS,
 		getScriptVersion: (fileName: string) => {
-			if (fileName === FILE_NAME) {
+			if (fileName === FILE_NAME || fileName === TS_FILE_NAME) {
 				return String(scriptFileVersion);
 			}
 			return '1'; // default lib an jquery.d.ts are static
@@ -51,7 +50,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		getScriptSnapshot: (fileName: string) => {
 			let text = '';
 			if (startsWith(fileName, 'vscode:')) {
-				if (fileName === FILE_NAME) {
+				if (fileName === FILE_NAME || fileName === TS_FILE_NAME) {
 					text = currentTextDocument.getText();
 				}
 			} else {
@@ -317,7 +316,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			jsDocuments.onDocumentRemoved(document);
 		},
 		getSemanticTokens(document: TextDocument, ranges: Range[] | undefined): number[] {
-			updateCurrentTextDocument(document, ts.ScriptKind.TS);
+			updateCurrentTextDocument(document);
 			if (!ranges) {
 				ranges = [Range.create(Position.create(0, 0), document.positionAt(document.getText().length))];
 			}
@@ -325,7 +324,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 			for (let range of ranges) {
 				const start = document.offsetAt(range.start), length = document.offsetAt(range.end) - start;
-				const tokens = jsLanguageService.getSemanticClassifications(FILE_NAME, { start, length });
+				const tokens = jsLanguageService.getSemanticClassifications(TS_FILE_NAME, { start, length });
 
 				let prefLine = 0;
 				let prevChar = 0;
@@ -333,7 +332,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				for (let token of tokens) {
 					const m = tokenMapping[token.classificationType];
 					if (m) {
-						const startPos = document.positionAt(token.textSpan.start);
+						const startPos = currentTextDocument.positionAt(token.textSpan.start);
 						if (prefLine !== startPos.line) {
 							prevChar = 0;
 						}
@@ -361,16 +360,16 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	};
 }
 
-const tokenTypes: string[] = ['classes', 'enums', 'interfaces', 'namespaces', 'parameterTypes', 'types', 'parameters'];
+const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'parameterType', 'type', 'parameter'];
 const tokenModifiers: string[] = [];
 const tokenMapping: { [name: string]: string } = {
-	[ts.ClassificationTypeNames.className]: 'classes',
-	[ts.ClassificationTypeNames.enumName]: 'enums',
-	[ts.ClassificationTypeNames.interfaceName]: 'interfaces',
-	[ts.ClassificationTypeNames.moduleName]: 'namespaces',
-	[ts.ClassificationTypeNames.typeParameterName]: 'parameterTypes',
-	[ts.ClassificationTypeNames.typeAliasName]: 'types',
-	[ts.ClassificationTypeNames.parameterName]: 'parameters'
+	[ts.ClassificationTypeNames.className]: 'class',
+	[ts.ClassificationTypeNames.enumName]: 'enum',
+	[ts.ClassificationTypeNames.interfaceName]: 'interface',
+	[ts.ClassificationTypeNames.moduleName]: 'namespace',
+	[ts.ClassificationTypeNames.typeParameterName]: 'parameterType',
+	[ts.ClassificationTypeNames.typeAliasName]: 'type',
+	[ts.ClassificationTypeNames.parameterName]: 'parameter'
 };
 
 
