@@ -19,6 +19,7 @@ import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreforma
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { NotebookHandler, ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = DOM.$;
 
@@ -107,6 +108,13 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		super.onHide();
 
 		this.viewCells.forEach(cell => cell.isEditing = false);
+	}
+
+	setVisible(visible: boolean, group?: IEditorGroup): void {
+		super.onHide();
+		if (!visible) {
+			this.viewCells.forEach(cell => cell.isEditing = false);
+		}
 	}
 
 	setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
