@@ -486,7 +486,19 @@ export class EditorGroup extends Disposable {
 
 		// Add
 		if (!del && editor) {
-			this.mru.push(editor); // make it LRU editor
+			if (this.mru.length === 0) {
+				// the list of most recent editors is empty
+				// so this editor can only be the most recent
+				this.mru.push(editor);
+			} else {
+				// we have most recent editors. as such we
+				// put this newly opened editor right after
+				// the current most recent one because it cannot
+				// be the most recently active one unless
+				// it becomes active. but it is still more
+				// active then any other editor in the list.
+				this.mru.splice(1, 0, editor);
+			}
 		}
 
 		// Remove / Replace
@@ -546,7 +558,7 @@ export class EditorGroup extends Disposable {
 		// Remove old index
 		this.mru.splice(mruIndex, 1);
 
-		// Set editor to front
+		// Set editor as most recent one (first)
 		this.mru.unshift(editor);
 	}
 
