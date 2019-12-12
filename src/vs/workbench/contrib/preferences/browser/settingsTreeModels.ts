@@ -8,7 +8,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isArray, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
@@ -374,16 +374,7 @@ export class SettingsTreeModel {
 
 interface IInspectResult {
 	isConfigured: boolean;
-	inspected: {
-		default: any,
-		user: any,
-		userLocal?: any,
-		userRemote?: any,
-		workspace?: any,
-		workspaceFolder?: any,
-		memory?: any,
-		value: any,
-	};
+	inspected: IConfigurationValue<any>;
 	targetSelector: 'userLocal' | 'userRemote' | 'workspace' | 'workspaceFolder';
 }
 

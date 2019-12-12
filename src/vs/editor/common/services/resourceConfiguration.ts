@@ -6,10 +6,15 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ITextResourceConfigurationService = createDecorator<ITextResourceConfigurationService>('textResourceConfigurationService');
+
+export interface IResourceConfigurationChangeEvent {
+	readonly affectedKeys: string[];
+	affectsConfiguration(resource: URI, configuration: string): boolean;
+}
 
 export interface ITextResourceConfigurationService {
 
@@ -18,7 +23,7 @@ export interface ITextResourceConfigurationService {
 	/**
 	 * Event that fires when the configuration changes.
 	 */
-	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
+	onDidChangeConfiguration: Event<IResourceConfigurationChangeEvent>;
 
 	/**
 	 * Fetches the value of the section for the given resource by applying language overrides.
@@ -31,6 +36,8 @@ export interface ITextResourceConfigurationService {
 	 */
 	getValue<T>(resource: URI | undefined, section?: string): T;
 	getValue<T>(resource: URI | undefined, position?: IPosition, section?: string): T;
+
+	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void>;
 
 }
 
