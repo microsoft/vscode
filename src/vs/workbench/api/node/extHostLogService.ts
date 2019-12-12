@@ -15,13 +15,9 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 
 	constructor(
 		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostOutputService outputSerice: IExtHostOutputService,
 	) {
 		if (initData.logFile.scheme !== Schemas.file) { throw new Error('Only file-logging supported'); }
 		super(new SpdLogService(ExtensionHostLogFileName, dirname(initData.logFile).fsPath, initData.logLevel));
-		outputSerice.createOutputChannelFromLogFile(
-			initData.remote.isRemote ? localize('remote extension host Log', "Remote Extension Host") : localize('extension host Log', "Extension Host"),
-			initData.logFile);
 	}
 
 	$setLevel(level: LogLevel): void {
