@@ -9,15 +9,15 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService, IResourceConfigurationChangeEvent } from 'vs/editor/common/services/resourceConfiguration';
+import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
 	public _serviceBrand: undefined;
 
-	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
-	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+	private readonly _onDidChangeConfiguration: Emitter<IResourceConfigurationChangeEvent> = this._register(new Emitter<IResourceConfigurationChangeEvent>());
+	public readonly onDidChangeConfiguration: Event<IResourceConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -25,7 +25,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		@IModeService private readonly modeService: IModeService,
 	) {
 		super();
-		this._register(this.configurationService.onDidChangeConfiguration(e => this._onDidChangeConfiguration.fire(e)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this._onDidChangeConfiguration.fire(this.toResourceConfigurationChangeEvent(e))));
 	}
 
 	getValue<T>(resource: URI, section?: string): T;
@@ -112,6 +112,15 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 			return position ? this.modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column))!.language : model.getLanguageIdentifier().language;
 		}
 		return this.modeService.getModeIdByFilepathOrFirstLine(resource);
+	}
 
+	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): IResourceConfigurationChangeEvent {
+		return {
+			affectedKeys: configurationChangeEvent.affectedKeys,
+			affectsConfiguration: (resource: URI, configuration: string) => {
+				const overrideIdentifier = this.getLanguage(resource, null);
+				return configurationChangeEvent.affectsConfiguration(configuration, { resource, overrideIdentifier });
+			}
+		};
 	}
 }
