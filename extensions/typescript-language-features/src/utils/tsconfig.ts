@@ -9,7 +9,7 @@ import * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from './configuration';
 
 export function isImplicitProjectConfigFile(configFileName: string) {
-	return configFileName.indexOf('/dev/null/') === 0;
+	return configFileName.startsWith('/dev/null/');
 }
 
 export function inferredProjectConfig(
