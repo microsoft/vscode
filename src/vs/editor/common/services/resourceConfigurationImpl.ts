@@ -45,15 +45,15 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		}
 		switch (configurationTarget) {
 			case ConfigurationTarget.MEMORY:
-				return this._updateValue(key, value, configurationTarget, configurationValue.memory?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.memoryTarget?.override, resource, language);
 			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return this._updateValue(key, value, configurationTarget, configurationValue.workspaceFolder?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.workspaceFolderTarget?.override, resource, language);
 			case ConfigurationTarget.WORKSPACE:
-				return this._updateValue(key, value, configurationTarget, configurationValue.workspace?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.workspaceTarget?.override, resource, language);
 			case ConfigurationTarget.USER_REMOTE:
-				return this._updateValue(key, value, configurationTarget, configurationValue.userRemote?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.userRemoteTarget?.override, resource, language);
 			default:
-				return this._updateValue(key, value, configurationTarget, configurationValue.userLocal?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.userLocalTarget?.override, resource, language);
 		}
 	}
 

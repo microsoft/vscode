@@ -11,7 +11,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { ResourceMap } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
@@ -49,18 +48,21 @@ export function ConfigurationTargetToString(configurationTarget: ConfigurationTa
 	}
 }
 
+export interface IConfigurationChange {
+	keys: string[];
+	overrides: [string, string[]][];
+}
+
 export interface IConfigurationChangeEvent {
 
-	source: ConfigurationTarget;
-	affectedKeys: string[];
-	affectsConfiguration(configuration: string, resource?: URI): boolean;
+	readonly source: ConfigurationTarget;
+	readonly affectedKeys: string[];
+	readonly change: IConfigurationChange;
+
+	affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;
 
 	// Following data is used for telemetry
-	sourceConfig: any;
-
-	// Following data is used for Extension host configuration event
-	changedConfiguration: IConfigurationModel;
-	changedConfigurationByResource: ResourceMap<IConfigurationModel>;
+	readonly sourceConfig: any;
 }
 
 export interface IConfigurationValue<T> {

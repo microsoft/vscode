@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/objects';
-import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
-import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationChangeEvent, ConfigurationModel, AbstractConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { compare, toValuesTree, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
+import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
@@ -114,47 +115,38 @@ export class Configuration extends BaseConfiguration {
 		return super.keys(this._workspace);
 	}
 
-	compareAndUpdateLocalUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
-		const { added, updated, removed, overrides } = compare(this.localUserConfiguration, user);
-		const keys = [...added, ...updated, ...removed];
-		if (keys.length) {
-			super.updateLocalUserConfiguration(user);
-		}
-		return new ConfigurationChangeEvent().change({ keys, overrides });
-	}
-
-	compareAndUpdateRemoteUserConfiguration(user: ConfigurationModel): ConfigurationChangeEvent {
+	compareAndUpdateRemoteUserConfiguration(user: ConfigurationModel): IConfigurationChange {
 		const { added, updated, removed, overrides } = compare(this.remoteUserConfiguration, user);
 		let keys = [...added, ...updated, ...removed];
 		if (keys.length) {
 			super.updateRemoteUserConfiguration(user);
 		}
-		return new ConfigurationChangeEvent().change({ keys, overrides });
+		return { keys, overrides };
 	}
 
-	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): ConfigurationChangeEvent {
+	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): IConfigurationChange {
 		const { added, updated, removed, overrides } = compare(this.workspaceConfiguration, workspaceConfiguration);
 		let keys = [...added, ...updated, ...removed];
 		if (keys.length) {
 			super.updateWorkspaceConfiguration(workspaceConfiguration);
 		}
-		return new ConfigurationChangeEvent().change({ keys, overrides });
+		return { keys, overrides };
 	}
 
-	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): ConfigurationChangeEvent {
+	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): IConfigurationChange {
 		const currentFolderConfiguration = this.folderConfigurations.get(resource);
 		const { added, updated, removed, overrides } = compare(currentFolderConfiguration, folderConfiguration);
 		let keys = [...added, ...updated, ...removed];
 		if (keys.length) {
 			super.updateFolderConfiguration(resource, folderConfiguration);
 		}
-		return new ConfigurationChangeEvent().change({ keys, overrides }, resource);
+		return { keys, overrides };
 	}
 
-	compareAndDeleteFolderConfiguration(folder: URI): ConfigurationChangeEvent {
+	compareAndDeleteFolderConfiguration(folder: URI): IConfigurationChange {
 		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.toString() === folder.toString()) {
 			// Do not remove workspace configuration
-			return new ConfigurationChangeEvent();
+			return { keys: [], overrides: [] };
 		}
 		const folderConfig = this.folderConfigurations.get(folder);
 		if (!folderConfig) {
@@ -162,89 +154,26 @@ export class Configuration extends BaseConfiguration {
 		}
 		super.deleteFolderConfiguration(folder);
 		const { added, updated, removed, overrides } = compare(folderConfig, undefined);
-		return new ConfigurationChangeEvent().change({ keys: [...added, ...updated, ...removed], overrides }, folder);
+		return { keys: [...added, ...updated, ...removed], overrides };
 	}
 
-	compare(other: Configuration): string[] {
-		const result: string[] = [];
-		for (const key of this.allKeys()) {
-			if (!equals(this.getValue(key), other.getValue(key))
-				|| (this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri }), other.getValue(key, { resource: folder.uri }))))) {
-				result.push(key);
+	compare(other: Configuration): IConfigurationChange {
+		const compare = (fromKeys: string[], toKeys: string[], overrideIdentifier?: string): string[] => {
+			return [
+				...toKeys.filter(key => fromKeys.indexOf(key) === -1),
+				...fromKeys.filter(key => toKeys.indexOf(key) === -1),
+				...fromKeys.filter(key => !equals(this.getValue(key, { overrideIdentifier }), other.getValue(key, { overrideIdentifier }))
+					|| (this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri, overrideIdentifier }), other.getValue(key, { resource: folder.uri, overrideIdentifier })))))
+			];
+		};
+		const keys = compare(this.allKeys(), other.allKeys());
+		const overrides: [string, string[]][] = [];
+		for (const key of keys) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+				overrides.push([key, compare(this.getAllKeysForOverrideIdentifier(key), other.getAllKeysForOverrideIdentifier(key), key)]);
 			}
 		}
-		return result;
+		return { keys, overrides };
 	}
 
-	allKeys(): string[] {
-		return super.allKeys(this._workspace);
-	}
-}
-
-export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChangeEvent implements IConfigurationChangeEvent {
-
-	private _changedConfiguration: ConfigurationModel | null = null;
-
-	constructor(private _configuration: Configuration, readonly source: ConfigurationTarget, readonly sourceConfig: any) { super(); }
-
-	get changedConfiguration(): ConfigurationModel {
-		if (!this._changedConfiguration) {
-			this._changedConfiguration = new ConfigurationModel();
-			const { added, updated, removed, overrides } = compare(undefined, this._changedConfiguration);
-			this.updateKeys(this._changedConfiguration, { keys: [...added, ...updated, ...removed], overrides });
-		}
-		return this._changedConfiguration;
-	}
-
-	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
-		return new ResourceMap();
-	}
-
-	get affectedKeys(): string[] {
-		return this._configuration.allKeys();
-	}
-
-	affectsConfiguration(config: string, resource?: URI): boolean {
-		return this.doesConfigurationContains(this.changedConfiguration, config);
-	}
-}
-
-export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEvent {
-
-	constructor(private configurationChangeEvent: IConfigurationChangeEvent, private workspace: Workspace | undefined) { }
-
-	get changedConfiguration(): IConfigurationModel {
-		return this.configurationChangeEvent.changedConfiguration;
-	}
-
-	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
-		return this.configurationChangeEvent.changedConfigurationByResource;
-	}
-
-	get affectedKeys(): string[] {
-		return this.configurationChangeEvent.affectedKeys;
-	}
-
-	get source(): ConfigurationTarget {
-		return this.configurationChangeEvent.source;
-	}
-
-	get sourceConfig(): any {
-		return this.configurationChangeEvent.sourceConfig;
-	}
-
-	affectsConfiguration(config: string, resource?: URI): boolean {
-		if (this.configurationChangeEvent.affectsConfiguration(config, resource)) {
-			return true;
-		}
-
-		if (resource && this.workspace) {
-			let workspaceFolder = this.workspace.getFolder(resource);
-			if (workspaceFolder) {
-				return this.configurationChangeEvent.affectsConfiguration(config, workspaceFolder.uri);
-			}
-		}
-
-		return false;
-	}
 }

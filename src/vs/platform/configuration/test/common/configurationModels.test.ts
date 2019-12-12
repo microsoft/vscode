@@ -362,10 +362,8 @@ suite('CustomConfigurationModel', () => {
 
 suite('ConfigurationChangeEvent', () => {
 
-	test('changeEvent affecting keys for all resources', () => {
-		let testObject = new ConfigurationChangeEvent();
-
-		testObject.change(['window.zoomLevel', 'workbench.editor.enablePreview', 'files', '[markdown]']);
+	test('changeEvent affecting keys', () => {
+		let testObject = new ConfigurationChangeEvent({ keys: ['window.zoomLevel', 'workbench.editor.enablePreview', 'files', '[markdown]'], overrides: [] }, undefined, anEmptyConfiguration());
 
 		assert.deepEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview', 'files', '[markdown]']);
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
@@ -379,9 +377,7 @@ suite('ConfigurationChangeEvent', () => {
 	});
 
 	test('changeEvent affecting a root key and its children', () => {
-		let testObject = new ConfigurationChangeEvent();
-
-		testObject.change(['launch', 'launch.version', 'tasks']);
+		let testObject = new ConfigurationChangeEvent({ keys: ['launch', 'launch.version', 'tasks'], overrides: [] }, undefined, anEmptyConfiguration());
 
 		assert.deepEqual(testObject.affectedKeys, ['launch.version', 'tasks']);
 		assert.ok(testObject.affectsConfiguration('launch'));
@@ -390,51 +386,49 @@ suite('ConfigurationChangeEvent', () => {
 	});
 
 	test('changeEvent affecting keys for resources', () => {
-		let testObject = new ConfigurationChangeEvent();
-
-		testObject.change(['window.title']);
-		testObject.change(['window.zoomLevel'], URI.file('file1'));
-		testObject.change(['workbench.editor.enablePreview'], URI.file('file2'));
-		testObject.change(['window.restoreFullscreen'], URI.file('file1'));
-		testObject.change(['window.restoreWindows'], URI.file('file2'));
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel());
+		configuration.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': false }));
+		configuration.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({ 'window.zoomLevel': false, 'window.restoreFullscreen': false }));
+		configuration.updateFolderConfiguration(URI.file('file2'), toConfigurationModel({ 'workbench.editor.enablePreview': false, 'window.restoreWindows': false }));
+		const testObject = new ConfigurationChangeEvent({ keys: ['window.title', 'window.zoomLevel', 'workbench.editor.enablePreview', 'window.restoreFullscreen', 'window.restoreWindows'], overrides: [] }, undefined, configuration);
 
 		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('file1')));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file('file2')));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('file2') }));
 
 		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file1')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file2')));
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', { resource: URI.file('file2') }));
 
 		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file('file1')));
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', { resource: URI.file('file1') }));
 
 		assert.ok(testObject.affectsConfiguration('window.title'));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file2')));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file2') }));
 
 		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file2')));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file1') }));
+		assert.ok(testObject.affectsConfiguration('window', { resource: URI.file('file2') }));
 
 		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file1')));
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', { resource: URI.file('file1') }));
 
 		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', URI.file('file1')));
+		assert.ok(testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('workbench.editor', { resource: URI.file('file1') }));
 
 		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('workbench', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('workbench', URI.file('file1')));
+		assert.ok(testObject.affectsConfiguration('workbench', { resource: URI.file('file2') }));
+		assert.ok(!testObject.affectsConfiguration('workbench', { resource: URI.file('file1') }));
 
 		assert.ok(!testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file('file1')));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file('file2')));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file1') }));
+		assert.ok(!testObject.affectsConfiguration('files', { resource: URI.file('file2') }));
 	});
 
 	test('merging change events', () => {
@@ -493,3 +487,13 @@ suite('Configuration', () => {
 
 
 });
+
+function anEmptyConfiguration(): Configuration {
+	return new Configuration(new ConfigurationModel(), new ConfigurationModel());
+}
+
+function toConfigurationModel(obj: any): ConfigurationModel {
+	const parser = new ConfigurationModelParser('test');
+	parser.parseContent(JSON.stringify(obj));
+	return parser.configurationModel;
+}
