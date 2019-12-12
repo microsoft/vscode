@@ -67,32 +67,32 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 
 	private deriveConfigurationTarget(configurationValue: IConfigurationValue<any>, language: string | null): ConfigurationTarget {
 		if (language) {
-			if (configurationValue.memory?.override !== undefined) {
+			if (configurationValue.memoryTarget?.override !== undefined) {
 				return ConfigurationTarget.MEMORY;
 			}
-			if (configurationValue.workspaceFolder?.override !== undefined) {
+			if (configurationValue.workspaceFolderTarget?.override !== undefined) {
 				return ConfigurationTarget.WORKSPACE_FOLDER;
 			}
-			if (configurationValue.workspace?.override !== undefined) {
+			if (configurationValue.workspaceTarget?.override !== undefined) {
 				return ConfigurationTarget.WORKSPACE;
 			}
-			if (configurationValue.userRemote?.override !== undefined) {
+			if (configurationValue.userRemoteTarget?.override !== undefined) {
 				return ConfigurationTarget.USER_REMOTE;
 			}
-			if (configurationValue.userLocal?.override !== undefined) {
+			if (configurationValue.userLocalTarget?.override !== undefined) {
 				return ConfigurationTarget.USER_LOCAL;
 			}
 		}
-		if (configurationValue.memory?.value !== undefined) {
+		if (configurationValue.memoryTarget?.value !== undefined) {
 			return ConfigurationTarget.MEMORY;
 		}
-		if (configurationValue.workspaceFolder?.value !== undefined) {
+		if (configurationValue.workspaceFolderTarget?.value !== undefined) {
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		}
-		if (configurationValue.workspace?.value !== undefined) {
+		if (configurationValue.workspaceTarget?.value !== undefined) {
 			return ConfigurationTarget.WORKSPACE;
 		}
-		if (configurationValue.userRemote?.value !== undefined) {
+		if (configurationValue.userRemoteTarget?.value !== undefined) {
 			return ConfigurationTarget.USER_REMOTE;
 		}
 		return ConfigurationTarget.USER_LOCAL;
