@@ -1286,9 +1286,11 @@ export class SearchView extends ViewPane {
 	}
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
-		this.addToSearchHistoryDelayer.trigger(() => this.searchWidget.searchInput.onSearchSubmit());
-		this.inputPatternExcludes.onSearchSubmit();
-		this.inputPatternIncludes.onSearchSubmit();
+		this.addToSearchHistoryDelayer.trigger(() => {
+			this.searchWidget.searchInput.onSearchSubmit();
+			this.inputPatternExcludes.onSearchSubmit();
+			this.inputPatternIncludes.onSearchSubmit();
+		});
 
 		this.viewModel.cancelSearch();
 

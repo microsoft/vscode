@@ -164,6 +164,7 @@ export class PatternInputWidget extends Widget {
 	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
+				this.onSearchSubmit();
 				this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(false), 0);
 				return;
 			case KeyCode.Escape:

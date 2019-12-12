@@ -114,6 +114,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// Load window state
 			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
 			this.windowState = state;
+			this.logService.trace('window#ctor: using window state', state);
 
 			// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
@@ -782,10 +783,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			|| typeof state.width !== 'number'
 			|| typeof state.height !== 'number'
 		) {
+			this.logService.trace('window#validateWindowState: unexpected type of state values');
 			return undefined;
 		}
 
 		if (state.width <= 0 || state.height <= 0) {
+			this.logService.trace('window#validateWindowState: unexpected negative values');
 			return undefined;
 		}
 
@@ -793,6 +796,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (displays.length === 1) {
 			const displayWorkingArea = this.getWorkingArea(displays[0]);
 			if (displayWorkingArea) {
+				this.logService.trace('window#validateWindowState: 1 display', displayWorkingArea);
+
 				if (state.x < displayWorkingArea.x) {
 					state.x = displayWorkingArea.x; // prevent window from falling out of the screen to the left
 				}
@@ -825,6 +830,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (state.display && state.mode === WindowMode.Fullscreen) {
 			const display = displays.filter(d => d.id === state.display)[0];
 			if (display && typeof display.bounds?.x === 'number' && typeof display.bounds?.y === 'number') {
+				this.logService.trace('window#validateWindowState: restoring fullscreen to previous display');
+
 				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
 				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
 				defaults.y = display.bounds.y;
@@ -845,6 +852,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			bounds.x + bounds.width > displayWorkingArea.x &&				// prevent window from falling out of the screen to the left
 			bounds.y + bounds.height > displayWorkingArea.y					// prevent window from falling out of the scree nto the top
 		) {
+			this.logService.trace('window#validateWindowState: multi display', displayWorkingArea);
+
 			return state;
 		}
 
