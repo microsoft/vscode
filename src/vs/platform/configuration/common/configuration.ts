@@ -63,18 +63,24 @@ export interface IConfigurationChangeEvent {
 	changedConfigurationByResource: ResourceMap<IConfigurationModel>;
 }
 
-export interface IConfigurationTargetValue<T> {
-	value: T | undefined;
-	overrides: { overrideIdentifier: string, value: T }[];
-}
-
 export interface IConfigurationValue<T> {
-	default: IConfigurationTargetValue<T> | undefined;
-	userLocal: IConfigurationTargetValue<T> | undefined;
-	userRemote: IConfigurationTargetValue<T> | undefined;
-	workspace: IConfigurationTargetValue<T> | undefined;
-	workspaceFolders: [IWorkspaceFolder, IConfigurationTargetValue<T>][] | undefined;
-	getWorkspaceFolderValue(resource: URI): IConfigurationTargetValue<T> | undefined;
+
+	readonly defaultValue?: T;
+	readonly userValue?: T;
+	readonly userLocalValue?: T;
+	readonly userRemoteValue?: T;
+	readonly workspaceValue?: T;
+	readonly workspaceFolderValue?: T;
+	readonly memoryValue?: T;
+	readonly value?: T;
+
+	readonly default?: { value?: T, override?: T };
+	readonly user?: { value?: T, override?: T };
+	readonly userLocal?: { value?: T, override?: T };
+	readonly userRemote?: { value?: T, override?: T };
+	readonly workspace?: { value?: T, override?: T };
+	readonly workspaceFolder?: { value?: T, override?: T };
+	readonly memory?: { value?: T, override?: T };
 }
 
 export interface IConfigurationService {
@@ -102,20 +108,9 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
-	inspectValue<T>(key: string): IConfigurationValue<T>;
+	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T>;
 
 	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void>;
-
-	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
-		default: T,
-		user: T,
-		userLocal?: T,
-		userRemote?: T,
-		workspace?: T,
-		workspaceFolder?: T,
-		memory?: T,
-		value: T,
-	};
 
 	keys(): {
 		default: string[];
@@ -362,11 +357,11 @@ export function getMigratedSettingValue<T>(configurationService: IConfigurationS
 	const setting = configurationService.inspect<T>(currentSettingName);
 	const legacySetting = configurationService.inspect<T>(legacySettingName);
 
-	if (typeof setting.user !== 'undefined' || typeof setting.workspace !== 'undefined' || typeof setting.workspaceFolder !== 'undefined') {
-		return setting.value;
-	} else if (typeof legacySetting.user !== 'undefined' || typeof legacySetting.workspace !== 'undefined' || typeof legacySetting.workspaceFolder !== 'undefined') {
-		return legacySetting.value;
+	if (typeof setting.userValue !== 'undefined' || typeof setting.workspaceValue !== 'undefined' || typeof setting.workspaceFolderValue !== 'undefined') {
+		return setting.value!;
+	} else if (typeof legacySetting.userValue !== 'undefined' || typeof legacySetting.workspaceValue !== 'undefined' || typeof legacySetting.workspaceFolderValue !== 'undefined') {
+		return legacySetting.value!;
 	} else {
-		return setting.default;
+		return setting.defaultValue!;
 	}
 }

@@ -103,7 +103,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration model for an existing identifier', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
 	});
@@ -111,7 +111,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration model for an identifier that does not exist', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
 
 		assert.deepEqual(testObject.override('xyz').contents, { 'a': { 'b': 1 }, 'f': 1 });
 	});
@@ -119,7 +119,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration when one of the keys does not exist in base', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'g': 1 } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'g': 1 }, keys: ['a', 'g'] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1, 'g': 1 });
 	});
@@ -127,7 +127,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration when one of the key in base is not of object type', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': { 'g': 1 } } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': { 'g': 1 } }, keys: ['a', 'f'] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': { 'g': 1 } });
 	});
@@ -135,7 +135,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration when one of the key in overriding contents is not of object type', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': 1 } }]);
+			[{ identifiers: ['c'], contents: { 'a': { 'd': 1 }, 'f': 1 }, keys: ['a', 'f'] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1, 'd': 1 }, 'f': 1 });
 	});
@@ -143,7 +143,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration if the value of overriding identifier is not object', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: 'abc' }]);
+			[{ identifiers: ['c'], contents: 'abc', keys: [] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});
@@ -151,7 +151,7 @@ suite('ConfigurationModel', () => {
 	test('get overriding configuration if the value of overriding identifier is an empty object', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': { 'g': 1 } }, [],
-			[{ identifiers: ['c'], contents: {} }]);
+			[{ identifiers: ['c'], contents: {}, keys: [] }]);
 
 		assert.deepEqual(testObject.override('c').contents, { 'a': { 'b': 1 }, 'f': { 'g': 1 } });
 	});
@@ -176,8 +176,8 @@ suite('ConfigurationModel', () => {
 	});
 
 	test('simple merge overrides', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': 2 } }]);
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'b': 2 } }]);
+		let base = new ConfigurationModel({ 'a': { 'b': 1 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': 2 }, keys: ['a'] }]);
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'b': 2 }, keys: ['b'] }]);
 		let result = base.merge(add);
 
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
@@ -187,8 +187,8 @@ suite('ConfigurationModel', () => {
 	});
 
 	test('recursive merge overrides', () => {
-		let base = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]);
-		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } } }]);
+		let base = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]);
+		let add = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]);
 		let result = base.merge(add);
 
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
@@ -198,8 +198,8 @@ suite('ConfigurationModel', () => {
 	});
 
 	test('merge overrides when frozen', () => {
-		let model1 = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } } }]).freeze();
-		let model2 = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } } }]).freeze();
+		let model1 = new ConfigurationModel({ 'a': { 'b': 1 }, 'f': 1 }, ['a.b', 'f'], [{ identifiers: ['c'], contents: { 'a': { 'd': 1 } }, keys: ['a'] }]).freeze();
+		let model2 = new ConfigurationModel({ 'a': { 'b': 2 } }, ['a.b'], [{ identifiers: ['c'], contents: { 'a': { 'e': 2 } }, keys: ['a'] }]).freeze();
 		let result = new ConfigurationModel().merge(model1, model2);
 
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 }, 'f': 1 });
@@ -223,7 +223,7 @@ suite('ConfigurationModel', () => {
 	});
 
 	test('Test override gives all content merged with overrides', () => {
-		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 } }]);
+		const testObject = new ConfigurationModel({ 'a': 1, 'c': 1 }, [], [{ identifiers: ['b'], contents: { 'a': 2 }, keys: ['a'] }]);
 
 		assert.deepEqual(testObject.override('b').contents, { 'a': 2, 'c': 1 });
 	});

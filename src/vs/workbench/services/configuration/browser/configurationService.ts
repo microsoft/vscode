@@ -262,10 +262,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		});
 	}
 
-	inspectValue<T>(key: string): IConfigurationValue<T> {
-		return this._configuration.inspectValue(key);
-	}
-
 	reloadConfiguration(folder?: IWorkspaceFolder, key?: string): Promise<void> {
 		if (folder) {
 			return this.reloadWorkspaceFolderConfiguration(folder, key);
@@ -275,16 +271,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				.then(() => this.loadConfiguration(local, remote)));
 	}
 
-	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
-		default: T,
-		user: T,
-		userLocal?: T,
-		userRemote?: T,
-		workspace?: T,
-		workspaceFolder?: T,
-		memory?: T,
-		value: T
-	} {
+	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
 		return this._configuration.inspect<T>(key, overrides);
 	}
 
@@ -666,11 +653,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			return undefined;
 		}
 
-		if (inspect.workspaceFolder !== undefined) {
+		if (inspect.workspaceFolderValue !== undefined) {
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		}
 
-		if (inspect.workspace !== undefined) {
+		if (inspect.workspaceValue !== undefined) {
 			return ConfigurationTarget.WORKSPACE;
 		}
 
@@ -698,7 +685,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	private toEditableConfigurationTarget(target: ConfigurationTarget, key: string): EditableConfigurationTarget | null {
 		if (target === ConfigurationTarget.USER) {
-			if (this.inspect(key).userRemote !== undefined) {
+			if (this.inspect(key).userRemoteValue !== undefined) {
 				return EditableConfigurationTarget.USER_REMOTE;
 			}
 			return EditableConfigurationTarget.USER_LOCAL;

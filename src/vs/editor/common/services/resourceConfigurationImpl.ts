@@ -10,7 +10,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget, IConfigurationTargetValue } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
@@ -37,61 +37,65 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		return this._getValue(resource, null, typeof arg2 === 'string' ? arg2 : undefined);
 	}
 
-	updateValue<T>(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
 		const language = this.getLanguage(resource, null);
-
-		if (!language) {
-			if (configurationTarget !== undefined) {
-				return this.configurationService.updateValue(key, value, configurationTarget);
-			}
-			return this.configurationService.updateValue(key, value);
+		const configurationValue = this.configurationService.inspect(key, { resource, overrideIdentifier: language });
+		if (configurationTarget === undefined) {
+			configurationTarget = this.deriveConfigurationTarget(configurationValue, language);
 		}
-
-		const configurationValue = this.configurationService.inspectValue(key);
-
-		if (configurationTarget !== undefined) {
-			switch (configurationTarget) {
-				case ConfigurationTarget.MEMORY:
-					return this.configurationService.updateValue(key, value, configurationTarget);
-				case ConfigurationTarget.WORKSPACE_FOLDER:
-					return this._updateValue(key, value, configurationTarget, configurationValue.getWorkspaceFolderValue(resource), resource, language);
-				case ConfigurationTarget.WORKSPACE:
-					return this._updateValue(key, value, configurationTarget, configurationValue.workspace, resource, language);
-				case ConfigurationTarget.USER_REMOTE:
-					return this._updateValue(key, value, configurationTarget, configurationValue.userRemote, resource, language);
-				case ConfigurationTarget.USER_LOCAL:
-				case ConfigurationTarget.USER:
-					return this._updateValue(key, value, configurationTarget, configurationValue.userLocal, resource, language);
-			}
+		switch (configurationTarget) {
+			case ConfigurationTarget.MEMORY:
+				return this._updateValue(key, value, configurationTarget, configurationValue.memory?.override, resource, language);
+			case ConfigurationTarget.WORKSPACE_FOLDER:
+				return this._updateValue(key, value, configurationTarget, configurationValue.workspaceFolder?.override, resource, language);
+			case ConfigurationTarget.WORKSPACE:
+				return this._updateValue(key, value, configurationTarget, configurationValue.workspace?.override, resource, language);
+			case ConfigurationTarget.USER_REMOTE:
+				return this._updateValue(key, value, configurationTarget, configurationValue.userRemote?.override, resource, language);
+			default:
+				return this._updateValue(key, value, configurationTarget, configurationValue.userLocal?.override, resource, language);
 		}
-
-		if (configurationValue.workspaceFolders) {
-			const workspaceFolderValue = configurationValue.getWorkspaceFolderValue(resource);
-			if (workspaceFolderValue) {
-				return this._updateValue(key, value, ConfigurationTarget.WORKSPACE_FOLDER, workspaceFolderValue, resource, language);
-			}
-		}
-
-		if (configurationValue.workspace) {
-			return this._updateValue(key, value, ConfigurationTarget.WORKSPACE, configurationValue.workspace, resource, language);
-		}
-
-		if (configurationValue.userRemote) {
-			return this._updateValue(key, value, ConfigurationTarget.USER_REMOTE, configurationValue.userRemote, resource, language);
-		}
-
-		return this._updateValue(key, value, ConfigurationTarget.USER_LOCAL, configurationValue.userLocal, resource, language);
 	}
 
-	private _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, configurationTargetValue: IConfigurationTargetValue<any> | undefined, resource: URI, language: string): Promise<void> {
-		if (!configurationTargetValue) {
-			return this.configurationService.updateValue(key, value, configurationTarget);
-		}
-		if (configurationTargetValue.overrides.some(({ overrideIdentifier }) => overrideIdentifier === language)) {
+	private _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, overriddenValue: any | undefined, resource: URI, language: string | null): Promise<void> {
+		if (language && overriddenValue !== undefined) {
 			return this.configurationService.updateValue(key, value, { resource, overrideIdentifier: language }, configurationTarget);
 		} else {
 			return this.configurationService.updateValue(key, value, { resource }, configurationTarget);
 		}
+	}
+
+	private deriveConfigurationTarget(configurationValue: IConfigurationValue<any>, language: string | null): ConfigurationTarget {
+		if (language) {
+			if (configurationValue.memory?.override !== undefined) {
+				return ConfigurationTarget.MEMORY;
+			}
+			if (configurationValue.workspaceFolder?.override !== undefined) {
+				return ConfigurationTarget.WORKSPACE_FOLDER;
+			}
+			if (configurationValue.workspace?.override !== undefined) {
+				return ConfigurationTarget.WORKSPACE;
+			}
+			if (configurationValue.userRemote?.override !== undefined) {
+				return ConfigurationTarget.USER_REMOTE;
+			}
+			if (configurationValue.userLocal?.override !== undefined) {
+				return ConfigurationTarget.USER_LOCAL;
+			}
+		}
+		if (configurationValue.memory?.value !== undefined) {
+			return ConfigurationTarget.MEMORY;
+		}
+		if (configurationValue.workspaceFolder?.value !== undefined) {
+			return ConfigurationTarget.WORKSPACE_FOLDER;
+		}
+		if (configurationValue.workspace?.value !== undefined) {
+			return ConfigurationTarget.WORKSPACE;
+		}
+		if (configurationValue.userRemote?.value !== undefined) {
+			return ConfigurationTarget.USER_REMOTE;
+		}
+		return ConfigurationTarget.USER_LOCAL;
 	}
 
 	private _getValue<T>(resource: URI, position: IPosition | null, section: string | undefined): T {

@@ -460,17 +460,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return Promise.resolve();
 	}
 
-	public inspectValue<T>(key: string): IConfigurationValue<T> {
-		return this.configuration().inspectValue(key, undefined);
-	}
-
-	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
-		default: C,
-		user: C,
-		workspace?: C,
-		workspaceFolder?: C
-		value: C,
-	} {
+	public inspect<C>(key: string, options: IConfigurationOverrides = {}): IConfigurationValue<C> {
 		return this.configuration().inspect<C>(key, options, undefined);
 	}
 

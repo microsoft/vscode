@@ -580,9 +580,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget | 'auto'): Promise<void> {
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === 'auto') {
-			if (!types.isUndefined(settings.workspaceFolder)) {
+			if (!types.isUndefined(settings.workspaceFolderValue)) {
 				settingsTarget = ConfigurationTarget.WORKSPACE_FOLDER;
-			} else if (!types.isUndefined(settings.workspace)) {
+			} else if (!types.isUndefined(settings.workspaceValue)) {
 				settingsTarget = ConfigurationTarget.WORKSPACE;
 			} else {
 				settingsTarget = ConfigurationTarget.USER;
@@ -590,10 +590,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 
 		if (settingsTarget === ConfigurationTarget.USER) {
-			if (value === settings.user) {
+			if (value === settings.userValue) {
 				return Promise.resolve(undefined); // nothing to do
-			} else if (value === settings.default) {
-				if (types.isUndefined(settings.user)) {
+			} else if (value === settings.defaultValue) {
+				if (types.isUndefined(settings.userValue)) {
 					return Promise.resolve(undefined); // nothing to do
 				}
 				value = undefined; // remove configuration from user settings

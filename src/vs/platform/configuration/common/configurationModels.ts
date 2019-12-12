@@ -10,8 +10,8 @@ import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { OVERRIDE_PROPERTY_PATTERN, ConfigurationScope, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides, IConfigurationValue, IConfigurationTargetValue } from 'vs/platform/configuration/common/configuration';
-import { Workspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export class ConfigurationModel implements IConfigurationModel {
@@ -369,70 +369,37 @@ export class Configuration {
 		}
 	}
 
-	inspectValue<C>(key: string, workspace: Workspace | undefined): IConfigurationValue<C> {
-		const defaultValue = this.getConfigurationTargetValue<C>(key, this._defaultConfiguration.freeze());
-		const userLocalValue = this.getConfigurationTargetValue<C>(key, this.localUserConfiguration.freeze());
-		const userRemoteValue = this.getConfigurationTargetValue<C>(key, this.remoteUserConfiguration.freeze());
-		const workspaceValue = this.getConfigurationTargetValue<C>(key, this._workspaceConfiguration.freeze());
-		const workspaceFolderValues: [IWorkspaceFolder, IConfigurationTargetValue<C>][] = [];
-		if (workspace) {
-			for (const workspaceFolder of workspace.folders) {
-				const folderConfigurationModel = this.getFolderConfigurationModelForResource(workspaceFolder.uri, workspace);
-				if (folderConfigurationModel) {
-					const workspaceFolderValue = this.getConfigurationTargetValue<C>(key, folderConfigurationModel.freeze());
-					if (workspaceFolderValue) {
-						workspaceFolderValues.push([workspaceFolder, workspaceFolderValue]);
-					}
-				}
-			}
-		}
-		return {
-			default: defaultValue!,
-			userLocal: userLocalValue,
-			userRemote: userRemoteValue,
-			workspace: workspaceValue,
-			workspaceFolders: workspaceFolderValues.length ? workspaceFolderValues : undefined,
-			getWorkspaceFolderValue: (resource): IConfigurationTargetValue<C> | undefined => {
-				const folderConfigurationModel = this.getFolderConfigurationModelForResource(resource, workspace);
-				return folderConfigurationModel ? this.getConfigurationTargetValue<C>(key, folderConfigurationModel.freeze()) : undefined;
-			}
-		};
-	}
-
-	private getConfigurationTargetValue<C>(key: string, configurationModel: ConfigurationModel): IConfigurationTargetValue<C> | undefined {
-		const value = configurationModel.getValue<C>(key);
-		const overrides: { overrideIdentifier: string, value: C }[] = [];
-		for (const { identifiers } of configurationModel.overrides) {
-			const value = configurationModel.getOverrideValue<C>(key, identifiers[0]);
-			if (value !== undefined) {
-				overrides.push({ overrideIdentifier: identifiers[0], value });
-			}
-		}
-		return value !== undefined || overrides.length > 0 ? { value, overrides } : undefined;
-	}
-
-	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): {
-		default: C,
-		user: C,
-		userLocal?: C,
-		userRemote?: C,
-		workspace?: C,
-		workspaceFolder?: C
-		memory?: C
-		value: C,
-	} {
+	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): IConfigurationValue<C> {
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides, workspace);
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource, workspace);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
+
+		const defaultValue = overrides.overrideIdentifier ? this._defaultConfiguration.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : this._defaultConfiguration.freeze().getValue<C>(key);
+		const userValue = overrides.overrideIdentifier ? this.userConfiguration.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : this.userConfiguration.freeze().getValue<C>(key);
+		const userLocalValue = overrides.overrideIdentifier ? this.localUserConfiguration.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : this.localUserConfiguration.freeze().getValue<C>(key);
+		const userRemoteValue = overrides.overrideIdentifier ? this.remoteUserConfiguration.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : this.remoteUserConfiguration.freeze().getValue<C>(key);
+		const workspaceValue = workspace ? overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : this._workspaceConfiguration.freeze().getValue<C>(key) : undefined; //Check on workspace exists or not because _workspaceConfiguration is never null
+		const workspaceFolderValue = folderConfigurationModel ? overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : folderConfigurationModel.freeze().getValue<C>(key) : undefined;
+		const memoryValue = overrides.overrideIdentifier ? memoryConfigurationModel.override(overrides.overrideIdentifier).getValue<C>(key) : memoryConfigurationModel.getValue<C>(key);
+		const value = consolidateConfigurationModel.getValue<C>(key);
+
 		return {
-			default: overrides.overrideIdentifier ? this._defaultConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._defaultConfiguration.freeze().getValue(key),
-			user: overrides.overrideIdentifier ? this.userConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this.userConfiguration.freeze().getValue(key),
-			userLocal: overrides.overrideIdentifier ? this.localUserConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this.localUserConfiguration.freeze().getValue(key),
-			userRemote: overrides.overrideIdentifier ? this.remoteUserConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this.remoteUserConfiguration.freeze().getValue(key),
-			workspace: workspace ? overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._workspaceConfiguration.freeze().getValue(key) : undefined, //Check on workspace exists or not because _workspaceConfiguration is never null
-			workspaceFolder: folderConfigurationModel ? overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : folderConfigurationModel.freeze().getValue(key) : undefined,
-			memory: overrides.overrideIdentifier ? memoryConfigurationModel.override(overrides.overrideIdentifier).getValue(key) : memoryConfigurationModel.getValue(key),
-			value: consolidateConfigurationModel.getValue(key)
+			defaultValue,
+			userValue,
+			userLocalValue,
+			userRemoteValue,
+			workspaceValue,
+			workspaceFolderValue,
+			memoryValue,
+			value,
+
+			default: defaultValue !== undefined ? { value: this._defaultConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this._defaultConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
+			user: userValue !== undefined ? { value: this.userConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this.userConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
+			userLocal: userLocalValue !== undefined ? { value: this.localUserConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this.localUserConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
+			userRemote: userRemoteValue !== undefined ? { value: this.remoteUserConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this.remoteUserConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
+			workspace: workspaceValue !== undefined ? { value: this._workspaceConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
+			workspaceFolder: workspaceFolderValue !== undefined ? { value: folderConfigurationModel?.freeze().getValue(key), override: overrides.overrideIdentifier ? folderConfigurationModel?.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
+			memory: memoryValue !== undefined ? { value: memoryConfigurationModel.getValue(key), override: overrides.overrideIdentifier ? memoryConfigurationModel.getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
 		};
 	}
 

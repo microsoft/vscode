@@ -55,35 +55,13 @@ export class TestConfigurationService implements IConfigurationService {
 		return Promise.resolve(undefined);
 	}
 
-	public inspectValue<T>(key: string): IConfigurationValue<T> {
-		const inspect = this.inspect<T>(key);
-		return {
-			default: inspect.default ? { value: inspect.default, overrides: [] } : undefined,
-			userLocal: inspect.userLocal ? { value: inspect.userLocal, overrides: [] } : undefined,
-			userRemote: undefined,
-			workspace: undefined,
-			workspaceFolders: undefined,
-			getWorkspaceFolderValue() { return undefined; }
-		};
-	}
-
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): {
-		default: T,
-		user: T,
-		userLocal?: T,
-		userRemote?: T,
-		workspace?: T,
-		workspaceFolder?: T
-		value: T,
-	} {
+	public inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
 		const config = this.getValue(undefined, overrides);
 
 		return {
 			value: getConfigurationValue<T>(config, key),
-			default: getConfigurationValue<T>(config, key),
-			user: getConfigurationValue<T>(config, key),
-			workspace: undefined,
-			workspaceFolder: undefined
+			defaultValue: getConfigurationValue<T>(config, key),
+			userValue: getConfigurationValue<T>(config, key)
 		};
 	}
 

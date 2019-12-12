@@ -950,27 +950,27 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('inspect', () => {
 		let actual = testObject.inspect('something.missing');
-		assert.equal(actual.default, undefined);
-		assert.equal(actual.user, undefined);
-		assert.equal(actual.workspace, undefined);
-		assert.equal(actual.workspaceFolder, undefined);
+		assert.equal(actual.defaultValue, undefined);
+		assert.equal(actual.userValue, undefined);
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, undefined);
 		assert.equal(actual.value, undefined);
 
 		actual = testObject.inspect('configurationService.folder.testSetting');
-		assert.equal(actual.default, 'isSet');
-		assert.equal(actual.user, undefined);
-		assert.equal(actual.workspace, undefined);
-		assert.equal(actual.workspaceFolder, undefined);
+		assert.equal(actual.defaultValue, 'isSet');
+		assert.equal(actual.userValue, undefined);
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, undefined);
 		assert.equal(actual.value, 'isSet');
 
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
 		return testObject.reloadConfiguration()
 			.then(() => {
 				actual = testObject.inspect('configurationService.folder.testSetting');
-				assert.equal(actual.default, 'isSet');
-				assert.equal(actual.user, 'userValue');
-				assert.equal(actual.workspace, undefined);
-				assert.equal(actual.workspaceFolder, undefined);
+				assert.equal(actual.defaultValue, 'isSet');
+				assert.equal(actual.userValue, 'userValue');
+				assert.equal(actual.workspaceValue, undefined);
+				assert.equal(actual.workspaceFolderValue, undefined);
 				assert.equal(actual.value, 'userValue');
 
 				fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.testSetting": "workspaceValue" }');
@@ -978,10 +978,10 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				return testObject.reloadConfiguration()
 					.then(() => {
 						actual = testObject.inspect('configurationService.folder.testSetting');
-						assert.equal(actual.default, 'isSet');
-						assert.equal(actual.user, 'userValue');
-						assert.equal(actual.workspace, 'workspaceValue');
-						assert.equal(actual.workspaceFolder, undefined);
+						assert.equal(actual.defaultValue, 'isSet');
+						assert.equal(actual.userValue, 'userValue');
+						assert.equal(actual.workspaceValue, 'workspaceValue');
+						assert.equal(actual.workspaceFolderValue, undefined);
 						assert.equal(actual.value, 'workspaceValue');
 					});
 			});
@@ -1308,37 +1308,37 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('inspect', () => {
 		let actual = testObject.inspect('something.missing');
-		assert.equal(actual.default, undefined);
-		assert.equal(actual.user, undefined);
-		assert.equal(actual.workspace, undefined);
-		assert.equal(actual.workspaceFolder, undefined);
+		assert.equal(actual.defaultValue, undefined);
+		assert.equal(actual.userValue, undefined);
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, undefined);
 		assert.equal(actual.value, undefined);
 
 		actual = testObject.inspect('configurationService.workspace.testResourceSetting');
-		assert.equal(actual.default, 'isSet');
-		assert.equal(actual.user, undefined);
-		assert.equal(actual.workspace, undefined);
-		assert.equal(actual.workspaceFolder, undefined);
+		assert.equal(actual.defaultValue, 'isSet');
+		assert.equal(actual.userValue, undefined);
+		assert.equal(actual.workspaceValue, undefined);
+		assert.equal(actual.workspaceFolderValue, undefined);
 		assert.equal(actual.value, 'isSet');
 
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.workspace.testResourceSetting": "userValue" }');
 		return testObject.reloadConfiguration()
 			.then(() => {
 				actual = testObject.inspect('configurationService.workspace.testResourceSetting');
-				assert.equal(actual.default, 'isSet');
-				assert.equal(actual.user, 'userValue');
-				assert.equal(actual.workspace, undefined);
-				assert.equal(actual.workspaceFolder, undefined);
+				assert.equal(actual.defaultValue, 'isSet');
+				assert.equal(actual.userValue, 'userValue');
+				assert.equal(actual.workspaceValue, undefined);
+				assert.equal(actual.workspaceFolderValue, undefined);
 				assert.equal(actual.value, 'userValue');
 
 				return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.testResourceSetting': 'workspaceValue' } }], true)
 					.then(() => testObject.reloadConfiguration())
 					.then(() => {
 						actual = testObject.inspect('configurationService.workspace.testResourceSetting');
-						assert.equal(actual.default, 'isSet');
-						assert.equal(actual.user, 'userValue');
-						assert.equal(actual.workspace, 'workspaceValue');
-						assert.equal(actual.workspaceFolder, undefined);
+						assert.equal(actual.defaultValue, 'isSet');
+						assert.equal(actual.userValue, 'userValue');
+						assert.equal(actual.workspaceValue, 'workspaceValue');
+						assert.equal(actual.workspaceFolderValue, undefined);
 						assert.equal(actual.value, 'workspaceValue');
 
 						fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testResourceSetting": "workspaceFolderValue" }');
@@ -1346,10 +1346,10 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 						return testObject.reloadConfiguration()
 							.then(() => {
 								actual = testObject.inspect('configurationService.workspace.testResourceSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri });
-								assert.equal(actual.default, 'isSet');
-								assert.equal(actual.user, 'userValue');
-								assert.equal(actual.workspace, 'workspaceValue');
-								assert.equal(actual.workspaceFolder, 'workspaceFolderValue');
+								assert.equal(actual.defaultValue, 'isSet');
+								assert.equal(actual.userValue, 'userValue');
+								assert.equal(actual.workspaceValue, 'workspaceValue');
+								assert.equal(actual.workspaceFolderValue, 'workspaceFolderValue');
 								assert.equal(actual.value, 'workspaceFolderValue');
 							});
 					});
@@ -1401,7 +1401,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'launch', value: expectedLaunchConfiguration }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
-				const actual = testObject.inspect('launch').workspace;
+				const actual = testObject.inspect('launch').workspaceValue;
 				assert.deepEqual(actual, expectedLaunchConfiguration);
 			});
 	});
@@ -1448,7 +1448,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true)
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
-				const actual = testObject.inspect('tasks').workspace;
+				const actual = testObject.inspect('tasks').workspaceValue;
 				assert.deepEqual(actual, expectedTasksConfiguration);
 			});
 	});

@@ -101,20 +101,7 @@ export class Configuration extends BaseConfiguration {
 		return super.getValue(key, overrides, this._workspace);
 	}
 
-	inspectValue<C>(key: string): IConfigurationValue<C> {
-		return super.inspectValue(key, this._workspace);
-	}
-
-	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
-		default: C,
-		user: C,
-		userLocal?: C,
-		userRemote?: C,
-		workspace?: C,
-		workspaceFolder?: C
-		memory?: C
-		value: C,
-	} {
+	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): IConfigurationValue<C> {
 		return super.inspect(key, overrides, this._workspace);
 	}
 

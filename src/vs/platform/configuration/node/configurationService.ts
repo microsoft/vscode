@@ -79,17 +79,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		return Promise.reject(new Error('not supported'));
 	}
 
-	inspectValue<T>(key: string): IConfigurationValue<T> {
-		return this.configuration.inspectValue<T>(key, undefined);
-	}
-
-	inspect<T>(key: string): {
-		default: T,
-		user: T,
-		workspace?: T,
-		workspaceFolder?: T
-		value: T
-	} {
+	inspect<T>(key: string): IConfigurationValue<T> {
 		return this.configuration.inspect<T>(key, {}, undefined);
 	}
 

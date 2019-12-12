@@ -1379,7 +1379,7 @@ export class SetColorThemeAction extends ExtensionAction {
 				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
-		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+		const target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}
 }
@@ -1445,7 +1445,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
-		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+		const target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setFileIconTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}
 }
