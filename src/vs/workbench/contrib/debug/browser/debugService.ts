@@ -158,13 +158,12 @@ export class DebugService implements IDebugService {
 		this.toDispose.push(this.configurationManager.onDidSelectConfiguration(() => {
 			this.debugUx.set(!!(this.state !== State.Inactive || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
 		}));
-		this.toDispose.push(Event.any(this.onDidNewSession, this.onDidEndSession)(() => {
+		this.toDispose.push(this.model.onDidChangeCallStack(() => {
 			const numberOfSessions = this.model.getSessions().length;
-			if (numberOfSessions === 0) {
-				if (this.activity) {
-					this.activity.dispose();
-				}
-			} else {
+			if (this.activity) {
+				this.activity.dispose();
+			}
+			if (numberOfSessions > 0) {
 				this.activity = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(numberOfSessions, n => n === 1 ? nls.localize('1activeSession', "1 active session") : nls.localize('nActiveSessions', "{0} active sessions", n)));
 			}
 		}));

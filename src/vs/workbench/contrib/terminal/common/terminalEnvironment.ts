@@ -246,7 +246,7 @@ export function escapeNonWindowsPath(path: string): string {
 }
 
 export function getDefaultShell(
-	fetchSetting: (key: string) => { user?: string | string[], value?: string | string[], default?: string | string[] },
+	fetchSetting: (key: string) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	defaultShell: string,
 	isWoW64: boolean,
@@ -294,7 +294,7 @@ export function getDefaultShell(
 }
 
 export function getDefaultShellArgs(
-	fetchSetting: (key: string) => { user?: string | string[], value?: string | string[], default?: string | string[] },
+	fetchSetting: (key: string) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	useAutomationShell: boolean,
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
@@ -310,7 +310,7 @@ export function getDefaultShellArgs(
 
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
-	let args = <string[] | string>((isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default);
+	let args = <string[] | string>((isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.userValue) || shellArgsConfigValue.defaultValue);
 	if (typeof args === 'string' && platformOverride === platform.Platform.Windows) {
 		return configurationResolverService ? configurationResolverService.resolve(lastActiveWorkspace, args) : args;
 	}
@@ -344,7 +344,7 @@ function getShellSetting(
 export function createTerminalEnvironment(
 	shellLaunchConfig: IShellLaunchConfig,
 	lastActiveWorkspace: IWorkspaceFolder | null,
-	envFromConfig: { user?: ITerminalEnvironment, value?: ITerminalEnvironment, default?: ITerminalEnvironment },
+	envFromConfig: { userValue?: ITerminalEnvironment, value?: ITerminalEnvironment, defaultValue?: ITerminalEnvironment },
 	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,
 	version: string | undefined,
@@ -362,7 +362,7 @@ export function createTerminalEnvironment(
 
 		// const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		// const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
-		const allowedEnvFromConfig = { ...(isWorkspaceShellAllowed ? envFromConfig.value : envFromConfig.user) };
+		const allowedEnvFromConfig = { ...(isWorkspaceShellAllowed ? envFromConfig.value : envFromConfig.userValue) };
 
 		// Resolve env vars from config and shell
 		if (configurationResolverService) {

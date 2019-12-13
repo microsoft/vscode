@@ -9,9 +9,9 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IResourceConfigurationService = createDecorator<IResourceConfigurationService>('resourceConfigurationService');
+export const ITextResourceConfigurationService = createDecorator<ITextResourceConfigurationService>('textResourceConfigurationService');
 
-export interface IResourceConfigurationChangeEvent {
+export interface ITextResourceConfigurationChangeEvent {
 
 	/**
 	 * All affected keys. Also includes language overrides and keys changed under language overrides.
@@ -29,14 +29,14 @@ export interface IResourceConfigurationChangeEvent {
 	affectsConfiguration(resource: URI, section: string): boolean;
 }
 
-export interface IResourceConfigurationService {
+export interface ITextResourceConfigurationService {
 
 	_serviceBrand: undefined;
 
 	/**
 	 * Event that fires when the configuration changes.
 	 */
-	onDidChangeConfiguration: Event<IResourceConfigurationChangeEvent>;
+	onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent>;
 
 	/**
 	 * Fetches the value of the section for the given resource by applying language overrides.
