@@ -63,6 +63,7 @@ The server supports the following settings:
 	  - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard.
 	  - `url`: The URL of the schema, optional when also a schema is provided.
 	  - `schema`: The schema content.
+    - `resultLimit`: The max number foldig ranges and otline symbols to be computed (for performance reasons)
 
 ```json
 	{
@@ -152,6 +153,16 @@ interface ISchemaAssociations {
 Notification:
 - method: 'json/schemaContent'
 - params: `string` the URL of the schema that has changed.
+
+### Item Limit
+
+If the setting `resultLimit` is set, the JSON language server will limit the number of folding ranges and document symbols computed.
+When the limit is reached, a notification `json/resultLimitReached` is sent that can be shown that camn be shown to the user.
+
+Notification:
+- method: 'json/resultLimitReached'
+- params: a human readable string to show to the user.
+
 
 ## Try
 

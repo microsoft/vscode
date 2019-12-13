@@ -314,7 +314,9 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	private appendInvalidActions(actions: vscode.CodeAction[]): vscode.CodeAction[] {
 		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
 			const disabledAction = new vscode.CodeAction('Extract to constant', Extract_Constant.kind);
-			disabledAction.disabled = localize('extract.disabled', "The current selection cannot be extracted");
+			disabledAction.disabled = {
+				reason: localize('extract.disabled', "The current selection cannot be extracted"),
+			};
 			disabledAction.isPreferred = true;
 			actions.push(disabledAction);
 		}

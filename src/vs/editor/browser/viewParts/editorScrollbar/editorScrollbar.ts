@@ -50,6 +50,7 @@ export class EditorScrollbar extends ViewPart {
 			horizontalScrollbarSize: scrollbar.horizontalScrollbarSize,
 			horizontalSliderSize: scrollbar.horizontalSliderSize,
 			handleMouseWheel: scrollbar.handleMouseWheel,
+			alwaysConsumeMouseWheel: scrollbar.alwaysConsumeMouseWheel,
 			arrowSize: scrollbar.arrowSize,
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
 			fastScrollSensitivity: fastScrollSensitivity,

@@ -27,7 +27,7 @@ import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorSettingsSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
+import { textmateColorsSchemaId, registerColorThemeSchemas, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -684,16 +684,7 @@ configurationRegistry.registerConfiguration(themeSettingsConfiguration);
 function tokenGroupSettings(description: string): IJSONSchema {
 	return {
 		description,
-		default: '#FF0000',
-		anyOf: [
-			{
-				type: 'string',
-				format: 'color-hex'
-			},
-			{
-				$ref: textmateColorSettingsSchemaId
-			}
-		]
+		$ref: textmateColorGroupSchemaId
 	};
 }
 

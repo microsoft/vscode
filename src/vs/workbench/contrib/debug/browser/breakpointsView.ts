@@ -28,7 +28,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -45,7 +45,7 @@ function createCheckbox(): HTMLInputElement {
 	return checkbox;
 }
 
-export class BreakpointsView extends ViewletPane {
+export class BreakpointsView extends ViewPane {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
 	private list!: WorkbenchList<IEnablement>;
@@ -63,7 +63,7 @@ export class BreakpointsView extends ViewletPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
@@ -500,7 +500,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IBaseBrea
 
 	renderElement(dataBreakpoint: DataBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = dataBreakpoint;
-		data.name.textContent = dataBreakpoint.label;
+		data.name.textContent = dataBreakpoint.description;
 		const { className, message } = getBreakpointMessageAndClassName(this.debugService, dataBreakpoint);
 		data.icon.className = `codicon ${className}`;
 		data.icon.title = message ? message : '';
@@ -711,25 +711,6 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, br
 			className: breakpoint.logMessage ? 'codicon-debug-breakpoint-log' : 'codicon-debug-breakpoint-conditional',
 			message: appendMessage(messages.join('\n'))
 		};
-	}
-
-	const focusedThread = debugService.getViewModel().focusedThread;
-	if (focusedThread) {
-		const callStack = focusedThread ? focusedThread.getCallStack() : undefined;
-		const topStackFrame = callStack ? callStack[0] : undefined;
-		if (topStackFrame && topStackFrame.source.uri.toString() === breakpoint.uri.toString() && topStackFrame.range.startLineNumber === breakpoint.lineNumber) {
-			if (topStackFrame.range.startColumn === breakpoint.column) {
-				return {
-					className: 'codicon-debug-breakpoint-stackframe-dot',
-					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
-				};
-			} else if (breakpoint.column === undefined) {
-				return {
-					className: 'codicon-debug-breakpoint',
-					message: breakpoint.message || nls.localize('breakpoint', "Breakpoint")
-				};
-			}
-		}
 	}
 
 	return {

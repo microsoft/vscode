@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
@@ -23,20 +23,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
-
-function whenProviderRegistered(scheme: string, fileService: IFileService): Promise<void> {
-	if (fileService.canHandleResource(URI.from({ scheme }))) {
-		return Promise.resolve();
-	}
-	return new Promise((c, e) => {
-		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (e.scheme === scheme && e.added) {
-				disposable.dispose();
-				c();
-			}
-		});
-	});
-}
 
 export class UserConfiguration extends Disposable {
 
@@ -353,7 +339,7 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 
 	private async waitAndSwitch(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
-		await whenProviderRegistered(workspaceIdentifier.configPath.scheme, this._fileService);
+		await whenProviderRegistered(workspaceIdentifier.configPath, this._fileService);
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
 			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._fileService));
 			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier);
@@ -750,7 +736,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		if (workspaceFolder.uri.scheme === Schemas.file) {
 			this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.configurationFolder, this.workbenchState, fileService);
 		} else {
-			whenProviderRegistered(workspaceFolder.uri.scheme, fileService)
+			whenProviderRegistered(workspaceFolder.uri, fileService)
 				.then(() => {
 					this.folderConfiguration.dispose();
 					this.folderConfigurationDisposable.dispose();

@@ -19,7 +19,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { binarySearch } from 'vs/base/common/arrays';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 class FlatOutline {
 
@@ -78,7 +78,7 @@ export class OutlineNavigation implements IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
-		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
+		@IResourceConfigurationService private readonly _textResourceConfigService: IResourceConfigurationService,
 	) {
 		this._editor = editor;
 	}

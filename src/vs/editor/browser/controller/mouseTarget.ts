@@ -89,6 +89,13 @@ interface IHitTestResult {
 	hitTarget: Element | null;
 }
 
+export class PointerHandlerLastRenderData {
+	constructor(
+		public readonly lastViewCursorsRenderData: IViewCursorRenderData[],
+		public readonly lastTextareaPosition: Position | null
+	) { }
+}
+
 export class MouseTarget implements IMouseTarget {
 
 	public readonly element: Element | null;
@@ -232,19 +239,19 @@ export class HitTestContext {
 	public readonly viewDomNode: HTMLElement;
 	public readonly lineHeight: number;
 	public readonly typicalHalfwidthCharacterWidth: number;
-	public readonly lastViewCursorsRenderData: IViewCursorRenderData[];
+	public readonly lastRenderData: PointerHandlerLastRenderData;
 
 	private readonly _context: ViewContext;
 	private readonly _viewHelper: IPointerHandlerHelper;
 
-	constructor(context: ViewContext, viewHelper: IPointerHandlerHelper, lastViewCursorsRenderData: IViewCursorRenderData[]) {
+	constructor(context: ViewContext, viewHelper: IPointerHandlerHelper, lastRenderData: PointerHandlerLastRenderData) {
 		this.model = context.model;
 		const options = context.configuration.options;
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-		this.lastViewCursorsRenderData = lastViewCursorsRenderData;
+		this.lastRenderData = lastRenderData;
 		this._context = context;
 		this._viewHelper = viewHelper;
 	}
@@ -462,8 +469,8 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(lastViewCursorsRenderData: IViewCursorRenderData[], editorPos: EditorPagePosition, pos: PageCoordinates, target: HTMLElement | null): IMouseTarget {
-		const ctx = new HitTestContext(this._context, this._viewHelper, lastViewCursorsRenderData);
+	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, target: HTMLElement | null): IMouseTarget {
+		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
 		const request = new HitTestRequest(ctx, editorPos, pos, target);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request, false);
@@ -544,7 +551,7 @@ export class MouseTargetFactory {
 
 		if (request.target) {
 			// Check if we've hit a painted cursor
-			const lastViewCursorsRenderData = ctx.lastViewCursorsRenderData;
+			const lastViewCursorsRenderData = ctx.lastRenderData.lastViewCursorsRenderData;
 
 			for (const d of lastViewCursorsRenderData) {
 
@@ -560,7 +567,7 @@ export class MouseTargetFactory {
 			// first or last rendered view line dom node, therefore help it out
 			// and first check if we are on top of a cursor
 
-			const lastViewCursorsRenderData = ctx.lastViewCursorsRenderData;
+			const lastViewCursorsRenderData = ctx.lastRenderData.lastViewCursorsRenderData;
 			const mouseContentHorizontalOffset = request.mouseContentHorizontalOffset;
 			const mouseVerticalOffset = request.mouseVerticalOffset;
 
@@ -602,7 +609,10 @@ export class MouseTargetFactory {
 	private static _hitTestTextArea(ctx: HitTestContext, request: ResolvedHitTestRequest): MouseTarget | null {
 		// Is it the textarea?
 		if (ElementPath.isTextArea(request.targetPath)) {
-			return request.fulfill(MouseTargetType.TEXTAREA);
+			if (ctx.lastRenderData.lastTextareaPosition) {
+				return request.fulfill(MouseTargetType.CONTENT_TEXT, ctx.lastRenderData.lastTextareaPosition);
+			}
+			return request.fulfill(MouseTargetType.TEXTAREA, ctx.lastRenderData.lastTextareaPosition);
 		}
 		return null;
 	}

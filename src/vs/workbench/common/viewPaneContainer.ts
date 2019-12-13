@@ -3,8 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'semver-umd' {
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 
-	export * from "semver";
-
+export interface IViewPaneContainer {
+	setVisible(visible: boolean): void;
+	isVisible(): boolean;
+	focus(): void;
+	getActions(): IAction[];
+	getSecondaryActions(): IAction[];
+	getActionViewItem(action: IAction): IActionViewItem | undefined;
+	saveState(): void;
 }

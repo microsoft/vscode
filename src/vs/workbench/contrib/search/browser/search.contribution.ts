@@ -5,13 +5,12 @@
 
 import { Action } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
@@ -52,11 +51,12 @@ import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contri
 import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, Match, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_CONTAINER, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_ID, VIEW_CONTAINER } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
+import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { assertType } from 'vs/base/common/types';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -320,9 +320,11 @@ CommandsRegistry.registerCommand({
 		const contextService = accessor.get(IWorkspaceContextService);
 		const uri = fileMatch.resource;
 
-		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet: ExplorerViewlet) => {
+		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet) => {
+			const explorerViewContainer = viewlet?.getViewPaneContainer() as ExplorerViewPaneContainer;
+
 			if (uri && contextService.isInsideWorkspace(uri)) {
-				const explorerView = viewlet.getExplorerView();
+				const explorerView = explorerViewContainer?.getExplorerView();
 				if (explorerView) {
 					explorerView.setExpanded(true);
 					explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
@@ -396,7 +398,7 @@ const searchInFolderCommand: ICommandHandler = (accessor, resource?: URI) => {
 	const panelService = accessor.get(IPanelService);
 	const fileService = accessor.get(IFileService);
 	const configurationService = accessor.get(IConfigurationService);
-	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
+	const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
 
 	return openSearchView(viewletService, panelService, configurationService, true).then(searchView => {
 		if (resources && resources.length && searchView) {
@@ -645,16 +647,17 @@ registry.registerWorkbenchAction(
 	'Search: Open Results in Editor', category,
 	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
 
+const searchEditorCategory = nls.localize({ comment: ['The name of the tabbed search view'], key: 'searcheditor' }, "Search Editor");
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(RerunEditorSearchAction, RerunEditorSearchAction.ID, RerunEditorSearchAction.LABEL,
 		{ primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_R },
 		ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result'))),
-	'Search Editor: Search Again', category,
+	'Search Editor: Search Again', searchEditorCategory,
 	ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result')));
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(RerunEditorSearchWithContextAction, RerunEditorSearchWithContextAction.ID, RerunEditorSearchWithContextAction.LABEL),
-	'Search Editor: Search Again (With Context)', category,
+	'Search Editor: Search Again (With Context)', searchEditorCategory,
 	ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result')));
 
 
@@ -696,7 +699,7 @@ configurationRegistry.registerConfiguration({
 		'search.exclude': {
 			type: 'object',
 			markdownDescription: nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
-			default: { '**/node_modules': true, '**/bower_components': true },
+			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
 			additionalProperties: {
 				anyOf: [
 					{
@@ -828,11 +831,9 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
-	const { query } = args;
-	if (typeof query !== 'string') {
-		throw illegalArgument();
-	}
+CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', function (accessor, ...args) {
+	const [query] = args;
+	assertType(typeof query === 'string');
 	return getWorkspaceSymbols(query);
 });
 

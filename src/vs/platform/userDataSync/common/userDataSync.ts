@@ -177,18 +177,6 @@ export interface IUserDataSyncService extends ISynchroniser {
 	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
 }
 
-export const ISettingsMergeService = createDecorator<ISettingsMergeService>('ISettingsMergeService');
-
-export interface ISettingsMergeService {
-
-	_serviceBrand: undefined;
-
-	merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[]): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }>;
-
-	computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[]): Promise<string>;
-
-}
-
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
 
 export interface IUserDataSyncUtilService {

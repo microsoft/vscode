@@ -161,11 +161,11 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
-        "html.autoSelectingMatchingTags": {
+        "html.mirrorCursorOnMatchingTag": {
           "type": "boolean",
           "scope": "resource",
           "default": true,
-          "description": "%html.autoSelectingMatchingTags%"
+          "description": "%html.mirrorCursorOnMatchingTag%"
         },
         "html.trace.server": {
           "type": "string",

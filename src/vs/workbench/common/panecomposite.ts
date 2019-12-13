@@ -3,18 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-resource-viewer:focus {
-	outline: none !important;
-}
+import { IView } from 'vs/workbench/common/views';
+import { IComposite } from 'vs/workbench/common/composite';
+import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 
-.monaco-resource-viewer {
-	padding: 5px 0 0 10px;
-	box-sizing: border-box;
-}
-
-.monaco-resource-viewer .embedded-link,
-.monaco-resource-viewer .embedded-link:hover {
-	cursor: pointer;
-	text-decoration: underline;
-	margin-left: 5px;
+export interface IPaneComposite extends IComposite {
+	openView(id: string, focus?: boolean): IView;
+	getViewPaneContainer(): IViewPaneContainer;
+	saveState(): void;
 }

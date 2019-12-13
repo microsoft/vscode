@@ -35,6 +35,9 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
 
+/** Specified in searchview.css */
+export const SingleLineInputHeight = 24;
+
 export interface ISearchWidgetOptions {
 	value?: string;
 	replaceValue?: string;
@@ -80,7 +83,7 @@ const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
 function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
 	const isMultiline = !!value.match(/\n/);
-	if (textarea && isMultiline && textarea.selectionStart > 0) {
+	if (textarea && (isMultiline || textarea.clientHeight > SingleLineInputHeight) && textarea.selectionStart > 0) {
 		event.stopPropagation();
 		return;
 	}
@@ -88,7 +91,7 @@ function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string
 
 function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
 	const isMultiline = !!value.match(/\n/);
-	if (textarea && isMultiline && textarea.selectionEnd < textarea.value.length) {
+	if (textarea && (isMultiline || textarea.clientHeight > SingleLineInputHeight) && textarea.selectionEnd < textarea.value.length) {
 		event.stopPropagation();
 		return;
 	}
@@ -466,6 +469,7 @@ export class SearchWidget extends Widget {
 		}
 
 		if (keyboardEvent.equals(KeyCode.Enter)) {
+			this.searchInput.onSearchSubmit();
 			this.submitSearch();
 			keyboardEvent.preventDefault();
 		}

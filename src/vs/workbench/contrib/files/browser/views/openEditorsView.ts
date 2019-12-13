@@ -33,7 +33,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext as ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
@@ -41,12 +41,13 @@ import { ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/browser
 import { URI } from 'vs/base/common/uri';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { isWeb } from 'vs/base/common/platform';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const $ = dom.$;
 
-export class OpenEditorsView extends ViewletPane {
+export class OpenEditorsView extends ViewPane {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	static readonly ID = 'workbench.explorer.openEditorsView';
@@ -76,10 +77,11 @@ export class OpenEditorsView extends ViewletPane {
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super({
-			...(options as IViewletPaneOptions),
+			...(options as IViewPaneOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
 		}, keybindingService, contextMenuService, configurationService, contextKeyService);
 
@@ -100,7 +102,7 @@ export class OpenEditorsView extends ViewletPane {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
-		this._register(this.workingCopyService.onDidChangeDirty(() => this.updateDirtyIndicator()));
+		this._register(this.workingCopyService.onDidChangeDirty(c => this.updateDirtyIndicator(c)));
 	}
 
 	private registerUpdateEvents(): void {
@@ -414,7 +416,14 @@ export class OpenEditorsView extends ViewletPane {
 		this.maximumBodySize = this.getMaxExpandedBodySize();
 	}
 
-	private updateDirtyIndicator(): void {
+	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
+		if (workingCopy) {
+			const gotDirty = workingCopy.isDirty();
+			if (gotDirty && !!(workingCopy.capabilities & WorkingCopyCapabilities.AutoSave) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+				return; // do not indicate dirty of working copies that are auto saved after short delay
+			}
+		}
+
 		let dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
 			dom.addClass(this.dirtyCountElement, 'hidden');

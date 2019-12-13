@@ -11,14 +11,15 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { parse, ParseError } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
+import { joinPath, dirname } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { isUndefined } from 'vs/base/common/types';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 
 interface ISyncContent {
 	mac?: string;
@@ -46,7 +47,6 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
-	private readonly throttledDelayer: ThrottledDelayer<void>;
 	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
@@ -62,24 +62,8 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 	) {
 		super();
 		this.lastSyncKeybindingsResource = joinPath(this.environmentService.userRoamingDataHome, '.lastSyncKeybindings.json');
-		this.throttledDelayer = this._register(new ThrottledDelayer<void>(500));
-		this._register(this.fileService.watch(this.environmentService.keybindingsResource));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.keybindingsResource))(() => this.throttledDelayer.trigger(() => this.onDidChangeKeybindings())));
-	}
-
-	private async onDidChangeKeybindings(): Promise<void> {
-		const localFileContent = await this.getLocalContent();
-		const lastSyncData = await this.getLastSyncUserData();
-		if (localFileContent && lastSyncData) {
-			if (localFileContent.value.toString() !== lastSyncData.content) {
-				this._onDidChangeLocal.fire();
-				return;
-			}
-		}
-		if (!localFileContent || !lastSyncData) {
-			this._onDidChangeLocal.fire();
-			return;
-		}
+		this._register(this.fileService.watch(dirname(this.environmentService.keybindingsResource)));
+		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.keybindingsResource))(() => this._onDidChangeLocal.fire()));
 	}
 
 	private setStatus(status: SyncStatus): void {
@@ -234,7 +218,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 				|| lastSyncContent !== remoteContent // Remote has forwarded
 			) {
 				this.logService.trace('Keybindings: Merging remote keybindings with local keybindings...');
-				const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.environmentService.keybindingsResource);
+				const formattingOptions = await this.getFormattingOptions();
 				const result = await merge(localContent, remoteContent, lastSyncContent, formattingOptions, this.userDataSyncUtilService);
 				// Sync only if there are changes
 				if (result.hasChanges) {
@@ -258,6 +242,14 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		}
 
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
+	}
+
+	private _formattingOptions: Promise<FormattingOptions> | undefined = undefined;
+	private getFormattingOptions(): Promise<FormattingOptions> {
+		if (!this._formattingOptions) {
+			this._formattingOptions = this.userDataSyncUtilService.resolveFormattingOptions(this.environmentService.keybindingsResource);
+		}
+		return this._formattingOptions;
 	}
 
 	private async getLocalContent(): Promise<IFileContent | null> {

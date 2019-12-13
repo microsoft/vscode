@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext, toResource, SideBySideEditor, SaveReason } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditor, EditorGroupEditorsCountContext, toResource, SideBySideEditor, SaveReason, SaveContext } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -73,30 +73,30 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region events
 
-	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
 
-	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	readonly onWillDispose: Event<void> = this._onWillDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
-	private readonly _onDidGroupChange: Emitter<IGroupChangeEvent> = this._register(new Emitter<IGroupChangeEvent>());
-	readonly onDidGroupChange: Event<IGroupChangeEvent> = this._onDidGroupChange.event;
+	private readonly _onDidGroupChange = this._register(new Emitter<IGroupChangeEvent>());
+	readonly onDidGroupChange = this._onDidGroupChange.event;
 
-	private readonly _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
-	readonly onWillOpenEditor: Event<IEditorOpeningEvent> = this._onWillOpenEditor.event;
+	private readonly _onWillOpenEditor = this._register(new Emitter<IEditorOpeningEvent>());
+	readonly onWillOpenEditor = this._onWillOpenEditor.event;
 
-	private readonly _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
-	readonly onDidOpenEditorFail: Event<EditorInput> = this._onDidOpenEditorFail.event;
+	private readonly _onDidOpenEditorFail = this._register(new Emitter<EditorInput>());
+	readonly onDidOpenEditorFail = this._onDidOpenEditorFail.event;
 
-	private readonly _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	readonly onWillCloseEditor: Event<IEditorCloseEvent> = this._onWillCloseEditor.event;
+	private readonly _onWillCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
+	readonly onWillCloseEditor = this._onWillCloseEditor.event;
 
-	private readonly _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	readonly onDidCloseEditor: Event<IEditorCloseEvent> = this._onDidCloseEditor.event;
+	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
+	readonly onDidCloseEditor = this._onDidCloseEditor.event;
 
 	//#endregion
 
-	private _group: EditorGroup;
+	private readonly _group: EditorGroup;
 	private _disposed = false;
 
 	private active: boolean | undefined;
@@ -115,9 +115,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private editorContainer: HTMLElement;
 	private editorControl: EditorControl;
 
-	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
+	private readonly disposedEditorsWorker = this._register(new RunOnceWorker<EditorInput>(editors => this.handleDisposedEditors(editors), 0));
 
-	private mapEditorToPendingConfirmation: Map<EditorInput, Promise<boolean>> = new Map<EditorInput, Promise<boolean>>();
+	private readonly mapEditorToPendingConfirmation = new Map<EditorInput, Promise<boolean>>();
 
 	constructor(
 		private accessor: IEditorGroupsAccessor,
@@ -145,8 +145,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		} else {
 			this._group = this._register(instantiationService.createInstance(EditorGroup, undefined));
 		}
-
-		this.disposedEditorsWorker = this._register(new RunOnceWorker(editors => this.handleDisposedEditors(editors), 0));
 
 		//#region create()
 		{
@@ -1310,7 +1308,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Otherwise, handle accordingly
 		switch (res) {
 			case ConfirmResult.SAVE:
-				const result = await editor.save(this._group.id, { reason: SaveReason.EXPLICIT });
+				const result = await editor.save(this._group.id, { reason: SaveReason.EXPLICIT, context: SaveContext.EDITOR_CLOSE });
 
 				return !result;
 			case ConfirmResult.DONT_SAVE:

@@ -16,9 +16,15 @@
     "*"
   ],
   "scripts": {
+    "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:search-result ./tsconfig.json"
   },
   "contributes": {
+    "configurationDefaults": {
+      "[search-result]": {
+        "editor.lineNumbers": "off"
+      }
+    },
     "commands": [
       {
         "command": "searchResult.rerunSearch",
@@ -40,6 +46,16 @@
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "searchResult.rerunSearch",
+          "when": "false"
+        },
+        {
+          "command": "searchResult.rerunSearchWithContext",
+          "when": "false"
+        }
+      ],
       "editor/title": [
         {
           "command": "searchResult.rerunSearch",

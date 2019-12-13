@@ -7,14 +7,32 @@ import * as vscode from 'vscode';
 import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
-const RESULT_LINE_REGEX = /^(\s+)(\d+)(?::| )(\s+)(.*)$/;
+const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const SEARCH_RESULT_SELECTOR = { language: 'search-result' };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
 const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
 
-let cachedLastParse: { version: number, parse: ParsedSearchResults } | undefined;
+let cachedLastParse: { version: number, parse: ParsedSearchResults, uri: vscode.Uri } | undefined;
+let documentChangeListener: vscode.Disposable | undefined;
+
 
 export function activate(context: vscode.ExtensionContext) {
+
+	const contextLineDecorations = vscode.window.createTextEditorDecorationType({ opacity: '0.7' });
+	const matchLineDecorations = vscode.window.createTextEditorDecorationType({ fontWeight: 'bold' });
+
+	const decorate = (editor: vscode.TextEditor) => {
+		const parsed = parseSearchResults(editor.document).filter(isResultLine);
+		const contextRanges = parsed.filter(line => line.isContext).map(line => line.prefixRange);
+		const matchRanges = parsed.filter(line => !line.isContext).map(line => line.prefixRange);
+		editor.setDecorations(contextLineDecorations, contextRanges);
+		editor.setDecorations(matchLineDecorations, matchRanges);
+	};
+
+	if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.languageId === 'search-result') {
+		decorate(vscode.window.activeTextEditor);
+	}
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand('searchResult.rerunSearch', () => vscode.commands.executeCommand('search.action.rerunEditorSearch')),
 		vscode.commands.registerCommand('searchResult.rerunSearchWithContext', () => vscode.commands.executeCommand('search.action.rerunEditorSearchWithContext')),
@@ -66,7 +84,13 @@ export function activate(context: vscode.ExtensionContext) {
 					return [];
 				}
 
-				return [lineResult.location];
+				const translateRangeSidewaysBy = (r: vscode.Range, n: number) =>
+					r.with({ start: new vscode.Position(r.start.line, Math.max(0, n - r.start.character)), end: new vscode.Position(r.end.line, Math.max(0, n - r.end.character)) });
+
+				return [{
+					...lineResult.location,
+					targetSelectionRange: translateRangeSidewaysBy(lineResult.location.targetSelectionRange!, position.character - 1)
+				}];
 			}
 		}),
 
@@ -78,15 +102,24 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}),
 
-		vscode.window.onDidChangeActiveTextEditor(e => {
-			if (e?.document.languageId === 'search-result') {
+		vscode.window.onDidChangeActiveTextEditor(editor => {
+			if (editor?.document.languageId === 'search-result') {
 				// Clear the parse whenever we open a new editor.
 				// Conservative because things like the URI might remain constant even if the contents change, and re-parsing even large files is relatively fast.
 				cachedLastParse = undefined;
+
+				documentChangeListener?.dispose();
+				documentChangeListener = vscode.workspace.onDidChangeTextDocument(doc => {
+					if (doc.document.uri === editor.document.uri) {
+						decorate(editor);
+					}
+				});
+
+				decorate(editor);
 			}
 		}),
 
-		{ dispose() { cachedLastParse = undefined; } }
+		{ dispose() { cachedLastParse = undefined; documentChangeListener?.dispose(); } }
 	);
 }
 
@@ -123,14 +156,15 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 }
 
 type ParsedSearchFileLine = { type: 'file', location: vscode.LocationLink, allLocations: vscode.LocationLink[], path: string };
-type ParsedSearchResultLine = { type: 'result', location: vscode.LocationLink };
+type ParsedSearchResultLine = { type: 'result', location: vscode.LocationLink, isContext: boolean, prefixRange: vscode.Range };
 type ParsedSearchResults = Array<ParsedSearchFileLine | ParsedSearchResultLine>;
 const isFileLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line is ParsedSearchFileLine => line.type === 'file';
+const isResultLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line is ParsedSearchResultLine => line.type === 'result';
 
 
-function parseSearchResults(document: vscode.TextDocument, token: vscode.CancellationToken): ParsedSearchResults {
+function parseSearchResults(document: vscode.TextDocument, token?: vscode.CancellationToken): ParsedSearchResults {
 
-	if (cachedLastParse && cachedLastParse.version === document.version) {
+	if (cachedLastParse && cachedLastParse.uri === document.uri && cachedLastParse.version === document.version) {
 		return cachedLastParse.parse;
 	}
 
@@ -141,7 +175,8 @@ function parseSearchResults(document: vscode.TextDocument, token: vscode.Cancell
 	let currentTargetLocations: vscode.LocationLink[] | undefined = undefined;
 
 	for (let i = 0; i < lines.length; i++) {
-		if (token.isCancellationRequested) { return []; }
+		// TODO: This is probably always false, given we're pegging the thread...
+		if (token?.isCancellationRequested) { return []; }
 		const line = lines[i];
 
 		const fileLine = FILE_LINE_REGEX.exec(line);
@@ -166,26 +201,28 @@ function parseSearchResults(document: vscode.TextDocument, token: vscode.Cancell
 
 		const resultLine = RESULT_LINE_REGEX.exec(line);
 		if (resultLine) {
-			const [, indentation, _lineNumber, resultIndentation] = resultLine;
+			const [, indentation, _lineNumber, seperator, resultIndentation] = resultLine;
 			const lineNumber = +_lineNumber - 1;
-			const resultStart = (indentation + _lineNumber + ':' + resultIndentation).length;
+			const resultStart = (indentation + _lineNumber + seperator + resultIndentation).length;
+			const metadataOffset = (indentation + _lineNumber + seperator).length;
 
 			const location: vscode.LocationLink = {
 				targetRange: new vscode.Range(Math.max(lineNumber - 3, 0), 0, lineNumber + 3, line.length),
-				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, line.length),
+				targetSelectionRange: new vscode.Range(lineNumber, metadataOffset, lineNumber, metadataOffset),
 				targetUri: currentTarget,
 				originSelectionRange: new vscode.Range(i, resultStart, i, line.length),
 			};
 
 			currentTargetLocations?.push(location);
 
-			links[i] = { type: 'result', location };
+			links[i] = { type: 'result', location, isContext: seperator === ' ', prefixRange: new vscode.Range(i, 0, i, metadataOffset) };
 		}
 	}
 
 	cachedLastParse = {
 		version: document.version,
-		parse: links
+		parse: links,
+		uri: document.uri
 	};
 
 	return links;

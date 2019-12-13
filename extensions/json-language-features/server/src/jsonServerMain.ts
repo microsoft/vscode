@@ -35,6 +35,10 @@ namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
+namespace ResultLimitReachedNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/resultLimitReached');
+}
+
 namespace ForceValidateRequest {
 	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
 }
@@ -211,7 +215,7 @@ namespace LimitExceededWarnings {
 			} else {
 				warning = { features: { [name]: name } };
 				warning.timeout = setTimeout(() => {
-					connection.window.showInformationMessage(`${posix.basename(uri)}: For performance reasons, ${Object.keys(warning.features).join(' and ')} have been limited to ${resultLimit} items.`);
+					connection.sendNotification(ResultLimitReachedNotification.type, `${posix.basename(uri)}: For performance reasons, ${Object.keys(warning.features).join(' and ')} have been limited to ${resultLimit} items.`);
 					warning.timeout = undefined;
 				}, 2000);
 				pendingWarnings[uri] = warning;

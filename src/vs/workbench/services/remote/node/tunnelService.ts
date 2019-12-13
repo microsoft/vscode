@@ -28,7 +28,8 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 	public readonly tunnelRemotePort: number;
 	public tunnelLocalPort!: number;
-	public localAddress?: string;
+	public tunnelRemoteHost: string = 'localhost';
+	public localAddress!: string;
 
 	private readonly _options: IConnectionOptions;
 	private readonly _server: net.Server;
@@ -145,26 +146,35 @@ export class TunnelService implements ITunnelService {
 	private makeTunnel(tunnel: RemoteTunnel): RemoteTunnel {
 		return {
 			tunnelRemotePort: tunnel.tunnelRemotePort,
+			tunnelRemoteHost: tunnel.tunnelRemoteHost,
 			tunnelLocalPort: tunnel.tunnelLocalPort,
 			localAddress: tunnel.localAddress,
 			dispose: () => {
 				const existing = this._tunnels.get(tunnel.tunnelRemotePort);
 				if (existing) {
-					if (--existing.refcount <= 0) {
-						existing.value.then(tunnel => tunnel.dispose());
-						this._tunnels.delete(tunnel.tunnelRemotePort);
-						this._onTunnelClosed.fire(tunnel.tunnelRemotePort);
-					}
+					existing.refcount--;
+					this.tryDisposeTunnel(tunnel.tunnelRemotePort, existing);
 				}
 			}
 		};
 	}
 
+	private async tryDisposeTunnel(remotePort: number, tunnel: { refcount: number, readonly value: Promise<RemoteTunnel> }): Promise<void> {
+		if (tunnel.refcount <= 0) {
+			const disposePromise: Promise<void> = tunnel.value.then(tunnel => {
+				tunnel.dispose();
+				this._onTunnelClosed.fire(tunnel.tunnelRemotePort);
+			});
+			this._tunnels.delete(remotePort);
+			return disposePromise;
+		}
+	}
+
 	async closeTunnel(remotePort: number): Promise<void> {
 		if (this._tunnels.has(remotePort)) {
 			const value = this._tunnels.get(remotePort)!;
-			(await value.value).dispose();
 			value.refcount = 0;
+			await this.tryDisposeTunnel(remotePort, value);
 		}
 	}
 
@@ -189,8 +199,7 @@ export class TunnelService implements ITunnelService {
 		};
 
 		const tunnel = createRemoteTunnel(options, remotePort, localPort);
-		// Using makeTunnel here for the value does result in dispose getting called twice, but it also ensures that _onTunnelClosed will be fired when closeTunnel is called.
-		this._tunnels.set(remotePort, { refcount: 1, value: tunnel.then(value => this.makeTunnel(value)) });
+		this._tunnels.set(remotePort, { refcount: 1, value: tunnel });
 		return tunnel;
 	}
 }
