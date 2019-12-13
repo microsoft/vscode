@@ -64,8 +64,19 @@ export class StartView extends ViewPane {
 
 			this.debugButton.enabled = enabled;
 			this.runButton.enabled = enabled;
-			this.debugButton.label = this.debuggerLabels.length !== 1 ? localize('debug', "Debug") : localize('debugWith', "Debug with {0}", this.debuggerLabels[0]);
-			this.runButton.label = this.debuggerLabels.length !== 1 ? localize('run', "Run") : localize('runWith', "Run with {0}", this.debuggerLabels[0]);
+			const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
+			let debugLabel = this.debuggerLabels.length !== 1 ? localize('debug', "Debug") : localize('debugWith', "Debug with {0}", this.debuggerLabels[0]);
+			if (debugKeybinding) {
+				debugLabel += ` (${debugKeybinding.getLabel()})`;
+			}
+			this.debugButton.label = debugLabel;
+
+			let runLabel = this.debuggerLabels.length !== 1 ? localize('run', "Run") : localize('runWith', "Run with {0}", this.debuggerLabels[0]);
+			const runKeybinding = this.keybindingService.lookupKeybinding(RunAction.ID);
+			if (runKeybinding) {
+				runLabel += ` (${runKeybinding.getLabel()})`;
+			}
+			this.runButton.label = runLabel;
 
 			const emptyWorkbench = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 			this.firstMessageContainer.innerHTML = '';
