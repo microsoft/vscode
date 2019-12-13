@@ -29,7 +29,7 @@ registerThemingParticipant((theme, collector) => {
 	const errorIconForeground = theme.getColor(problemsErrorIconForeground);
 	if (errorIconForeground) {
 		collector.addRule(`
-			.monaco-workbench .zone-widget .codicon-error,
+			.monaco-editor .zone-widget .codicon-error,
 			.monaco-workbench .markers-panel .marker-icon.codicon-error,
 			.monaco-workbench .extensions-viewlet > .extensions .codicon-error,
 			.monaco-workbench .dialog-box .dialog-message-row .codicon-error {
@@ -41,7 +41,7 @@ registerThemingParticipant((theme, collector) => {
 	const warningIconForeground = theme.getColor(problemsWarningIconForeground);
 	if (errorIconForeground) {
 		collector.addRule(`
-			.monaco-workbench .zone-widget .codicon-warning,
+			.monaco-editor .zone-widget .codicon-warning,
 			.monaco-workbench .markers-panel .marker-icon.codicon-warning,
 			.monaco-workbench .extensions-viewlet > .extensions .codicon-warning,
 			.monaco-workbench .extension-editor .codicon-warning,
@@ -54,7 +54,7 @@ registerThemingParticipant((theme, collector) => {
 	const infoIconForeground = theme.getColor(problemsInfoIconForeground);
 	if (errorIconForeground) {
 		collector.addRule(`
-			.monaco-workbench .zone-widget .codicon-info,
+			.monaco-editor .zone-widget .codicon-info,
 			.monaco-workbench .markers-panel .marker-icon.codicon-info,
 			.monaco-workbench .extensions-viewlet > .extensions .codicon-info,
 			.monaco-workbench .extension-editor .codicon-info,
