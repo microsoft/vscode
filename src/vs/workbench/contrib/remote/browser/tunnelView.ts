@@ -6,7 +6,7 @@
 import 'vs/css!./media/tunnelView';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IViewDescriptor, IEditableData } from 'vs/workbench/common/views';
+import { IViewDescriptor, IEditableData, IViewsService } from 'vs/workbench/common/views';
 import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -37,6 +37,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { URI } from 'vs/base/common/uri';
+import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/remote';
 
 class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 	getHeight(element: ITunnelItem): number {
@@ -95,7 +96,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			});
 		}
 		groups.push({
-			label: nls.localize('remote.tunnelsView.add', "Forward Port..."),
+			label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
 			tunnelType: TunnelType.Add,
 		});
 		return groups;
@@ -592,7 +593,7 @@ namespace LabelTunnelAction {
 
 namespace ForwardPortAction {
 	export const ID = 'remote.tunnel.forward';
-	export const LABEL = nls.localize('remote.tunnel.forward', "Forward Port");
+	export const LABEL = nls.localize('remote.tunnel.forward', "Forward a Port");
 
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
@@ -600,6 +601,8 @@ namespace ForwardPortAction {
 			if (arg instanceof TunnelItem) {
 				remoteExplorerService.tunnelModel.forward(arg.remote);
 			} else {
+				const viewsService = accessor.get(IViewsService);
+				viewsService.openView(TunnelPanel.ID, true);
 				remoteExplorerService.setEditable(undefined, {
 					onFinish: (value, success) => {
 						if (success) {
@@ -678,6 +681,15 @@ CommandsRegistry.registerCommand(ForwardPortAction.ID, ForwardPortAction.handler
 CommandsRegistry.registerCommand(ClosePortAction.ID, ClosePortAction.handler());
 CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
 CommandsRegistry.registerCommand(CopyAddressAction.ID, CopyAddressAction.handler());
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
+	command: {
+		id: ForwardPortAction.ID,
+		title: ForwardPortAction.LABEL
+	},
+	when: forwardedPortsViewEnabled
+}));
+
 
 MenuRegistry.appendMenuItem(MenuId.TunnelTitle, ({
 	group: 'navigation',
