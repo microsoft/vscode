@@ -46,6 +46,16 @@
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "searchResult.rerunSearch",
+          "when": "false"
+        },
+        {
+          "command": "searchResult.rerunSearchWithContext",
+          "when": "false"
+        }
+      ],
       "editor/title": [
         {
           "command": "searchResult.rerunSearch",
