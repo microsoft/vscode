@@ -45,12 +45,6 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return undefined;
 	}
 
-	async addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): Promise<void> {
-		if (tunnels) {
-			return this._proxy.$addDetected(tunnels);
-		}
-	}
-
 	registerCandidateFinder(): Promise<void> {
 		return this._proxy.$registerCandidateFinder();
 	}
