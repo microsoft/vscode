@@ -52,9 +52,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into given memory target without overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			workspaceFolderTarget: { value: '1' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			workspaceFolder: { value: '1' },
 		};
 		const resource = URI.file('someFile');
 
@@ -65,9 +65,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into given workspace target without overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			workspaceFolderTarget: { value: '2' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			workspaceFolder: { value: '2' },
 		};
 		const resource = URI.file('someFile');
 
@@ -78,9 +78,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into given user target without overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			workspaceFolderTarget: { value: '2' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			workspaceFolder: { value: '2' },
 		};
 		const resource = URI.file('someFile');
 
@@ -91,9 +91,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into given workspace folder target with overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			workspaceFolderTarget: { value: '2', override: '1' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			workspaceFolder: { value: '2', override: '1' },
 		};
 		const resource = URI.file('someFile');
 
@@ -104,9 +104,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived workspace folder target without overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			workspaceFolderTarget: { value: '2' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			workspaceFolder: { value: '2' },
 		};
 		const resource = URI.file('someFile');
 
@@ -117,10 +117,10 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived workspace folder target with overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			workspaceTarget: { value: '2', override: '1' },
-			workspaceFolderTarget: { value: '2', override: '2' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			workspace: { value: '2', override: '1' },
+			workspaceFolder: { value: '2', override: '2' },
 		};
 		const resource = URI.file('someFile');
 
@@ -131,9 +131,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived workspace target without overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			workspaceTarget: { value: '2' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			workspace: { value: '2' },
 		};
 		const resource = URI.file('someFile');
 
@@ -144,9 +144,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived workspace target with overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			workspaceTarget: { value: '2', override: '2' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			workspace: { value: '2', override: '2' },
 		};
 		const resource = URI.file('someFile');
 
@@ -157,10 +157,10 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived workspace target with overrides and value defined in folder', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1', override: '3' },
-			userLocalTarget: { value: '2' },
-			workspaceTarget: { value: '2', override: '2' },
-			workspaceFolderTarget: { value: '2' },
+			default: { value: '1', override: '3' },
+			userLocal: { value: '2' },
+			workspace: { value: '2', override: '2' },
+			workspaceFolder: { value: '2' },
 		};
 		const resource = URI.file('someFile');
 
@@ -171,9 +171,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived user remote target without overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			userRemoteTarget: { value: '2' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			userRemote: { value: '2' },
 		};
 		const resource = URI.file('someFile');
 
@@ -184,9 +184,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived user remote target with overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			userRemoteTarget: { value: '2', override: '3' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			userRemote: { value: '2', override: '3' },
 		};
 		const resource = URI.file('someFile');
 
@@ -197,10 +197,10 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived user remote target with overrides and value defined in workspace', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
-			userRemoteTarget: { value: '2', override: '3' },
-			workspaceTarget: { value: '3' }
+			default: { value: '1' },
+			userLocal: { value: '2' },
+			userRemote: { value: '2', override: '3' },
+			workspace: { value: '3' }
 		};
 		const resource = URI.file('someFile');
 
@@ -211,11 +211,11 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived user remote target with overrides and value defined in workspace folder', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2', override: '1' },
-			userRemoteTarget: { value: '2', override: '3' },
-			workspaceTarget: { value: '3' },
-			workspaceFolderTarget: { value: '3' }
+			default: { value: '1' },
+			userLocal: { value: '2', override: '1' },
+			userRemote: { value: '2', override: '3' },
+			workspace: { value: '3' },
+			workspaceFolder: { value: '3' }
 		};
 		const resource = URI.file('someFile');
 
@@ -226,8 +226,8 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived user target without overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2' },
+			default: { value: '1' },
+			userLocal: { value: '2' },
 		};
 		const resource = URI.file('someFile');
 
@@ -238,8 +238,8 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived user target with overrides', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2', override: '3' },
+			default: { value: '1' },
+			userLocal: { value: '2', override: '3' },
 		};
 		const resource = URI.file('someFile');
 
@@ -250,9 +250,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived user target with overrides and value is defined in remote', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2', override: '3' },
-			userRemoteTarget: { value: '3' }
+			default: { value: '1' },
+			userLocal: { value: '2', override: '3' },
+			userRemote: { value: '3' }
 		};
 		const resource = URI.file('someFile');
 
@@ -263,8 +263,8 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived user target with overrides and value is defined in workspace', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
-			userLocalTarget: { value: '2', override: '3' },
+			default: { value: '1' },
+			userLocal: { value: '2', override: '3' },
 			workspaceValue: { value: '3' }
 		};
 		const resource = URI.file('someFile');
@@ -276,9 +276,9 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue writes into derived user target with overrides and value is defined in workspace folder', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1', override: '3' },
-			userLocalTarget: { value: '2', override: '3' },
-			userRemoteTarget: { value: '3' },
+			default: { value: '1', override: '3' },
+			userLocal: { value: '2', override: '3' },
+			userRemote: { value: '3' },
 			workspaceFolderValue: { value: '3' }
 		};
 		const resource = URI.file('someFile');
@@ -290,7 +290,7 @@ suite('TextResourceConfigurationService - Update', () => {
 	test('updateValue when not changed', async () => {
 		language = 'a';
 		configurationValue = {
-			defaultTarget: { value: '1' },
+			default: { value: '1' },
 		};
 		const resource = URI.file('someFile');
 

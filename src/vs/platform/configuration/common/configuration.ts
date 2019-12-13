@@ -76,13 +76,13 @@ export interface IConfigurationValue<T> {
 	readonly memoryValue?: T;
 	readonly value?: T;
 
-	readonly defaultTarget?: { value?: T, override?: T };
-	readonly userTarget?: { value?: T, override?: T };
-	readonly userLocalTarget?: { value?: T, override?: T };
-	readonly userRemoteTarget?: { value?: T, override?: T };
-	readonly workspaceTarget?: { value?: T, override?: T };
-	readonly workspaceFolderTarget?: { value?: T, override?: T };
-	readonly memoryTarget?: { value?: T, override?: T };
+	readonly default?: { value?: T, override?: T };
+	readonly user?: { value?: T, override?: T };
+	readonly userLocal?: { value?: T, override?: T };
+	readonly userRemote?: { value?: T, override?: T };
+	readonly workspace?: { value?: T, override?: T };
+	readonly workspaceFolder?: { value?: T, override?: T };
+	readonly memory?: { value?: T, override?: T };
 }
 
 export interface IConfigurationService {
