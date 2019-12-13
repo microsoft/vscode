@@ -9,15 +9,15 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IResourceConfigurationService, IResourceConfigurationChangeEvent } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
-export class TextResourceConfigurationService extends Disposable implements IResourceConfigurationService {
+export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
 	public _serviceBrand: undefined;
 
-	private readonly _onDidChangeConfiguration: Emitter<IResourceConfigurationChangeEvent> = this._register(new Emitter<IResourceConfigurationChangeEvent>());
-	public readonly onDidChangeConfiguration: Event<IResourceConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+	private readonly _onDidChangeConfiguration: Emitter<ITextResourceConfigurationChangeEvent> = this._register(new Emitter<ITextResourceConfigurationChangeEvent>());
+	public readonly onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -114,7 +114,7 @@ export class TextResourceConfigurationService extends Disposable implements IRes
 		return this.modeService.getModeIdByFilepathOrFirstLine(resource);
 	}
 
-	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): IResourceConfigurationChangeEvent {
+	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): ITextResourceConfigurationChangeEvent {
 		return {
 			affectedKeys: configurationChangeEvent.affectedKeys,
 			affectsConfiguration: (resource: URI, configuration: string) => {
