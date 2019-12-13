@@ -114,7 +114,8 @@ export class SearchView extends ViewletPane {
 
 	private state: SearchUIState = SearchUIState.Idle;
 
-	private actions: Array<CollapseDeepestExpandedLevelAction | ClearSearchResultsAction | OpenResultsInEditorAction | ToggleCollapseAndExpandAction> = [];
+	private actions: Array<CollapseDeepestExpandedLevelAction | ClearSearchResultsAction | OpenResultsInEditorAction> = [];
+	private toggleCollapseAction: ToggleCollapseAndExpandAction;
 	private cancelAction: CancelSearchAction;
 	private refreshAction: RefreshAction;
 	private contextMenu: IMenu | null = null;
@@ -142,6 +143,8 @@ export class SearchView extends ViewletPane {
 
 	private currentSearchQ = Promise.resolve();
 	private addToSearchHistoryDelayer: Delayer<void>;
+
+	private toggleCollapseStateDelayer: Delayer<void>;
 
 	constructor(
 		private position: SearchViewPosition,
@@ -205,15 +208,14 @@ export class SearchView extends ViewletPane {
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
-
 		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(500));
+		this.toggleCollapseStateDelayer = this._register(new Delayer<void>(100));
 
 		const collapseDeepestExpandedLevelAction = this.instantiationService.createInstance(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL);
 		const expandAllAction = this.instantiationService.createInstance(ExpandAllAction, ExpandAllAction.ID, ExpandAllAction.LABEL);
 
 		this.actions = [
 			this._register(this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)),
-			this._register(this.instantiationService.createInstance(ToggleCollapseAndExpandAction, ToggleCollapseAndExpandAction.ID, ToggleCollapseAndExpandAction.LABEL, collapseDeepestExpandedLevelAction, expandAllAction)),
 		];
 
 		if (this.searchConfig.enableSearchEditorPreview) {
@@ -224,6 +226,7 @@ export class SearchView extends ViewletPane {
 
 		this.refreshAction = this._register(this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL));
 		this.cancelAction = this._register(this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL));
+		this.toggleCollapseAction = this._register(this.instantiationService.createInstance(ToggleCollapseAndExpandAction, ToggleCollapseAndExpandAction.ID, ToggleCollapseAndExpandAction.LABEL, collapseDeepestExpandedLevelAction, expandAllAction));
 	}
 
 	getContainer(): HTMLElement {
@@ -381,6 +384,7 @@ export class SearchView extends ViewletPane {
 
 		this.refreshAction.update();
 		this.cancelAction.update();
+		this.toggleCollapseAction.update();
 
 		super.updateActions();
 	}
@@ -690,6 +694,9 @@ export class SearchView extends ViewletPane {
 				}
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.tree.onDidChangeCollapseState(() =>
+			this.toggleCollapseStateDelayer.trigger(() => this.toggleCollapseAction.onTreeCollapseStateChange())
+		));
 
 		const resourceNavigator = this._register(new TreeResourceNavigator2(this.tree, { openOnFocus: true, openOnSelection: false }));
 		this._register(Event.debounce(resourceNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
@@ -1694,7 +1701,8 @@ export class SearchView extends ViewletPane {
 			this.state === SearchUIState.SlowSearch ?
 				this.cancelAction :
 				this.refreshAction,
-			...this.actions
+			...this.actions,
+			this.toggleCollapseAction
 		];
 	}
 

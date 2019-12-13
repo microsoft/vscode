@@ -401,6 +401,9 @@ export class ToggleCollapseAndExpandAction extends Action {
 	static readonly ID: string = 'search.action.collapseOrExpandSearchResults';
 	static LABEL: string = nls.localize('ToggleCollapseAndExpandAction.label', "Toggle Collapse and Expand");
 
+	// Cache to keep from crawling the tree too often.
+	private action: CollapseDeepestExpandedLevelAction | ExpandAllAction | undefined;
+
 	constructor(id: string, label: string,
 		private collapseAction: CollapseDeepestExpandedLevelAction,
 		private expandAction: ExpandAllAction,
@@ -414,34 +417,39 @@ export class ToggleCollapseAndExpandAction extends Action {
 	update(): void {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		this.enabled = !!searchView && searchView.hasSearchResults();
+		this.onTreeCollapseStateChange();
 	}
 
-	isSomeCollapsible(): boolean {
+	onTreeCollapseStateChange() {
+		this.action = undefined;
+		this.determineAction();
+	}
+
+	private determineAction(): CollapseDeepestExpandedLevelAction | ExpandAllAction {
+		if (this.action !== undefined) { return this.action; }
+		this.action = this.isSomeCollapsible() ? this.collapseAction : this.expandAction;
+		this.class = this.action.class;
+		return this.action;
+	}
+
+	private isSomeCollapsible(): boolean {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
 			const viewer = searchView.getControl();
 			const navigator = viewer.navigate();
 			let node = navigator.first();
-			while (node = navigator.next()) {
+			do {
 				if (!viewer.isCollapsed(node)) {
 					return true;
 				}
-			}
+			} while (node = navigator.next());
 		}
 		return false;
 	}
 
-	run(): Promise<void> {
-		if (this.isSomeCollapsible()) {
-			this.collapseAction.run();
-			if (!this.isSomeCollapsible()) {
-				this.class = this.expandAction.class;
-			}
-		} else {
-			this.expandAction.run();
-			this.class = this.collapseAction.class;
-		}
-		return Promise.resolve(undefined);
+
+	async run(): Promise<void> {
+		await this.determineAction().run();
 	}
 }
 
