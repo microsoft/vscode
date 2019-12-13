@@ -27,7 +27,7 @@ suite('RipgrepTextSearchEngine', () => {
 		assert.equal(unicodeEscapesToPCRE2(''), '');
 	});
 
-	test.only('fixRegexNewline', () => {
+	test('fixRegexNewline', () => {
 		function testFixRegexNewline([inputReg, testStr, shouldMatch]: [string, string, boolean]): void {
 			const fixed = fixRegexNewline(inputReg);
 			const reg = new RegExp(fixed);
