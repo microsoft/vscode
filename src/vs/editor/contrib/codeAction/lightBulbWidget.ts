@@ -225,8 +225,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
 	if (editorLightBulbForegroundColor) {
 		collector.addRule(`
-		.monaco-editor .contentWidgets .codicon-lightbulb,
-		.monaco-workbench .markers-panel-container .codicon-lightbulb {
+		.monaco-editor .contentWidgets .codicon-lightbulb {
 			color: ${editorLightBulbForegroundColor};
 		}`);
 	}
@@ -235,8 +234,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
 	if (editorLightBulbAutoFixForegroundColor) {
 		collector.addRule(`
-		.monaco-editor .contentWidgets .codicon-lightbulb-autofix,
-		.monaco-workbench .markers-panel-container .codicon-lightbulb-autofix {
+		.monaco-editor .contentWidgets .codicon-lightbulb-autofix {
 			color: ${editorLightBulbAutoFixForegroundColor};
 		}`);
 	}
