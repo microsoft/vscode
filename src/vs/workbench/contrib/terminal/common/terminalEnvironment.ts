@@ -330,14 +330,14 @@ export function getDefaultShellArgs(
 }
 
 function getShellSetting(
-	fetchSetting: (key: string) => { user?: string | string[], value?: string | string[], default?: string | string[] },
+	fetchSetting: (key: string) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	type: 'automationShell' | 'shell',
 	platformOverride: platform.Platform = platform.platform,
 ): string | null {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 	const shellConfigValue = fetchSetting(`terminal.integrated.${type}.${platformKey}`);
-	const executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.user) || (<string | null>shellConfigValue.default);
+	const executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.userValue) || (<string | null>shellConfigValue.defaultValue);
 	return executable;
 }
 
