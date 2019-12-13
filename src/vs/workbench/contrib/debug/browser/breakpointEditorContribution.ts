@@ -418,7 +418,7 @@ class BreakpointEditorContribution implements IBreakpointEditorContribution {
 			this.breakpointDecorations = decorationIds.map((decorationId, index) => {
 				let inlineWidget: InlineBreakpointWidget | undefined = undefined;
 				const breakpoint = breakpoints[index];
-				if (desiredBreakpointDecorations[index].options.inlineClassName) {
+				if (desiredBreakpointDecorations[index].options.beforeContentClassName) {
 					const contextMenuActions = () => this.getContextMenuActions([breakpoint], activeCodeEditor.getModel().uri, breakpoint.lineNumber, breakpoint.column);
 					inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, desiredBreakpointDecorations[index].options.glyphMarginClassName, breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 				}
