@@ -31,6 +31,7 @@ import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserve
 import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';
+import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 
 export class ViewCell {
 	private _textModel: ITextModel | null = null;
@@ -462,7 +463,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IWebviewService private readonly webviewService: IWebviewService
 	) {
 		super(handler, contextMenuService, configurationService, 'python');
 	}
@@ -529,7 +531,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		if (element.outputs.length > 0) {
 			let hasDynamicHeight = false;
 			for (let i = 0; i < element.outputs.length; i++) {
-				let result = MimeTypeRenderer.render(element.outputs[i], this.themeService);
+				let result = MimeTypeRenderer.render(element.outputs[i], this.themeService, this.webviewService);
 				if (result) {
 					hasDynamicHeight = result?.hasDynamicHeight;
 					templateData.outputContainer?.appendChild(result.element);

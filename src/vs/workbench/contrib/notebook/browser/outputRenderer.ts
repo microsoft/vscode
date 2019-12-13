@@ -8,9 +8,14 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IOutput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import * as UUID from 'vs/base/common/uuid';
+import { isArray } from 'vs/base/common/types';
 
-export function registerMineTypeRenderer(type: string, renderer: IMimeRenderer) {
-	MimeTypeRenderer.instance.register(type, renderer);
+export function registerMineTypeRenderer(types: string[], renderer: IMimeRenderer) {
+	types.forEach(type => {
+		MimeTypeRenderer.instance.register(type, renderer);
+	});
 }
 
 export interface IRenderOutput {
@@ -19,7 +24,7 @@ export interface IRenderOutput {
 }
 
 interface IMimeRenderer {
-	render(output: IOutput, themeService: IThemeService): IRenderOutput;
+	render(output: IOutput, themeService: IThemeService, webviewService: IWebviewService): IRenderOutput;
 }
 
 export class MimeTypeRenderer {
@@ -34,13 +39,17 @@ export class MimeTypeRenderer {
 		return this._renderers.get(type);
 	}
 
-	static render(output: IOutput, themeService: IThemeService): IRenderOutput | null {
-		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, themeService) ?? null;
+	static render(output: IOutput, themeService: IThemeService, webviewService: IWebviewService): IRenderOutput | null {
+		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, themeService, webviewService) ?? null;
 	}
 }
 
-registerMineTypeRenderer('stream', {
-	render: (output: IOutput, themeService: IThemeService) => {
+registerMineTypeRenderer(['stream'], {
+	render: (
+		output: IOutput,
+		themeService: IThemeService,
+		webviewService: IWebviewService
+	) => {
 		const outputNode = document.createElement('div');
 		outputNode.innerText = output.text;
 		return {
@@ -50,8 +59,12 @@ registerMineTypeRenderer('stream', {
 	}
 });
 
-registerMineTypeRenderer('error', {
-	render: (output: IOutput, themeService: IThemeService) => {
+registerMineTypeRenderer(['error'], {
+	render: (
+		output: IOutput,
+		themeService: IThemeService,
+		webviewService: IWebviewService
+	) => {
 		const outputNode = document.createElement('div');
 		const traceback = document.createElement('pre');
 		DOM.addClasses(traceback, 'traceback');
@@ -68,8 +81,8 @@ registerMineTypeRenderer('error', {
 	}
 });
 
-registerMineTypeRenderer('display_data', {
-	render: (output: IOutput, themeService: IThemeService) => {
+class RichDisplayRenderer implements IMimeRenderer {
+	render(output: any, themeService: IThemeService, webviewService: IWebviewService): IRenderOutput {
 		const display = document.createElement('div');
 		const outputNode = document.createElement('div');
 		let hasDynamicHeight = false;
@@ -81,6 +94,14 @@ registerMineTypeRenderer('display_data', {
 			display.appendChild(image);
 			outputNode.appendChild(display);
 			hasDynamicHeight = true;
+		} else if (output.data && output.data['text/html']) {
+			let data = output.data['text/html'];
+			let str = isArray(data) ? data.join('') : data;
+			let webview = this._createInset(webviewService, str);
+			webview.mountTo(display);
+
+			outputNode.appendChild(display);
+			hasDynamicHeight = true;
 		}
 
 		return {
@@ -88,7 +109,20 @@ registerMineTypeRenderer('display_data', {
 			hasDynamicHeight
 		};
 	}
-});
+
+	private _createInset(webviewService: IWebviewService, content: string) {
+		const webview = webviewService.createWebview('' + UUID.generateUuid(), {
+			enableFindWidget: false,
+		}, {
+			allowScripts: true
+		});
+
+		webview.html = content;
+		return webview;
+	}
+}
+
+registerMineTypeRenderer(['display_data', 'execute_result'], new RichDisplayRenderer());
 
 
 /**
