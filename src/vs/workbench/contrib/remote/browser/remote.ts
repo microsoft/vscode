@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/contrib/remote/common/remote.contribution';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -288,6 +288,8 @@ export class RemoteViewlet extends Viewlet {
 	}
 }
 
+export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
+
 export class RemoteViewPaneContainer extends FilterViewPaneContainer {
 	private actions: IAction[] | undefined;
 	private tunnelPanelDescriptor: TunnelPanelDescriptor | undefined;
@@ -342,7 +344,9 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer {
 	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		// Call to super MUST be first, since registering the additional view will cause this to be called again.
 		const panels: ViewPane[] = super.onDidAddViews(added);
-		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && this.configurationService.getValue<boolean>('remote.forwardedPortsView.visible')) {
+		// This context key is set to false in the constructor, but is expected to be changed by resolver extensions to enable the forwarded ports view.
+		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
+		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {
 			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			viewsRegistry.registerViews([this.tunnelPanelDescriptor!], VIEW_CONTAINER);

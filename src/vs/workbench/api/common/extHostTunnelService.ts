@@ -22,7 +22,16 @@ export interface TunnelDto {
 export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	readonly _serviceBrand: undefined;
 	makeTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
-	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): Promise<void>;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
+
+export class ExtHostTunnelService implements IExtHostTunnelService {
+	_serviceBrand: undefined;
+	async makeTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
+		return undefined;
+	}
+	async $findCandidatePorts(): Promise<{ port: number; detail: string; }[]> {
+		return [];
+	}
+}
