@@ -77,7 +77,7 @@ export interface ICustomEditorModel extends IWorkingCopy {
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(resource: URI, targetResource: URI, currentOptions?: ISaveOptions): Promise<boolean>;
 
-	makeEdit(edit: CustomEditorEdit): void;
+	pushEdit(edit: CustomEditorEdit): void;
 }
 
 export const enum CustomEditorPriority {
