@@ -551,7 +551,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 	}
 
 	protected getConfig(): IGlobalConfig | undefined {
-		return this.configurationService.inspect<IGlobalConfig>('launch', { resource: this.workspace.uri }).workspaceFolder;
+		return this.configurationService.inspect<IGlobalConfig>('launch', { resource: this.workspace.uri }).workspaceFolderValue;
 	}
 
 	async openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditor | null, created: boolean }> {
@@ -631,7 +631,7 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	protected getConfig(): IGlobalConfig | undefined {
-		return this.configurationService.inspect<IGlobalConfig>('launch').workspace;
+		return this.configurationService.inspect<IGlobalConfig>('launch').workspaceValue;
 	}
 
 	async openConfigFile(sideBySide: boolean, preserveFocus: boolean): Promise<{ editor: IEditor | null, created: boolean }> {
@@ -674,7 +674,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	protected getConfig(): IGlobalConfig | undefined {
-		return this.configurationService.inspect<IGlobalConfig>('launch').user;
+		return this.configurationService.inspect<IGlobalConfig>('launch').userValue;
 	}
 
 	async openConfigFile(_: boolean, preserveFocus: boolean): Promise<{ editor: IEditor | null, created: boolean }> {

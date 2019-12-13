@@ -265,7 +265,7 @@ suite('TextResourceConfigurationService - Update', () => {
 		configurationValue = {
 			defaultTarget: { value: '1' },
 			userLocalTarget: { value: '2', override: '3' },
-			workspace: { value: '3' }
+			workspaceValue: { value: '3' }
 		};
 		const resource = URI.file('someFile');
 
@@ -279,7 +279,7 @@ suite('TextResourceConfigurationService - Update', () => {
 			defaultTarget: { value: '1', override: '3' },
 			userLocalTarget: { value: '2', override: '3' },
 			userRemoteTarget: { value: '3' },
-			workspaceFolder: { value: '3' }
+			workspaceFolderValue: { value: '3' }
 		};
 		const resource = URI.file('someFile');
 

@@ -67,13 +67,13 @@ export interface IConfigurationChangeEvent {
 
 export interface IConfigurationValue<T> {
 
-	readonly default?: T;
-	readonly user?: T;
-	readonly userLocal?: T;
-	readonly userRemote?: T;
-	readonly workspace?: T;
-	readonly workspaceFolder?: T;
-	readonly memory?: T;
+	readonly defaultValue?: T;
+	readonly userValue?: T;
+	readonly userLocalValue?: T;
+	readonly userRemoteValue?: T;
+	readonly workspaceValue?: T;
+	readonly workspaceFolderValue?: T;
+	readonly memoryValue?: T;
 	readonly value?: T;
 
 	readonly defaultTarget?: { value?: T, override?: T };
@@ -361,11 +361,11 @@ export function getMigratedSettingValue<T>(configurationService: IConfigurationS
 	const setting = configurationService.inspect<T>(currentSettingName);
 	const legacySetting = configurationService.inspect<T>(legacySettingName);
 
-	if (typeof setting.user !== 'undefined' || typeof setting.workspace !== 'undefined' || typeof setting.workspaceFolder !== 'undefined') {
+	if (typeof setting.userValue !== 'undefined' || typeof setting.workspaceValue !== 'undefined' || typeof setting.workspaceFolderValue !== 'undefined') {
 		return setting.value!;
-	} else if (typeof legacySetting.user !== 'undefined' || typeof legacySetting.workspace !== 'undefined' || typeof legacySetting.workspaceFolder !== 'undefined') {
+	} else if (typeof legacySetting.userValue !== 'undefined' || typeof legacySetting.workspaceValue !== 'undefined' || typeof legacySetting.workspaceFolderValue !== 'undefined') {
 		return legacySetting.value!;
 	} else {
-		return setting.default!;
+		return setting.defaultValue!;
 	}
 }

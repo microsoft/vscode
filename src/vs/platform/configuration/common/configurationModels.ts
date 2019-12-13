@@ -393,13 +393,13 @@ export class Configuration {
 		const value = consolidateConfigurationModel.getValue<C>(key);
 
 		return {
-			default: defaultValue,
-			user: userValue,
-			userLocal: userLocalValue,
-			userRemote: userRemoteValue,
-			workspace: workspaceValue,
-			workspaceFolder: workspaceFolderValue,
-			memory: memoryValue,
+			defaultValue: defaultValue,
+			userValue: userValue,
+			userLocalValue: userLocalValue,
+			userRemoteValue: userRemoteValue,
+			workspaceValue: workspaceValue,
+			workspaceFolderValue: workspaceFolderValue,
+			memoryValue: memoryValue,
 			value,
 
 			defaultTarget: defaultValue !== undefined ? { value: this._defaultConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this._defaultConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,

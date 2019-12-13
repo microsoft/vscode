@@ -656,11 +656,11 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			return undefined;
 		}
 
-		if (inspect.workspaceFolder !== undefined) {
+		if (inspect.workspaceFolderValue !== undefined) {
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		}
 
-		if (inspect.workspace !== undefined) {
+		if (inspect.workspaceValue !== undefined) {
 			return ConfigurationTarget.WORKSPACE;
 		}
 
@@ -690,7 +690,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	private toEditableConfigurationTarget(target: ConfigurationTarget, key: string): EditableConfigurationTarget | null {
 		if (target === ConfigurationTarget.USER) {
-			if (this.inspect(key).userRemote !== undefined) {
+			if (this.inspect(key).userRemoteValue !== undefined) {
 				return EditableConfigurationTarget.USER_REMOTE;
 			}
 			return EditableConfigurationTarget.USER_LOCAL;
