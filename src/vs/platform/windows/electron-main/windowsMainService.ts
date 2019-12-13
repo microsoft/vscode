@@ -326,7 +326,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Persist
-		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, getWindowsStateStoreData(currentWindowsState));
+		const state = getWindowsStateStoreData(currentWindowsState);
+		this.logService.trace('onBeforeShutdown', state);
+		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, state);
 	}
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
@@ -1381,7 +1383,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
 			let allowFullscreen: boolean;
 			if (state.hasDefaultState) {
-				allowFullscreen = (windowConfig?.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0);
+				allowFullscreen = (windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
 			}
 
 			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
@@ -1576,7 +1578,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			} else if (windowConfig.newWindowDimensions === 'fullscreen') {
 				state.mode = WindowMode.Fullscreen;
 				ensureNoOverlap = false;
-			} else if (windowConfig.newWindowDimensions === 'inherit' && lastActive) {
+			} else if ((windowConfig.newWindowDimensions === 'inherit' || windowConfig.newWindowDimensions === 'offset') && lastActive) {
 				const lastActiveState = lastActive.serializeWindowState();
 				if (lastActiveState.mode === WindowMode.Fullscreen) {
 					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/Microsoft/vscode/issues/19331)
@@ -1584,7 +1586,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					state = lastActiveState;
 				}
 
-				ensureNoOverlap = false;
+				ensureNoOverlap = state.mode !== WindowMode.Fullscreen && windowConfig.newWindowDimensions === 'offset';
 			}
 		}
 

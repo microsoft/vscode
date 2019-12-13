@@ -34,7 +34,7 @@ import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewletPane } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -233,7 +233,7 @@ class OutlineViewState {
 	}
 }
 
-export class OutlinePane extends ViewletPane {
+export class OutlinePane extends ViewPane {
 
 	private _disposables = new Array<IDisposable>();
 

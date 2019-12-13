@@ -787,7 +787,7 @@ suite('SerializableGrid', function () {
 	test('sanitizeGridNodeDescriptor', () => {
 		const nodeDescriptor = { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
 		const nodeDescriptorCopy = deepClone<GridNodeDescriptor>(nodeDescriptor);
-		sanitizeGridNodeDescriptor(nodeDescriptorCopy);
+		sanitizeGridNodeDescriptor(nodeDescriptorCopy, true);
 		assert.deepEqual(nodeDescriptorCopy, { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{ size: 0.5 }, { size: 0.5 }] }] });
 	});
 

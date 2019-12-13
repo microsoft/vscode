@@ -15,7 +15,7 @@ import { IEditorModel, ITextEditorOptions } from 'vs/platform/editor/common/edit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity, SaveContext } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
@@ -128,9 +128,11 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 			return false;
 		}
 
-		const replacement = this.handleMove(groupId, target) || this.instantiationService.createInstance(FileEditorInput, target, undefined, undefined);
+		if (options?.context !== SaveContext.EDITOR_CLOSE) {
+			const replacement = this.handleMove(groupId, target) || this.instantiationService.createInstance(FileEditorInput, target, undefined, undefined);
+			await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], groupId);
+		}
 
-		await this.editorService.replaceEditors([{ editor: this, replacement, options: { pinned: true } }], groupId);
 		return true;
 	}
 
@@ -156,15 +158,17 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		});
 	}
 
-	public handleMove(_groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
+	public handleMove(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined {
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(uri)) {
 			const webview = assertIsDefined(this.takeOwnershipOfWebview());
-			return this.instantiationService.createInstance(CustomFileEditorInput,
+			const newInput = this.instantiationService.createInstance(CustomFileEditorInput,
 				uri,
 				this.viewType,
 				generateUuid(),
 				new Lazy(() => webview));
+			newInput.updateGroup(groupId);
+			return newInput;
 		}
 		return undefined;
 	}

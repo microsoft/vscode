@@ -43,7 +43,7 @@ suite('MainThreadEditors', () => {
 
 	setup(() => {
 		const configService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService());
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
 		const codeEditorService = new TestCodeEditorService();
 
 		movedResources.clear();

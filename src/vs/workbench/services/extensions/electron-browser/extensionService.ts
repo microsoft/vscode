@@ -38,6 +38,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -70,7 +71,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IStaticExtensionsService private readonly _staticExtensions: IStaticExtensionsService,
 		@IElectronService private readonly _electronService: IElectronService,
 		@IHostService private readonly _hostService: IHostService,
-		@IElectronEnvironmentService private readonly _electronEnvironmentService: IElectronEnvironmentService
+		@IElectronEnvironmentService private readonly _electronEnvironmentService: IElectronEnvironmentService,
+		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService
 	) {
 		super(
 			instantiationService,
@@ -471,6 +473,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 			// set the resolved authority
 			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority.authority, resolvedAuthority.options);
+			this._remoteExplorerService.addDetected(resolvedAuthority.tunnelInformation?.detectedTunnels);
 
 			// monitor for breakage
 			const connection = this._remoteAgentService.getConnection();

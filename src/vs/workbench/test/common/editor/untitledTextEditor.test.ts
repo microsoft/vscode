@@ -54,11 +54,20 @@ suite('Workbench untitled text editors', () => {
 
 		assert.equal(service.getAll().length, 0);
 
+		let createdResources: URI[] = [];
+		const createListener = service.onDidCreate(resource => {
+			createdResources.push(resource);
+		});
+
 		const input1 = service.createOrGet();
 		assert.equal(input1, service.createOrGet(input1.getResource()));
 
 		assert.ok(service.exists(input1.getResource()));
 		assert.ok(!service.exists(URI.file('testing')));
+		assert.equal(createdResources.length, 1);
+		assert.equal(createdResources[0].toString(), input1.getResource());
+
+		createListener.dispose();
 
 		const input2 = service.createOrGet();
 

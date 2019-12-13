@@ -414,7 +414,7 @@ suite('Files - TextFileService', () => {
 			});
 		});
 
-		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: true, shouldVeto: boolean): Promise<void> {
+		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: boolean, shouldVeto: boolean): Promise<void> {
 			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 			(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
 

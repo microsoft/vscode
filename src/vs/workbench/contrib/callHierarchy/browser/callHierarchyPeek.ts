@@ -49,10 +49,10 @@ class ChangeHierarchyDirectionAction extends Action {
 		});
 		const update = () => {
 			if (getDirection() === CallHierarchyDirection.CallsFrom) {
-				this.label = localize('toggle.from', "Showing Calls");
+				this.label = localize('toggle.from', "Show Incoming Calls");
 				this.class = 'calls-from';
 			} else {
-				this.label = localize('toggle.to', "Showing Callers");
+				this.label = localize('toggle.to', "Showing Outgoing Calls");
 				this.class = 'calls-to';
 			}
 		};
@@ -175,7 +175,8 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
-				horizontalHasArrows: false
+				horizontalHasArrows: false,
+				alwaysConsumeMouseWheel: false
 			},
 			overviewRulerLanes: 2,
 			fixedOverflowWidgets: true,
@@ -428,7 +429,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 	}
 
 	protected _doLayoutBody(height: number, width: number): void {
-		if (this._dim.height !== height || this._dim.width === width) {
+		if (this._dim.height !== height || this._dim.width !== width) {
 			super._doLayoutBody(height, width);
 			this._dim = { height, width };
 			this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;

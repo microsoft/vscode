@@ -389,7 +389,7 @@ class CodeActionAdapter {
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
 						isPreferred: candidate.isPreferred,
-						disabled: candidate.disabled
+						disabled: candidate.disabled?.reason
 					});
 				}
 			}
@@ -740,11 +740,16 @@ class SuggestAdapter {
 	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
 	private _disposables = new Map<number, DisposableStore>();
 
+	private _didWarnMust: boolean = false;
+	private _didWarnShould: boolean = false;
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
 		private readonly _provider: vscode.CompletionItemProvider,
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		private readonly _telemetry: extHostProtocol.MainThreadTelemetryShape,
+		private readonly _extensionId: ExtensionIdentifier
 	) { }
 
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
@@ -809,10 +814,35 @@ class SuggestAdapter {
 			return Promise.resolve(undefined);
 		}
 
+		const _mustNotChange = SuggestAdapter._mustNotChangeHash(item);
+		const _mayNotChange = SuggestAdapter._mayNotChangeHash(item);
+
 		return asPromise(() => this._provider.resolveCompletionItem!(item, token)).then(resolvedItem => {
 
 			if (!resolvedItem) {
 				return undefined;
+			}
+
+			type BlameExtension = {
+				extensionId: string;
+				kind: string
+			};
+
+			type BlameExtensionMeta = {
+				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			};
+
+			if (!this._didWarnMust && _mustNotChange !== SuggestAdapter._mustNotChangeHash(resolvedItem)) {
+				this._logService.warn(`[${this._extensionId.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'must' });
+				this._didWarnMust = true;
+			}
+
+			if (!this._didWarnShould && _mayNotChange !== SuggestAdapter._mayNotChangeHash(resolvedItem)) {
+				this._logService.info(`[${this._extensionId.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'should' });
+				this._didWarnShould = true;
 			}
 
 			const pos = typeConvert.Position.to(position);
@@ -907,6 +937,16 @@ class SuggestAdapter {
 
 	private static _isValidRangeForCompletion(range: vscode.Range, position: vscode.Position): boolean {
 		return range.isSingleLine || range.start.line === position.line;
+	}
+
+	private static _mustNotChangeHash(item: vscode.CompletionItem) {
+		const args = [item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2];
+		const res = JSON.stringify(args);
+		return res;
+	}
+
+	private static _mayNotChangeHash(item: vscode.CompletionItem) {
+		return JSON.stringify([item.additionalTextEdits, item.command]);
 	}
 }
 
@@ -1209,11 +1249,10 @@ class CallHierarchyAdapter {
 	}
 
 	releaseSession(sessionId: string): void {
-		this._cache.delete(sessionId.charAt(0));
+		this._cache.delete(sessionId);
 	}
 
-	private _cacheAndConvertItem(itemOrSessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
-		const sessionId = itemOrSessionId.charAt(0);
+	private _cacheAndConvertItem(sessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
 		const map = this._cache.get(sessionId)!;
 		const dto: extHostProtocol.ICallHierarchyItemDto = {
 			_sessionId: sessionId,
@@ -1231,7 +1270,7 @@ class CallHierarchyAdapter {
 
 	private _itemFromCache(sessionId: string, itemId: string): vscode.CallHierarchyItem | undefined {
 		const map = this._cache.get(sessionId);
-		return map && map.get(itemId);
+		return map?.get(itemId);
 	}
 }
 
@@ -1254,7 +1293,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	private static _handlePool: number = 0;
 
 	private readonly _uriTransformer: IURITransformer | null;
-	private _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
+	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
+	private readonly _telemetryShape: extHostProtocol.MainThreadTelemetryShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
 	private _diagnostics: ExtHostDiagnostics;
@@ -1271,6 +1311,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	) {
 		this._uriTransformer = uriTransformer;
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
+		this._telemetryShape = mainContext.getProxy(extHostProtocol.MainContext.MainThreadTelemetry);
 		this._documents = documents;
 		this._commands = commands;
 		this._diagnostics = diagnostics;
@@ -1585,7 +1626,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- suggestion
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService), extension);
+		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService, this._telemetryShape, extension.identifier), extension);
 		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}

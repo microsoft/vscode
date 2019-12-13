@@ -56,7 +56,7 @@ import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/servic
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { relativePath } from 'vs/base/common/resources';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -82,7 +82,7 @@ export enum SearchViewPosition {
 }
 
 const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
-export class SearchView extends ViewletPane {
+export class SearchView extends ViewPane {
 
 	private static readonly MAX_TEXT_RESULTS = 10000;
 
@@ -137,6 +137,7 @@ export class SearchView extends ViewletPane {
 
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean = false;
+	private updatedActionsWhileHidden = false;
 
 	private searchWithoutFolderMessageElement: HTMLElement | undefined;
 
@@ -145,7 +146,7 @@ export class SearchView extends ViewletPane {
 
 	constructor(
 		private position: SearchViewPosition,
-		options: IViewletPaneOptions,
+		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -348,6 +349,13 @@ export class SearchView extends ViewletPane {
 				this.refreshAndUpdateCount();
 				this.changedWhileHidden = false;
 			}
+
+			if (this.updatedActionsWhileHidden) {
+				// The actions can only run or update their enablement when the view is visible,
+				// because they can only access the view when it's visible
+				this.updateActions();
+				this.updatedActionsWhileHidden = false;
+			}
 		}
 
 		// Enable highlights if there are searchresults
@@ -372,6 +380,10 @@ export class SearchView extends ViewletPane {
 	 * Warning: a bit expensive due to updating the view title
 	 */
 	protected updateActions(): void {
+		if (!this.isVisible()) {
+			this.updatedActionsWhileHidden = true;
+		}
+
 		for (const action of this.actions) {
 			action.update();
 		}
@@ -415,7 +427,7 @@ export class SearchView extends ViewletPane {
 			this.searchWidget.toggleReplace(true);
 		}
 
-		this._register(this.searchWidget.onSearchSubmit(triggeredOnType => this.onQueryChanged(false, triggeredOnType)));
+		this._register(this.searchWidget.onSearchSubmit(triggeredOnType => this.onQueryChanged(true, triggeredOnType)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.onQueryChanged(true)));
 
@@ -1286,9 +1298,11 @@ export class SearchView extends ViewletPane {
 	}
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
-		this.addToSearchHistoryDelayer.trigger(() => this.searchWidget.searchInput.onSearchSubmit());
-		this.inputPatternExcludes.onSearchSubmit();
-		this.inputPatternIncludes.onSearchSubmit();
+		this.addToSearchHistoryDelayer.trigger(() => {
+			this.searchWidget.searchInput.onSearchSubmit();
+			this.inputPatternExcludes.onSearchSubmit();
+			this.inputPatternIncludes.onSearchSubmit();
+		});
 
 		this.viewModel.cancelSearch();
 

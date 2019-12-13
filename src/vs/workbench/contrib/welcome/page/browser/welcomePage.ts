@@ -108,7 +108,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 
 function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService) {
 	const startupEditor = configurationService.inspect(configurationKey);
-	if (!startupEditor.user && !startupEditor.workspace) {
+	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
 		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
 			return welcomeEnabled.value;
@@ -523,15 +523,13 @@ class WelcomePage extends Disposable {
 									"WelcomePageInstalled-4" : {
 										"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 										"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+										"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 									}
 								*/
 								this.telemetryService.publicLog(strings.installedEvent, {
 									from: telemetryFrom,
 									extensionId: extensionSuggestion.id,
 									outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
-									error: String(err),
 								});
 								this.notificationService.error(err);
 							});
@@ -560,15 +558,13 @@ class WelcomePage extends Disposable {
 				"WelcomePageInstalled-6" : {
 					"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog(strings.installedEvent, {
 				from: telemetryFrom,
 				extensionId: extensionSuggestion.id,
 				outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
-				error: String(err),
 			});
 			this.notificationService.error(err);
 		});

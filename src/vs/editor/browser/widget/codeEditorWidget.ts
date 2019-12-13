@@ -417,9 +417,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			// Current model is the new model
 			return;
 		}
-
+		const hasTextFocus = this.hasTextFocus();
 		const detachedModel = this._detachModel();
 		this._attachModel(model);
+		if (hasTextFocus && this.hasModel()) {
+			this.focus();
+		}
 
 		const e: editorCommon.IModelChangedEvent = {
 			oldModelUrl: detachedModel ? detachedModel.uri : null,
@@ -874,6 +877,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public onHide(): void {
 		this._modelData?.view.refreshFocusState();
+		this._focusTracker.refreshState();
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {
@@ -1805,6 +1809,12 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 
 	public hasFocus(): boolean {
 		return this._hasFocus;
+	}
+
+	public refreshState(): void {
+		if (this._domFocusTracker.refreshState) {
+			this._domFocusTracker.refreshState();
+		}
 	}
 }
 

@@ -30,6 +30,9 @@
 	cursor: pointer;
 }
 
+.monaco-workbench.mac .repl .repl-tree .monaco-tl-twistie {
+	padding-right: 0px;
+}
 
 .repl .repl-tree .output.expression.value-and-source {
 	display: flex;
@@ -42,11 +45,11 @@
 .repl .repl-tree .monaco-tl-contents .arrow {
 	position:absolute;
 	left: 2px;
-	opacity: 0.3;
+	opacity: 0.25;
 }
 
 .vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
-	opacity: 0.45;
+	opacity: 0.4;
 }
 
 .repl .repl-tree .output.expression.value-and-source .source {
