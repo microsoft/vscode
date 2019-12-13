@@ -131,18 +131,14 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		try {
-			let dirname = resources.dirname(resource);
-			let basename = resources.basename(resource);
-			let parent = this._lookupAsDirectory(dirname, false);
-			if (parent.entries.has(basename)) {
-				parent.entries.delete(basename);
-				parent.mtime = Date.now();
-				parent.size -= 1;
-				this._fireSoon({ type: FileChangeType.UPDATED, resource: dirname }, { resource, type: FileChangeType.DELETED });
-			}
-		} catch (error) {
-			// ignore if resource does not exist to keep parity with other file system providers
+		let dirname = resources.dirname(resource);
+		let basename = resources.basename(resource);
+		let parent = this._lookupAsDirectory(dirname, false);
+		if (parent.entries.has(basename)) {
+			parent.entries.delete(basename);
+			parent.mtime = Date.now();
+			parent.size -= 1;
+			this._fireSoon({ type: FileChangeType.UPDATED, resource: dirname }, { resource, type: FileChangeType.DELETED });
 		}
 	}
 

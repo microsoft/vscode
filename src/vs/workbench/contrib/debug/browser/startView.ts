@@ -64,8 +64,19 @@ export class StartView extends ViewPane {
 
 			this.debugButton.enabled = enabled;
 			this.runButton.enabled = enabled;
-			this.debugButton.label = this.debuggerLabels.length !== 1 ? localize('debug', "Debug") : localize('debugWith', "Debug with {0}", this.debuggerLabels[0]);
-			this.runButton.label = this.debuggerLabels.length !== 1 ? localize('run', "Run") : localize('runWith', "Run with {0}", this.debuggerLabels[0]);
+			const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
+			let debugLabel = this.debuggerLabels.length !== 1 ? localize('debug', "Debug") : localize('debugWith', "Debug with {0}", this.debuggerLabels[0]);
+			if (debugKeybinding) {
+				debugLabel += ` (${debugKeybinding.getLabel()})`;
+			}
+			this.debugButton.label = debugLabel;
+
+			let runLabel = this.debuggerLabels.length !== 1 ? localize('run', "Run") : localize('runWith', "Run with {0}", this.debuggerLabels[0]);
+			const runKeybinding = this.keybindingService.lookupKeybinding(RunAction.ID);
+			if (runKeybinding) {
+				runLabel += ` (${runKeybinding.getLabel()})`;
+			}
+			this.runButton.label = runLabel;
 
 			const emptyWorkbench = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 			this.firstMessageContainer.innerHTML = '';
@@ -74,12 +85,12 @@ export class StartView extends ViewPane {
 			this.secondMessageContainer.appendChild(secondMessageElement);
 
 			const setSecondMessage = () => {
-				secondMessageElement.textContent = localize('specifyHowToRun', "To futher configure Debug and Run");
+				secondMessageElement.textContent = localize('specifyHowToRun', "To further configure Debug and Run");
 				this.clickElement = this.createClickElement(localize('configure', " create a launch.json file."), () => this.commandService.executeCommand(ConfigureAction.ID));
 				this.secondMessageContainer.appendChild(this.clickElement);
 			};
 			const setSecondMessageWithFolder = () => {
-				secondMessageElement.textContent = localize('noLaunchConfiguration', "To futher configure Debug and Run, ");
+				secondMessageElement.textContent = localize('noLaunchConfiguration', "To further configure Debug and Run, ");
 				this.clickElement = this.createClickElement(localize('openFolder', " open a folder"), () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false }));
 				this.secondMessageContainer.appendChild(this.clickElement);
 
@@ -110,7 +121,6 @@ export class StartView extends ViewPane {
 				const firstMessageElement = $('span');
 				this.firstMessageContainer.appendChild(firstMessageElement);
 				firstMessageElement.textContent = localize('canBeDebuggedOrRun', " which can be debugged or run.");
-
 
 				setSecondMessageWithFolder();
 			}

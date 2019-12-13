@@ -31,10 +31,6 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 		return this.remoteExplorerService.close(remotePort);
 	}
 
-	$addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[]): Promise<void> {
-		return Promise.resolve(this.remoteExplorerService.addDetected(tunnels));
-	}
-
 	async $registerCandidateFinder(): Promise<void> {
 		this.remoteExplorerService.registerCandidateFinder(() => this._proxy.$findCandidatePorts());
 	}

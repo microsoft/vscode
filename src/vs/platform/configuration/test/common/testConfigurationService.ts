@@ -60,8 +60,8 @@ export class TestConfigurationService implements IConfigurationService {
 
 		return {
 			value: getConfigurationValue<T>(config, key),
-			default: getConfigurationValue<T>(config, key),
-			user: getConfigurationValue<T>(config, key)
+			defaultValue: getConfigurationValue<T>(config, key),
+			userValue: getConfigurationValue<T>(config, key)
 		};
 	}
 

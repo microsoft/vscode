@@ -9,15 +9,15 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IResourceConfigurationService, IResourceConfigurationChangeEvent } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
-export class TextResourceConfigurationService extends Disposable implements IResourceConfigurationService {
+export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
 	public _serviceBrand: undefined;
 
-	private readonly _onDidChangeConfiguration: Emitter<IResourceConfigurationChangeEvent> = this._register(new Emitter<IResourceConfigurationChangeEvent>());
-	public readonly onDidChangeConfiguration: Event<IResourceConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+	private readonly _onDidChangeConfiguration: Emitter<ITextResourceConfigurationChangeEvent> = this._register(new Emitter<ITextResourceConfigurationChangeEvent>());
+	public readonly onDidChangeConfiguration: Event<ITextResourceConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -45,15 +45,15 @@ export class TextResourceConfigurationService extends Disposable implements IRes
 		}
 		switch (configurationTarget) {
 			case ConfigurationTarget.MEMORY:
-				return this._updateValue(key, value, configurationTarget, configurationValue.memoryTarget?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.memory?.override, resource, language);
 			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return this._updateValue(key, value, configurationTarget, configurationValue.workspaceFolderTarget?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.workspaceFolder?.override, resource, language);
 			case ConfigurationTarget.WORKSPACE:
-				return this._updateValue(key, value, configurationTarget, configurationValue.workspaceTarget?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.workspace?.override, resource, language);
 			case ConfigurationTarget.USER_REMOTE:
-				return this._updateValue(key, value, configurationTarget, configurationValue.userRemoteTarget?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.userRemote?.override, resource, language);
 			default:
-				return this._updateValue(key, value, configurationTarget, configurationValue.userLocalTarget?.override, resource, language);
+				return this._updateValue(key, value, configurationTarget, configurationValue.userLocal?.override, resource, language);
 		}
 	}
 
@@ -67,32 +67,32 @@ export class TextResourceConfigurationService extends Disposable implements IRes
 
 	private deriveConfigurationTarget(configurationValue: IConfigurationValue<any>, language: string | null): ConfigurationTarget {
 		if (language) {
-			if (configurationValue.memoryTarget?.override !== undefined) {
+			if (configurationValue.memory?.override !== undefined) {
 				return ConfigurationTarget.MEMORY;
 			}
-			if (configurationValue.workspaceFolderTarget?.override !== undefined) {
+			if (configurationValue.workspaceFolder?.override !== undefined) {
 				return ConfigurationTarget.WORKSPACE_FOLDER;
 			}
-			if (configurationValue.workspaceTarget?.override !== undefined) {
+			if (configurationValue.workspace?.override !== undefined) {
 				return ConfigurationTarget.WORKSPACE;
 			}
-			if (configurationValue.userRemoteTarget?.override !== undefined) {
+			if (configurationValue.userRemote?.override !== undefined) {
 				return ConfigurationTarget.USER_REMOTE;
 			}
-			if (configurationValue.userLocalTarget?.override !== undefined) {
+			if (configurationValue.userLocal?.override !== undefined) {
 				return ConfigurationTarget.USER_LOCAL;
 			}
 		}
-		if (configurationValue.memoryTarget?.value !== undefined) {
+		if (configurationValue.memory?.value !== undefined) {
 			return ConfigurationTarget.MEMORY;
 		}
-		if (configurationValue.workspaceFolderTarget?.value !== undefined) {
+		if (configurationValue.workspaceFolder?.value !== undefined) {
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		}
-		if (configurationValue.workspaceTarget?.value !== undefined) {
+		if (configurationValue.workspace?.value !== undefined) {
 			return ConfigurationTarget.WORKSPACE;
 		}
-		if (configurationValue.userRemoteTarget?.value !== undefined) {
+		if (configurationValue.userRemote?.value !== undefined) {
 			return ConfigurationTarget.USER_REMOTE;
 		}
 		return ConfigurationTarget.USER_LOCAL;
@@ -114,7 +114,7 @@ export class TextResourceConfigurationService extends Disposable implements IRes
 		return this.modeService.getModeIdByFilepathOrFirstLine(resource);
 	}
 
-	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): IResourceConfigurationChangeEvent {
+	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): ITextResourceConfigurationChangeEvent {
 		return {
 			affectedKeys: configurationChangeEvent.affectedKeys,
 			affectsConfiguration: (resource: URI, configuration: string) => {

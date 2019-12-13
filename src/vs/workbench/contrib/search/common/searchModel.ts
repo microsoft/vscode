@@ -25,7 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/workbench/services/search/common/searchHelpers';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -305,6 +305,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 				}
 			});
 		});
+
+		this.addContext(
+			addContextToEditorMatches(textSearchResults, this._model, this.parent().parent().query!)
+				.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
+				.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
 
 		this._onChange.fire(modelChange);
 		this.updateHighlights();

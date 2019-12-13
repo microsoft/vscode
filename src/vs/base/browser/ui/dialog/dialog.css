@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 /** Dialog: Modal Block */
-.monaco-workbench .dialog-modal-block {
+.monaco-dialog-modal-block {
 	position: fixed;
 	height: 100%;
 	width: 100%;
@@ -15,12 +15,12 @@
 	align-items: center;
 }
 
-.monaco-workbench .dialog-modal-block.dimmed {
+.monaco-dialog-modal-block.dimmed {
 	background: rgba(0, 0, 0, 0.3);
 }
 
 /** Dialog: Container */
-.monaco-workbench .dialog-box {
+.monaco-dialog-box {
 	display: flex;
 	flex-direction: column-reverse;
 	width: min-content;
@@ -32,11 +32,11 @@
 }
 
 /** Dialog: Title Actions Row */
-.monaco-workbench .dialog-box .dialog-toolbar-row {
+.monaco-dialog-box .dialog-toolbar-row {
 	padding-bottom: 4px;
 }
 
-.monaco-workbench .dialog-box .action-label {
+.monaco-dialog-box .action-label {
 	height: 16px;
 	min-width: 16px;
 	background-size: 16px;
@@ -48,14 +48,14 @@
 
 
 /** Dialog: Message Row */
-.monaco-workbench .dialog-box .dialog-message-row {
+.monaco-dialog-box .dialog-message-row {
 	display: flex;
 	flex-grow: 1;
 	align-items: center;
 	padding: 0 10px;
 }
 
-.monaco-workbench .dialog-box .dialog-message-row > .codicon {
+.monaco-dialog-box .dialog-message-row > .codicon {
 	flex: 0 0 48px;
 	height: 48px;
 	align-self: baseline;
@@ -63,7 +63,7 @@
 }
 
 /** Dialog: Message Container */
-.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container {
+.monaco-dialog-box .dialog-message-row .dialog-message-container {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
@@ -77,7 +77,7 @@
 }
 
 /** Dialog: Message */
-.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
 	line-height: 22px;
 	font-size: 18px;
 	flex: 1; /* let the message always grow */
@@ -90,23 +90,23 @@
 }
 
 /** Dialog: Details */
-.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
 	line-height: 22px;
 	flex: 1; /* let the message always grow */
 	opacity: .9;
 }
 
-.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
 	outline-width: 1px;
 	outline-style: solid;
 }
 
-.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row {
 	padding: 15px 0px 0px;
 	display: flex;
 }
 
-.monaco-workbench .dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row .dialog-checkbox-message {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row .dialog-checkbox-message {
 	cursor: pointer;
 	user-select: none;
 	-webkit-user-select: none;
@@ -114,7 +114,7 @@
 }
 
 /** Dialog: Buttons Row */
-.monaco-workbench .dialog-box > .dialog-buttons-row {
+.monaco-dialog-box > .dialog-buttons-row {
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
@@ -122,19 +122,19 @@
 	overflow: hidden; /* buttons row should never overflow */
 }
 
-.monaco-workbench .dialog-box > .dialog-buttons-row {
+.monaco-dialog-box > .dialog-buttons-row {
 	display: flex;
 	white-space: nowrap;
 	padding: 20px 10px 10px;
 }
 
 /** Dialog: Buttons */
-.monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons {
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons {
 	display: flex;
 	overflow: hidden;
 }
 
-.monaco-workbench .dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
+.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
 	width: fit-content;
 	width: -moz-fit-content;
 	padding: 5px 10px;

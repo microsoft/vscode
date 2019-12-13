@@ -17,7 +17,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { regExpFlags } from 'vs/base/common/strings';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -52,7 +52,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 	private readonly _logService: ILogService;
 	constructor(
 		@IModelService modelService: IModelService,
-		@IResourceConfigurationService configurationService: IResourceConfigurationService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService
 	) {
 		super();
@@ -129,14 +129,14 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 
 	private readonly _workerManager: WorkerManager;
-	private readonly _configurationService: IResourceConfigurationService;
+	private readonly _configurationService: ITextResourceConfigurationService;
 	private readonly _modelService: IModelService;
 
 	readonly _debugDisplayName = 'wordbasedCompletions';
 
 	constructor(
 		workerManager: WorkerManager,
-		configurationService: IResourceConfigurationService,
+		configurationService: ITextResourceConfigurationService,
 		modelService: IModelService
 	) {
 		this._workerManager = workerManager;

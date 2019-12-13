@@ -82,4 +82,8 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	saveState(): void {
 		super.saveState();
 	}
+
+	focus(): void {
+		this.viewPaneContainer.focus();
+	}
 }
