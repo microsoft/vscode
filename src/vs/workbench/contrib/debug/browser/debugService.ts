@@ -90,7 +90,7 @@ export class DebugService implements IDebugService {
 	private previousState: State | undefined;
 	private initCancellationToken: CancellationTokenSource | undefined;
 
-	private internalTerminalWasOpened = false;
+	private replWasOpened = false;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -454,7 +454,7 @@ export class DebugService implements IDebugService {
 			await this.launchOrAttachToSession(session);
 
 			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
-			this.internalTerminalWasOpened = this.layoutService.isVisible(Parts.PANEL_PART);
+			this.replWasOpened = this.layoutService.isVisible(Parts.PANEL_PART);
 			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
 				this.panelService.openPanel(REPL_ID, false);
 			}
@@ -570,7 +570,7 @@ export class DebugService implements IDebugService {
 			}
 
 			const closeConsoleOnEnd = this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd;
-			if (closeConsoleOnEnd === 'always' || (closeConsoleOnEnd === 'whenOpenedByDebug' && !this.internalTerminalWasOpened)) {
+			if (closeConsoleOnEnd === 'always' || (closeConsoleOnEnd === 'whenOpenedByDebug' && !this.replWasOpened)) {
 				this.panelService.hideActivePanel();
 			}
 
