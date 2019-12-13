@@ -50,6 +50,8 @@
 		return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
 	};
 
+
+	// TODO: @rebornix, make it an option
 	const defaultCssRules = `
 	body {
 		background-color: var(--vscode-editor-background);
@@ -59,6 +61,8 @@
 		font-size: var(--vscode-font-size);
 		margin: 0;
 		padding: 0 20px;
+		height: 100%;
+		width: 100%;
 	}
 
 	img {
@@ -469,6 +473,8 @@
 						if (host.focusIframeOnCreate) {
 							newFrame.contentWindow.focus();
 						}
+
+						host.postMessage('did-set-initial-dimension', { width: newFrame.contentWindow.document.body.scrollWidth, height: newFrame.contentWindow.document.body.scrollHeight });
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 

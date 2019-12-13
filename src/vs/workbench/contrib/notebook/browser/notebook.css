@@ -20,12 +20,12 @@
 
 .cell.markdown {
 	transform: translate3d(0, 0, 0);
-	padding: 8px 0 8px 24px;
+	padding: 8px 24px 8px 24px;
 }
 
 .cell.code {
 	transform: translate3d(0, 0, 0);
-	padding: 8px 0 8px 24px;
+	padding: 8px 24px 8px 24px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output {
@@ -50,6 +50,11 @@
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row {
 	overflow: visible !important;
+}
+
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover{
+	box-shadow: 0px 2px 3px 0px rgba(0, 0, 0, 0.14);
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:focus-within {
@@ -77,4 +82,11 @@
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-tree.focused.no-focused-item:focus:before,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list:not(.element-focused):focus:before {
 	outline: none !important;
+}
+
+.notebook-webview {
+	position: absolute;
+	z-index: 1000000;
+	left: 373px;
+	top: 0px;
 }

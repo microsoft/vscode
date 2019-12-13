@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClass } from 'vs/base/browser/dom';
+import { addClass, Dimension } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -25,6 +25,7 @@ export const enum WebviewMessageChannels {
 	loadResource = 'load-resource',
 	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
+	didSetInitialDimension = 'did-set-initial-dimension'
 }
 
 interface IKeydownEvent {
@@ -117,6 +118,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.handleFocusChange(true);
 		}));
 
+		this._register(this.on(WebviewMessageChannels.didSetInitialDimension, (dimension: Dimension) => {
+			this.handleInitialDimension(dimension);
+		}));
+
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
 		}));
@@ -158,6 +163,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;
+
+	private readonly _onDidSetInitialDimension = this._register(new Emitter<Dimension>());
+	public readonly onDidSetInitialDimension = this._onDidSetInitialDimension.event;
 
 	public sendMessage(data: any): void {
 		this._send('message', data);
@@ -259,6 +267,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		if (isFocused) {
 			this._onDidFocus.fire();
 		}
+	}
+
+	protected handleInitialDimension(dimension: Dimension) {
+		this._onDidSetInitialDimension.fire(dimension);
 	}
 
 	private handleKeyDown(event: IKeydownEvent) {

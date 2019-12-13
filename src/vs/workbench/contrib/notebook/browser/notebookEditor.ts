@@ -30,6 +30,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private list: WorkbenchList<ViewCell> | undefined;
 	private model: NotebookEditorModel | undefined;
 	private viewCells: ViewCell[] = [];
+	private trackingMap: Map<HTMLElement, { element: HTMLElement, offset: number }> = new Map();
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -102,6 +103,19 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				}
 			}
 		);
+
+		this.list.onDidScroll((e) => {
+			// console.log(-e.scrollTop);
+			// this.trackingMap.forEach((val, index) => {
+			// 	val.element.style.top = `${Number(index.style.top.replace(/px$/, '')) - e.scrollTop + val.offset}px`;
+			// });
+		});
+	}
+
+	trackScrolling(trackingElement: HTMLElement, targetElement: HTMLElement, offset: number): void {
+		// this.trackingMap.set(targetElement, { element: trackingElement, offset });
+		// let top = Number(targetElement.style.top.replace(/px$/, '')) - this.list!.scrollTop + offset;
+		// trackingElement.style.top = `${top}px`;
 	}
 
 	onHide() {
@@ -185,12 +199,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		this.list?.splice(index, 1);
 	}
 
-
 	layout(dimension: DOM.Dimension): void {
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
-		DOM.size(this.body, dimension.width - 40, dimension.height);
-		this.list?.layout(dimension.height, dimension.width - 40);
+		DOM.size(this.body, dimension.width - 20, dimension.height);
+		this.list?.layout(dimension.height, dimension.width - 20);
 	}
 }
 

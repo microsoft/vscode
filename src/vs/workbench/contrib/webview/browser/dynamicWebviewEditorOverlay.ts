@@ -15,6 +15,8 @@ import { Dimension } from 'vs/base/browser/dom';
  * Webview editor overlay that creates and destroys the underlying webview as needed.
  */
 export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEditorOverlay {
+	private readonly _onDidSetInitialDimension = this._register(new Emitter<Dimension>());
+	public readonly onDidSetInitialDimension = this._onDidSetInitialDimension.event;
 
 	private readonly _pendingMessages = new Set<any>();
 	private readonly _webview = this._register(new MutableDisposable<WebviewElement>());

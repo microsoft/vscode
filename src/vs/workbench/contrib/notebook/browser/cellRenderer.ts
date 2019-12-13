@@ -38,6 +38,7 @@ export class ViewCell {
 	private _mdRenderer: marked.Renderer | null = null;
 	private _html: string | null = null;
 	private _dynamicHeight: number | null = null;
+	private _output: HTMLElement | null = null;
 
 	protected readonly _onDidChangeEditingState = new Emitter<void>();
 	readonly onDidChangeEditingState = this._onDidChangeEditingState.event;
@@ -153,6 +154,7 @@ export interface NotebookHandler {
 	editNotebookCell(cell: ViewCell): void;
 	saveNotebookCell(cell: ViewCell): void;
 	layoutElement(cell: ViewCell, height: number): void;
+	trackScrolling(trackingElement: HTMLElement, targetElement: HTMLElement, offset: number): void;
 }
 
 export interface CellRenderTemplate {
@@ -535,6 +537,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				if (result) {
 					hasDynamicHeight = result?.hasDynamicHeight;
 					templateData.outputContainer?.appendChild(result.element);
+					if (result.shadowElement) {
+						this.handler.trackScrolling(result.shadowElement!, templateData.container, totalHeight + 8);
+					}
 				}
 			}
 

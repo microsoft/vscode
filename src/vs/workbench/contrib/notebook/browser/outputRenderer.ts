@@ -11,6 +11,7 @@ import { IOutput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInp
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import * as UUID from 'vs/base/common/uuid';
 import { isArray } from 'vs/base/common/types';
+import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 
 export function registerMineTypeRenderer(types: string[], renderer: IMimeRenderer) {
 	types.forEach(type => {
@@ -20,11 +21,12 @@ export function registerMineTypeRenderer(types: string[], renderer: IMimeRendere
 
 export interface IRenderOutput {
 	element: HTMLElement;
+	shadowElement?: HTMLElement;
 	hasDynamicHeight: boolean;
 }
 
 interface IMimeRenderer {
-	render(output: IOutput, themeService: IThemeService, webviewService: IWebviewService): IRenderOutput;
+	render(output: IOutput, themeService: IThemeService, webviewService: IWebviewService, notebookHandler?: NotebookHandler): IRenderOutput;
 }
 
 export class MimeTypeRenderer {
@@ -39,8 +41,8 @@ export class MimeTypeRenderer {
 		return this._renderers.get(type);
 	}
 
-	static render(output: IOutput, themeService: IThemeService, webviewService: IWebviewService): IRenderOutput | null {
-		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, themeService, webviewService) ?? null;
+	static render(output: IOutput, themeService: IThemeService, webviewService: IWebviewService, notebookHandler?: NotebookHandler): IRenderOutput | null {
+		return MimeTypeRenderer.instance.getRenderer(output.output_type)?.render(output, themeService, webviewService, notebookHandler) ?? null;
 	}
 }
 
@@ -82,7 +84,7 @@ registerMineTypeRenderer(['error'], {
 });
 
 class RichDisplayRenderer implements IMimeRenderer {
-	render(output: any, themeService: IThemeService, webviewService: IWebviewService): IRenderOutput {
+	render(output: any, themeService: IThemeService, webviewService: IWebviewService, notebookHandler: NotebookHandler): IRenderOutput {
 		const display = document.createElement('div');
 		const outputNode = document.createElement('div');
 		let hasDynamicHeight = false;
@@ -99,9 +101,29 @@ class RichDisplayRenderer implements IMimeRenderer {
 			let str = isArray(data) ? data.join('') : data;
 			let webview = this._createInset(webviewService, str);
 			webview.mountTo(display);
+			// const absoluteElement = document.createElement('div');
+			// document.body.appendChild(absoluteElement);
+			// DOM.addClass(absoluteElement, 'notebook-webview');
+			// webview.mountTo(absoluteElement);
+
+			webview.onDidSetInitialDimension(dimension => {
+				display.style.minWidth = `${dimension.width}px`;
+				display.style.height = `${dimension.height}px`;
+				display.style.maxWidth = '100%';
+				display.style.maxHeight = '700px';
+				// absoluteElement.style.minWidth= `${dimension.width}px`;
+				// absoluteElement.style.height= `${dimension.height}px`;
+				// absoluteElement.style.maxWidth = '100%';
+				// absoluteElement.style.maxHeight = '700px';
+			});
 
 			outputNode.appendChild(display);
 			hasDynamicHeight = true;
+			return {
+				element: outputNode,
+				// shadowElement: absoluteElement,
+				hasDynamicHeight
+			};
 		}
 
 		return {
