@@ -829,8 +829,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.sortOrder': {
 			'type': 'string',
-			'enum': [SearchSortOrderConfiguration.DEFAULT, SearchSortOrderConfiguration.FILES_ONLY, SearchSortOrderConfiguration.TYPE, SearchSortOrderConfiguration.MODIFIED, SearchSortOrderConfiguration.COUNT_DESCENDING, SearchSortOrderConfiguration.COUNT_ASCENDING],
-			'default': SearchSortOrderConfiguration.DEFAULT,
+			'enum': [SearchSortOrderConfiguration.default, SearchSortOrderConfiguration.fileNames, SearchSortOrderConfiguration.type, SearchSortOrderConfiguration.modified, SearchSortOrderConfiguration.countDescending, SearchSortOrderConfiguration.countAscending],
+			'default': SearchSortOrderConfiguration.default,
 			'enumDescriptions': [
 				nls.localize('searchSortOrder.default', 'Results are sorted by folder and file names, in alphabetical order.'),
 				nls.localize('searchSortOrder.filesOnly', 'Results are sorted by file names ignoring folder order, in alphabetical order.'),

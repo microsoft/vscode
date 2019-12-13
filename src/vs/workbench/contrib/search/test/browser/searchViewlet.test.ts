@@ -9,7 +9,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrderConfiguration } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
@@ -90,9 +90,9 @@ suite('Search - Viewlet', () => {
 		// By default, path < path2
 		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
 		// By filenames, foo10 > foo1
-		assert(searchMatchComparer(fileMatch1, fileMatch2, 'filesOnly') > 0);
+		assert(searchMatchComparer(fileMatch1, fileMatch2, SearchSortOrderConfiguration.fileNames) > 0);
 		// By type, bar.a < bar.b
-		assert(searchMatchComparer(fileMatch3, fileMatch4, 'type') < 0);
+		assert(searchMatchComparer(fileMatch3, fileMatch4, SearchSortOrderConfiguration.type) < 0);
 	});
 
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
