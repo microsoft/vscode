@@ -22,7 +22,7 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { registerColor, listErrorForeground, listWarningForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IdleValue } from 'vs/base/common/async';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { URI } from 'vs/base/common/uri';
 
 export type OutlineItem = OutlineGroup | OutlineElement;

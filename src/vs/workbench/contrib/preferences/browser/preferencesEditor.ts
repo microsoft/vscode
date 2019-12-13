@@ -21,7 +21,7 @@ import { EditorExtensionsRegistry, registerEditorContribution, IEditorContributi
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { FindController } from 'vs/editor/contrib/find/findController';
 import { FoldingController } from 'vs/editor/contrib/folding/folding';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
