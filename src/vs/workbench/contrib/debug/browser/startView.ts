@@ -85,12 +85,12 @@ export class StartView extends ViewPane {
 			this.secondMessageContainer.appendChild(secondMessageElement);
 
 			const setSecondMessage = () => {
-				secondMessageElement.textContent = localize('specifyHowToRun', "To futher configure Debug and Run");
+				secondMessageElement.textContent = localize('specifyHowToRun', "To further configure Debug and Run");
 				this.clickElement = this.createClickElement(localize('configure', " create a launch.json file."), () => this.commandService.executeCommand(ConfigureAction.ID));
 				this.secondMessageContainer.appendChild(this.clickElement);
 			};
 			const setSecondMessageWithFolder = () => {
-				secondMessageElement.textContent = localize('noLaunchConfiguration', "To futher configure Debug and Run, ");
+				secondMessageElement.textContent = localize('noLaunchConfiguration', "To further configure Debug and Run, ");
 				this.clickElement = this.createClickElement(localize('openFolder', " open a folder"), () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false }));
 				this.secondMessageContainer.appendChild(this.clickElement);
 
