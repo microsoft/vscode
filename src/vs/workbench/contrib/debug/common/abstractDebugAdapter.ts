@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDebugAdapter } from 'vs/workbench/contrib/debug/common/debug';
-import { timeout } from 'vs/base/common/async';
+import { timeout, Queue } from 'vs/base/common/async';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -18,6 +18,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	private requestCallback: ((request: DebugProtocol.Request) => void) | undefined;
 	private eventCallback: ((request: DebugProtocol.Event) => void) | undefined;
 	private messageCallback: ((message: DebugProtocol.ProtocolMessage) => void) | undefined;
+	private readonly queue = new Queue();
 	protected readonly _onError = new Emitter<Error>();
 	protected readonly _onExit = new Emitter<number | null>();
 
@@ -108,26 +109,33 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 			this.messageCallback(message);
 		}
 		else {
-			switch (message.type) {
-				case 'event':
-					if (this.eventCallback) {
-						this.eventCallback(<DebugProtocol.Event>message);
-					}
-					break;
-				case 'request':
-					if (this.requestCallback) {
-						this.requestCallback(<DebugProtocol.Request>message);
-					}
-					break;
-				case 'response':
-					const response = <DebugProtocol.Response>message;
-					const clb = this.pendingRequests.get(response.request_seq);
-					if (clb) {
-						this.pendingRequests.delete(response.request_seq);
-						clb(response);
-					}
-					break;
-			}
+			this.queue.queue(() => {
+				switch (message.type) {
+					case 'event':
+						if (this.eventCallback) {
+							this.eventCallback(<DebugProtocol.Event>message);
+						}
+						break;
+					case 'request':
+						if (this.requestCallback) {
+							this.requestCallback(<DebugProtocol.Request>message);
+						}
+						break;
+					case 'response':
+						const response = <DebugProtocol.Response>message;
+						const clb = this.pendingRequests.get(response.request_seq);
+						if (clb) {
+							this.pendingRequests.delete(response.request_seq);
+							clb(response);
+						}
+						break;
+				}
+
+				// Artificially queueing protocol messages guarantees that any microtasks for
+				// previous message finish before next message is processed. This is essential
+				// to guarantee ordering when using promises anywhere along the call path.
+				return timeout(0);
+			});
 		}
 	}
 
@@ -164,6 +172,6 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	}
 
 	dispose(): void {
-		// noop
+		this.queue.dispose();
 	}
 }

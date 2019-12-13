@@ -120,7 +120,7 @@ suite('ExtHostWorkspace', function () {
 		assert.equal(ws.getPath(), undefined);
 
 		ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('Folder'), 0), aWorkspaceFolderData(URI.file('Another/Folder'), 1)] }, new NullLogService());
-		assert.equal(ws.getPath(), undefined);
+		assert.equal(ws.getPath()!.replace(/\\/g, '/'), '/Folder');
 
 		ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.file('/Folder'), 0)] }, new NullLogService());
 		assert.equal(ws.getPath()!.replace(/\\/g, '/'), '/Folder');

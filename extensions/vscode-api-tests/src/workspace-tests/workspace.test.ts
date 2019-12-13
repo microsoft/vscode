@@ -13,7 +13,7 @@ suite('workspace-namespace', () => {
 	teardown(closeAllEditors);
 
 	test('rootPath', () => {
-		assert.equal(vscode.workspace.rootPath, undefined);
+		assert.ok(pathEquals(vscode.workspace.rootPath!, join(__dirname, '../../testWorkspace')));
 	});
 
 	test('workspaceFile', () => {

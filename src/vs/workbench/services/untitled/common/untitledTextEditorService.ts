@@ -32,6 +32,11 @@ export interface IUntitledTextEditorService {
 	_serviceBrand: undefined;
 
 	/**
+	 * Events for when untitled text editors are created.
+	 */
+	readonly onDidCreate: Event<URI>;
+
+	/**
 	 * Events for when untitled text editors content changes (e.g. any keystroke).
 	 */
 	readonly onDidChangeContent: Event<URI>;
@@ -116,6 +121,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	private mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
+
+	private readonly _onDidCreate = this._register(new Emitter<URI>());
+	readonly onDidCreate = this._onDidCreate.event;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<URI>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
@@ -262,6 +270,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 		// Add to cache
 		this.mapResourceToInput.set(untitledResource, input);
+
+		// Signal new untitled as event
+		this._onDidCreate.fire(untitledResource);
 
 		return input;
 	}

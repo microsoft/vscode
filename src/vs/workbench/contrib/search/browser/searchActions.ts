@@ -26,7 +26,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfiguration, VIEWLET_ID, PANEL_ID, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
+import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { createEditorFromSearchResult, refreshActiveEditorSearch } from 'vs/workbench/contrib/search/browser/searchEditor';
@@ -58,13 +58,13 @@ export function openSearchView(viewletService: IViewletService, panelService: IP
 		return Promise.resolve((panelService.openPanel(PANEL_ID, focus) as SearchPanel).getSearchView());
 	}
 
-	return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet as SearchViewlet).getSearchView());
+	return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet?.getViewPaneContainer() as SearchViewPaneContainer).getSearchView() as SearchView);
 }
 
 export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView | undefined {
 	const activeViewlet = viewletService.getActiveViewlet();
 	if (activeViewlet && activeViewlet.getId() === VIEWLET_ID) {
-		return (activeViewlet as SearchViewlet).getSearchView();
+		return (activeViewlet.getViewPaneContainer() as SearchViewPaneContainer).getSearchView();
 	}
 
 	const activePanel = panelService.getActivePanel();
@@ -472,7 +472,7 @@ export class RerunEditorSearchAction extends Action {
 
 	async run() {
 		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.progressService.withProgress({ location: ProgressLocation.Window },
+			await this.progressService.withProgress({ location: ProgressLocation.Window, title: nls.localize('searchRunning', "Running search...") },
 				() => refreshActiveEditorSearch(undefined, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
 		}
 	}
@@ -503,7 +503,7 @@ export class RerunEditorSearchWithContextAction extends Action {
 		});
 		if (lines === undefined) { return; }
 		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.progressService.withProgress({ location: ProgressLocation.Window },
+			await this.progressService.withProgress({ location: ProgressLocation.Window, title: nls.localize('searchRunning', "Running search...") },
 				() => refreshActiveEditorSearch(+lines, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
 		}
 	}

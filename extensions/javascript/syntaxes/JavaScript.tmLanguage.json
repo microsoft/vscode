@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/dc5fe357ee5582244b798917a5fc9d7cd73e6220",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/2e0fded599d7b85b78692dee3d96e8a4710a5c57",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -28,12 +28,6 @@
 		"statements": {
 			"patterns": [
 				{
-					"include": "#string"
-				},
-				{
-					"include": "#comment"
-				},
-				{
 					"include": "#declaration"
 				},
 				{
@@ -53,6 +47,12 @@
 				},
 				{
 					"include": "#punctuation-semicolon"
+				},
+				{
+					"include": "#string"
+				},
+				{
+					"include": "#comment"
 				}
 			]
 		},

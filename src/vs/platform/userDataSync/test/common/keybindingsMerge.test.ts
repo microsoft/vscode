@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
@@ -441,7 +440,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 });
 
 
-suite.skip('KeybindingsMerge - Conflicts', () => {
+suite('KeybindingsMerge - Conflicts', () => {
 
 	test('merge when local and remote with one entry but different value', async () => {
 		const localContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
@@ -730,6 +729,6 @@ class MockUserDataSyncUtilService implements IUserDataSyncUtilService {
 	}
 
 	async resolveFormattingOptions(file?: URI): Promise<FormattingOptions> {
-		return { eol: OS === OperatingSystem.Windows ? '\r\n' : '\n', insertSpaces: false, tabSize: 4 };
+		return { eol: '\n', insertSpaces: false, tabSize: 4 };
 	}
 }

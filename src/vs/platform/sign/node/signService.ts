@@ -5,11 +5,19 @@
 
 import { ISignService } from 'vs/platform/sign/common/sign';
 
+/* tslint:disable */
+
+declare module vsda {
+	export class signer {
+		sign(arg: any): any;
+	}
+}
+
 export class SignService implements ISignService {
 	_serviceBrand: undefined;
 
-	private vsda(): Promise<typeof import('vsda')> {
-		return import('vsda');
+	private vsda(): Promise<typeof vsda> {
+		return new Promise((resolve, reject) => require(['vsda'], resolve, reject));
 	}
 
 	async sign(value: string): Promise<string> {
@@ -20,9 +28,8 @@ export class SignService implements ISignService {
 				return signer.sign(value);
 			}
 		} catch (e) {
-			console.error('signer.sign: ' + e);
+			// ignore errors silently
 		}
-
 		return value;
 	}
 }

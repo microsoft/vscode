@@ -290,12 +290,26 @@ export const enum SaveReason {
 	WINDOW_CHANGE = 4
 }
 
+export const enum SaveContext {
+
+	/**
+	 * Indicates that the editor is saved because it
+	 * is being closed by the user.
+	 */
+	EDITOR_CLOSE = 1,
+}
+
 export interface ISaveOptions {
 
 	/**
 	 * An indicator how the save operation was triggered.
 	 */
 	reason?: SaveReason;
+
+	/**
+	 * Additional information about the context of the save.
+	 */
+	context?: SaveContext;
 
 	/**
 	 * Forces to load the contents of the working copy
@@ -397,11 +411,6 @@ export interface IEditorInput extends IDisposable {
 	 * and re-open it in the correct group after saving.
 	 */
 	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
-
-	/**
-	 * Handles when the input is replaced, such as by renaming its backing resource.
-	 */
-	handleMove?(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined;
 
 	/**
 	 * Reverts this input.
@@ -553,10 +562,10 @@ export abstract class TextEditorInput extends EditorInput {
 	}
 
 	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, () => this.textFileService.saveAs(this.resource, undefined, options));
+		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options));
 	}
 
-	protected async doSaveAs(group: GroupIdentifier, saveRunnable: () => Promise<URI | undefined>, replaceAllEditors?: boolean): Promise<boolean> {
+	protected async doSaveAs(group: GroupIdentifier, options: ISaveOptions | undefined, saveRunnable: () => Promise<URI | undefined>, replaceAllEditors?: boolean): Promise<boolean> {
 
 		// Preserve view state by opening the editor first. In addition
 		// this allows the user to review the contents of the editor.
@@ -574,7 +583,9 @@ export abstract class TextEditorInput extends EditorInput {
 
 		// Replace editor preserving viewstate (either across all groups or
 		// only selected group) if the target is different from the current resource
-		if (!isEqual(target, this.resource)) {
+		// and if the editor is not being saved because it is being closed
+		// (because in that case we do not want to open a different editor anyway)
+		if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(target, this.resource)) {
 			const replacement = this.editorService.createInput({ resource: target });
 			const targetGroups = replaceAllEditors ? this.editorGroupService.groups.map(group => group.id) : [group];
 			for (const group of targetGroups) {

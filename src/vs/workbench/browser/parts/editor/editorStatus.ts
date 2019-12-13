@@ -36,7 +36,7 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { ITextFileService, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ConfigurationChangedEvent, IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
 import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -1158,12 +1158,12 @@ export class ChangeModeAction extends Action {
 
 				// If the association is already being made in the workspace, make sure to target workspace settings
 				let target = ConfigurationTarget.USER;
-				if (fileAssociationsConfig.workspace && !!(fileAssociationsConfig.workspace as any)[associationKey]) {
+				if (fileAssociationsConfig.workspaceValue && !!(fileAssociationsConfig.workspaceValue as any)[associationKey]) {
 					target = ConfigurationTarget.WORKSPACE;
 				}
 
 				// Make sure to write into the value of the target and not the merged value from USER and WORKSPACE config
-				const currentAssociations = deepClone((target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspace : fileAssociationsConfig.user) || Object.create(null);
+				const currentAssociations = deepClone((target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspaceValue : fileAssociationsConfig.userValue) || Object.create(null);
 				currentAssociations[associationKey] = language.id;
 
 				this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);

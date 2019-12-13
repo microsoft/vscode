@@ -210,20 +210,20 @@ suite('ConfigurationService - Node', () => {
 
 		let res = service.inspect('something.missing');
 		assert.strictEqual(res.value, undefined);
-		assert.strictEqual(res.default, undefined);
-		assert.strictEqual(res.user, undefined);
+		assert.strictEqual(res.defaultValue, undefined);
+		assert.strictEqual(res.userValue, undefined);
 
 		res = service.inspect('lookup.service.testSetting');
-		assert.strictEqual(res.default, 'isSet');
+		assert.strictEqual(res.defaultValue, 'isSet');
 		assert.strictEqual(res.value, 'isSet');
-		assert.strictEqual(res.user, undefined);
+		assert.strictEqual(res.userValue, undefined);
 
 		fs.writeFileSync(r.testFile, '{ "lookup.service.testSetting": "bar" }');
 
 		await service.reloadConfiguration();
 		res = service.inspect('lookup.service.testSetting');
-		assert.strictEqual(res.default, 'isSet');
-		assert.strictEqual(res.user, 'bar');
+		assert.strictEqual(res.defaultValue, 'isSet');
+		assert.strictEqual(res.userValue, 'bar');
 		assert.strictEqual(res.value, 'bar');
 
 		service.dispose();
@@ -247,18 +247,18 @@ suite('ConfigurationService - Node', () => {
 		service.initialize();
 
 		let res = service.inspect('lookup.service.testNullSetting');
-		assert.strictEqual(res.default, null);
+		assert.strictEqual(res.defaultValue, null);
 		assert.strictEqual(res.value, null);
-		assert.strictEqual(res.user, undefined);
+		assert.strictEqual(res.userValue, undefined);
 
 		fs.writeFileSync(r.testFile, '{ "lookup.service.testNullSetting": null }');
 
 		await service.reloadConfiguration();
 
 		res = service.inspect('lookup.service.testNullSetting');
-		assert.strictEqual(res.default, null);
+		assert.strictEqual(res.defaultValue, null);
 		assert.strictEqual(res.value, null);
-		assert.strictEqual(res.user, null);
+		assert.strictEqual(res.userValue, null);
 
 		service.dispose();
 		return r.cleanUp();
