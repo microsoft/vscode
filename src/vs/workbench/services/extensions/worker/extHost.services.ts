@@ -21,6 +21,7 @@ import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensio
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/worker/extHostLogService';
+import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 
 // register singleton services
 registerSingleton(ILogService, ExtHostLogService);
@@ -52,6 +53,5 @@ function NotImplementedProxy<T>(name: ServiceIdentifier<T>): { new(): T } {
 registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService);
 registerSingleton(IExtHostTask, WorkerExtHostTask);
 registerSingleton(IExtHostDebugService, WorkerExtHostDebugService);
-registerSingleton(IExtensionStoragePaths, class extends NotImplementedProxy(IExtensionStoragePaths) {
-	whenReady = Promise.resolve();
-});
+registerSingleton(IExtensionStoragePaths, class extends NotImplementedProxy(IExtensionStoragePaths) { whenReady = Promise.resolve(); });
+registerSingleton(IExtHostTunnelService, class extends NotImplementedProxy(IExtHostTunnelService) { });
