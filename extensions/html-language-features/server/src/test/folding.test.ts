@@ -17,13 +17,13 @@ interface ExpectedIndentRange {
 }
 
 function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): void {
-	let document = TextDocument.create('test://foo/bar.json', 'json', 1, lines.join('\n'));
-	let workspace = {
+	const document = TextDocument.create('test://foo/bar.json', 'json', 1, lines.join('\n'));
+	const workspace = {
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
-	let languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
-	let actual = getFoldingRanges(languageModes, document, nRanges, null);
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
+	const actual = getFoldingRanges(languageModes, document, nRanges, null);
 
 	let actualRanges = [];
 	for (let i = 0; i < actual.length; i++) {
@@ -40,7 +40,7 @@ function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRan
 suite('HTML Folding', () => {
 
 	test('Embedded JavaScript', () => {
-		let input = [
+		const input = [
 			/*0*/'<html>',
 			/*1*/'<head>',
 			/*2*/'<script>',
@@ -54,7 +54,7 @@ suite('HTML Folding', () => {
 	});
 
 	test('Embedded JavaScript - multiple areas', () => {
-		let input = [
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<script>',
@@ -75,7 +75,7 @@ suite('HTML Folding', () => {
 	});
 
 	test('Embedded JavaScript - incomplete', () => {
-		let input = [
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<script>',
@@ -91,7 +91,7 @@ suite('HTML Folding', () => {
 	});
 
 	test('Embedded JavaScript - regions', () => {
-		let input = [
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<script>',
@@ -108,7 +108,7 @@ suite('HTML Folding', () => {
 	});
 
 	test('Embedded CSS', () => {
-		let input = [
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<style>',
@@ -124,7 +124,7 @@ suite('HTML Folding', () => {
 	});
 
 	test('Embedded CSS - multiple areas', () => {
-		let input = [
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head style="color:red">',
 			/* 2*/'<style>',
@@ -145,7 +145,7 @@ suite('HTML Folding', () => {
 	});
 
 	test('Embedded CSS - regions', () => {
-		let input = [
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<style>',
@@ -163,7 +163,7 @@ suite('HTML Folding', () => {
 
 
 	// test('Embedded JavaScript - multi line comment', () => {
-	// 	let input = [
+	// 	const input = [
 	// 		/* 0*/'<html>',
 	// 		/* 1*/'<head>',
 	// 		/* 2*/'<script>',
@@ -178,7 +178,7 @@ suite('HTML Folding', () => {
 	// });
 
 	test('Test limit', () => {
-		let input = [
+		const input = [
 			/* 0*/'<div>',
 			/* 1*/' <span>',
 			/* 2*/'  <b>',

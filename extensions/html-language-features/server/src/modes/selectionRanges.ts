@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageModes } from './languageModes';
-import { TextDocument, Position, Range, SelectionRange } from 'vscode-html-languageservice';
+import { LanguageModes, TextDocument, Position, Range, SelectionRange } from './languageModes';
 
 export function getSelectionRanges(languageModes: LanguageModes, document: TextDocument, positions: Position[]) {
 	const htmlMode = languageModes.getMode('html');

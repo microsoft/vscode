@@ -6,11 +6,13 @@
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
 	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
-	Position, ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification, Range,
-	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest, TextDocumentSyncKind
+	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
+	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind
 } from 'vscode-languageserver';
-import { TextDocument, Diagnostic, DocumentLink, SymbolInformation, TextDocumentIdentifier } from 'vscode-html-languageservice';
-import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
+import {
+	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
+	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier
+} from './modes/languageModes';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
