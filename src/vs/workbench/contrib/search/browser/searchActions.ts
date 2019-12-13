@@ -376,7 +376,7 @@ export class ExpandAllAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'search-action codicon-chrome-restore');
+		super(id, label, 'search-action codicon-expand-all');
 		this.update();
 	}
 
