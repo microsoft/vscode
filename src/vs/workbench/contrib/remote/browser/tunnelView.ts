@@ -377,8 +377,8 @@ export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', 
 export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false);
 
 export class TunnelPanel extends ViewPane {
-	static readonly ID = '~remote.tunnelPanel';
-	static readonly TITLE = nls.localize('remote.tunnel', "Tunnels");
+	static readonly ID = '~remote.forwardedPorts';
+	static readonly TITLE = nls.localize('remote.tunnel', "Forwarded Ports");
 	private tree!: WorkbenchAsyncDataTree<any, any, any>;
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
