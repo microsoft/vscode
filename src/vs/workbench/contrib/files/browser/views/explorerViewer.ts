@@ -860,7 +860,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					}
 
 					const resource = joinPath(target.resource, name);
-					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target?.result)));
+					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
 					if (data.files.length === 1) {
 						await this.editorService.openEditor({ resource, options: { pinned: true } });
 					}
