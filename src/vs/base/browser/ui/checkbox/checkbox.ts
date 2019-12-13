@@ -192,7 +192,7 @@ export class SimpleCheckbox extends Widget {
 	constructor(private title: string, private isChecked: boolean) {
 		super();
 
-		this.checkbox = new Checkbox({ title: this.title, isChecked: this.isChecked, actionClassName: 'monaco-simple-checkbox' });
+		this.checkbox = new Checkbox({ title: this.title, isChecked: this.isChecked, actionClassName: 'monaco-simple-checkbox codicon-check' });
 
 		this.domNode = this.checkbox.domNode;
 

@@ -11,7 +11,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { ResourceQueue } from 'vs/base/common/async';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { keys, ResourceMap } from 'vs/base/common/map';
@@ -285,7 +285,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		const backupResource = this.toBackupResource(resource);
 
 		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
-			await this.fileService.del(backupResource, { recursive: true });
+			await this.doDiscardResource(backupResource);
 
 			model.remove(backupResource);
 		});
@@ -296,9 +296,19 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 		const model = await this.ready;
 
-		await this.fileService.del(this.backupWorkspacePath, { recursive: true });
+		await this.doDiscardResource(this.backupWorkspacePath);
 
 		model.clear();
+	}
+
+	private async doDiscardResource(resource: URI): Promise<void> {
+		try {
+			await this.fileService.del(resource, { recursive: true });
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error; // re-throw any other error than file not found which is OK
+			}
+		}
 	}
 
 	async getWorkspaceFileBackups(): Promise<URI[]> {

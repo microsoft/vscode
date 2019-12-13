@@ -18,7 +18,6 @@
 	opacity: 0;
 	position: absolute;
 	line-height: 22px;
-	margin: 10px 0; /* 10px top and bottom */
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 }
 

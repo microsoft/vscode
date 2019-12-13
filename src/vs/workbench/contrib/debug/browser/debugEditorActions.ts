@@ -157,8 +157,8 @@ class SelectionToReplAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.selectionToRepl',
-			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
-			alias: 'Debug: Evaluate',
+			label: nls.localize('evaluateInDebugConsole', "Evaluate in Debug Console"),
+			alias: 'Evaluate',
 			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
@@ -187,8 +187,8 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.selectionToWatch',
-			label: nls.localize('debugAddToWatch', "Debug: Add to Watch"),
-			alias: 'Debug: Add to Watch',
+			label: nls.localize('addToWatch', "Add to Watch"),
+			alias: 'Add to Watch',
 			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',

@@ -251,16 +251,9 @@ a {
 	text-decoration: none;
 }
 
-.invalid-input {
-	border: 1px solid #be1100;
-}
-
-.required-input, .validation-error {
-	color: #be1100;
-}
-
 .section .input-group .validation-error {
-	margin-left: 15%;
+	margin-left: calc(15% + 5px);
+	padding: 10px;
 }
 
 .section .inline-form-control, .section .inline-label {

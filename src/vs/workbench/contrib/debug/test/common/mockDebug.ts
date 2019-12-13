@@ -11,6 +11,7 @@ import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IS
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { CompletionItem } from 'vs/editor/common/modes';
 import Severity from 'vs/base/common/severity';
+import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 
 export class MockDebugService implements IDebugService {
 
@@ -463,4 +464,68 @@ export class MockRawSession {
 	}
 
 	public readonly onDidStop: Event<DebugProtocol.StoppedEvent> = null!;
+}
+
+export class MockDebugAdapter extends AbstractDebugAdapter {
+	private seq = 0;
+
+	startSession(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	stopSession(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	sendMessage(message: DebugProtocol.ProtocolMessage): void {
+		setTimeout(() => {
+			if (message.type === 'request') {
+				const request = message as DebugProtocol.Request;
+				switch (request.command) {
+					case 'evaluate':
+						this.evaluate(request, request.arguments);
+						return;
+				}
+				this.sendResponseBody(request, {});
+				return;
+			}
+		}, 0);
+	}
+
+	sendResponseBody(request: DebugProtocol.Request, body: any) {
+		const response: DebugProtocol.Response = {
+			seq: ++this.seq,
+			type: 'response',
+			request_seq: request.seq,
+			command: request.command,
+			success: true,
+			body
+		};
+		this.acceptMessage(response);
+	}
+
+	sendEventBody(event: string, body: any) {
+		const response: DebugProtocol.Event = {
+			seq: ++this.seq,
+			type: 'event',
+			event,
+			body
+		};
+		this.acceptMessage(response);
+	}
+
+	evaluate(request: DebugProtocol.Request, args: DebugProtocol.EvaluateArguments) {
+		if (args.expression.indexOf('before.') === 0) {
+			this.sendEventBody('output', { output: args.expression });
+		}
+
+		this.sendResponseBody(request, {
+			result: '=' + args.expression,
+			variablesReference: 0
+		});
+
+		if (args.expression.indexOf('after.') === 0) {
+			this.sendEventBody('output', { output: args.expression });
+		}
+	}
 }

@@ -18,7 +18,7 @@ import { MarkersFilterActionViewItem, MarkersFilterAction, IMarkersFilterActionC
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -47,6 +47,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterator<ITreeElement<TreeElement>> {
 	const markersIt = Iterator.fromArray(resourceMarkers.markers);
@@ -817,3 +818,25 @@ class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
 	}
 
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Lightbulb Icon
+	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
+	if (editorLightBulbForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .markers-panel-container .codicon-lightbulb {
+			color: ${editorLightBulbForegroundColor};
+		}`);
+	}
+
+	// Lightbulb Auto Fix Icon
+	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
+	if (editorLightBulbAutoFixForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .markers-panel-container .codicon-lightbulb-autofix {
+			color: ${editorLightBulbAutoFixForegroundColor};
+		}`);
+	}
+
+});

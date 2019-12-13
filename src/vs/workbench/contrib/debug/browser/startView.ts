@@ -11,7 +11,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -21,11 +20,12 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { equals } from 'vs/base/common/arrays';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 const $ = dom.$;
 
-export class StartView extends ViewletPane {
+export class StartView extends ViewPane {
 
 	static ID = 'workbench.debug.startView';
 	static LABEL = localize('start', "Start");
@@ -34,6 +34,7 @@ export class StartView extends ViewletPane {
 	private runButton!: Button;
 	private firstMessageContainer!: HTMLElement;
 	private secondMessageContainer!: HTMLElement;
+	private clickElement: HTMLElement | undefined;
 	private debuggerLabels: string[] | undefined = undefined;
 
 	constructor(
@@ -49,7 +50,7 @@ export class StartView extends ViewletPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileDialogService private readonly dialogService: IFileDialogService
 	) {
-		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this._register(editorService.onDidActiveEditorChange(() => this.updateView()));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(() => this.updateView()));
 	}
@@ -63,8 +64,19 @@ export class StartView extends ViewletPane {
 
 			this.debugButton.enabled = enabled;
 			this.runButton.enabled = enabled;
-			this.debugButton.label = this.debuggerLabels.length !== 1 ? localize('debug', "Debug") : localize('debugWith', "Debug with {0}", this.debuggerLabels[0]);
-			this.runButton.label = this.debuggerLabels.length !== 1 ? localize('run', "Run") : localize('runWith', "Run with {0}", this.debuggerLabels[0]);
+			const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
+			let debugLabel = this.debuggerLabels.length !== 1 ? localize('debug', "Debug") : localize('debugWith', "Debug with {0}", this.debuggerLabels[0]);
+			if (debugKeybinding) {
+				debugLabel += ` (${debugKeybinding.getLabel()})`;
+			}
+			this.debugButton.label = debugLabel;
+
+			let runLabel = this.debuggerLabels.length !== 1 ? localize('run', "Run") : localize('runWith', "Run with {0}", this.debuggerLabels[0]);
+			const runKeybinding = this.keybindingService.lookupKeybinding(RunAction.ID);
+			if (runKeybinding) {
+				runLabel += ` (${runKeybinding.getLabel()})`;
+			}
+			this.runButton.label = runLabel;
 
 			const emptyWorkbench = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 			this.firstMessageContainer.innerHTML = '';
@@ -74,13 +86,13 @@ export class StartView extends ViewletPane {
 
 			const setSecondMessage = () => {
 				secondMessageElement.textContent = localize('specifyHowToRun', "To futher configure Debug and Run");
-				const clickElement = this.createClickElement(localize('configure', " create a launch.json file."), () => this.commandService.executeCommand(ConfigureAction.ID));
-				this.secondMessageContainer.appendChild(clickElement);
+				this.clickElement = this.createClickElement(localize('configure', " create a launch.json file."), () => this.commandService.executeCommand(ConfigureAction.ID));
+				this.secondMessageContainer.appendChild(this.clickElement);
 			};
 			const setSecondMessageWithFolder = () => {
 				secondMessageElement.textContent = localize('noLaunchConfiguration', "To futher configure Debug and Run, ");
-				const clickElement = this.createClickElement(localize('openFolder', " open a folder"), () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false }));
-				this.secondMessageContainer.appendChild(clickElement);
+				this.clickElement = this.createClickElement(localize('openFolder', " open a folder"), () => this.dialogService.pickFolderAndOpen({ forceNewWindow: false }));
+				this.secondMessageContainer.appendChild(this.clickElement);
 
 				const moreText = $('span.moreText');
 				moreText.textContent = localize('andconfigure', " and create a launch.json file.");
@@ -104,12 +116,11 @@ export class StartView extends ViewletPane {
 			}
 
 			if (!enabled && emptyWorkbench) {
-				const clickElement = this.createClickElement(localize('openFile', "Open a file"), () => this.dialogService.pickFileAndOpen({ forceNewWindow: false }));
-				this.firstMessageContainer.appendChild(clickElement);
+				this.clickElement = this.createClickElement(localize('openFile', "Open a file"), () => this.dialogService.pickFileAndOpen({ forceNewWindow: false }));
+				this.firstMessageContainer.appendChild(this.clickElement);
 				const firstMessageElement = $('span');
 				this.firstMessageContainer.appendChild(firstMessageElement);
 				firstMessageElement.textContent = localize('canBeDebuggedOrRun', " which can be debugged or run.");
-
 
 				setSecondMessageWithFolder();
 			}
@@ -161,6 +172,10 @@ export class StartView extends ViewletPane {
 	}
 
 	focus(): void {
-		this.runButton.focus();
+		if (this.debugButton.enabled) {
+			this.debugButton.focus();
+		} else if (this.clickElement) {
+			this.clickElement.focus();
+		}
 	}
 }
