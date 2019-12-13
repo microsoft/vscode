@@ -28,7 +28,8 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 	public readonly tunnelRemotePort: number;
 	public tunnelLocalPort!: number;
-	public localAddress?: string;
+	public tunnelRemoteHost: string = 'localhost';
+	public localAddress!: string;
 
 	private readonly _options: IConnectionOptions;
 	private readonly _server: net.Server;
@@ -145,6 +146,7 @@ export class TunnelService implements ITunnelService {
 	private makeTunnel(tunnel: RemoteTunnel): RemoteTunnel {
 		return {
 			tunnelRemotePort: tunnel.tunnelRemotePort,
+			tunnelRemoteHost: tunnel.tunnelRemoteHost,
 			tunnelLocalPort: tunnel.tunnelLocalPort,
 			localAddress: tunnel.localAddress,
 			dispose: () => {

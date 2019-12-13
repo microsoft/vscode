@@ -5,13 +5,12 @@
 
 import { Action } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
@@ -57,6 +56,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { assertType } from 'vs/base/common/types';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -646,16 +646,17 @@ registry.registerWorkbenchAction(
 	'Search: Open Results in Editor', category,
 	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
 
+const searchEditorCategory = nls.localize({ comment: ['The name of the tabbed search view'], key: 'searcheditor' }, "Search Editor");
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(RerunEditorSearchAction, RerunEditorSearchAction.ID, RerunEditorSearchAction.LABEL,
 		{ primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_R },
 		ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result'))),
-	'Search Editor: Search Again', category,
+	'Search Editor: Search Again', searchEditorCategory,
 	ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result')));
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(RerunEditorSearchWithContextAction, RerunEditorSearchWithContextAction.ID, RerunEditorSearchWithContextAction.LABEL),
-	'Search Editor: Search Again (With Context)', category,
+	'Search Editor: Search Again (With Context)', searchEditorCategory,
 	ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result')));
 
 
@@ -829,11 +830,9 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
-	const { query } = args;
-	if (typeof query !== 'string') {
-		throw illegalArgument();
-	}
+CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', function (accessor, ...args) {
+	const [query] = args;
+	assertType(typeof query === 'string');
 	return getWorkspaceSymbols(query);
 });
 

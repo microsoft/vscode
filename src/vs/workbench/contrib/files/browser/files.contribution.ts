@@ -16,7 +16,7 @@ import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactory
 import { AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
-import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/textFileSaveErrorHandler';
+import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

@@ -25,7 +25,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -430,9 +430,13 @@ export function registerCommands(): void {
 			const focused = listService.lastFocusedList;
 
 			if (focused) {
-				const elements = focused.getFocus();
+				let elements = focused.getFocus();
 				if (Array.isArray(elements) && elements[0] instanceof Expression) {
-					debugService.removeWatchExpressions(elements[0].getId());
+					const selection = focused.getSelection();
+					if (selection && selection.indexOf(elements[0]) >= 0) {
+						elements = selection;
+					}
+					elements.forEach((e: Expression) => debugService.removeWatchExpressions(e.getId()));
 				}
 			}
 		}

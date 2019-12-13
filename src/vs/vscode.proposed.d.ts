@@ -16,7 +16,7 @@
 
 declare module 'vscode' {
 
-	//#region Alex - resolvers
+	//#region Alex - resolvers, AlexR - ports
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -33,7 +33,30 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export type ResolverResult = ResolvedAuthority & ResolvedOptions;
+	export interface TunnelOptions {
+		remote: { port: number, host: string };
+		localPort?: number;
+		name?: string;
+	}
+
+	export interface Tunnel extends Disposable {
+		remote: { port: number, host: string };
+		localAddress: string;
+	}
+
+	/**
+	 * Used as part of the ResolverResult if the extension has any candidate, published, or forwarded ports.
+	 */
+	export interface TunnelInformation {
+		/**
+		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
+		 * The localAddress should be the complete local address(ex. localhost:1234) for connecting to the port. Tunnels provided through
+		 * detected are read-only from the forwarded ports UI.
+		 */
+		detectedTunnels?: { remote: { port: number, host: string }, localAddress: string }[];
+	}
+
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
@@ -44,6 +67,20 @@ declare module 'vscode' {
 
 	export interface RemoteAuthorityResolver {
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+		/**
+		 * Can be optionally implemented if the extension can forward ports better than the core.
+		 * When not implemented, the core will use its default forwarding logic.
+		 * When implemented, the core will use this to forward ports.
+		 */
+		forwardPort?(tunnelOptions: TunnelOptions): Thenable<Tunnel | undefined>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Forwards a port. Currently only works for a remote host of localhost.
+		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -760,10 +797,10 @@ declare module 'vscode' {
 	export interface DebugAdapter extends Disposable {
 
 		/**
-		 * An event which fires when the debug adapter sends a Debug Adapter Protocol message to VS Code.
+		 * An event which fires after the debug adapter has sent a Debug Adapter Protocol message to VS Code.
 		 * Messages can be requests, responses, or events.
 		 */
-		readonly onSendMessage: Event<DebugProtocolMessage>;
+		readonly onDidSendMessage: Event<DebugProtocolMessage>;
 
 		/**
 		 * Handle a Debug Adapter Protocol message.
@@ -1294,10 +1331,28 @@ declare module 'vscode' {
 		/**
 		 * Marks that the code action cannot currently be applied.
 		 *
-		 * This should be a human readable description of why the code action is currently disabled. Disabled code actions
-		 * will be surfaced in the refactor UI but cannot be applied.
+		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
 		 */
-		disabled?: string;
+		disabled?: {
+			/**
+			 * Human readable description of why the code action is currently disabled.
+			 *
+			 * This is displayed in the UI.
+			 */
+			reason: string;
+		};
+	}
+
+	//#endregion
+
+	//#region Allow theme icons in hovers: https://github.com/microsoft/vscode/issues/84695
+
+	export interface MarkdownString {
+
+		/**
+		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
+		 */
+		readonly supportThemeIcons?: boolean;
 	}
 
 	//#endregion

@@ -108,7 +108,7 @@
 }
 
 .debug-viewlet .disabled {
-	opacity: 0.35;
+	opacity: 0.65;
 }
 
 /* Call stack */

@@ -485,7 +485,7 @@ export class ExplorerView extends ViewPane {
 			const controller = this.renderer.getCompressedNavigationController(stat);
 
 			if (controller) {
-				if (isCompressedFolderName(e.browserEvent.target)) {
+				if (e.browserEvent instanceof KeyboardEvent || isCompressedFolderName(e.browserEvent.target)) {
 					anchor = controller.labels[controller.index];
 				} else {
 					controller.last();

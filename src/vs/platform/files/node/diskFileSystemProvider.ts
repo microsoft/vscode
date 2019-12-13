@@ -484,15 +484,15 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	//#region File Watching
 
-	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidErrorOccur: Event<string> = this._onDidWatchErrorOccur.event;
+	private _onDidWatchErrorOccur = this._register(new Emitter<string>());
+	readonly onDidErrorOccur = this._onDidWatchErrorOccur.event;
 
 	private _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
-	get onDidChangeFile(): Event<readonly IFileChange[]> { return this._onDidChangeFile.event; }
+	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
 	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
-	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(0));
+	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	private recursiveWatcherLogLevelListener: IDisposable | undefined;
 

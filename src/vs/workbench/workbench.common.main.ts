@@ -101,8 +101,8 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationServiceImpl';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -164,6 +164,7 @@ import 'vs/workbench/contrib/debug/browser/debug.contribution';
 import 'vs/workbench/contrib/debug/browser/debugQuickOpen';
 import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 import 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
+import 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import 'vs/workbench/contrib/debug/browser/repl';
 import 'vs/workbench/contrib/debug/browser/debugViewlet';
 
