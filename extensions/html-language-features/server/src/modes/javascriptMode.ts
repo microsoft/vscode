@@ -7,14 +7,15 @@ import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache
 import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString,
-	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange
-} from 'vscode-html-languageservice';
-import { LanguageMode, Settings } from './languageModes';
+	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
+	LanguageMode, Settings
+} from './languageModes';
 import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { join } from 'path';
+import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
 const TS_FILE_NAME = 'vscode://javascript/2.ts';
@@ -320,38 +321,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			if (!ranges) {
 				ranges = [Range.create(Position.create(0, 0), document.positionAt(document.getText().length))];
 			}
-			const result = [];
-
-			for (let range of ranges) {
-				const start = document.offsetAt(range.start), length = document.offsetAt(range.end) - start;
-				const tokens = jsLanguageService.getSemanticClassifications(TS_FILE_NAME, { start, length });
-
-				let prefLine = 0;
-				let prevChar = 0;
-
-				for (let token of tokens) {
-					const m = tokenMapping[token.classificationType];
-					if (m) {
-						const startPos = currentTextDocument.positionAt(token.textSpan.start);
-						if (prefLine !== startPos.line) {
-							prevChar = 0;
-						}
-						result.push(startPos.line - prefLine); // line delta
-						result.push(startPos.character - prevChar); // line delta
-						result.push(token.textSpan.length); // lemgth
-						result.push(tokenTypes.indexOf(m)); // tokenType
-						result.push(0); // tokenModifier
-
-						prefLine = startPos.line;
-						prevChar = startPos.character;
-					}
-
-				}
-			}
-			return result;
+			return getSemanticTokens(jsLanguageService, document, TS_FILE_NAME, ranges);
 		},
 		getSemanticTokenLegend(): { types: string[], modifiers: string[] } {
-			return { types: tokenTypes, modifiers: tokenModifiers };
+			return getSemanticTokenLegend();
 		},
 		dispose() {
 			jsLanguageService.dispose();
@@ -360,17 +333,6 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	};
 }
 
-const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'parameterType', 'type', 'parameter'];
-const tokenModifiers: string[] = [];
-const tokenMapping: { [name: string]: string } = {
-	[ts.ClassificationTypeNames.className]: 'class',
-	[ts.ClassificationTypeNames.enumName]: 'enum',
-	[ts.ClassificationTypeNames.interfaceName]: 'interface',
-	[ts.ClassificationTypeNames.moduleName]: 'namespace',
-	[ts.ClassificationTypeNames.typeParameterName]: 'parameterType',
-	[ts.ClassificationTypeNames.typeAliasName]: 'type',
-	[ts.ClassificationTypeNames.parameterName]: 'parameter'
-};
 
 
 
