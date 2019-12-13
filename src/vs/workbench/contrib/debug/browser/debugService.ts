@@ -570,7 +570,8 @@ export class DebugService implements IDebugService {
 			}
 
 			const closeConsoleOnEnd = this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd;
-			if (closeConsoleOnEnd === 'always' || (closeConsoleOnEnd === 'whenOpenedByDebug' && !this.replWasOpened)) {
+			if (this.panelService.getLastActivePanelId() === REPL_ID &&
+				(closeConsoleOnEnd === 'always' || (closeConsoleOnEnd === 'whenOpenedByDebug' && !this.replWasOpened))) {
 				this.panelService.hideActivePanel();
 			}
 
