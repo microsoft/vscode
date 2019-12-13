@@ -61,9 +61,9 @@ export class Dialog extends Disposable {
 
 	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
 		super();
-		this.modal = this.container.appendChild($(`.dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
+		this.modal = this.container.appendChild($(`.monaco-dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
 		this.shadowElement = this.modal.appendChild($('.dialog-shadow'));
-		this.element = this.shadowElement.appendChild($('.dialog-box'));
+		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		hide(this.element);
 
 		// If no button is provided, default to OK

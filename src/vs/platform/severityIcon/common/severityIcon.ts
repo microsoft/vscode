@@ -32,7 +32,7 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-editor .zone-widget .codicon-error,
 			.monaco-workbench .markers-panel .marker-icon.codicon-error,
 			.monaco-workbench .extensions-viewlet > .extensions .codicon-error,
-			.monaco-workbench .dialog-box .dialog-message-row .codicon-error {
+			.monaco-dialog-box .dialog-message-row .codicon-error {
 				color: ${errorIconForeground};
 			}
 		`);
@@ -45,7 +45,7 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .markers-panel .marker-icon.codicon-warning,
 			.monaco-workbench .extensions-viewlet > .extensions .codicon-warning,
 			.monaco-workbench .extension-editor .codicon-warning,
-			.monaco-workbench .dialog-box .dialog-message-row .codicon-warning {
+			.monaco-dialog-box .dialog-message-row .codicon-warning {
 				color: ${warningIconForeground};
 			}
 		`);
@@ -58,7 +58,7 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .markers-panel .marker-icon.codicon-info,
 			.monaco-workbench .extensions-viewlet > .extensions .codicon-info,
 			.monaco-workbench .extension-editor .codicon-info,
-			.monaco-workbench .dialog-box .dialog-message-row .codicon-info {
+			.monaco-dialog-box .dialog-message-row .codicon-info {
 				color: ${infoIconForeground};
 			}
 		`);
