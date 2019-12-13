@@ -122,7 +122,6 @@ export class StartView extends ViewPane {
 				this.firstMessageContainer.appendChild(firstMessageElement);
 				firstMessageElement.textContent = localize('canBeDebuggedOrRun', " which can be debugged or run.");
 
-
 				setSecondMessageWithFolder();
 			}
 		}
