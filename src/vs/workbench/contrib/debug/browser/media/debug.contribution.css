@@ -54,14 +54,6 @@
 	margin-right: 4px;
 }
 
-/* Do not show call stack decoration when we plan to show breakpoint and top stack frame in one decoration */
-.monaco-editor .debug-breakpoint-placeholder ~ .debug-top-stack-frame-column::before {
-	width: 0em;
-	content: '';
-	margin-right: 0px;
-	margin-left: 0px;
-}
-
 .monaco-editor .inline-breakpoint-widget {
 	cursor: pointer;
 }
