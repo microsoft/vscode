@@ -311,13 +311,13 @@ export class OneLineRange extends SearchRange {
 	}
 }
 
-export const enum SearchSortOrderConfiguration {
-	default,
-	fileNames,
-	type,
-	modified,
-	countDescending,
-	countAscending
+export const enum SearchSortOrder {
+	Default = 'default',
+	FileNames = 'fileNames',
+	Type = 'type',
+	Modified = 'modified',
+	CountDescending = 'countDescending',
+	CountAscending = 'countAscending'
 }
 
 export interface ISearchConfigurationProperties {
@@ -342,7 +342,7 @@ export interface ISearchConfigurationProperties {
 	searchOnTypeDebouncePeriod: number;
 	enableSearchEditorPreview: boolean;
 	searchEditorPreviewForceAbsolutePaths: boolean;
-	sortOrder: SearchSortOrderConfiguration;
+	sortOrder: SearchSortOrder;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult, SearchSortOrderConfiguration } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -643,22 +643,22 @@ export class FolderMatchWithResource extends FolderMatch {
  * Compares instances of the same match type. Different match types should not be siblings
  * and their sort order is undefined.
  */
-export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrderConfiguration = SearchSortOrderConfiguration.default): number {
+export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
 	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
 		return elementA.index() - elementB.index();
 	}
 
 	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
 		switch (sortOrder) {
-			case SearchSortOrderConfiguration.countDescending:
+			case SearchSortOrder.CountDescending:
 				return elementB.count() - elementA.count();
-			case SearchSortOrderConfiguration.countAscending:
+			case SearchSortOrder.CountAscending:
 				return elementA.count() - elementB.count();
-			case SearchSortOrderConfiguration.type:
+			case SearchSortOrder.Type:
 				return compareFileExtensions(elementA.name(), elementB.name());
-			case SearchSortOrderConfiguration.fileNames:
+			case SearchSortOrder.FileNames:
 				return compareFileNames(elementA.name(), elementB.name());
-			case SearchSortOrderConfiguration.modified:
+			case SearchSortOrder.Modified:
 				const fileStatA = elementA.fileStat;
 				const fileStatB = elementB.fileStat;
 				if (fileStatA && fileStatB) {

@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID, SearchSortOrderConfiguration } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -196,7 +196,7 @@ export class SearchView extends ViewPane {
 		});
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.sortOrder')) {
-				if (this.searchConfig.sortOrder === SearchSortOrderConfiguration.modified) {
+				if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 					// If changing away from modified, remove all fileStats
 					// so that updated files are re-retrieved next time.
 					this.removeFileStats();
@@ -505,7 +505,7 @@ export class SearchView extends ViewPane {
 		const collapseResults = this.searchConfig.collapseResults;
 		if (!event || event.added || event.removed) {
 			// Refresh whole tree
-			if (this.searchConfig.sortOrder === SearchSortOrderConfiguration.modified) {
+			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 				// Ensure all matches have retrieved their file stat
 				this.retrieveFileStats()
 					.then(() => this.tree.setChildren(null, this.createResultIterator(collapseResults)));
@@ -514,8 +514,8 @@ export class SearchView extends ViewPane {
 			}
 		} else {
 			// If updated counts affect our search order, re-sort the view.
-			if (this.searchConfig.sortOrder === SearchSortOrderConfiguration.countAscending ||
-				this.searchConfig.sortOrder === SearchSortOrderConfiguration.countDescending) {
+			if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
+				this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
 				this.tree.setChildren(null, this.createResultIterator(collapseResults));
 			} else {
 				// FileMatch modified, refresh those elements
@@ -1715,7 +1715,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
-		if (!this.viewModel || (this.searchConfig.sortOrder !== SearchSortOrderConfiguration.modified && !e.gotDeleted())) {
+		if (!this.viewModel || (this.searchConfig.sortOrder !== SearchSortOrder.Modified && !e.gotDeleted())) {
 			return;
 		}
 
@@ -1727,7 +1727,7 @@ export class SearchView extends ViewPane {
 		} else {
 			// Check if the changed file contained matches
 			const changedMatches = matches.filter(m => e.contains(m.resource));
-			if (changedMatches.length && this.searchConfig.sortOrder === SearchSortOrderConfiguration.modified) {
+			if (changedMatches.length && this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 				// No matches need to be removed, but modified files need to have their file stat updated.
 				this.updateFileStats(changedMatches).then(() => this.refreshTree());
 			}
@@ -1809,7 +1809,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private async updateFileStats(elements: FileMatch[]): Promise<void> {
-		const files = this.searchResult.matches().map(f => f.resolveFileStat(this.fileService));
+		const files = elements.map(f => f.resolveFileStat(this.fileService));
 		await Promise.all(files);
 	}
 
