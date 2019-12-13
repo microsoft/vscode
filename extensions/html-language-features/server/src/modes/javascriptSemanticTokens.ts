@@ -6,37 +6,56 @@
 import { TextDocument, Range } from './languageModes';
 import * as ts from 'typescript';
 
+type SemanticTokenData = { offset: number, length: number, typeIdx: number, modifierSet: number };
+
 export function getSemanticTokens(jsLanguageService: ts.LanguageService, currentTextDocument: TextDocument, fileName: string, ranges: Range[]) {
-	const result = [];
+	//https://ts-ast-viewer.com/#code/AQ0g2CmAuwGbALzAJwG4BQZQGNwEMBnQ4AQQEYBmYAb2C22zgEtJwATJVTRxgcwD27AQAp8AGmAAjAJS0A9POB8+7NQ168oscAJz5wANXwAnLug2bsJmAFcTAO2XAA1MHyvgu-UdOeWbOw8ViAAvpagocBAA
 
-	for (let range of ranges) {
-		const start = currentTextDocument.offsetAt(range.start), length = currentTextDocument.offsetAt(range.end) - start;
-		const tokens = jsLanguageService.getSemanticClassifications(fileName, { start, length });
-
-		let prefLine = 0;
-		let prevChar = 0;
-
-		for (let token of tokens) {
-			const m = tokenMapping[token.classificationType];
-			if (m) {
-				const startPos = currentTextDocument.positionAt(token.textSpan.start);
-				if (prefLine !== startPos.line) {
-					prevChar = 0;
-				}
-				result.push(startPos.line - prefLine); // line delta
-				result.push(startPos.character - prevChar); // line delta
-				result.push(token.textSpan.length); // lemgth
-				result.push(tokenTypes.indexOf(m)); // tokenType
-				result.push(0); // tokenModifier
-
-				prefLine = startPos.line;
-				prevChar = startPos.character;
-			}
-
+	let resultTokens: SemanticTokenData[] = [];
+	const tokens = jsLanguageService.getSemanticClassifications(fileName, { start: 0, length: currentTextDocument.getText().length });
+	for (let token of tokens) {
+		const typeIdx = tokenMapping[token.classificationType];
+		if (typeIdx !== undefined) {
+			resultTokens.push({ offset: token.textSpan.start, length: token.textSpan.length, typeIdx, modifierSet: 0 });
 		}
 	}
-	return result;
+
+	resultTokens = resultTokens.sort((d1, d2) => d1.offset - d2.offset);
+	const offsetRanges = ranges.map(r => ({ startOffset: currentTextDocument.offsetAt(r.start), endOffset: currentTextDocument.offsetAt(r.end) })).sort((d1, d2) => d1.startOffset - d2.startOffset);
+
+	let rangeIndex = 0;
+	let currRange = offsetRanges[rangeIndex++];
+
+	let prefLine = 0;
+	let prevChar = 0;
+
+	let encodedResult: number[] = [];
+
+	for (let k = 0; k < resultTokens.length && currRange; k++) {
+		const curr = resultTokens[k];
+		if (currRange.startOffset <= curr.offset && curr.offset + curr.length <= currRange.endOffset) {
+			// token inside a range
+
+			const startPos = currentTextDocument.positionAt(curr.offset);
+			if (prefLine !== startPos.line) {
+				prevChar = 0;
+			}
+			encodedResult.push(startPos.line - prefLine); // line delta
+			encodedResult.push(startPos.character - prevChar); // line delta
+			encodedResult.push(curr.length); // length
+			encodedResult.push(curr.typeIdx); // tokenType
+			encodedResult.push(curr.modifierSet); // tokenModifier
+
+			prefLine = startPos.line;
+			prevChar = startPos.character;
+
+		} else if (currRange.endOffset >= curr.offset) {
+			currRange = offsetRanges[rangeIndex++];
+		}
+	}
+	return encodedResult;
 }
+
 
 export function getSemanticTokenLegend() {
 	return { types: tokenTypes, modifiers: tokenModifiers };
@@ -45,12 +64,13 @@ export function getSemanticTokenLegend() {
 
 const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'parameterType', 'type', 'parameter'];
 const tokenModifiers: string[] = [];
-const tokenMapping: { [name: string]: string } = {
-	[ts.ClassificationTypeNames.className]: 'class',
-	[ts.ClassificationTypeNames.enumName]: 'enum',
-	[ts.ClassificationTypeNames.interfaceName]: 'interface',
-	[ts.ClassificationTypeNames.moduleName]: 'namespace',
-	[ts.ClassificationTypeNames.typeParameterName]: 'parameterType',
-	[ts.ClassificationTypeNames.typeAliasName]: 'type',
-	[ts.ClassificationTypeNames.parameterName]: 'parameter'
+
+const tokenMapping: { [name: string]: number } = {
+	[ts.ClassificationTypeNames.className]: tokenTypes.indexOf('class'),
+	[ts.ClassificationTypeNames.enumName]: tokenTypes.indexOf('enum'),
+	[ts.ClassificationTypeNames.interfaceName]: tokenTypes.indexOf('interface'),
+	[ts.ClassificationTypeNames.moduleName]: tokenTypes.indexOf('namespace'),
+	[ts.ClassificationTypeNames.typeParameterName]: tokenTypes.indexOf('parameterType'),
+	[ts.ClassificationTypeNames.typeAliasName]: tokenTypes.indexOf('type'),
+	[ts.ClassificationTypeNames.parameterName]: tokenTypes.indexOf('parameter')
 };

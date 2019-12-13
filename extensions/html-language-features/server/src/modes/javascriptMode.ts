@@ -321,7 +321,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			if (!ranges) {
 				ranges = [Range.create(Position.create(0, 0), document.positionAt(document.getText().length))];
 			}
-			return getSemanticTokens(jsLanguageService, document, TS_FILE_NAME, ranges);
+			return getSemanticTokens(jsLanguageService, currentTextDocument, TS_FILE_NAME, ranges);
 		},
 		getSemanticTokenLegend(): { types: string[], modifiers: string[] } {
 			return getSemanticTokenLegend();
