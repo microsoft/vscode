@@ -16,6 +16,10 @@
 	align-items: center;
 }
 
+.inline-breakpoint-widget.codicon-debug-breakpoint-disabled {
+	opacity: 0.7;
+}
+
 .codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
 .codicon-debug-breakpoint.codicon-debug-stackframe::after {
 	content: '\eb8a';
@@ -32,8 +36,6 @@
 	width: 0.9em;
 	display: inline-flex;
 	vertical-align: middle;
-	margin-right: 2px;
-	margin-left: 2px;
 	margin-top: -1px; /* TODO @misolori: figure out a way to not use negative margin for alignment */
 }
 
