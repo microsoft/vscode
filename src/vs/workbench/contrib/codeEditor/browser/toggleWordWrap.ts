@@ -13,7 +13,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -54,7 +54,7 @@ function readTransientState(model: ITextModel, codeEditorService: ICodeEditorSer
 	return codeEditorService.getTransientModelProperty(model, transientWordWrapState);
 }
 
-function readWordWrapState(model: ITextModel, configurationService: ITextResourceConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
+function readWordWrapState(model: ITextModel, configurationService: IResourceConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
 	const editorConfig = configurationService.getValue(model.uri, 'editor') as { wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded'; wordWrapMinified: boolean };
 	let _configuredWordWrap = editorConfig && (typeof editorConfig.wordWrap === 'string' || typeof editorConfig.wordWrap === 'boolean') ? editorConfig.wordWrap : undefined;
 
@@ -146,7 +146,7 @@ class ToggleWordWrapAction extends EditorAction {
 			return;
 		}
 
-		const textResourceConfigurationService = accessor.get(ITextResourceConfigurationService);
+		const textResourceConfigurationService = accessor.get(IResourceConfigurationService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const model = editor.getModel();
 
@@ -171,7 +171,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@ITextResourceConfigurationService readonly configurationService: ITextResourceConfigurationService,
+		@IResourceConfigurationService readonly configurationService: IResourceConfigurationService,
 		@ICodeEditorService readonly codeEditorService: ICodeEditorService
 	) {
 		super();

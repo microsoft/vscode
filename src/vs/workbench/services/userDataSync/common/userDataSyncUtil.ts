@@ -10,7 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourcePropertiesService, ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourcePropertiesService, IResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
@@ -20,7 +20,7 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 		@IKeybindingService private readonly keybindingsService: IKeybindingService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
-		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@IResourceConfigurationService private readonly textResourceConfigurationService: IResourceConfigurationService,
 	) { }
 
 	public async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {

@@ -246,7 +246,7 @@ export function escapeNonWindowsPath(path: string): string {
 }
 
 export function getDefaultShell(
-	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
+	fetchSetting: (key: string) => { user?: string | string[], value?: string | string[], default?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	defaultShell: string,
 	isWoW64: boolean,
@@ -294,7 +294,7 @@ export function getDefaultShell(
 }
 
 export function getDefaultShellArgs(
-	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
+	fetchSetting: (key: string) => { user?: string | string[], value?: string | string[], default?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	useAutomationShell: boolean,
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
@@ -330,7 +330,7 @@ export function getDefaultShellArgs(
 }
 
 function getShellSetting(
-	fetchSetting: (key: string) => { user: string | string[] | undefined, value: string | string[] | undefined, default: string | string[] | undefined },
+	fetchSetting: (key: string) => { user?: string | string[], value?: string | string[], default?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	type: 'automationShell' | 'shell',
 	platformOverride: platform.Platform = platform.platform,
@@ -344,7 +344,7 @@ function getShellSetting(
 export function createTerminalEnvironment(
 	shellLaunchConfig: IShellLaunchConfig,
 	lastActiveWorkspace: IWorkspaceFolder | null,
-	envFromConfig: { user: ITerminalEnvironment | undefined, value: ITerminalEnvironment | undefined, default: ITerminalEnvironment | undefined },
+	envFromConfig: { user?: ITerminalEnvironment, value?: ITerminalEnvironment, default?: ITerminalEnvironment },
 	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,
 	version: string | undefined,

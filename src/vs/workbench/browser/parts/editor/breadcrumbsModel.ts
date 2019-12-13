@@ -24,7 +24,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 export class FileElement {
 	constructor(
@@ -55,7 +55,7 @@ export class EditorBreadcrumbsModel {
 		private readonly _uri: URI,
 		private readonly _editor: ICodeEditor | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
+		@IResourceConfigurationService private readonly _textResourceConfigurationService: IResourceConfigurationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 	) {
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(_configurationService);

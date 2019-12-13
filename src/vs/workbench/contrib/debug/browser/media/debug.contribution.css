@@ -7,7 +7,7 @@
 	cursor: pointer;
 }
 
-.codicon-debug-hint:not([class*='codicon-debug-breakpoint']) {
+.codicon-debug-hint:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']) {
 	opacity: 0.4 !important;
 }
 

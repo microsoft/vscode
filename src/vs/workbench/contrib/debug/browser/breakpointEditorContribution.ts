@@ -641,7 +641,7 @@ registerThemingParticipant((theme, collector) => {
 		.monaco-workbench .codicon-debug-breakpoint-function,
 		.monaco-workbench .codicon-debug-breakpoint-data,
 		.monaco-workbench .codicon-debug-breakpoint-unsupported,
-		.monaco-workbench .codicon-debug-hint:not([class*='codicon-debug-breakpoint']),
+		.monaco-workbench .codicon-debug-hint:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']),
 		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
 		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe::after {
 			color: ${debugIconBreakpointColor} !important;

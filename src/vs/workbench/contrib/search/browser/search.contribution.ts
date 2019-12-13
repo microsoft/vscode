@@ -646,16 +646,17 @@ registry.registerWorkbenchAction(
 	'Search: Open Results in Editor', category,
 	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
 
+const searchEditorCategory = nls.localize({ comment: ['The name of the tabbed search view'], key: 'searcheditor' }, "Search Editor");
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(RerunEditorSearchAction, RerunEditorSearchAction.ID, RerunEditorSearchAction.LABEL,
 		{ primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_R },
 		ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result'))),
-	'Search Editor: Search Again', category,
+	'Search Editor: Search Again', searchEditorCategory,
 	ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result')));
 
 registry.registerWorkbenchAction(
 	SyncActionDescriptor.create(RerunEditorSearchWithContextAction, RerunEditorSearchWithContextAction.ID, RerunEditorSearchWithContextAction.LABEL),
-	'Search Editor: Search Again (With Context)', category,
+	'Search Editor: Search Again (With Context)', searchEditorCategory,
 	ContextKeyExpr.and(EditorContextKeys.languageId.isEqualTo('search-result')));
 
 

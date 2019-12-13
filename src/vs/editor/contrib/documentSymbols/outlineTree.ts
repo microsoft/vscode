@@ -22,7 +22,7 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { registerColor, listErrorForeground, listWarningForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IdleValue } from 'vs/base/common/async';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { URI } from 'vs/base/common/uri';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
@@ -282,7 +282,7 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 
 	constructor(
 		private readonly _prefix: string,
-		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
+		@IResourceConfigurationService private readonly _textResourceConfigService: IResourceConfigurationService,
 	) { }
 
 	filter(element: OutlineItem): boolean {

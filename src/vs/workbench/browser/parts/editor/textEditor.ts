@@ -16,7 +16,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -46,7 +46,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
+		@IResourceConfigurationService private readonly _configurationService: IResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
@@ -66,7 +66,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this._instantiationService;
 	}
 
-	protected get configurationService(): ITextResourceConfigurationService {
+	protected get configurationService(): IResourceConfigurationService {
 		return this._configurationService;
 	}
 

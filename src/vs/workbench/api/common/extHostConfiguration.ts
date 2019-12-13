@@ -8,12 +8,10 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData, MainContext } from './extHost.protocol';
+import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfigurationInitData, MainContext } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
-import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
-import { ResourceMap } from 'vs/base/common/map';
+import { ConfigurationTarget, IConfigurationChange, IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -21,6 +19,7 @@ import { Barrier } from 'vs/base/common/async';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -72,8 +71,8 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		this._barrier.open();
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData): void {
-		this.getConfigProvider().then(provider => provider.$acceptConfigurationChanged(data, eventData));
+	$acceptConfigurationChanged(data: IConfigurationInitData, change: IConfigurationChange): void {
+		this.getConfigProvider().then(provider => provider.$acceptConfigurationChanged(data, change));
 	}
 }
 
@@ -90,7 +89,7 @@ export class ExtHostConfigProvider {
 		this._proxy = proxy;
 		this._logService = logService;
 		this._extHostWorkspace = extHostWorkspace;
-		this._configuration = ExtHostConfigProvider.parse(data);
+		this._configuration = Configuration.parse(data);
 		this._configurationScopes = this._toMap(data.configurationScopes);
 	}
 
@@ -98,10 +97,11 @@ export class ExtHostConfigProvider {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationInitData, eventData: IWorkspaceConfigurationChangeEventData) {
-		this._configuration = ExtHostConfigProvider.parse(data);
+	$acceptConfigurationChanged(data: IConfigurationInitData, change: IConfigurationChange) {
+		const previous = { data: this._configuration.toData(), workspace: this._extHostWorkspace.workspace };
+		this._configuration = Configuration.parse(data);
 		this._configurationScopes = this._toMap(data.configurationScopes);
-		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(eventData));
+		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
 	}
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
@@ -254,17 +254,10 @@ export class ExtHostConfigProvider {
 		}
 	}
 
-	private _toConfigurationChangeEvent(data: IWorkspaceConfigurationChangeEventData): vscode.ConfigurationChangeEvent {
-		const changedConfiguration = new ConfigurationModel(data.changedConfiguration.contents, data.changedConfiguration.keys, data.changedConfiguration.overrides);
-		const changedConfigurationByResource: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>();
-		for (const key of Object.keys(data.changedConfigurationByResource)) {
-			const resource = URI.parse(key);
-			const model = data.changedConfigurationByResource[key];
-			changedConfigurationByResource.set(resource, new ConfigurationModel(model.contents, model.keys, model.overrides));
-		}
-		const event = new WorkspaceConfigurationChangeEvent(new ConfigurationChangeEvent(changedConfiguration, changedConfigurationByResource), this._extHostWorkspace.workspace);
+	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData, workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
+		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace);
 		return Object.freeze({
-			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, resource)
+			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, resource ? { resource } : undefined)
 		});
 	}
 
@@ -272,20 +265,6 @@ export class ExtHostConfigProvider {
 		return scopes.reduce((result, scope) => { result.set(scope[0], scope[1]); return result; }, new Map<string, ConfigurationScope | undefined>());
 	}
 
-	private static parse(data: IConfigurationData): Configuration {
-		const defaultConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.defaults);
-		const userConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.user);
-		const workspaceConfiguration = ExtHostConfigProvider.parseConfigurationModel(data.workspace);
-		const folders: ResourceMap<ConfigurationModel> = data.folders.reduce((result, value) => {
-			result.set(URI.revive(value[0]), ExtHostConfigProvider.parseConfigurationModel(value[1]));
-			return result;
-		}, new ResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, userConfiguration, new ConfigurationModel(), workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);
-	}
-
-	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {
-		return new ConfigurationModel(model.contents, model.keys, model.overrides).freeze();
-	}
 }
 
 export const IExtHostConfiguration = createDecorator<IExtHostConfiguration>('IExtHostConfiguration');
