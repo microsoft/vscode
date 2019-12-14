@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -29,6 +29,8 @@ import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class Match {
 
@@ -188,6 +190,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
+	private _fileStat?: IFileStatWithMetadata;
 	private _model: ITextModel | null = null;
 	private _modelListener: IDisposable | null = null;
 	private _matches: Map<string, Match>;
@@ -409,6 +412,18 @@ export class FileMatch extends Disposable implements IFileMatch {
 		} else {
 			this.updateHighlights();
 		}
+	}
+
+	async resolveFileStat(fileService: IFileService): Promise<void> {
+		this._fileStat = await fileService.resolve(this.resource, { resolveMetadata: true });
+	}
+
+	public get fileStat(): IFileStatWithMetadata | undefined {
+		return this._fileStat;
+	}
+
+	public set fileStat(stat: IFileStatWithMetadata | undefined) {
+		this._fileStat = stat;
 	}
 
 	dispose(): void {
@@ -633,13 +648,31 @@ export class FolderMatchWithResource extends FolderMatch {
  * Compares instances of the same match type. Different match types should not be siblings
  * and their sort order is undefined.
  */
-export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
+export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
 	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
 		return elementA.index() - elementB.index();
 	}
 
 	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
-		return elementA.resource.fsPath.localeCompare(elementB.resource.fsPath) || elementA.name().localeCompare(elementB.name());
+		switch (sortOrder) {
+			case SearchSortOrder.CountDescending:
+				return elementB.count() - elementA.count();
+			case SearchSortOrder.CountAscending:
+				return elementA.count() - elementB.count();
+			case SearchSortOrder.Type:
+				return compareFileExtensions(elementA.name(), elementB.name());
+			case SearchSortOrder.FileNames:
+				return compareFileNames(elementA.name(), elementB.name());
+			case SearchSortOrder.Modified:
+				const fileStatA = elementA.fileStat;
+				const fileStatB = elementB.fileStat;
+				if (fileStatA && fileStatB) {
+					return fileStatB.mtime - fileStatA.mtime;
+				}
+			// Fall through otherwise
+			default:
+				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
+		}
 	}
 
 	if (elementA instanceof Match && elementB instanceof Match) {

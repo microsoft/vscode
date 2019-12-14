@@ -51,7 +51,7 @@ import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contri
 import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, Match, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_ID, VIEW_CONTAINER } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_ID, VIEW_CONTAINER, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
@@ -827,7 +827,21 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('search.enableSearchEditorPreview', "Experimental: When enabled, allows opening workspace search results in an editor.")
-		}
+		},
+		'search.sortOrder': {
+			'type': 'string',
+			'enum': [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
+			'default': SearchSortOrder.Default,
+			'enumDescriptions': [
+				nls.localize('searchSortOrder.default', 'Results are sorted by folder and file names, in alphabetical order.'),
+				nls.localize('searchSortOrder.filesOnly', 'Results are sorted by file names ignoring folder order, in alphabetical order.'),
+				nls.localize('searchSortOrder.type', 'Results are sorted by file extensions, in alphabetical order.'),
+				nls.localize('searchSortOrder.modified', 'Results are sorted by file last modified date, in descending order.'),
+				nls.localize('searchSortOrder.countDescending', 'Results are sorted by count per file, in descending order.'),
+				nls.localize('searchSortOrder.countAscending', 'Results are sorted by count per file, in ascending order.')
+			],
+			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
+		},
 	}
 });
 

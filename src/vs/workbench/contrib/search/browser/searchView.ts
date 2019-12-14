@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -195,6 +195,16 @@ export class SearchView extends ViewPane {
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.previewSearchEditor')) {
 				this.enableSearchEditorPreview.set(this.searchConfig.enableSearchEditorPreview);
+			}
+		});
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('search.sortOrder')) {
+				if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
+					// If changing away from modified, remove all fileStats
+					// so that updated files are re-retrieved next time.
+					this.removeFileStats();
+				}
+				this.refreshTree();
 			}
 		});
 
@@ -503,13 +513,25 @@ export class SearchView extends ViewPane {
 		const collapseResults = this.searchConfig.collapseResults;
 		if (!event || event.added || event.removed) {
 			// Refresh whole tree
-			this.tree.setChildren(null, this.createResultIterator(collapseResults));
+			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
+				// Ensure all matches have retrieved their file stat
+				this.retrieveFileStats()
+					.then(() => this.tree.setChildren(null, this.createResultIterator(collapseResults)));
+			} else {
+				this.tree.setChildren(null, this.createResultIterator(collapseResults));
+			}
 		} else {
-			// FileMatch modified, refresh those elements
-			event.elements.forEach(element => {
-				this.tree.setChildren(element, this.createIterator(element, collapseResults));
-				this.tree.rerender(element);
-			});
+			// If updated counts affect our search order, re-sort the view.
+			if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
+				this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
+				this.tree.setChildren(null, this.createResultIterator(collapseResults));
+			} else {
+				// FileMatch modified, refresh those elements
+				event.elements.forEach(element => {
+					this.tree.setChildren(element, this.createIterator(element, collapseResults));
+					this.tree.rerender(element);
+				});
+			}
 		}
 	}
 
@@ -530,9 +552,10 @@ export class SearchView extends ViewPane {
 	}
 
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterator<ITreeElement<RenderableMatch>> {
+		const sortOrder = this.searchConfig.sortOrder;
 		const filesIt = Iterator.fromArray(
 			folderMatch.matches()
-				.sort(searchMatchComparer));
+				.sort((a, b) => searchMatchComparer(a, b, sortOrder)));
 
 		return Iterator.map(filesIt, fileMatch => {
 			const children = this.createFileIterator(fileMatch);
@@ -1703,14 +1726,23 @@ export class SearchView extends ViewPane {
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
-		if (!this.viewModel || !e.gotDeleted()) {
+		if (!this.viewModel || (this.searchConfig.sortOrder !== SearchSortOrder.Modified && !e.gotDeleted())) {
 			return;
 		}
 
 		const matches = this.viewModel.searchResult.matches();
+		if (e.gotDeleted()) {
+			const deletedMatches = matches.filter(m => e.contains(m.resource, FileChangeType.DELETED));
 
-		const changedMatches = matches.filter(m => e.contains(m.resource, FileChangeType.DELETED));
-		this.viewModel.searchResult.remove(changedMatches);
+			this.viewModel.searchResult.remove(deletedMatches);
+		} else {
+			// Check if the changed file contained matches
+			const changedMatches = matches.filter(m => e.contains(m.resource));
+			if (changedMatches.length && this.searchConfig.sortOrder === SearchSortOrder.Modified) {
+				// No matches need to be removed, but modified files need to have their file stat updated.
+				this.updateFileStats(changedMatches).then(() => this.refreshTree());
+			}
+		}
 	}
 
 	getActions(): IAction[] {
@@ -1781,6 +1813,22 @@ export class SearchView extends ViewPane {
 		this.searchHistoryService.save(history);
 
 		super.saveState();
+	}
+
+	private async retrieveFileStats(): Promise<void> {
+		const files = this.searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
+		await Promise.all(files);
+	}
+
+	private async updateFileStats(elements: FileMatch[]): Promise<void> {
+		const files = elements.map(f => f.resolveFileStat(this.fileService));
+		await Promise.all(files);
+	}
+
+	private removeFileStats(): void {
+		for (const fileMatch of this.searchResult.matches()) {
+			fileMatch.fileStat = undefined;
+		}
 	}
 
 	dispose(): void {
