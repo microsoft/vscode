@@ -128,6 +128,16 @@ export function activateMirrorCursor(
 						workspace.applyEdit(cleanupEdit);
 					}
 				}
+			} else {
+				const charBeforeAndAfterPositionsRoughlyEqual = isCharBeforeAndAfterPositionsRoughlyEqual(
+					event.textEditor.document,
+					event.selections[0].active,
+					event.selections[1].active
+				);
+
+				if (!charBeforeAndAfterPositionsRoughlyEqual) {
+					exitMirrorMode();
+				}
 			}
 		}
 	}
