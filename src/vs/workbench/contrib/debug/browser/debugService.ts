@@ -90,7 +90,8 @@ export class DebugService implements IDebugService {
 	private previousState: State | undefined;
 	private initCancellationToken: CancellationTokenSource | undefined;
 
-	private replWasOpened = false;
+	// Enable undefined because that makes the test easier.
+	private replWasOpened : boolean | undefined = false;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -454,7 +455,8 @@ export class DebugService implements IDebugService {
 			await this.launchOrAttachToSession(session);
 
 			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
-			this.replWasOpened = this.layoutService.isVisible(Parts.PANEL_PART);
+			const activePanel = this.panelService.getActivePanel();
+			this.replWasOpened = activePanel && activePanel.getId() === REPL_ID;
 			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
 				this.panelService.openPanel(REPL_ID, false);
 			}
