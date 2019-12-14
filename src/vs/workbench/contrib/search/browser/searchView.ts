@@ -209,7 +209,7 @@ export class SearchView extends ViewPane {
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
-    
+
 		this.addToSearchHistoryDelayer = this._register(new Delayer<void>(2000));
 		this.toggleCollapseStateDelayer = this._register(new Delayer<void>(100));
 
