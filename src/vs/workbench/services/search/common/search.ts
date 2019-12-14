@@ -311,6 +311,15 @@ export class OneLineRange extends SearchRange {
 	}
 }
 
+export const enum SearchSortOrder {
+	Default = 'default',
+	FileNames = 'fileNames',
+	Type = 'type',
+	Modified = 'modified',
+	CountDescending = 'countDescending',
+	CountAscending = 'countAscending'
+}
+
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
@@ -333,6 +342,7 @@ export interface ISearchConfigurationProperties {
 	searchOnTypeDebouncePeriod: number;
 	enableSearchEditorPreview: boolean;
 	searchEditorPreviewForceAbsolutePaths: boolean;
+	sortOrder: SearchSortOrder;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

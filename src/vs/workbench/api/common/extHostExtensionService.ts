@@ -32,7 +32,6 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -77,7 +76,6 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	protected readonly _extHostWorkspace: ExtHostWorkspace;
 	protected readonly _extHostConfiguration: ExtHostConfiguration;
 	protected readonly _logService: ILogService;
-	protected readonly _extHostTunnelService: IExtHostTunnelService;
 
 	protected readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
 	protected readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
@@ -106,8 +104,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		@IExtHostConfiguration extHostConfiguration: IExtHostConfiguration,
 		@ILogService logService: ILogService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
-		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService
+		@IExtensionStoragePaths storagePath: IExtensionStoragePaths
 	) {
 		this._hostUtils = hostUtils;
 		this._extHostContext = extHostContext;
@@ -116,7 +113,6 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		this._extHostWorkspace = extHostWorkspace;
 		this._extHostConfiguration = extHostConfiguration;
 		this._logService = logService;
-		this._extHostTunnelService = extHostTunnelService;
 		this._disposables = new DisposableStore();
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
@@ -656,13 +652,12 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 				extensionHostEnv: result.extensionHostEnv
 			};
 
-			await this._extHostTunnelService.addDetected(result.detectedTunnels);
-
 			return {
 				type: 'ok',
 				value: {
 					authority,
-					options
+					options,
+					tunnelInformation: { detectedTunnels: result.detectedTunnels }
 				}
 			};
 		} catch (err) {

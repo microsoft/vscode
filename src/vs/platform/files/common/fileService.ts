@@ -764,9 +764,18 @@ export class FileService extends Disposable implements IFileService {
 			throw new Error(localize('err.trash', "Provider does not support trash."));
 		}
 
+		// Validate delete
+		const exists = await this.exists(resource);
+		if (!exists) {
+			throw new FileOperationError(
+				localize('fileNotFoundError', "File not found ({0})", this.resourceForError(resource)),
+				FileOperationResult.FILE_NOT_FOUND
+			);
+		}
+
 		// Validate recursive
 		const recursive = !!options?.recursive;
-		if (!recursive && await this.exists(resource)) {
+		if (!recursive && exists) {
 			const stat = await this.resolve(resource);
 			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
 				throw new Error(localize('deleteFailed', "Unable to delete non-empty folder '{0}'.", this.resourceForError(resource)));

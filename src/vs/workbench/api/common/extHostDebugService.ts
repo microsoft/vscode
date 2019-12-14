@@ -825,7 +825,7 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 		if (aex) {
 			const folder = session.workspaceFolder;
 			const rootFolder = folder ? folder.uri.toString() : undefined;
-			return this._commandService.executeCommand(aex, rootFolder).then((ae: { command: string, args: string[] }) => {
+			return this._commandService.executeCommand(aex, rootFolder).then((ae: any) => {
 				return new DebugAdapterExecutable(ae.command, ae.args || []);
 			});
 		}
@@ -1049,9 +1049,9 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 	constructor(private implementation: vscode.DebugAdapter) {
 		super();
 
-		if (this.implementation.onSendMessage) {
-			implementation.onSendMessage((message: DebugProtocol.ProtocolMessage) => {
-				this.acceptMessage(message);
+		if (this.implementation.onDidSendMessage) {
+			implementation.onDidSendMessage((message: vscode.DebugProtocolMessage) => {
+				this.acceptMessage(message as DebugProtocol.ProtocolMessage);
 			});
 		}
 	}

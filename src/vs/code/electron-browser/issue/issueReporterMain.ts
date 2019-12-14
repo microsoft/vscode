@@ -185,8 +185,16 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.validation-error, .required-input { color: ${styles.inputErrorBorder}; }`);
+			content.push(`.invalid-input, .invalid-input:focus, .validation-error { border: 1px solid ${styles.inputErrorBorder} !important; }`);
+			content.push(`.required-input { color: ${styles.inputErrorBorder}; }`);
+		}
+
+		if (styles.inputErrorBackground) {
+			content.push(`.validation-error { background: ${styles.inputErrorBackground}; }`);
+		}
+
+		if (styles.inputErrorForeground) {
+			content.push(`.validation-error { color: ${styles.inputErrorForeground}; }`);
 		}
 
 		if (styles.inputActiveBorder) {
