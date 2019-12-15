@@ -327,6 +327,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")
 		},
+		'files.useActiveLanguage': {
+			'type': 'boolean',
+			'default': false,
+			'description': 'When available, new files will be assigned the language mode of the currently active editor. Will fallback to files.defaultLanguage if not applicable.'
+		},
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,

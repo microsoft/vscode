@@ -790,6 +790,7 @@ export interface IFilesConfiguration {
 		encoding: string;
 		autoGuessEncoding: boolean;
 		defaultLanguage: string;
+		useActiveLanguage: boolean;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;
 		autoSaveDelay: number;

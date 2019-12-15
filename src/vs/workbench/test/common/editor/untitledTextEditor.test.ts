@@ -234,6 +234,28 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
+	test('Untitled created with files.useActiveLanguage overrides files.defaultLanguage setting', () => {
+		const activeLanguage = 'typescript';
+		const defaultLanguage = 'javascript';
+		const config = accessor.testConfigurationService;
+		config.setUserConfiguration('files', {
+			'useActiveLanguage': true,
+			'defaultLanguage': defaultLanguage
+		});
+
+		const service = accessor.untitledTextEditorService;
+		const input = service.createOrGet(undefined, undefined, undefined, undefined, activeLanguage);
+
+		assert.equal(input.getMode(), activeLanguage);
+
+		config.setUserConfiguration('files', {
+			'useActiveLanguage': false,
+			'defaultLanguage': undefined
+		});
+
+		input.dispose();
+	});
+
 	test('Untitled created with mode overrides files.defaultLanguage setting', () => {
 		const mode = 'typescript';
 		const defaultLanguage = 'javascript';

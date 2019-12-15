@@ -88,7 +88,7 @@ export interface IUntitledTextEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string): UntitledTextEditorInput;
+	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, activeLanguage?: string): UntitledTextEditorInput;
 
 	/**
 	 * Creates a new untitled model with the optional resource URI or returns an existing one
@@ -202,10 +202,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	}
 
 	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): Promise<UntitledTextEditorModel> {
-		return this.createOrGet(options.resource, options.mode, options.initialValue, options.encoding, options.useResourcePath).resolve();
+		return this.createOrGet(options.resource, options.mode, options.initialValue, options.encoding, undefined, options.useResourcePath).resolve();
 	}
 
-	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
+	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, activeLanguage?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
 		if (resource) {
 
 			// Massage resource if it comes with known file based resource
@@ -225,10 +225,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		}
 
 		// Create new otherwise
-		return this.doCreate(resource, hasAssociatedFilePath, mode, initialValue, encoding);
+		return this.doCreate(resource, hasAssociatedFilePath, mode, initialValue, encoding, activeLanguage);
 	}
 
-	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, mode?: string, initialValue?: string, encoding?: string): UntitledTextEditorInput {
+	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, mode?: string, initialValue?: string, encoding?: string, activeLanguage?: string): UntitledTextEditorInput {
 		let untitledResource: URI;
 		if (resource) {
 			untitledResource = resource;
@@ -245,7 +245,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		// Look up default language from settings if any
 		if (!mode && !hasAssociatedFilePath) {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>();
-			if (configuration.files?.defaultLanguage) {
+			if (configuration.files?.useActiveLanguage && activeLanguage) {
+				mode = activeLanguage;
+			} else if (configuration.files?.defaultLanguage) {
 				mode = configuration.files.defaultLanguage;
 			}
 		}

@@ -359,7 +359,7 @@ export interface IEditorInput extends IDisposable {
 	getResource(): URI | undefined;
 
 	/**
-	 * Unique type identifier for this inpput.
+	 * Unique type identifier for this input.
 	 */
 	getTypeId(): string;
 
