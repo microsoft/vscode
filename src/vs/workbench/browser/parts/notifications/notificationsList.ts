@@ -73,7 +73,7 @@ export class NotificationsList extends Themable {
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
-		const list = this.list = this._register(this.instantiationService.createInstance(
+		const list = this.list = this._register(this.instantiationService.createInstance<typeof WorkbenchList, WorkbenchList<INotificationViewItem>>(
 			WorkbenchList,
 			'NotificationsList',
 			this.listContainer,
@@ -82,7 +82,10 @@ export class NotificationsList extends Themable {
 			{
 				...this.options,
 				setRowLineHeight: false,
-				horizontalScrolling: false
+				horizontalScrolling: false,
+				overrideStyles: {
+					listBackground: NOTIFICATIONS_BACKGROUND
+				}
 			}
 		));
 
@@ -218,13 +221,13 @@ export class NotificationsList extends Themable {
 	protected updateStyles(): void {
 		if (this.listContainer) {
 			const foreground = this.getColor(NOTIFICATIONS_FOREGROUND);
-			this.listContainer.style.color = foreground ? foreground.toString() : null;
+			this.listContainer.style.color = foreground ? foreground : null;
 
 			const background = this.getColor(NOTIFICATIONS_BACKGROUND);
-			this.listContainer.style.background = background ? background.toString() : '';
+			this.listContainer.style.background = background ? background : '';
 
 			const outlineColor = this.getColor(contrastBorder);
-			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : '';
+			this.listContainer.style.outlineColor = outlineColor ? outlineColor : '';
 		}
 	}
 

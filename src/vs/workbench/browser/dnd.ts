@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -20,7 +20,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
@@ -31,6 +31,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { isStandalone } from 'vs/base/browser/browser';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -38,6 +39,7 @@ export interface IDraggedResource {
 }
 
 export class DraggedEditorIdentifier {
+
 	constructor(private _identifier: IEditorIdentifier) { }
 
 	get identifier(): IEditorIdentifier {
@@ -46,6 +48,7 @@ export class DraggedEditorIdentifier {
 }
 
 export class DraggedEditorGroupIdentifier {
+
 	constructor(private _identifier: GroupIdentifier) { }
 
 	get identifier(): GroupIdentifier {
@@ -55,13 +58,17 @@ export class DraggedEditorGroupIdentifier {
 
 export interface IDraggedEditor extends IDraggedResource {
 	backupResource?: URI;
+	encoding?: string;
+	mode?: string;
 	viewState?: IEditorViewState;
 }
 
 export interface ISerializedDraggedEditor {
 	resource: string;
 	backupResource?: string;
-	viewState: IEditorViewState | null;
+	encoding?: string;
+	mode?: string;
+	viewState?: IEditorViewState;
 }
 
 export const CodeDataTransfers = {
@@ -85,7 +92,9 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 						resources.push({
 							resource: URI.parse(draggedEditor.resource),
 							backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined,
-							viewState: withNullAsUndefined(draggedEditor.viewState),
+							viewState: draggedEditor.viewState,
+							encoding: draggedEditor.encoding,
+							mode: draggedEditor.mode,
 							isExternal: false
 						});
 					});
@@ -162,7 +171,7 @@ export class ResourcesDropHandler {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
@@ -194,6 +203,8 @@ export class ResourcesDropHandler {
 
 		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
 			resource: untitledOrFileResource.resource,
+			encoding: (untitledOrFileResource as IDraggedEditor).encoding,
+			mode: (untitledOrFileResource as IDraggedEditor).mode,
 			options: {
 				pinned: true,
 				index: targetIndex,
@@ -233,7 +244,7 @@ export class ResourcesDropHandler {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			droppedDirtyEditor.resource = this.untitledEditorService.createOrGet().getResource();
+			droppedDirtyEditor.resource = this.untitledTextEditorService.createOrGet(undefined, droppedDirtyEditor.mode, undefined, droppedDirtyEditor.encoding).getResource();
 		}
 
 		// Return early if the resource is already dirty in target or opened already
@@ -323,14 +334,15 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		return obj;
 	});
 
-	const firstSource = sources[0];
-
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
 	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
-	event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), asDomUri(firstSource.resource).toString()].join(':'));
+	// Disabled for PWA web due to: https://github.com/microsoft/vscode/issues/83441
+	if (!sources[0].isDirectory && (!isWeb || !isStandalone)) {
+		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(sources[0].resource), asDomUri(sources[0].resource).toString()].join(':'));
+	}
 
 	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
 	const files = sources.filter(s => !s.isDirectory);
@@ -340,6 +352,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
+	const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
 	const backupFileService = accessor.get(IBackupFileService);
 	const editorService = accessor.get(IEditorService);
 
@@ -347,24 +360,42 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
-		let viewState: IEditorViewState | null = null;
+		let viewState: IEditorViewState | undefined = undefined;
 		const textEditorWidgets = editorService.visibleTextEditorWidgets;
 		for (const textEditorWidget of textEditorWidgets) {
 			if (isCodeEditor(textEditorWidget)) {
 				const model = textEditorWidget.getModel();
 				if (model?.uri?.toString() === file.resource.toString()) {
-					viewState = textEditorWidget.saveViewState();
+					viewState = withNullAsUndefined(textEditorWidget.saveViewState());
 					break;
 				}
 			}
 		}
 
+		// Try to find encoding and mode from text model
+		let encoding: string | undefined = undefined;
+		let mode: string | undefined = undefined;
+		if (untitledTextEditorService.exists(file.resource)) {
+			const model = untitledTextEditorService.createOrGet(file.resource);
+			encoding = model.getEncoding();
+			mode = model.getMode();
+		} else {
+			const model = textFileService.models.get(file.resource);
+			if (model) {
+				encoding = model.getEncoding();
+				mode = model.textEditorModel?.getModeId();
+			}
+		}
+
+		// If the resource is dirty, send over its backup
+		// resource to restore dirty state
+		let backupResource: string | undefined = undefined;
+		if (textFileService.isDirty(file.resource)) {
+			backupResource = backupFileService.toBackupResource(file.resource).toString();
+		}
+
 		// Add as dragged editor
-		draggedEditors.push({
-			resource: file.resource.toString(),
-			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : undefined,
-			viewState
-		});
+		draggedEditors.push({ resource: file.resource.toString(), backupResource, viewState, encoding, mode });
 	});
 
 	if (draggedEditors.length) {
@@ -473,4 +504,24 @@ export class DragAndDropObserver extends Disposable {
 			this.callbacks.onDrop(e);
 		}));
 	}
+}
+
+export function containsDragType(event: DragEvent, ...dragTypesToFind: string[]): boolean {
+	if (!event.dataTransfer) {
+		return false;
+	}
+
+	const dragTypes = event.dataTransfer.types;
+	const lowercaseDragTypes: string[] = [];
+	for (let i = 0; i < dragTypes.length; i++) {
+		lowercaseDragTypes.push(dragTypes[i].toLowerCase()); // somehow the types are lowercase
+	}
+
+	for (const dragType of dragTypesToFind) {
+		if (lowercaseDragTypes.indexOf(dragType.toLowerCase()) >= 0) {
+			return true;
+		}
+	}
+
+	return false;
 }

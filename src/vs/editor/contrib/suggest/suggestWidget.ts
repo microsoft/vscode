@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/suggest';
+import 'vs/base/browser/ui/codiconLabel/codiconLabel'; // The codicon symbol styles are defined here and must be loaded
+import 'vs/editor/contrib/documentSymbols/outlineTree'; // The codicon symbol colors are defined here and must be loaded
 import * as nls from 'vs/nls';
 import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
@@ -172,7 +174,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		if (suggestion.kind === CompletionItemKind.Color && extractColor(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
-			data.iconContainer.className = 'icon customcolor';
+			data.iconContainer.className = 'icon hide';
 			data.colorspan.style.backgroundColor = color[0];
 
 		} else if (suggestion.kind === CompletionItemKind.File && this._themeService.getIconTheme().hasFileIcons) {
@@ -1072,6 +1074,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	getId(): string {
 		return SuggestWidget.ID;
+	}
+
+	isFrozen(): boolean {
+		return this.state === State.Frozen;
 	}
 
 	private updateListHeight(): number {

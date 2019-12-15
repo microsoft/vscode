@@ -19,13 +19,14 @@ import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IItemAccessor } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { coalesce } from 'vs/base/common/arrays';
+import { IMatch } from 'vs/base/common/filters';
 
 export interface IContext {
 	event: any;
 	quickNavigateConfiguration: IQuickNavigateConfiguration;
 }
 
-export interface IHighlight {
+export interface IHighlight extends IMatch {
 	start: number;
 	end: number;
 }
@@ -461,7 +462,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			options.title = entry.getTooltip();
 			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
-			data.label.setLabel(types.withNullAsUndefined(entry.getLabel()), entry.getDescription(), options);
+			data.label.setLabel(entry.getLabel() || '', entry.getDescription(), options);
 
 			// Meta
 			data.detail.set(entry.getDetail(), detailHighlights);

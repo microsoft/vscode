@@ -95,13 +95,17 @@ export class TerminalLinkHandler {
 			}
 
 			// Get the row bottom up
-			let offsetRow = this._xterm.rows - location.start.row + 1;
+			let offsetRow = this._xterm.rows - location.start.y;
 			let verticalAlignment = WidgetVerticalAlignment.Bottom;
 
 			// Show the tooltip on the top of the next row to avoid obscuring the first row
-			if (location.start.row === 1) {
-				offsetRow--;
+			if (location.start.y <= 0) {
+				offsetRow = this._xterm.rows - 1;
 				verticalAlignment = WidgetVerticalAlignment.Top;
+				// The start of the wrapped line is above the viewport, move to start of the line
+				if (location.start.y < 0) {
+					location.start.x = 0;
+				}
 			}
 
 			if (this._configHelper.config.rendererType === 'dom') {
@@ -109,7 +113,7 @@ export class TerminalLinkHandler {
 				const charWidth = font.charWidth;
 				const charHeight = font.charHeight;
 
-				const leftPosition = (location.start.col - 1) * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
+				const leftPosition = location.start.x * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
 				const bottomPosition = offsetRow * (Math.ceil(charHeight! * window.devicePixelRatio) * font.lineHeight) / window.devicePixelRatio;
 
 				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), verticalAlignment);
@@ -118,7 +122,7 @@ export class TerminalLinkHandler {
 				const colWidth = target.offsetWidth / this._xterm.cols;
 				const rowHeight = target.offsetHeight / this._xterm.rows;
 
-				const leftPosition = (location.start.col - 1) * colWidth;
+				const leftPosition = location.start.x * colWidth;
 				const bottomPosition = offsetRow * rowHeight;
 				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(), verticalAlignment);
 			}
@@ -262,8 +266,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		const uri = URI.parse(url);
-		this._openerService.open(uri, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
+		this._openerService.open(url, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
 	}
 
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {

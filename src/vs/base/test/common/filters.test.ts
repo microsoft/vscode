@@ -498,4 +498,14 @@ suite('Filters', () => {
 			fuzzyScore
 		);
 	});
+
+	test('"Go to Symbol" with the exact method name doesn\'t work as expected #84787', function () {
+		const match = fuzzyScore(':get', ':get', 1, 'get', 'get', 0, true);
+		assert.ok(Boolean(match));
+	});
+
+	test('Suggestion is not highlighted #85826', function () {
+		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScore);
+		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScoreGracefulAggressive);
+	});
 });

@@ -36,9 +36,12 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHostStarter } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHostStarter, ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { joinPath } from 'vs/base/common/resources';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
@@ -64,6 +67,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _extensionHostProcess: ChildProcess | null;
 	private _extensionHostConnection: Socket | null;
 	private _messageProtocol: Promise<PersistentProtocol> | null;
+
+	private readonly _extensionHostLogFile: URI;
 
 	constructor(
 		private readonly _autoStart: boolean,
@@ -95,6 +100,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._extensionHostConnection = null;
 		this._messageProtocol = null;
 
+		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
+
 		this._toDispose.add(this._onExit);
 		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._toDispose.add(this._lifecycleService.onShutdown(reason => this.terminate()));
@@ -112,7 +119,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		const globalExitListener = () => this.terminate();
 		process.once('exit', globalExitListener);
 		this._toDispose.add(toDisposable(() => {
-			process.removeListener('exit', globalExitListener);
+			process.removeListener('exit' as 'loaded', globalExitListener); // https://github.com/electron/electron/issues/21475
 		}));
 	}
 
@@ -158,6 +165,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						'--nolazy',
 						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portNumber
 					];
+				} else {
+					opts.execArgv = ['--inspect-port=0'];
 				}
 
 				const crashReporterOptions = undefined; // TODO@electron pass this in as options to the extension host after verifying this actually works
@@ -170,10 +179,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
-				this._extensionHostProcess.stdout.setEncoding('utf8');
-				this._extensionHostProcess.stderr.setEncoding('utf8');
-				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
-				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				this._extensionHostProcess.stdout!.setEncoding('utf8');
+				this._extensionHostProcess.stderr!.setEncoding('utf8');
+				const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout!, 'data');
+				const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr!, 'data');
 				const onOutput = Event.any(
 					Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
 					Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -371,6 +380,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						// stop listening for messages here
 						disposable.dispose();
 
+						// Register log channel for exthost log
+						Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'extHostLog', label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
+
 						// release this promise
 						resolve(protocol);
 						return;
@@ -422,6 +434,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
 					logsLocation: this._extensionHostLogsLocation,
+					logFile: this._extensionHostLogFile,
 					autoStart: this._autoStart,
 					uiKind: UIKind.Desktop
 				};

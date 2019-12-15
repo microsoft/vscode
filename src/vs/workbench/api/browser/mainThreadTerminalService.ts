@@ -163,15 +163,22 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
-		this._proxy.$acceptTerminalClosed(terminalInstance.id);
+		this._proxy.$acceptTerminalClosed(terminalInstance.id, terminalInstance.exitCode);
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
+		const shellLaunchConfigDto: IShellLaunchConfigDto = {
+			name: terminalInstance.shellLaunchConfig.name,
+			executable: terminalInstance.shellLaunchConfig.executable,
+			args: terminalInstance.shellLaunchConfig.args,
+			cwd: terminalInstance.shellLaunchConfig.cwd,
+			env: terminalInstance.shellLaunchConfig.env
+		};
 		if (terminalInstance.title) {
-			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
+			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title, shellLaunchConfigDto);
 		} else {
 			terminalInstance.waitForTitle().then(title => {
-				this._proxy.$acceptTerminalOpened(terminalInstance.id, title);
+				this._proxy.$acceptTerminalOpened(terminalInstance.id, title, shellLaunchConfigDto);
 			});
 		}
 	}
@@ -257,7 +264,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._getTerminalProcess(terminalId).then(e => e.emitReady(pid, cwd));
 	}
 
-	public $sendProcessExit(terminalId: number, exitCode: number): void {
+	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
 		this._getTerminalProcess(terminalId).then(e => e.emitExit(exitCode));
 		this._terminalProcesses.delete(terminalId);
 	}

@@ -207,6 +207,7 @@ class WelcomeOverlay extends Disposable {
 			dom.addClass(workbench, 'blur-background');
 			this._overlayVisible.set(true);
 			this.updateProblemsKey();
+			this.updateActivityBarKeys();
 			this._overlay.focus();
 		}
 	}
@@ -227,6 +228,25 @@ class WelcomeOverlay extends Disposable {
 		}
 	}
 
+	private updateActivityBarKeys() {
+		const ids = ['explorer', 'search', 'git', 'debug', 'extensions'];
+		const activityBar = document.querySelector('.activitybar .composite-bar');
+		if (activityBar instanceof HTMLElement) {
+			const target = activityBar.getBoundingClientRect();
+			const bounds = this._overlay.getBoundingClientRect();
+			for (let i = 0; i < ids.length; i++) {
+				const key = this._overlay.querySelector(`.key.${ids[i]}`) as HTMLElement;
+				const top = target.top - bounds.top + 50 * i + 13;
+				key.style.top = top + 'px';
+			}
+		} else {
+			for (let i = 0; i < ids.length; i++) {
+				const key = this._overlay.querySelector(`.key.${ids[i]}`) as HTMLElement;
+				key.style.top = '';
+			}
+		}
+	}
+
 	public hide() {
 		if (this._overlay.style.display !== 'none') {
 			this._overlay.style.display = 'none';
@@ -238,10 +258,10 @@ class WelcomeOverlay extends Disposable {
 }
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: User Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.create(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: User Interface Overview', localize('help', "Help"));
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(HideWelcomeOverlayAction, HideWelcomeOverlayAction.ID, HideWelcomeOverlayAction.LABEL, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.create(HideWelcomeOverlayAction, HideWelcomeOverlayAction.ID, HideWelcomeOverlayAction.LABEL, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
 
 // theming
 

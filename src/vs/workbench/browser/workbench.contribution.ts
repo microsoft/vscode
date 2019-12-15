@@ -7,6 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 // Configuration
 (function registerConfiguration(): void {
@@ -14,10 +15,7 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 
 	// Workbench
 	registry.registerConfiguration({
-		'id': 'workbench',
-		'order': 7,
-		'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
-		'type': 'object',
+		...workbenchConfigurationNodeBase,
 		'properties': {
 			'workbench.editor.showTabs': {
 				'type': 'boolean',
@@ -87,7 +85,7 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether opened editors from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
+				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
 				'default': true
 			},
 			'workbench.editor.closeOnFileDelete': {
@@ -297,7 +295,7 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common
 					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
 					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
 					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar.")
+					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when 'window.titleBarStyle' is 'native'.")
 				],
 				'default': isWeb ? 'compact' : 'default',
 				'scope': ConfigurationScope.APPLICATION,

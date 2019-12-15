@@ -57,7 +57,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		const renderSelections = isRenderedUsingBorder ? this._selections.slice(0, 1) : this._selections;
 
 		const cursorsLineNumbers = renderSelections.map(s => s.positionLineNumber);
-		cursorsLineNumbers.sort();
+		cursorsLineNumbers.sort((a, b) => a - b);
 		if (!arrays.equals(this._cursorLineNumbers, cursorsLineNumbers)) {
 			this._cursorLineNumbers = cursorsLineNumbers;
 			hasChanged = true;
@@ -97,6 +97,9 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return e.scrollWidthChanged || e.scrollTopChanged;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
@@ -145,12 +148,6 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 }
 
 export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
-
-	// --- begin event handlers
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollWidthChanged;
-	}
-	// --- end event handlers
 
 	protected _renderOne(ctx: RenderingContext): string {
 		const className = 'current-line' + (this._shouldRenderOther() ? ' current-line-both' : '');

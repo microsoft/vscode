@@ -60,12 +60,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "1e50380fab37f407c4d357e1e30ecbc3d5a703b8"
+					"commitHash": "19c705ab80cd6fdccca3d65803ec2c4addb9540a"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "6.0.12"
+			"version": "6.1.6"
 		},
 		{
 			"component": {
@@ -98,7 +98,7 @@
 				"git": {
 					"name": "vscode-codicons",
 					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
-					"commitHash": "3e404025e1ce19702f5363ef6dd3339bfc6d9115"
+					"commitHash": "65d11e0839d0ce09faa1a159dc0b3c0bd1aa50be"
 				}
 			},
 			"license": "MIT and Creative Commons Attribution 4.0",

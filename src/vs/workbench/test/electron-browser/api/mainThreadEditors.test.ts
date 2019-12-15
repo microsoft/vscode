@@ -27,6 +27,7 @@ import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/se
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('MainThreadEditors', () => {
 
@@ -36,15 +37,17 @@ suite('MainThreadEditors', () => {
 	let editors: MainThreadTextEditors;
 
 	const movedResources = new Map<URI, URI>();
+	const copiedResources = new Map<URI, URI>();
 	const createdResources = new Set<URI>();
 	const deletedResources = new Set<URI>();
 
 	setup(() => {
 		const configService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
 		const codeEditorService = new TestCodeEditorService();
 
 		movedResources.clear();
+		copiedResources.clear();
 		createdResources.clear();
 		deletedResources.clear();
 
@@ -62,6 +65,10 @@ suite('MainThreadEditors', () => {
 			}
 			move(source: URI, target: URI) {
 				movedResources.set(source, target);
+				return Promise.resolve(Object.create(null));
+			}
+			copy(source: URI, target: URI) {
+				copiedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
 			models = <any>{

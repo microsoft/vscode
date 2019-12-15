@@ -20,6 +20,7 @@ import { Range, IRange } from 'vs/base/common/range';
 import { equals, distinct } from 'vs/base/common/arrays';
 import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout, Delayer } from 'vs/base/common/async';
+import { isFirefox } from 'vs/base/browser/browser';
 
 interface IItem<T> {
 	readonly id: string;
@@ -73,9 +74,10 @@ const DefaultOptions = {
 	horizontalScrolling: false
 };
 
-export class ElementsDragAndDropData<T> implements IDragAndDropData {
+export class ElementsDragAndDropData<T, TContext = void> implements IDragAndDropData {
 
 	readonly elements: T[];
+	context: TContext | undefined;
 
 	constructor(elements: T[]) {
 		this.elements = elements;
@@ -83,7 +85,7 @@ export class ElementsDragAndDropData<T> implements IDragAndDropData {
 
 	update(): void { }
 
-	getData(): any {
+	getData(): T[] {
 		return this.elements;
 	}
 }
@@ -98,7 +100,7 @@ export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
 
 	update(): void { }
 
-	getData(): any {
+	getData(): T[] {
 		return this.elements;
 	}
 }
@@ -233,7 +235,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
-		this.rowsContainer.style.willChange = 'transform';
+		this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
 		this.scrollableElement = this.disposables.add(new ScrollableElement(this.rowsContainer, {
@@ -595,7 +597,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			return;
 		}
 
-		item.row.domNode.style.width = 'fit-content';
+		item.row.domNode.style.width = isFirefox ? '-moz-fit-content' : 'fit-content';
 		item.width = DOM.getContentWidth(item.row.domNode);
 		const style = window.getComputedStyle(item.row.domNode);
 
@@ -765,7 +767,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			let label: string | undefined;
 
 			if (this.dnd.getDragLabel) {
-				label = this.dnd.getDragLabel(elements);
+				label = this.dnd.getDragLabel(elements, event);
 			}
 
 			if (typeof label === 'undefined') {
@@ -845,10 +847,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort();
 		feedback = feedback[0] === -1 ? [-1] : feedback;
 
-		if (feedback.length === 0) {
-			throw new Error('Invalid empty feedback list');
-		}
-
 		if (equalsDragFeedback(this.currentDragFeedback, feedback)) {
 			return true;
 		}
@@ -858,7 +856,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (feedback[0] === -1) { // entire list feedback
 			DOM.addClass(this.domNode, 'drop-target');
-			this.currentDragFeedbackDisposable = toDisposable(() => DOM.removeClass(this.domNode, 'drop-target'));
+			DOM.addClass(this.rowsContainer, 'drop-target');
+			this.currentDragFeedbackDisposable = toDisposable(() => {
+				DOM.removeClass(this.domNode, 'drop-target');
+				DOM.removeClass(this.rowsContainer, 'drop-target');
+			});
 		} else {
 			for (const index of feedback) {
 				const item = this.items[index]!;
@@ -909,12 +911,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.dnd.drop(dragData, event.element, event.index, event.browserEvent);
 	}
 
-	private onDragEnd(): void {
+	private onDragEnd(event: DragEvent): void {
 		this.canDrop = false;
 		this.teardownDragAndDropScrollTopAnimation();
 		this.clearDragOverFeedback();
 		this.currentDragData = undefined;
 		StaticDND.CurrentDragAndDropData = undefined;
+
+		if (this.dnd.onDragEnd) {
+			this.dnd.onDragEnd(event);
+		}
 	}
 
 	private clearDragOverFeedback(): void {

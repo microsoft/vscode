@@ -76,6 +76,7 @@ export async function configureOpenerTrustedDomainsHandler(
 			return trustedDomains;
 		}
 		if (pickedResult.id && trustedDomains.indexOf(pickedResult.id) === -1) {
+			storageService.remove('http.linkProtectionTrustedDomainsContent', StorageScope.GLOBAL);
 			storageService.store(
 				'http.linkProtectionTrustedDomains',
 				JSON.stringify([...trustedDomains, pickedResult.id]),

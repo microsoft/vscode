@@ -20,16 +20,17 @@
   "dependencies": {
     "jsonc-parser": "^2.1.1",
     "minimatch": "^3.0.4",
-    "request-light": "^0.2.4",
+    "request-light": "^0.2.5",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^10.14.8"
+    "@types/node": "^12.11.7"
   },
   "main": "./out/main",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
+    "onCommand:npm.runScriptFromFolder",
     "onLanguage:json",
     "workspaceContains:package.json",
     "onView:npm"

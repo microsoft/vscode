@@ -17,6 +17,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 
 export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 export const twistiePixels = 20;
@@ -58,7 +59,7 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 	// remove stale classes
 	container.className = 'value';
 	// when resolving expressions we represent errors from the server as a variable with name === null.
-	if (value === null || ((expressionOrValue instanceof Expression || expressionOrValue instanceof Variable) && !expressionOrValue.available)) {
+	if (value === null || ((expressionOrValue instanceof Expression || expressionOrValue instanceof Variable || expressionOrValue instanceof ReplEvaluationResult) && !expressionOrValue.available)) {
 		dom.addClass(container, 'unavailable');
 		if (value !== Expression.DEFAULT_VALUE) {
 			dom.addClass(container, 'error');

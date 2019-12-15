@@ -395,10 +395,26 @@ export class FindController extends CommonFindController implements IFindControl
 			this._createFindWidget();
 		}
 
-		if (!this._widget!.getPosition() && this._editor.getOption(EditorOption.find).autoFindInSelection) {
-			// not visible yet so we need to set search scope if `editor.find.autoFindInSelection` is `true`
-			opts.updateSearchScope = true;
+		const selection = this._editor.getSelection();
+		let updateSearchScope = false;
+
+		switch (this._editor.getOption(EditorOption.find).autoFindInSelection) {
+			case 'always':
+				updateSearchScope = true;
+				break;
+			case 'never':
+				updateSearchScope = false;
+				break;
+			case 'multiline':
+				const isSelectionMultipleLine = !!selection && selection.startLineNumber !== selection.endLineNumber;
+				updateSearchScope = isSelectionMultipleLine;
+				break;
+
+			default:
+				break;
 		}
+
+		opts.updateSearchScope = updateSearchScope;
 
 		super._start(opts);
 
@@ -439,7 +455,7 @@ export class StartFindAction extends EditorAction {
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '3_find',
 				title: nls.localize({ key: 'miFind', comment: ['&& denotes a mnemonic'] }, "&&Find"),
@@ -685,7 +701,7 @@ export class StartFindReplaceAction extends EditorAction {
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '3_find',
 				title: nls.localize({ key: 'miReplace', comment: ['&& denotes a mnemonic'] }, "&&Replace"),

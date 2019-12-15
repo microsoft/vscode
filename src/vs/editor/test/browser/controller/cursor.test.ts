@@ -726,7 +726,7 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
-	test('combining marks', () => {
+	test('grapheme breaking', () => {
 		withTestCodeEditor([
 			'abcabc',
 			'ãããããã',
@@ -2834,7 +2834,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2857,7 +2857,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 2, false);
 			assertCursor(cursor, new Selection(2, 2, 2, 2));
@@ -2876,7 +2876,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 15, false);
 			assertCursor(cursor, new Selection(2, 15, 2, 15));
@@ -2896,7 +2896,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 14, false);
 			assertCursor(cursor, new Selection(2, 14, 2, 14));
@@ -2924,7 +2924,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 2, 11, false);
 			assertCursor(cursor, new Selection(2, 11, 2, 11));
 
@@ -2948,7 +2948,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 13, false);
 			assertCursor(cursor, new Selection(3, 13, 3, 13));
@@ -3084,7 +3084,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 4, false);
 			assertCursor(cursor, new Selection(5, 4, 5, 4));
@@ -3554,7 +3554,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			rubyMode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 4, 7, false);
 			assertCursor(cursor, new Selection(4, 7, 4, 7));
 
@@ -3615,7 +3615,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			editorOpts: { autoIndent: true }
+			editorOpts: { autoIndent: 'full' }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -3664,7 +3664,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
 			moveTo(cursor, 7, 6, false);
 			assertCursor(cursor, new Selection(7, 6, 7, 6));
 
@@ -3728,7 +3728,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
 			moveTo(cursor, 8, 1, false);
 			assertCursor(cursor, new Selection(8, 1, 8, 1));
 
@@ -3791,7 +3791,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
 			moveTo(cursor, 3, 19, false);
 			assertCursor(cursor, new Selection(3, 19, 3, 19));
 
@@ -4932,6 +4932,35 @@ suite('autoClosingPairs', () => {
 
 			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
 			assert.equal(model.getValue(), 'console.log(\'it\\\'\'\');');
+		});
+		mode.dispose();
+	});
+
+	test('issue #84998: Overtyping Brackets doesn\'t work after backslash', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				''
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1)]);
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), '\\');
+
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.equal(model.getValue(), '\\()');
+
+			cursorCommand(cursor, H.Type, { text: 'abc' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc)');
+
+			cursorCommand(cursor, H.Type, { text: '\\' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc\\)');
+
+			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
+			assert.equal(model.getValue(), '\\(abc\\)');
 		});
 		mode.dispose();
 	});

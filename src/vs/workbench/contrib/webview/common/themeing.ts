@@ -68,7 +68,7 @@ export class WebviewThemeDataProvider extends Disposable {
 			'vscode-font-size': '13px',
 			'vscode-editor-font-family': editorFontFamily,
 			'vscode-editor-font-weight': editorFontWeight,
-			'vscode-editor-font-size': editorFontSize,
+			'vscode-editor-font-size': editorFontSize + 'px',
 			...exportedColors
 		};
 

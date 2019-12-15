@@ -58,11 +58,12 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -344,7 +345,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	focus(): void {
-		this.replInput.focus();
+		setTimeout(() => this.replInput.focus(), 0);
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -406,7 +407,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = this.instantiationService.createInstance(
+		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
 			treeContainer,
@@ -428,7 +429,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
-				supportDynamicHeights: wordWrap
+				supportDynamicHeights: wordWrap,
+				overrideStyles: {
+					listBackground: PANEL_BACKGROUND
+				}
 			});
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
@@ -606,6 +610,7 @@ class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluationInput,
 	}
 
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
+		dom.append(container, $('span.arrow.codicon.codicon-chevron-right'));
 		const input = dom.append(container, $('.expression'));
 		const label = new HighlightedLabel(input, false);
 		return { label };
@@ -631,6 +636,7 @@ class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResul
 	constructor(private readonly linkDetector: LinkDetector) { }
 
 	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
+		dom.append(container, $('span.arrow.codicon.codicon-chevron-left'));
 		const output = dom.append(container, $('.evaluation-result.expression'));
 		const value = dom.append(output, $('span.value'));
 		const annotation = dom.append(output, $('span'));
@@ -805,13 +811,13 @@ class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 
 		if (!config.console.wordWrap) {
-			return Math.ceil(1.4 * config.console.fontSize);
+			return this.estimateHeight(element, true);
 		}
 
 		return super.getHeight(element);
 	}
 
-	protected estimateHeight(element: IReplElement): number {
+	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		const rowHeight = Math.ceil(1.4 * config.console.fontSize);
 		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
@@ -821,7 +827,7 @@ class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		// For every 30 characters increase the number of lines needed
 		if (hasValue(element)) {
 			let value = element.value;
-			let valueRows = countNumberOfLines(value) + Math.floor(value.length / 30);
+			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 30));
 
 			return valueRows * rowHeight;
 		}

@@ -23,15 +23,15 @@ import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { TextEdit, WorkspaceEdit, isResourceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
 import { CommandsRegistry, ICommand, ICommandEvent, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeybindingEvent, IKeyboardEvent, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeyboardEvent, KeybindingSource, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -99,7 +99,12 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: undefined;
 
+	private readonly modelService: IModelService | undefined;
 	private editor?: editorCommon.IEditor;
+
+	constructor(modelService: IModelService | undefined) {
+		this.modelService = modelService;
+	}
 
 	public setEditor(editor: editorCommon.IEditor): void {
 		this.editor = editor;
@@ -132,7 +137,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
-		let model = editor.getModel();
+		let model = this.modelService ? this.modelService.getModel(resource) : editor.getModel();
 		if (model && model.uri.toString() !== resource.toString()) {
 			return null;
 		}
@@ -300,6 +305,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
+				keyEvent.stopPropagation();
 			}
 		}));
 	}
@@ -409,6 +415,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public _dumpDebugInfoJSON(): string {
 		return '';
 	}
+
+	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
+		// noop
+	}
 }
 
 function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
@@ -450,13 +460,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return Promise.resolve();
 	}
 
-	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
-		default: C,
-		user: C,
-		workspace?: C,
-		workspaceFolder?: C
-		value: C,
-	} {
+	public inspect<C>(key: string, options: IConfigurationOverrides = {}): IConfigurationValue<C> {
 		return this.configuration().inspect<C>(key, options, undefined);
 	}
 
@@ -487,12 +491,12 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 	_serviceBrand: undefined;
 
-	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
+	private readonly _onDidChangeConfiguration = new Emitter<ITextResourceConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(private readonly configurationService: SimpleConfigurationService) {
 		this.configurationService.onDidChangeConfiguration((e) => {
-			this._onDidChangeConfiguration.fire(e);
+			this._onDidChangeConfiguration.fire({ affectedKeys: e.affectedKeys, affectsConfiguration: (resource: URI, configuration: string) => e.affectsConfiguration(configuration) });
 		});
 	}
 
@@ -505,6 +509,10 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 			return this.configurationService.getValue<T>();
 		}
 		return this.configurationService.getValue<T>(section);
+	}
+
+	updateValue(resource: URI, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+		return this.configurationService.updateValue(key, value, { resource }, configurationTarget);
 	}
 }
 
@@ -648,7 +656,9 @@ export class SimpleBulkEditService implements IBulkEditService {
 		let totalEdits = 0;
 		let totalFiles = 0;
 		edits.forEach((edits, model) => {
-			model.applyEdits(edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
+			model.pushStackElement();
+			model.pushEditOperations([], edits.map((e) => EditOperation.replaceMove(Range.lift(e.range), e.text)), () => []);
+			model.pushStackElement();
 			totalFiles += 1;
 			totalEdits += edits.length;
 		});

@@ -96,6 +96,17 @@ export interface IWebviewEditor {
 	}[];
 }
 
+export interface ICodeActionContributionAction {
+	readonly kind: string;
+	readonly title: string;
+	readonly description?: string;
+}
+
+export interface ICodeActionContribution {
+	readonly languages: readonly string[];
+	readonly actions: readonly ICodeActionContributionAction[];
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -113,6 +124,7 @@ export interface IExtensionContributions {
 	colors?: IColor[];
 	localizations?: ILocalization[];
 	readonly webviewEditors?: readonly IWebviewEditor[];
+	readonly codeActions?: readonly ICodeActionContribution[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
@@ -143,7 +155,7 @@ export interface IExtensionManifest {
 	readonly activationEvents?: string[];
 	readonly extensionDependencies?: string[];
 	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind;
+	readonly extensionKind?: ExtensionKind | ExtensionKind[];
 	readonly contributes?: IExtensionContributions;
 	readonly repository?: { url: string; };
 	readonly bugs?: { url: string; };

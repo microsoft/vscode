@@ -6,16 +6,18 @@
 import * as dom from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
-import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { Emitter } from 'vs/base/common/event';
 
 const WebviewPanelResourceScheme = 'webview-panel';
 
 class WebviewIconsManager {
 	private readonly _icons = new Map<string, { light: URI, dark: URI }>();
+
 
 	@memoize
 	private get _styleElement(): HTMLStyleElement {
@@ -26,7 +28,8 @@ class WebviewIconsManager {
 
 	public setIcons(
 		webviewId: string,
-		iconPath: { light: URI, dark: URI } | undefined
+		iconPath: { light: URI, dark: URI } | undefined,
+		lifecycleService: ILifecycleService,
 	) {
 		if (iconPath) {
 			this._icons.set(webviewId, iconPath);
@@ -34,21 +37,27 @@ class WebviewIconsManager {
 			this._icons.delete(webviewId);
 		}
 
-		this.updateStyleSheet();
+		this.updateStyleSheet(lifecycleService);
 	}
 
-	private updateStyleSheet() {
-		const cssRules: string[] = [];
-		this._icons.forEach((value, key) => {
-			const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
-			if (URI.isUri(value)) {
-				cssRules.push(`${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value)}; }`);
-			} else {
-				cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`);
-				cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`);
-			}
-		});
-		this._styleElement.innerHTML = cssRules.join('\n');
+	private async updateStyleSheet(lifecycleService: ILifecycleService, ) {
+		await lifecycleService.when(LifecyclePhase.Starting);
+
+		try {
+			const cssRules: string[] = [];
+			this._icons.forEach((value, key) => {
+				const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
+				if (URI.isUri(value)) {
+					cssRules.push(`${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value)}; }`);
+				} else {
+					cssRules.push(`.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`);
+					cssRules.push(`.vs-dark ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`);
+				}
+			});
+			this._styleElement.innerHTML = cssRules.join('\n');
+		} catch {
+			// noop
+		}
 	}
 }
 
@@ -61,19 +70,31 @@ export class WebviewInput extends EditorInput {
 	private _name: string;
 	private _iconPath?: { light: URI, dark: URI };
 	private _group?: GroupIdentifier;
+
 	private readonly _webview: Lazy<WebviewEditorOverlay>;
+	private _didSomeoneTakeMyWebview = false;
+
+	private readonly _onDisposeWebview = this._register(new Emitter<void>());
+	readonly onDisposeWebview = this._onDisposeWebview.event;
 
 	constructor(
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		webview: Lazy<Unowned<WebviewEditorOverlay>>
+		webview: Lazy<WebviewEditorOverlay>,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
-
 		this._name = name;
+		this._webview = webview;
+	}
 
-		this._webview = webview.map(value => this._register(value.acquire())); // The input owns this webview
+	dispose() {
+		if (!this._didSomeoneTakeMyWebview) {
+			this._webview?.rawValue?.dispose();
+			this._onDisposeWebview.fire();
+		}
+		super.dispose();
 	}
 
 	public getTypeId(): string {
@@ -91,7 +112,7 @@ export class WebviewInput extends EditorInput {
 		return this._name;
 	}
 
-	public getTitle(_verbosity?: Verbosity) {
+	public getTitle(_verbosity?: Verbosity): string {
 		return this.getName();
 	}
 
@@ -109,7 +130,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public get extension() {
-		return this._webview.getValue().extension;
+		return this.webview.extension;
 	}
 
 	public get iconPath() {
@@ -118,7 +139,7 @@ export class WebviewInput extends EditorInput {
 
 	public set iconPath(value: { light: URI, dark: URI } | undefined) {
 		this._iconPath = value;
-		WebviewInput.iconsManager.setIcons(this.id, value);
+		WebviewInput.iconsManager.setIcons(this.id, value, this.lifecycleService);
 	}
 
 	public matches(other: IEditorInput): boolean {
@@ -139,5 +160,13 @@ export class WebviewInput extends EditorInput {
 
 	public supportsSplitEditor() {
 		return false;
+	}
+
+	protected takeOwnershipOfWebview(): WebviewEditorOverlay | undefined {
+		if (this._didSomeoneTakeMyWebview) {
+			return undefined;
+		}
+		this._didSomeoneTakeMyWebview = true;
+		return this.webview;
 	}
 }

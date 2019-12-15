@@ -9,9 +9,14 @@ import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { URI } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { assertType } from 'vs/base/common/types';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export const enum CallHierarchyDirection {
 	CallsTo = 1,
@@ -19,7 +24,8 @@ export const enum CallHierarchyDirection {
 }
 
 export interface CallHierarchyItem {
-	id: string;
+	_sessionId: string;
+	_itemId: string;
 	kind: SymbolKind;
 	name: string;
 	detail?: string;
@@ -55,6 +61,26 @@ export interface CallHierarchyProvider {
 export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();
 
 
+class RefCountedDisposabled {
+
+	constructor(
+		private readonly _disposable: IDisposable,
+		private _counter = 1
+	) { }
+
+	acquire() {
+		this._counter++;
+		return this;
+	}
+
+	release() {
+		if (--this._counter === 0) {
+			this._disposable.dispose();
+		}
+		return this;
+	}
+}
+
 export class CallHierarchyModel {
 
 	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<CallHierarchyModel | undefined> {
@@ -66,17 +92,27 @@ export class CallHierarchyModel {
 		if (!session) {
 			return undefined;
 		}
-		return new CallHierarchyModel(provider, session);
+		return new CallHierarchyModel(session.root._sessionId, provider, session.root, new RefCountedDisposabled(session));
 	}
 
 	private constructor(
+		readonly id: string,
 		readonly provider: CallHierarchyProvider,
-		readonly session: CallHierarchySession,
-		readonly root = session.root
+		readonly root: CallHierarchyItem,
+		readonly ref: RefCountedDisposabled,
 	) { }
 
 	dispose(): void {
-		this.session.dispose();
+		this.ref.release();
+	}
+
+	fork(item: CallHierarchyItem): CallHierarchyModel {
+		const that = this;
+		return new class extends CallHierarchyModel {
+			constructor() {
+				super(that.id, that.provider, item, that.ref.acquire());
+			}
+		};
 	}
 
 	async resolveIncomingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<IncomingCall[]> {
@@ -104,3 +140,71 @@ export class CallHierarchyModel {
 	}
 }
 
+// --- API command support
+
+const _models = new Map<string, CallHierarchyModel>();
+
+CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor, ...args) => {
+	const [resource, position] = args;
+	assertType(URI.isUri(resource));
+	assertType(Position.isIPosition(position));
+
+	const modelService = accessor.get(IModelService);
+	let textModel = modelService.getModel(resource);
+	let textModelReference: IDisposable | undefined;
+	if (!textModel) {
+		const textModelService = accessor.get(ITextModelService);
+		const result = await textModelService.createModelReference(resource);
+		textModel = result.object.textEditorModel;
+		textModelReference = result;
+	}
+
+	try {
+		const model = await CallHierarchyModel.create(textModel, position, CancellationToken.None);
+		if (!model) {
+			return [];
+		}
+		//
+		_models.set(model.id, model);
+		_models.forEach((value, key, map) => {
+			if (map.size > 10) {
+				value.dispose();
+				_models.delete(key);
+			}
+		});
+		return [model.root];
+
+	} finally {
+		dispose(textModelReference);
+	}
+});
+
+function isCallHierarchyItemDto(obj: any): obj is CallHierarchyItem {
+	return true;
+}
+
+CommandsRegistry.registerCommand('_executeProvideIncomingCalls', async (_accessor, ...args) => {
+	const [item] = args;
+	assertType(isCallHierarchyItemDto(item));
+
+	// find model
+	const model = _models.get(item._sessionId);
+	if (!model) {
+		return undefined;
+	}
+
+	return model.resolveIncomingCalls(item, CancellationToken.None);
+});
+
+CommandsRegistry.registerCommand('_executeProvideOutgoingCalls', async (_accessor, ...args) => {
+	const [item] = args;
+	assertType(isCallHierarchyItemDto(item));
+
+	// find model
+	const model = _models.get(item._sessionId);
+	if (!model) {
+		return undefined;
+	}
+
+	return model.resolveOutgoingCalls(item, CancellationToken.None);
+});

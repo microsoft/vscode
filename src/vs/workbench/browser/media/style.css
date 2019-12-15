@@ -37,10 +37,15 @@ body {
 	overflow: hidden;
 	font-size: 11px;
 	user-select: none;
+	-webkit-user-select: none;
 }
 
 body.web {
 	position: fixed; /* prevent bounce effect */
+}
+
+.monaco-workbench.web {
+	touch-action: initial; /* reenable touch events on workbench */
 }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -51,13 +56,10 @@ body.web {
 	position: relative;
 	z-index: 1;
 	overflow: hidden;
-	height: 100vh;
-	width: 100vw;
 }
 
-.monaco-workbench.border {
-	height: calc(100vh - 2px);
-	width: calc(100vw - 2px);
+.monaco-workbench.border:not(.fullscreen) {
+	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
 }
 
@@ -107,20 +109,20 @@ body.web {
 	cursor: pointer;
 }
 
-.monaco-workbench.monaco-font-aliasing-antialiased {
+.monaco-workbench.mac.monaco-font-aliasing-antialiased {
 	-webkit-font-smoothing: antialiased;
-	-moz-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
-.monaco-workbench.monaco-font-aliasing-none {
+.monaco-workbench.mac.monaco-font-aliasing-none {
 	-webkit-font-smoothing: none;
-	-moz-font-smoothing: none;
+	-moz-osx-font-smoothing: unset;
 }
 
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-	.monaco-workbench.monaco-font-aliasing-auto {
+	.monaco-workbench.mac.monaco-font-aliasing-auto {
 		-webkit-font-smoothing: antialiased;
-		-moz-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
 	}
 }
 
@@ -171,6 +173,34 @@ body.web {
 
 .monaco-workbench .monaco-menu .action-item {
 	cursor: default;
+}
+
+/* Custom Dropdown (select) Arrows */
+
+.monaco-workbench select {
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	/* Hides inner border from FF */
+	border: 1px solid;
+}
+
+.monaco-workbench .select-container {
+	position: relative;
+}
+
+.monaco-workbench .select-container:after {
+	content: "\eab4";
+	font-family: codicon;
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+	line-height: 14px;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 6px;
+	margin: auto;
+	pointer-events: none;
 }
 
 /* START Keyboard Focus Indication Styles */

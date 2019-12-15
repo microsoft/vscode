@@ -1056,7 +1056,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 				}
 
 				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
-					message += nls.localize('validations.stringArrayMaxItem', 'Array must have less than {0} items', prop.maxItems);
+					message += nls.localize('validations.stringArrayMaxItem', 'Array must have at most {0} items', prop.maxItems);
 					message += '\n';
 				}
 
@@ -1117,7 +1117,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 			patternRegex = new RegExp(prop.pattern);
 		}
 
-		const type = Array.isArray(prop.type) ? prop.type : [prop.type];
+		const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
 		const canBeType = (t: string) => type.indexOf(t) > -1;
 
 		const isNullable = canBeType('null');

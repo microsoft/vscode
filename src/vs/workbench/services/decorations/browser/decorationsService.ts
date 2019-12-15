@@ -12,14 +12,13 @@ import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { Iterator } from 'vs/base/common/iterator';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { hash } from 'vs/base/common/hash';
 
 class DecorationRule {
 
@@ -32,18 +31,29 @@ class DecorationRule {
 		}
 	}
 
-	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
+	private static readonly _classNamesPrefix = 'monaco-decoration';
 
 	readonly data: IDecorationData | IDecorationData[];
 	readonly itemColorClassName: string;
 	readonly itemBadgeClassName: string;
 	readonly bubbleBadgeClassName: string;
 
-	constructor(data: IDecorationData | IDecorationData[]) {
+	private _refCounter: number = 0;
+
+	constructor(data: IDecorationData | IDecorationData[], key: string) {
 		this.data = data;
-		this.itemColorClassName = DecorationRule._classNames.nextId();
-		this.itemBadgeClassName = DecorationRule._classNames.nextId();
-		this.bubbleBadgeClassName = DecorationRule._classNames.nextId();
+		const suffix = hash(key).toString(36);
+		this.itemColorClassName = `${DecorationRule._classNamesPrefix}-itemColor-${suffix}`;
+		this.itemBadgeClassName = `${DecorationRule._classNamesPrefix}-itemBadge-${suffix}`;
+		this.bubbleBadgeClassName = `${DecorationRule._classNamesPrefix}-bubbleBadge-${suffix}`;
+	}
+
+	acquire(): void {
+		this._refCounter += 1;
+	}
+
+	release(): boolean {
+		return --this._refCounter === 0;
 	}
 
 	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
@@ -89,12 +99,6 @@ class DecorationRule {
 		removeCSSRulesContainingSelector(this.itemBadgeClassName, element);
 		removeCSSRulesContainingSelector(this.bubbleBadgeClassName, element);
 	}
-
-	isUnused(): boolean {
-		return !document.querySelector(`.${this.itemColorClassName}`)
-			&& !document.querySelector(`.${this.itemBadgeClassName}`)
-			&& !document.querySelector(`.${this.bubbleBadgeClassName}`);
-	}
 }
 
 class DecorationStyles {
@@ -124,10 +128,12 @@ class DecorationStyles {
 
 		if (!rule) {
 			// new css rule
-			rule = new DecorationRule(data);
+			rule = new DecorationRule(data, key);
 			this._decorationRules.set(key, rule);
 			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
 		}
+
+		rule.acquire();
 
 		let labelClassName = rule.itemColorClassName;
 		let badgeClassName = rule.itemBadgeClassName;
@@ -142,7 +148,14 @@ class DecorationStyles {
 		return {
 			labelClassName,
 			badgeClassName,
-			tooltip
+			tooltip,
+			dispose: () => {
+				if (rule && rule.release()) {
+					this._decorationRules.delete(key);
+					rule.removeCSSRules(this._styleElement);
+					rule = undefined;
+				}
+			}
 		};
 	}
 
@@ -150,34 +163,6 @@ class DecorationStyles {
 		this._decorationRules.forEach(rule => {
 			rule.removeCSSRules(this._styleElement);
 			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
-		});
-	}
-
-	cleanUp(iter: Iterator<DecorationProviderWrapper>): void {
-		// remove every rule for which no more
-		// decoration (data) is kept. this isn't cheap
-		let usedDecorations = new Set<string>();
-		for (let e = iter.next(); !e.done; e = iter.next()) {
-			e.value.data.forEach((value, key) => {
-				if (value && !(value instanceof DecorationDataRequest)) {
-					usedDecorations.add(DecorationRule.keyOf(value));
-				}
-			});
-		}
-		this._decorationRules.forEach((value, index) => {
-			const { data } = value;
-			if (value.isUnused()) {
-				let remove: boolean = false;
-				if (Array.isArray(data)) {
-					remove = data.every(data => !usedDecorations.has(DecorationRule.keyOf(data)));
-				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
-					remove = true;
-				}
-				if (remove) {
-					value.removeCSSRules(this._styleElement);
-					this._decorationRules.delete(index);
-				}
-			}
 		});
 	}
 }
@@ -345,15 +330,6 @@ export class DecorationsService implements IDecorationsService {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
-
-		// every so many events we check if there are
-		// css styles that we don't need anymore
-		let count = 0;
-		this.onDidChangeDecorations(() => {
-			if (++count % 17 === 0) {
-				this._decorationStyles.cleanUp(this._data.iterator());
-			}
-		});
 	}
 
 	dispose(): void {

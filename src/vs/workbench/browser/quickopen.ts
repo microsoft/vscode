@@ -15,7 +15,7 @@ import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/bro
 import { EditorOptions, EditorInput, IEditorInput } from 'vs/workbench/common/editor';
 import { IResourceInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -136,9 +136,13 @@ export class QuickOpenHandlerDescriptor {
 	private id: string;
 	private ctor: IConstructorSignature0<QuickOpenHandler>;
 
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, description: string, instantProgress?: boolean);
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
-	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, param: string | QuickOpenHandlerHelpEntry[], instantProgress: boolean = false) {
+	public static create<Services extends BrandedService[]>(ctor: { new(...services: Services): QuickOpenHandler }, id: string, prefix: string, contextKey: string | undefined, description: string, instantProgress?: boolean): QuickOpenHandlerDescriptor;
+	public static create<Services extends BrandedService[]>(ctor: { new(...services: Services): QuickOpenHandler }, id: string, prefix: string, contextKey: string | undefined, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean): QuickOpenHandlerDescriptor;
+	public static create<Services extends BrandedService[]>(ctor: { new(...services: Services): QuickOpenHandler }, id: string, prefix: string, contextKey: string | undefined, param: string | QuickOpenHandlerHelpEntry[], instantProgress: boolean = false): QuickOpenHandlerDescriptor {
+		return new QuickOpenHandlerDescriptor(ctor as IConstructorSignature0<QuickOpenHandler>, id, prefix, contextKey, param, instantProgress);
+	}
+
+	private constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string | undefined, param: string | QuickOpenHandlerHelpEntry[], instantProgress: boolean = false) {
 		this.ctor = ctor;
 		this.id = id;
 		this.prefix = prefix;

@@ -44,7 +44,7 @@ function createCompile(src, build, emitError) {
         const input = es.through();
         const output = input
             .pipe(utf8Filter)
-            .pipe(bom())
+            .pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
             .pipe(utf8Filter.restore)
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())

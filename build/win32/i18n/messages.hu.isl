@@ -6,3 +6,4 @@ AddToPath=Hozzáadás a PATH-hoz (újraindítás után lesz elérhetõ)
 RunAfter=%1 indítása a telepítés után
 Other=Egyéb:
 SourceFile=%1 forrásfájl
+OpenWithCodeContextMenu=Megnyitás a következõvel: %1

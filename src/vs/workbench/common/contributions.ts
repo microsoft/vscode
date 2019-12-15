@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService, IConstructorSignature0, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
@@ -19,7 +19,7 @@ export namespace Extensions {
 	export const Workbench = 'workbench.contributions.kind';
 }
 
-export type IWorkbenchContributionSignature = IConstructorSignature0<IWorkbenchContribution>;
+type IWorkbenchContributionSignature<Service extends BrandedService[]> = new (...services: Service) => IWorkbenchContribution;
 
 export interface IWorkbenchContributionsRegistry {
 
@@ -29,7 +29,7 @@ export interface IWorkbenchContributionsRegistry {
 	 *
 	 * @param phase the lifecycle phase when to instantiate the contribution.
 	 */
-	registerWorkbenchContribution(contribution: IWorkbenchContributionSignature, phase: LifecyclePhase): void;
+	registerWorkbenchContribution<Services extends BrandedService[]>(contribution: IWorkbenchContributionSignature<Services>, phase: LifecyclePhase): void;
 
 	/**
 	 * Starts the registry by providing the required services.
@@ -43,8 +43,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 
 	private readonly toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
 
-	registerWorkbenchContribution(ctor: IWorkbenchContributionSignature, phase: LifecyclePhase = LifecyclePhase.Starting): void {
-
+	registerWorkbenchContribution<Services extends BrandedService[]>(ctor: { new(...services: Services): IWorkbenchContribution }, phase: LifecyclePhase = LifecyclePhase.Starting): void {
 		// Instantiate directly if we are already matching the provided phase
 		if (this.instantiationService && this.lifecycleService && this.lifecycleService.phase >= phase) {
 			this.instantiationService.createInstance(ctor);

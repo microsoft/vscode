@@ -519,7 +519,7 @@ suite('FindController query options persistence', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, (editor, cursor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 1, 2, 1));
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
@@ -542,7 +542,7 @@ suite('FindController query options persistence', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, (editor, cursor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 2, 1, 2));
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
@@ -565,7 +565,7 @@ suite('FindController query options persistence', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, (editor, cursor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 2, 1, 3));
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
@@ -580,6 +580,30 @@ suite('FindController query options persistence', () => {
 			});
 
 			assert.deepEqual(findController.getState().searchScope, new Selection(1, 2, 1, 3));
+		});
+	});
+
+
+	test('issue #27083: Find in selection when multiple lines are selected', () => {
+		withTestCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'multiline', globalFindClipboard: false } }, (editor, cursor) => {
+			// clipboardState = '';
+			editor.setSelection(new Range(1, 6, 2, 1));
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController.ID, TestFindController);
+
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: false,
+				updateSearchScope: true
+			});
+
+			assert.deepEqual(findController.getState().searchScope, new Selection(1, 6, 2, 1));
 		});
 	});
 });

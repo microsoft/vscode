@@ -8,8 +8,9 @@ import 'vs/css!./media/style';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { isWeb } from 'vs/base/common/platform';
+import { isWeb, isIOS } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
+import { isSafari, isStandalone } from 'vs/base/browser/browser';
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
@@ -35,12 +36,14 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
 	if (placeholderForeground) {
 		collector.addRule(`
-			.monaco-workbench input::-moz-placeholder,
-			.monaco-workbench input::-webkit-input-placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench input::placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench input::-webkit-input-placeholder  { color: ${placeholderForeground}; }
+			.monaco-workbench input::-moz-placeholder { color: ${placeholderForeground}; }
 		`);
 		collector.addRule(`
-			.monaco-workbench textarea::-moz-placeholder,
+			.monaco-workbench textarea::placeholder { color: ${placeholderForeground}; }
 			.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench textarea::-moz-placeholder { color: ${placeholderForeground}; }
 		`);
 	}
 
@@ -165,5 +168,25 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 			metaElement.content = titleBackground.toString();
 		}
+	}
+
+	// We disable user select on the root element, however on Safari this seems
+	// to prevent any text selection in the monaco editor. As a workaround we
+	// allow to select text in monaco editor instances.
+	if (isSafari) {
+		collector.addRule(`
+			body.web {
+				touch-action: none;
+			}
+			.monaco-workbench .monaco-editor .view-lines {
+				user-select: text;
+				-webkit-user-select: text;
+			}
+		`);
+	}
+
+	// Update body background color to ensure the home indicator area looks similar to the workbench
+	if (isIOS && isStandalone) {
+		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
 	}
 });

@@ -79,15 +79,15 @@ export class RipgrepTextSearchEngine {
 				cancel();
 			});
 
-			rgProc.stdout.on('data', data => {
+			rgProc.stdout!.on('data', data => {
 				ripgrepParser.handleData(data);
 			});
 
 			let gotData = false;
-			rgProc.stdout.once('data', () => gotData = true);
+			rgProc.stdout!.once('data', () => gotData = true);
 
 			let stderr = '';
-			rgProc.stderr.on('data', data => {
+			rgProc.stderr!.on('data', data => {
 				const message = data.toString();
 				this.outputChannel.appendLine(message);
 				stderr += message;
@@ -533,7 +533,7 @@ export type IRgBytesOrText = { bytes: string } | { text: string };
 export function fixRegexNewline(pattern: string): string {
 	// Replace an unescaped $ at the end of the pattern with \r?$
 	// Match $ preceeded by none or even number of literal \
-	return pattern.replace(/([^\\]|^)(\\\\)*\\n/g, '$1$2\\r?\\n');
+	return pattern.replace(/(?<=[^\\]|^)(\\\\)*\\n/g, '$1\\r?\\n');
 }
 
 export function fixNewline(pattern: string): string {

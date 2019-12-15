@@ -26,6 +26,7 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { assertIsDefined } from 'vs/base/common/types';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -141,13 +142,22 @@ export class TerminalPanel extends Panel {
 	private _getContextMenuActions(): IAction[] {
 		if (!this._contextMenuActions || !this._copyContextMenuAction) {
 			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.SHORT_LABEL);
+
+			const clipboardActions = [];
+			if (BrowserFeatures.clipboard.writeText) {
+				clipboardActions.push(this._copyContextMenuAction);
+			}
+			if (BrowserFeatures.clipboard.readText) {
+				clipboardActions.push(this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL));
+			}
+
+			clipboardActions.push(this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL));
+
 			this._contextMenuActions = [
 				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
 				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.SHORT_LABEL),
 				new Separator(),
-				this._copyContextMenuAction,
-				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL),
-				this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL),
+				...clipboardActions,
 				new Separator(),
 				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL),
 				new Separator(),
@@ -252,10 +262,9 @@ export class TerminalPanel extends Panel {
 					getActions: () => this._getContextMenuActions(),
 					getActionsContext: () => this._parentDomElement
 				});
-			} else {
-				event.preventDefault();
-				event.stopImmediatePropagation();
 			}
+			event.preventDefault();
+			event.stopImmediatePropagation();
 			this._cancelContextMenu = false;
 		}));
 		this._register(dom.addDisposableListener(document, 'keydown', (event: KeyboardEvent) => {
@@ -292,7 +301,7 @@ export class TerminalPanel extends Panel {
 
 				const terminal = this._terminalService.getActiveInstance();
 				if (terminal) {
-					return this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title).then(preparedPath => {
+					return this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType).then(preparedPath => {
 						terminal.sendText(preparedPath, false);
 					});
 				}

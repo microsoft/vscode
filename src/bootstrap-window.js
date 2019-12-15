@@ -142,7 +142,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 		} catch (error) {
 			onUnexpectedError(error, enableDeveloperTools);
 		}
-	});
+	}, onUnexpectedError);
 };
 
 /**

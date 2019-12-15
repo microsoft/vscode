@@ -33,7 +33,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 		this._activeOwners.clear();
 	}
 
-	private _forwardMarkers(resources: URI[]): void {
+	private _forwardMarkers(resources: readonly URI[]): void {
 		const data: [UriComponents, IMarkerData[]][] = [];
 		for (const resource of resources) {
 			data.push([

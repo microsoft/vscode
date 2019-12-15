@@ -115,14 +115,14 @@ suite('Workbench base editor', () => {
 	});
 
 	test('EditorDescriptor', () => {
-		let d = new EditorDescriptor(MyEditor, 'id', 'name');
+		let d = EditorDescriptor.create(MyEditor, 'id', 'name');
 		assert.strictEqual(d.getId(), 'id');
 		assert.strictEqual(d.getName(), 'name');
 	});
 
 	test('Editor Registration', function () {
-		let d1 = new EditorDescriptor(MyEditor, 'id1', 'name');
-		let d2 = new EditorDescriptor(MyOtherEditor, 'id2', 'name');
+		let d1 = EditorDescriptor.create(MyEditor, 'id1', 'name');
+		let d2 = EditorDescriptor.create(MyOtherEditor, 'id2', 'name');
 
 		let oldEditorsCnt = EditorRegistry.getEditors().length;
 		let oldInputCnt = (<any>EditorRegistry).getEditorInputs().length;
@@ -142,8 +142,8 @@ suite('Workbench base editor', () => {
 	});
 
 	test('Editor Lookup favors specific class over superclass (match on specific class)', function () {
-		let d1 = new EditorDescriptor(MyEditor, 'id1', 'name');
-		let d2 = new EditorDescriptor(MyOtherEditor, 'id2', 'name');
+		let d1 = EditorDescriptor.create(MyEditor, 'id1', 'name');
+		let d2 = EditorDescriptor.create(MyOtherEditor, 'id2', 'name');
 
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
@@ -163,7 +163,7 @@ suite('Workbench base editor', () => {
 	});
 
 	test('Editor Lookup favors specific class over superclass (match on super class)', function () {
-		let d1 = new EditorDescriptor(MyOtherEditor, 'id1', 'name');
+		let d1 = EditorDescriptor.create(MyOtherEditor, 'id1', 'name');
 
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);

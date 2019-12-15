@@ -108,7 +108,7 @@ class InstallAction extends Action {
 
 						promisify(cp.exec)(command, {})
 							.then(undefined, _ => Promise.reject(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
-							.then(resolve, reject);
+							.then(() => resolve(), reject);
 						break;
 					case 1 /* Cancel */:
 						reject(new Error(nls.localize('aborted', "Aborted")));
@@ -175,7 +175,7 @@ class UninstallAction extends Action {
 
 					promisify(cp.exec)(command, {})
 						.then(undefined, _ => Promise.reject(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
-						.then(resolve, reject);
+						.then(() => resolve(), reject);
 					break;
 				case 1 /* Cancel */:
 					reject(new Error(nls.localize('aborted', "Aborted")));
@@ -189,6 +189,6 @@ if (platform.isMacintosh) {
 	const category = nls.localize('shellCommand', "Shell Command");
 
 	const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallAction, InstallAction.ID, InstallAction.LABEL), `Shell Command: Install \'${product.applicationName}\' command in PATH`, category);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(UninstallAction, UninstallAction.ID, UninstallAction.LABEL), `Shell Command: Uninstall \'${product.applicationName}\' command from PATH`, category);
+	workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.create(InstallAction, InstallAction.ID, InstallAction.LABEL), `Shell Command: Install \'${product.applicationName}\' command in PATH`, category);
+	workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.create(UninstallAction, UninstallAction.ID, UninstallAction.LABEL), `Shell Command: Uninstall \'${product.applicationName}\' command from PATH`, category);
 }

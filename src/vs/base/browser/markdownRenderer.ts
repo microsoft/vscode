@@ -15,6 +15,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { renderCodicons, markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
@@ -50,25 +51,25 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const _href = function (href: string, isDomUri: boolean): string {
 		const data = markdown.uris && markdown.uris[href];
 		if (!data) {
-			return href;
+			return href; // no uri exists
 		}
 		let uri = URI.revive(data);
+		if (URI.parse(href).toString() === uri.toString()) {
+			return href; // no tranformation performed
+		}
 		if (isDomUri) {
 			uri = DOM.asDomUri(uri);
 		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
 		}
-		if (data) {
-			href = uri.toString(true);
-		}
-		return href;
+		return uri.toString(true);
 	};
 
 	// signal to code-block render that the
 	// element has been created
 	let signalInnerHTML: () => void;
-	const withInnerHTML = new Promise(c => signalInnerHTML = c);
+	const withInnerHTML = new Promise<void>(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
@@ -118,7 +119,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}
 	};
 	renderer.paragraph = (text): string => {
-		return `<p>${text}</p>`;
+		return `<p>${markdown.supportThemeIcons ? renderCodicons(text) : text}</p>`;
 	};
 
 	if (options.codeBlockRenderer) {
@@ -173,19 +174,26 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderer
 	};
 
-	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote];
+	const allowedSchemes = [Schemas.http, Schemas.https, Schemas.mailto, Schemas.data, Schemas.file, Schemas.vscodeRemote, Schemas.vscodeRemoteResource];
 	if (markdown.isTrusted) {
 		allowedSchemes.push(Schemas.command);
 	}
 
-	const renderedMarkdown = marked.parse(markdown.value, markedOptions);
+	const renderedMarkdown = marked.parse(
+		markdown.supportThemeIcons
+			? markdownEscapeEscapedCodicons(markdown.value)
+			: markdown.value,
+		markedOptions
+	);
+
 	element.innerHTML = insane(renderedMarkdown, {
 		allowedSchemes,
 		allowedAttributes: {
 			'a': ['href', 'name', 'target', 'data-href'],
 			'iframe': ['allowfullscreen', 'frameborder', 'src'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],
-			'div': ['class', 'data-code']
+			'div': ['class', 'data-code'],
+			'span': ['class']
 		}
 	});
 

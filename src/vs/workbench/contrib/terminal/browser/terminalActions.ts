@@ -305,17 +305,7 @@ export class CreateNewWithCwdTerminalCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-
-		let cwd: string | undefined;
-		if (args && args.cwd) {
-			cwd = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.cwd);
-		}
-		const instance = terminalService.createTerminal({ cwd });
+		const instance = terminalService.createTerminal({ cwd: args?.cwd });
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
@@ -722,7 +712,7 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
-		return this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title).then(path => {
+		return this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType).then(path => {
 			instance.sendText(path, true);
 			return this.terminalService.showPanel();
 		});
@@ -1063,6 +1053,31 @@ export class RenameTerminalAction extends Action {
 				terminalInstance.setTitle(name, TitleEventSource.Api);
 			}
 		});
+	}
+}
+export class RenameWithArgTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.RENAME_WITH_ARG;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
+	public static readonly NAME_ARG_LABEL = nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal");
+
+	public runCommand(
+		accessor: ServicesAccessor,
+		args?: { name?: string }
+	): void {
+		const notificationService = accessor.get(INotificationService);
+		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+
+		if (!terminalInstance) {
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noTerminal', "No active terminal to rename"));
+			return;
+		}
+
+		if (!args || !args.name) {
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
+			return;
+		}
+
+		terminalInstance.setTitle(args.name, TitleEventSource.Api);
 	}
 }
 

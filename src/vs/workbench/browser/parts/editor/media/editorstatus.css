@@ -48,4 +48,5 @@
 	padding-right: 12px;
 	margin-right: 5px;
 	max-width: fit-content;
+	max-width: -moz-fit-content;
 }

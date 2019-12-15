@@ -187,19 +187,79 @@ suite('Workbench editor groups', () => {
 		assert.equal(clone.isActive(input3), true);
 	});
 
-	test('contains() with diff editor support', function () {
+	test('contains()', function () {
 		const group = createGroup();
 
 		const input1 = input();
 		const input2 = input();
 
-		const diffInput = new DiffEditorInput('name', 'description', input1, input2);
+		const diffInput1 = new DiffEditorInput('name', 'description', input1, input2);
+		const diffInput2 = new DiffEditorInput('name', 'description', input2, input1);
+
+		group.openEditor(input1, { pinned: true, active: true });
+
+		assert.equal(group.contains(input1), true);
+		assert.equal(group.contains(input1, true), true);
+		assert.equal(group.contains(input2), false);
+		assert.equal(group.contains(input2, true), false);
+		assert.equal(group.contains(diffInput1), false);
+		assert.equal(group.contains(diffInput2), false);
 
 		group.openEditor(input2, { pinned: true, active: true });
 
+		assert.equal(group.contains(input1), true);
 		assert.equal(group.contains(input2), true);
-		assert.equal(group.contains(diffInput), false);
-		assert.equal(group.contains(diffInput, true), true);
+		assert.equal(group.contains(diffInput1), false);
+		assert.equal(group.contains(diffInput2), false);
+
+		group.openEditor(diffInput1, { pinned: true, active: true });
+
+		assert.equal(group.contains(input1), true);
+		assert.equal(group.contains(input2), true);
+		assert.equal(group.contains(diffInput1), true);
+		assert.equal(group.contains(diffInput2), false);
+
+		group.openEditor(diffInput2, { pinned: true, active: true });
+
+		assert.equal(group.contains(input1), true);
+		assert.equal(group.contains(input2), true);
+		assert.equal(group.contains(diffInput1), true);
+		assert.equal(group.contains(diffInput2), true);
+
+		group.closeEditor(input1);
+
+		assert.equal(group.contains(input1), false);
+		assert.equal(group.contains(input1, true), true);
+		assert.equal(group.contains(input2), true);
+		assert.equal(group.contains(diffInput1), true);
+		assert.equal(group.contains(diffInput2), true);
+
+		group.closeEditor(input2);
+
+		assert.equal(group.contains(input1), false);
+		assert.equal(group.contains(input1, true), true);
+		assert.equal(group.contains(input2), false);
+		assert.equal(group.contains(input2, true), true);
+		assert.equal(group.contains(diffInput1), true);
+		assert.equal(group.contains(diffInput2), true);
+
+		group.closeEditor(diffInput1);
+
+		assert.equal(group.contains(input1), false);
+		assert.equal(group.contains(input1, true), true);
+		assert.equal(group.contains(input2), false);
+		assert.equal(group.contains(input2, true), true);
+		assert.equal(group.contains(diffInput1), false);
+		assert.equal(group.contains(diffInput2), true);
+
+		group.closeEditor(diffInput2);
+
+		assert.equal(group.contains(input1), false);
+		assert.equal(group.contains(input1, true), false);
+		assert.equal(group.contains(input2), false);
+		assert.equal(group.contains(input2, true), false);
+		assert.equal(group.contains(diffInput1), false);
+		assert.equal(group.contains(diffInput2), false);
 	});
 
 	test('group serialization', function () {
@@ -461,8 +521,8 @@ suite('Workbench editor groups', () => {
 
 		const mru = group.getEditors(true);
 		assert.equal(mru[0], input1);
-		assert.equal(mru[1], input2);
-		assert.equal(mru[2], input3);
+		assert.equal(mru[1], input3);
+		assert.equal(mru[2], input2);
 	});
 
 	test('Multiple Editors - Preview gets overwritten', function () {
@@ -1055,12 +1115,12 @@ suite('Workbench editor groups', () => {
 		assert.equal(group2.previewEditor!.matches(g2_input2), true);
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
-		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
-		assert.equal(group1.getEditors(true)[2].matches(g1_input3), true);
+		assert.equal(group1.getEditors(true)[1].matches(g1_input3), true);
+		assert.equal(group1.getEditors(true)[2].matches(g1_input1), true);
 
 		assert.equal(group2.getEditors(true)[0].matches(g2_input1), true);
-		assert.equal(group2.getEditors(true)[1].matches(g2_input2), true);
-		assert.equal(group2.getEditors(true)[2].matches(g2_input3), true);
+		assert.equal(group2.getEditors(true)[1].matches(g2_input3), true);
+		assert.equal(group2.getEditors(true)[2].matches(g2_input2), true);
 
 		// Create model again - should load from storage
 		group1 = inst.createInstance(EditorGroup, group1.serialize());
@@ -1074,12 +1134,12 @@ suite('Workbench editor groups', () => {
 		assert.equal(group2.previewEditor!.matches(g2_input2), true);
 
 		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
-		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
-		assert.equal(group1.getEditors(true)[2].matches(g1_input3), true);
+		assert.equal(group1.getEditors(true)[1].matches(g1_input3), true);
+		assert.equal(group1.getEditors(true)[2].matches(g1_input1), true);
 
 		assert.equal(group2.getEditors(true)[0].matches(g2_input1), true);
-		assert.equal(group2.getEditors(true)[1].matches(g2_input2), true);
-		assert.equal(group2.getEditors(true)[2].matches(g2_input3), true);
+		assert.equal(group2.getEditors(true)[1].matches(g2_input3), true);
+		assert.equal(group2.getEditors(true)[2].matches(g2_input2), true);
 	});
 
 	test('Single group, multiple editors - persist (some not persistable)', function () {
@@ -1112,18 +1172,18 @@ suite('Workbench editor groups', () => {
 		assert.equal(group.previewEditor!.matches(nonSerializableInput2), true);
 
 		assert.equal(group.getEditors(true)[0].matches(nonSerializableInput2), true);
-		assert.equal(group.getEditors(true)[1].matches(serializableInput1), true);
-		assert.equal(group.getEditors(true)[2].matches(serializableInput2), true);
+		assert.equal(group.getEditors(true)[1].matches(serializableInput2), true);
+		assert.equal(group.getEditors(true)[2].matches(serializableInput1), true);
 
 		// Create model again - should load from storage
 		group = inst.createInstance(EditorGroup, group.serialize());
 
 		assert.equal(group.count, 2);
-		assert.equal(group.activeEditor!.matches(serializableInput1), true);
+		assert.equal(group.activeEditor!.matches(serializableInput2), true);
 		assert.equal(group.previewEditor, null);
 
-		assert.equal(group.getEditors(true)[0].matches(serializableInput1), true);
-		assert.equal(group.getEditors(true)[1].matches(serializableInput2), true);
+		assert.equal(group.getEditors(true)[0].matches(serializableInput2), true);
+		assert.equal(group.getEditors(true)[1].matches(serializableInput1), true);
 	});
 
 	test('Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
@@ -1160,47 +1220,6 @@ suite('Workbench editor groups', () => {
 		assert.equal(group1.count, 2);
 		assert.equal(group1.getEditors()[0].matches(serializableInput1), true);
 		assert.equal(group1.getEditors()[1].matches(serializableInput2), true);
-	});
-
-	test('Multiple Editors - Resources', function () {
-		const group1 = createGroup();
-		const group2 = createGroup();
-
-		const input1Resource = URI.file('/hello/world.txt');
-		const input1ResourceUpper = URI.file('/hello/WORLD.txt');
-		const input1 = input(undefined, false, input1Resource);
-		group1.openEditor(input1);
-
-		assert.ok(group1.contains(input1Resource));
-		assert.equal(group1.getEditor(input1Resource), input1);
-
-		assert.ok(!group1.getEditor(input1ResourceUpper));
-		assert.ok(!group1.contains(input1ResourceUpper));
-
-		group2.openEditor(input1);
-		group1.closeEditor(input1);
-
-		assert.ok(!group1.contains(input1Resource));
-		assert.ok(!group1.getEditor(input1Resource));
-		assert.ok(!group1.getEditor(input1ResourceUpper));
-		assert.ok(group2.contains(input1Resource));
-		assert.equal(group2.getEditor(input1Resource), input1);
-
-		const input1ResourceClone = URI.file('/hello/world.txt');
-		const input1Clone = input(undefined, false, input1ResourceClone);
-		group1.openEditor(input1Clone);
-
-		assert.ok(group1.contains(input1Resource));
-
-		group2.closeEditor(input1);
-
-		assert.ok(group1.contains(input1Resource));
-		assert.equal(group1.getEditor(input1Resource), input1Clone);
-		assert.ok(!group2.contains(input1Resource));
-
-		group1.closeEditor(input1Clone);
-
-		assert.ok(!group1.contains(input1Resource));
 	});
 
 	test('Multiple Editors - Editor Dispose', function () {

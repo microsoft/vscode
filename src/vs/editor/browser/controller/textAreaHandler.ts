@@ -62,6 +62,7 @@ export class TextAreaHandler extends ViewPart {
 	private _scrollTop: number;
 
 	private _accessibilitySupport: AccessibilitySupport;
+	private _accessibilityPageSize: number;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -75,6 +76,12 @@ export class TextAreaHandler extends ViewPart {
 	 */
 	private _visibleTextArea: VisibleTextAreaData | null;
 	private _selections: Selection[];
+
+	/**
+	 * The position at which the textarea was rendered.
+	 * This is useful for hit-testing and determining the mouse position.
+	 */
+	private _lastRenderPosition: Position | null;
 
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
@@ -92,6 +99,7 @@ export class TextAreaHandler extends ViewPart {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.contentHeight;
@@ -102,6 +110,7 @@ export class TextAreaHandler extends ViewPart {
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
+		this._lastRenderPosition = null;
 
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
@@ -189,7 +198,7 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilitySupport === AccessibilitySupport.Unknown);
+				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
@@ -341,6 +350,7 @@ export class TextAreaHandler extends ViewPart {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.contentHeight;
@@ -406,13 +416,22 @@ export class TextAreaHandler extends ViewPart {
 		this._textAreaInput.focusTextArea();
 	}
 
+	public refreshFocusState() {
+		this._textAreaInput.refreshFocusState();
+	}
+
+	public getLastRenderData(): Position | null {
+		return this._lastRenderPosition;
+	}
+
 	// --- end view API
 
+	private _primaryCursorPosition: Position = new Position(1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
 
 	public prepareRender(ctx: RenderingContext): void {
-		const primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
-		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(primaryCursorPosition);
+		this._primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
+		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
@@ -424,11 +443,11 @@ export class TextAreaHandler extends ViewPart {
 		if (this._visibleTextArea) {
 			// The text area is visible for composition reasons
 			this._renderInsideEditor(
+				null,
 				this._visibleTextArea.top - this._scrollTop,
 				this._contentLeft + this._visibleTextArea.left - this._scrollLeft,
 				this._visibleTextArea.width,
-				this._lineHeight,
-				true
+				this._lineHeight
 			);
 			return;
 		}
@@ -459,30 +478,26 @@ export class TextAreaHandler extends ViewPart {
 			// For the popup emoji input, we will make the text area as high as the line height
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
 			this._renderInsideEditor(
+				this._primaryCursorPosition,
 				top, left,
-				canUseZeroSizeTextarea ? 0 : 1, this._lineHeight,
-				true
+				canUseZeroSizeTextarea ? 0 : 1, this._lineHeight
 			);
 			return;
 		}
 
 		this._renderInsideEditor(
+			this._primaryCursorPosition,
 			top, left,
-			canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1,
-			false
+			canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1
 		);
 	}
 
-	private _renderInsideEditor(top: number, left: number, width: number, height: number, useEditorFont: boolean): void {
+	private _renderInsideEditor(renderedPosition: Position | null, top: number, left: number, width: number, height: number): void {
+		this._lastRenderPosition = renderedPosition;
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
-		if (useEditorFont) {
-			Configuration.applyFontInfo(ta, this._fontInfo);
-		} else {
-			ta.setFontSize(1);
-			ta.setLineHeight(this._fontInfo.lineHeight);
-		}
+		Configuration.applyFontInfo(ta, this._fontInfo);
 
 		ta.setTop(top);
 		ta.setLeft(left);
@@ -496,6 +511,7 @@ export class TextAreaHandler extends ViewPart {
 	}
 
 	private _renderAtTopLeft(): void {
+		this._lastRenderPosition = null;
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 

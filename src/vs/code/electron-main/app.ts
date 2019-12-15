@@ -79,6 +79,7 @@ import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform
 import { assign } from 'vs/base/common/objects';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 
 export class CodeApplication extends Disposable {
 
@@ -574,14 +575,15 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+
 		// ExtensionHost Debug broadcast service
-		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ExtensionHostDebugBroadcastChannel());
+		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ElectronExtensionHostDebugBroadcastChannel(windowsMainService));
 
 		// Signal phase: ready (services set)
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Propagate to clients
-		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		this.dialogMainService = accessor.get(IDialogMainService);
 
 		// Create a URL handler to open file URIs in the active window
@@ -637,7 +639,7 @@ export class CodeApplication extends Disposable {
 		// Watch Electron URLs and forward them to the UrlService
 		const args = this.environmentService.args;
 		const urls = args['open-url'] ? args._urls : [];
-		const urlListener = new ElectronURLListener(urls || [], urlService, windowsMainService);
+		const urlListener = new ElectronURLListener(urls || [], urlService, windowsMainService, this.environmentService);
 		this._register(urlListener);
 
 		// Open our first window
@@ -721,5 +723,30 @@ export class CodeApplication extends Disposable {
 				method: request.method
 			});
 		});
+	}
+}
+
+class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
+
+	constructor(private windowsMainService: IWindowsMainService) {
+		super();
+	}
+
+	call(ctx: TContext, command: string, arg?: any): Promise<any> {
+		if (command === 'openExtensionDevelopmentHostWindow') {
+			const env = arg[1];
+			const pargs = parseArgs(arg[0], OPTIONS);
+			const extDevPaths = pargs.extensionDevelopmentPath;
+			if (extDevPaths) {
+				this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
+					context: OpenContext.API,
+					cli: pargs,
+					userEnv: Object.keys(env).length > 0 ? env : undefined
+				});
+			}
+			return Promise.resolve();
+		} else {
+			return super.call(ctx, command, arg);
+		}
 	}
 }

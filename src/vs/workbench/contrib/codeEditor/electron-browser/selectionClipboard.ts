@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -15,6 +15,10 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static readonly SELECTION_LENGTH_LIMIT = 65536;
@@ -28,15 +32,6 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 			this._register(editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 				if (e.hasChanged(EditorOption.selectionClipboard)) {
 					isEnabled = editor.getOption(EditorOption.selectionClipboard);
-				}
-			}));
-
-			this._register(editor.onMouseUp((e: IEditorMouseEvent) => {
-				if (!isEnabled) {
-					if (e.event.middleButton) {
-						// try to stop the upcoming paste
-						e.event.preventDefault();
-					}
 				}
 			}));
 
@@ -92,4 +87,25 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 	}
 }
 
+class SelectionClipboardPastePreventer implements IWorkbenchContribution {
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		if (platform.isLinux) {
+			document.addEventListener('mouseup', (e) => {
+				if (e.button === 1) {
+					// middle button
+					const config = configurationService.getValue<{ selectionClipboard: boolean; }>('editor');
+					if (!config.selectionClipboard) {
+						// selection clipboard is disabled
+						// try to stop the upcoming paste
+						e.preventDefault();
+					}
+				}
+			});
+		}
+	}
+}
+
 registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
