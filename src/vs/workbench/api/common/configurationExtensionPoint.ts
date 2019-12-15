@@ -57,12 +57,12 @@ const configurationEntrySchema: IJSONSchema = {
 								},
 								description: nls.localize('scope.enumDescriptions', 'Descriptions for enum values')
 							},
-							markdownEnumDescription: {
+							markdownEnumDescriptions: {
 								type: 'array',
 								items: {
 									type: 'string',
 								},
-								description: nls.localize('scope.markdownEnumDescription', 'Descriptions for enum values in the markdown format.')
+								description: nls.localize('scope.markdownEnumDescriptions', 'Descriptions for enum values in the markdown format.')
 							},
 							markdownDescription: {
 								type: 'string',
