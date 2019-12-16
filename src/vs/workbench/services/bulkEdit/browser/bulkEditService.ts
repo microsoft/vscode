@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mergeSort } from 'vs/base/common/arrays';
+import { mergeSort, flatten } from 'vs/base/common/arrays';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -11,7 +11,7 @@ import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/b
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { isResourceFileEdit, isResourceTextEdit, ResourceFileEdit, ResourceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
+import { isResourceFileEdit, isResourceTextEdit, ResourceFileEdit, ResourceTextEdit, WorkspaceEdit, TextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
@@ -193,14 +193,27 @@ class BulkEditModel implements IDisposable {
 					task = new ModelEditTask(ref);
 				}
 
-				for (const edit of value) {
-					if (makeMinimal) {
-						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, edit.edits);
-						task.addEdit({ ...edit, edits: newEdits! });
+				if (makeMinimal) {
+					// edit is performed with an editor and in that case we make sure that
+					// the edits are as minimal as possible
 
-					} else {
-						task.addEdit(edit);
+					const edits: TextEdit[][] = [];
+					let modelVersionId: number | undefined;
+					for (const edit of value) {
+						edits.push(edit.edits);
+						modelVersionId = edit.modelVersionId || modelVersionId;
 					}
+
+					const newEdits = await this._editorWorker.computeMoreMinimalEdits(model.textEditorModel.uri, flatten(edits));
+
+					task.addEdit({
+						modelVersionId,
+						edits: newEdits!,
+						resource: model.textEditorModel.uri,
+					});
+				} else {
+					// edit is performed with model only
+					value.forEach(task.addEdit, task);
 				}
 
 				this._tasks!.push(task);
