@@ -4237,8 +4237,6 @@ declare module 'vscode' {
 		WorkspaceFolder = 3
 	}
 
-	export type ConfigurationScope = Uri | { resource: Uri, language?: string };
-
 	/**
 	 * Represents the configuration. It is a merged view of
 	 *
@@ -4353,6 +4351,31 @@ declare module 'vscode' {
 		 * Readable dictionary that backs this configuration.
 		 */
 		readonly [key: string]: any;
+	}
+
+	export interface WorkspaceFolderConfiguration extends WorkspaceConfiguration {
+
+		update(section: string, value: any): Thenable<void>;
+	}
+
+	export interface TextDocumentConfiguration extends WorkspaceConfiguration {
+
+		inspect<T>(section: string): {
+			key: string;
+
+			defaultValue?: T;
+			globalValue?: T;
+			workspaceValue?: T,
+			workspaceFolderValue?: T,
+
+			defaultLanguageValue?: T;
+			userLanguageValue?: T;
+			workspaceLanguageValue?: T;
+			workspaceFolderLanguageValue?: T;
+
+		} | undefined;
+
+		update(section: string, value: any): Thenable<void>;
 	}
 
 	/**
@@ -8691,7 +8714,33 @@ declare module 'vscode' {
 		 * @param scope A scope for which the configuration is asked for.
 		 * @return The full configuration or a subset.
 		 */
-		export function getConfiguration(section?: string, scope?: ConfigurationScope | null): WorkspaceConfiguration;
+		export function getConfiguration(section?: string, resource?: Uri | null): WorkspaceConfiguration;
+
+		/**
+		 * Get a workspace folder configuration object for the given workspace folder.
+		 *
+		 * When a section-identifier is provided only that part of the configuration
+		 * is returned. Dots in the section-identifier are interpreted as child-access,
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
+		 *
+		 * @param section A dot-separated identifier.
+		 * @param workspaceFolder A workspace folder for which the configuration is asked for.
+		 * @return The full configuration or a subset.
+		 */
+		export function getConfiguration(section: string | undefined, workspaceFolder: WorkspaceFolder): WorkspaceFolderConfiguration;
+
+		/**
+		 * Get a text document configuration object for the given text document.
+		 *
+		 * When a section-identifier is provided only that part of the configuration
+		 * is returned. Dots in the section-identifier are interpreted as child-access,
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
+		 *
+		 * @param section A dot-separated identifier.
+		 * @param textDocument A text document for which the configuration is asked for.
+		 * @return The full configuration or a subset for the given text document
+		 */
+		export function getConfiguration(section: string | undefined, textDocument: TextDocument): TextDocumentConfiguration;
 
 		/**
 		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.

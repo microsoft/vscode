@@ -40,6 +40,19 @@ type ConfigurationInspect<T> = {
 	workspaceFolderValue?: T;
 };
 
+function isTextDocument(thing: any): thing is vscode.TextDocument {
+	return thing
+		&& thing.uri instanceof vscode.Uri
+		&& (!thing.languageId || typeof thing.languageId === 'string');
+}
+
+function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
+	return thing
+		&& thing.uri instanceof vscode.Uri
+		&& (!thing.name || typeof thing.name === 'string')
+		&& (!thing.index || typeof thing.index === 'number');
+}
+
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
 	readonly _serviceBrand: undefined;
@@ -104,8 +117,13 @@ export class ExtHostConfigProvider {
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
 	}
 
-	getConfiguration(section?: string, scope?: vscode.ConfigurationScope, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
-		const overrides: IConfigurationOverrides = scope ? scope instanceof vscode.Uri ? { resource: scope } : { resource: scope.resource, overrideIdentifier: scope.language } : {};
+	getConfiguration(section: string | undefined, scope: vscode.Uri | vscode.WorkspaceFolder | vscode.TextDocument | null | undefined, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
+		const overrides: IConfigurationOverrides = scope ?
+			scope instanceof vscode.Uri ? { resource: scope }
+				: isWorkspaceFolder(scope) ? { resource: scope.uri }
+					: isTextDocument(scope) ? { resource: scope.uri, overrideIdentifier: scope.languageId }
+						: scope
+			: {};
 		const config = this._toReadonlyValue(section
 			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
 			: this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace));
