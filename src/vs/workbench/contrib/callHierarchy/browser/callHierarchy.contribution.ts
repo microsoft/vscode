@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { CallHierarchyProviderRegistry, CallHierarchyDirection } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
+import { CallHierarchyProviderRegistry, CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyTreePeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
@@ -17,36 +17,42 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { PeekContext } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
-import { CallHierarchyRoot } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
+import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Range } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
-const _ctxHasCompletionItemProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
+const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false);
 
 class CallHierarchyController implements IEditorContribution {
 
-	static Id = 'callHierarchy';
+	static readonly Id = 'callHierarchy';
 
 	static get(editor: ICodeEditor): CallHierarchyController {
 		return editor.getContribution<CallHierarchyController>(CallHierarchyController.Id);
 	}
 
-	private static _StorageDirection = 'callHierarchy/defaultDirection';
+	private static readonly _StorageDirection = 'callHierarchy/defaultDirection';
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 	private readonly _ctxIsVisible: IContextKey<boolean>;
 	private readonly _dispoables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 
+	private _widget?: CallHierarchyTreePeekWidget;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._ctxIsVisible = _ctxCallHierarchyVisible.bindTo(this._contextKeyService);
-		this._ctxHasProvider = _ctxHasCompletionItemProvider.bindTo(this._contextKeyService);
+		this._ctxHasProvider = _ctxHasCallHierarchyProvider.bindTo(this._contextKeyService);
 		this._dispoables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, CallHierarchyProviderRegistry.onDidChange)(() => {
 			this._ctxHasProvider.set(_editor.hasModel() && CallHierarchyProviderRegistry.has(_editor.getModel()));
 		}));
@@ -59,52 +65,83 @@ class CallHierarchyController implements IEditorContribution {
 		this._dispoables.dispose();
 	}
 
-	getId(): string {
-		return CallHierarchyController.Id;
-	}
-
-	async startCallHierarchy(): Promise<void> {
+	async startCallHierarchyFromEditor(): Promise<void> {
 		this._sessionDisposables.clear();
 
 		if (!this._editor.hasModel()) {
 			return;
 		}
 
-		const model = this._editor.getModel();
+		const document = this._editor.getModel();
 		const position = this._editor.getPosition();
-		const [provider] = CallHierarchyProviderRegistry.ordered(model);
-		if (!provider) {
+		if (!CallHierarchyProviderRegistry.has(document)) {
 			return;
 		}
 
+		const cts = new CancellationTokenSource();
+		const model = CallHierarchyModel.create(document, position, cts.token);
 		const direction = this._storageService.getNumber(CallHierarchyController._StorageDirection, StorageScope.GLOBAL, <number>CallHierarchyDirection.CallsFrom);
 
-		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDisposables);
-		const widget = this._instantiationService.createInstance(
-			CallHierarchyTreePeekWidget,
-			this._editor,
-			position,
-			provider,
-			direction
+		this._showCallHierarchyWidget(position, direction, model, cts);
+	}
+
+	async startCallHierarchyFromCallHierarchy(): Promise<void> {
+		if (!this._widget) {
+			return;
+		}
+		const model = this._widget.getModel();
+		const call = this._widget.getFocused();
+		if (!call || !model) {
+			return;
+		}
+		const newEditor = await this._editorService.openCodeEditor({ resource: call.item.uri }, this._editor);
+		if (!newEditor) {
+			return;
+		}
+		const newModel = model.fork(call.item);
+		this._sessionDisposables.clear();
+
+		CallHierarchyController.get(newEditor)._showCallHierarchyWidget(
+			Range.lift(newModel.root.selectionRange).getStartPosition(),
+			this._widget.direction,
+			Promise.resolve(newModel),
+			new CancellationTokenSource()
 		);
+	}
 
-		widget.showLoading();
+	private _showCallHierarchyWidget(position: IPosition, direction: number, model: Promise<CallHierarchyModel | undefined>, cts: CancellationTokenSource) {
+
+		Event.any<any>(this._editor.onDidChangeModel, this._editor.onDidChangeModelLanguage)(this.endCallHierarchy, this, this._sessionDisposables);
+		this._widget = this._instantiationService.createInstance(CallHierarchyTreePeekWidget, this._editor, position, direction);
+		this._widget.showLoading();
 		this._ctxIsVisible.set(true);
-
-		const cancel = new CancellationTokenSource();
-
-		this._sessionDisposables.add(widget.onDidClose(() => {
+		this._sessionDisposables.add(this._widget.onDidClose(() => {
 			this.endCallHierarchy();
-			this._storageService.store(CallHierarchyController._StorageDirection, widget.direction, StorageScope.GLOBAL);
+			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.GLOBAL);
 		}));
-		this._sessionDisposables.add({ dispose() { cancel.cancel(); } });
-		this._sessionDisposables.add(widget);
+		this._sessionDisposables.add({ dispose() { cts.dispose(true); } });
+		this._sessionDisposables.add(this._widget);
 
-		const root = CallHierarchyRoot.fromEditor(this._editor);
-		if (root) {
-			widget.showItem(root);
-		} else {
-			widget.showMessage(localize('no.item', "No results"));
+		model.then(model => {
+			if (cts.token.isCancellationRequested) {
+				return; // nothing
+			}
+			if (model) {
+				this._sessionDisposables.add(model);
+				this._widget!.showModel(model);
+			}
+			else {
+				this._widget!.showMessage(localize('no.item', "No results"));
+			}
+		}).catch(e => {
+			this._widget!.showMessage(localize('error', "Failed to show call hierarchy"));
+			console.error(e);
+		});
+	}
+
+	toggleCallHierarchyDirection(): void {
+		if (this._widget) {
+			this._widget.toggleDirection();
 		}
 	}
 
@@ -115,7 +152,7 @@ class CallHierarchyController implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(CallHierarchyController);
+registerEditorContribution(CallHierarchyController.Id, CallHierarchyController);
 
 registerEditorAction(class extends EditorAction {
 
@@ -124,9 +161,10 @@ registerEditorAction(class extends EditorAction {
 			id: 'editor.showCallHierarchy',
 			label: localize('title', "Peek Call Hierarchy"),
 			alias: 'Peek Call Hierarchy',
-			menuOpts: {
+			contextMenuOpts: {
+				menuId: MenuId.EditorContextPeek,
 				group: 'navigation',
-				order: 1.48
+				order: 1000
 			},
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -134,14 +172,54 @@ registerEditorAction(class extends EditorAction {
 				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H
 			},
 			precondition: ContextKeyExpr.and(
-				_ctxHasCompletionItemProvider,
+				_ctxHasCallHierarchyProvider,
 				PeekContext.notInPeekEditor
 			)
 		});
 	}
 
-	async run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
-		return CallHierarchyController.get(editor).startCallHierarchy();
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		return CallHierarchyController.get(editor).startCallHierarchyFromEditor();
+	}
+});
+
+registerEditorAction(class extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.toggleCallHierarchy',
+			label: localize('title.toggle', "Toggle Call Hierarchy"),
+			alias: 'Toggle Call Hierarchy',
+			kbOpts: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H
+			},
+			precondition: _ctxCallHierarchyVisible
+		});
+	}
+
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		return CallHierarchyController.get(editor).toggleCallHierarchyDirection();
+	}
+});
+
+registerEditorAction(class extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.refocusCallHierarchy',
+			label: localize('title.refocus', "Refocus Call Hierarchy"),
+			alias: 'Refocus Call Hierarchy',
+			kbOpts: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Shift + KeyCode.Enter
+			},
+			precondition: _ctxCallHierarchyVisible
+		});
+	}
+
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		return CallHierarchyController.get(editor).startCallHierarchyFromCallHierarchy();
 	}
 });
 

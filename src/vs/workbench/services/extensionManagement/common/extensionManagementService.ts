@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService
+	IExtensionManagementService, ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, INSTALL_ERROR_NOT_SUPPORTED
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localize } from 'vs/nls';
-import { isUIExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { prefersExecuteOnUI, canExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -93,7 +93,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private async uninstallInServer(extension: ILocalExtension, server: IExtensionManagementServer, force?: boolean): Promise<void> {
 		if (server === this.extensionManagementServerService.localExtensionManagementServer) {
 			const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getInstalled(ExtensionType.User);
-			const dependentNonUIExtensions = installedExtensions.filter(i => !isUIExtension(i.manifest, this.productService, this.configurationService)
+			const dependentNonUIExtensions = installedExtensions.filter(i => !prefersExecuteOnUI(i.manifest, this.productService, this.configurationService)
 				&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
 			if (dependentNonUIExtensions.length) {
 				return Promise.reject(new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
@@ -152,7 +152,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				const [local] = await Promise.all(this.servers.map(server => this.installVSIX(vsix, server)));
 				return local;
 			}
-			if (isUIExtension(manifest, this.productService, this.configurationService)) {
+			if (prefersExecuteOnUI(manifest, this.productService, this.configurationService)) {
 				// Install only on local server
 				return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer);
 			}
@@ -190,7 +190,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					// Install on both servers
 					return Promise.all(this.servers.map(server => server.extensionManagementService.installFromGallery(gallery))).then(([local]) => local);
 				}
-				if (isUIExtension(manifest, this.productService, this.configurationService)) {
+				if (prefersExecuteOnUI(manifest, this.productService, this.configurationService)) {
 					// Install only on local server
 					return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
 				}
@@ -204,6 +204,15 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
 		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
+			if (!manifest) {
+				return Promise.reject(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
+			}
+			if (!isLanguagePackExtension(manifest) && !canExecuteOnWorkspace(manifest, this.productService, this.configurationService)) {
+				const error = new Error(localize('cannot be installed', "Cannot install '{0}' extension since it cannot be enabled in the remote server.", gallery.displayName || gallery.name));
+				error.name = INSTALL_ERROR_NOT_SUPPORTED;
+				return Promise.reject(error);
+			}
 			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(gallery);
 		}
 		return Promise.reject('No Servers to Install');

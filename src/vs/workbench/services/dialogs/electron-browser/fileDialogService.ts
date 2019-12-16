@@ -6,7 +6,7 @@
 import { SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -33,8 +33,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@IOpenerService openerService: IOpenerService,
-		@IElectronService private readonly electronService: IElectronService
-	) { super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService); }
+		@IElectronService private readonly electronService: IElectronService,
+		@IDialogService dialogService: IDialogService
+	) {
+		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService, dialogService);
+	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
 		return {
@@ -110,7 +113,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.pickFileToSaveSimplified(schema, options);
 		} else {
 			const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-			if (result && result.filePath) {
+			if (result && !result.canceled && result.filePath) {
 				return URI.file(result.filePath);
 			}
 		}
@@ -134,7 +137,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-		if (result && result.filePath) {
+		if (result && !result.canceled && result.filePath) {
 			return URI.file(result.filePath);
 		}
 
@@ -149,7 +152,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const defaultUri = options.defaultUri;
 
-		const newOptions: OpenDialogOptions = {
+		const newOptions: OpenDialogOptions & { properties: string[] } = {
 			title: options.title,
 			defaultPath: defaultUri && defaultUri.fsPath,
 			buttonLabel: options.openLabel,
@@ -157,18 +160,18 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			properties: []
 		};
 
-		newOptions.properties!.push('createDirectory');
+		newOptions.properties.push('createDirectory');
 
 		if (options.canSelectFiles) {
-			newOptions.properties!.push('openFile');
+			newOptions.properties.push('openFile');
 		}
 
 		if (options.canSelectFolders) {
-			newOptions.properties!.push('openDirectory');
+			newOptions.properties.push('openDirectory');
 		}
 
 		if (options.canSelectMany) {
-			newOptions.properties!.push('multiSelections');
+			newOptions.properties.push('multiSelections');
 		}
 
 		const result = await this.electronService.showOpenDialog(newOptions);
@@ -179,6 +182,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		// Include File schema unless the schema is web
 		// Don't allow untitled schema through.
 		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
+	}
+
+	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
+		if (this.environmentService.isExtensionDevelopment) {
+			if (!this.environmentService.args['extension-development-confirm-save']) {
+				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
+			}
+		}
+
+		return super.showSaveConfirm(fileNamesOrResources);
 	}
 }
 

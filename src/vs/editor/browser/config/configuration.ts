@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { EditorOption, IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorConstructionOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -79,6 +79,7 @@ export interface ISerializedFontInfo {
 	readonly fontFamily: string;
 	readonly fontWeight: string;
 	readonly fontSize: number;
+	fontFeatureSettings: string;
 	readonly lineHeight: number;
 	readonly letterSpacing: number;
 	readonly isMonospace: boolean;
@@ -151,11 +152,14 @@ class CSSBasedConfiguration extends Disposable {
 		return this._cache.getValues().filter(item => item.isTrusted);
 	}
 
-	public restoreFontInfo(savedFontInfo: ISerializedFontInfo[]): void {
+	public restoreFontInfo(savedFontInfos: ISerializedFontInfo[]): void {
 		// Take all the saved font info and insert them in the cache without the trusted flag.
 		// The reason for this is that a font might have been installed on the OS in the meantime.
-		for (let i = 0, len = savedFontInfo.length; i < len; i++) {
-			const fontInfo = new FontInfo(savedFontInfo[i], false);
+		for (let i = 0, len = savedFontInfos.length; i < len; i++) {
+			const savedFontInfo = savedFontInfos[i];
+			// compatibility with older versions of VS Code which did not store this...
+			savedFontInfo.fontFeatureSettings = savedFontInfo.fontFeatureSettings || EditorFontLigatures.OFF;
+			const fontInfo = new FontInfo(savedFontInfo, false);
 			this._writeToCache(fontInfo, fontInfo);
 		}
 	}
@@ -171,6 +175,7 @@ class CSSBasedConfiguration extends Disposable {
 					fontFamily: readConfig.fontFamily,
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
+					fontFeatureSettings: readConfig.fontFeatureSettings,
 					lineHeight: readConfig.lineHeight,
 					letterSpacing: readConfig.letterSpacing,
 					isMonospace: readConfig.isMonospace,
@@ -249,9 +254,9 @@ class CSSBasedConfiguration extends Disposable {
 
 		const maxDigitWidth = Math.max(digit0.width, digit1.width, digit2.width, digit3.width, digit4.width, digit5.width, digit6.width, digit7.width, digit8.width, digit9.width);
 
-		let isMonospace = true;
+		let isMonospace = (bareFontInfo.fontFeatureSettings === EditorFontLigatures.OFF);
 		const referenceWidth = monospace[0].width;
-		for (let i = 1, len = monospace.length; i < len; i++) {
+		for (let i = 1, len = monospace.length; isMonospace && i < len; i++) {
 			const diff = referenceWidth - monospace[i].width;
 			if (diff < -0.001 || diff > 0.001) {
 				isMonospace = false;
@@ -276,6 +281,7 @@ class CSSBasedConfiguration extends Disposable {
 			fontFamily: bareFontInfo.fontFamily,
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
+			fontFeatureSettings: bareFontInfo.fontFeatureSettings,
 			lineHeight: bareFontInfo.lineHeight,
 			letterSpacing: bareFontInfo.letterSpacing,
 			isMonospace: isMonospace,
@@ -294,6 +300,7 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
+		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
 		domNode.style.letterSpacing = fontInfo.letterSpacing + 'px';
 	}
@@ -302,6 +309,7 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.setFontFamily(fontInfo.getMassagedFontFamily());
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
+		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);
 		domNode.setLineHeight(fontInfo.lineHeight);
 		domNode.setLetterSpacing(fontInfo.letterSpacing);
 	}

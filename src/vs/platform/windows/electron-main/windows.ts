@@ -39,7 +39,7 @@ export interface ICodeWindow extends IDisposable {
 
 	readonly id: number;
 	readonly win: BrowserWindow;
-	readonly config: IWindowConfiguration;
+	readonly config: IWindowConfiguration | undefined;
 
 	readonly openedFolderUri?: URI;
 	readonly openedWorkspace?: IWorkspaceIdentifier;
@@ -56,6 +56,8 @@ export interface ICodeWindow extends IDisposable {
 	ready(): Promise<ICodeWindow>;
 	setReady(): void;
 
+	readonly hasHiddenTitleBarStyle: boolean;
+
 	addTabbedWindow(window: ICodeWindow): void;
 
 	load(config: IWindowConfiguration, isReload?: boolean): void;
@@ -69,14 +71,13 @@ export interface ICodeWindow extends IDisposable {
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, ...args: any[]): void;
 
+	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
-	isFullScreen(): boolean;
+
 	isMinimized(): boolean;
 
-	hasHiddenTitleBarStyle(): boolean;
-
 	setRepresentedFilename(name: string): void;
-	getRepresentedFilename(): string;
+	getRepresentedFilename(): string | undefined;
 
 	handleTitleDoubleClick(): void;
 

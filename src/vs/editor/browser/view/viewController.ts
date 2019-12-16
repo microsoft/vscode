@@ -13,6 +13,7 @@ import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import * as platform from 'vs/base/common/platform';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -132,7 +133,8 @@ export class ViewController {
 	}
 
 	public dispatchMouse(data: IMouseDispatchData): void {
-		if (data.middleButton) {
+		const selectionClipboardIsOn = (platform.isLinux && this.configuration.options.get(EditorOption.selectionClipboard));
+		if (data.middleButton && !selectionClipboardIsOn) {
 			this._columnSelect(data.position, data.mouseColumn, data.inSelectionMode);
 		} else if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line

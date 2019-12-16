@@ -86,8 +86,14 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	let model = new SingleLineTestModel('some  text');
 
 	const textAreaInputHost: ITextAreaInputHost = {
-		getPlainTextToCopy: (): string => '',
-		getHTMLToCopy: (): string => '',
+		getDataToCopy: () => {
+			return {
+				isFromEmptySelection: false,
+				multicursorText: null,
+				text: '',
+				html: undefined
+			};
+		},
 		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
 
 			if (browser.isIPad) {
@@ -97,7 +103,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, true);
+			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, 10, true);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
 			return null!;

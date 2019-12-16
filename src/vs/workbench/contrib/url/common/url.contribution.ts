@@ -41,7 +41,7 @@ export class OpenUrlAction extends Action {
 }
 
 Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL),
+	SyncActionDescriptor.create(OpenUrlAction, OpenUrlAction.ID, OpenUrlAction.LABEL),
 	'Open URL',
 	localize('developer', 'Developer')
 );
@@ -54,7 +54,10 @@ CommandsRegistry.registerCommand(manageTrustedDomainSettingsCommand);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: manageTrustedDomainSettingsCommand.id,
-		title: manageTrustedDomainSettingsCommand.description.description
+		title: {
+			value: manageTrustedDomainSettingsCommand.description.description,
+			original: 'Manage Trusted Domains'
+		}
 	}
 });
 

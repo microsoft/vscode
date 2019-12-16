@@ -8,7 +8,7 @@ import { isEqual } from 'vs/base/common/extpath';
 import { posix } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
-import { IFileStat, IFileService } from 'vs/platform/files/common/files';
+import { IFileStat, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -75,6 +75,7 @@ export class ExplorerModel implements IDisposable {
 
 export class ExplorerItem {
 	private _isDirectoryResolved: boolean;
+	private _isDisposed: boolean;
 	public isError = false;
 
 	constructor(
@@ -87,6 +88,11 @@ export class ExplorerItem {
 		private _mtime?: number,
 	) {
 		this._isDirectoryResolved = false;
+		this._isDisposed = false;
+	}
+
+	get isDisposed(): boolean {
+		return this._isDisposed;
 	}
 
 	get isDirectoryResolved(): boolean {
@@ -148,8 +154,8 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, raw.isReadonly, raw.name, raw.mtime);
+	static create(service: IFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, parent, raw.isDirectory, raw.isSymbolicLink, service.hasCapability(raw.resource, FileSystemProviderCapabilities.Readonly), raw.name, raw.mtime);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -164,7 +170,7 @@ export class ExplorerItem {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = ExplorerItem.create(raw.children[i], stat, resolveTo);
+					const child = ExplorerItem.create(service, raw.children[i], stat, resolveTo);
 					stat.addChild(child);
 				}
 			}
@@ -191,7 +197,9 @@ export class ExplorerItem {
 
 		// Properties
 		local.resource = disk.resource;
-		local.updateName(disk.name);
+		if (!local.isRoot) {
+			local.updateName(disk.name);
+		}
 		local._isDirectory = disk.isDirectory;
 		local._mtime = disk.mtime;
 		local._isDirectoryResolved = disk._isDirectoryResolved;
@@ -218,6 +226,7 @@ export class ExplorerItem {
 				if (formerLocalChild) {
 					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
 					local.addChild(formerLocalChild);
+					oldLocalChildren.delete(diskChild.resource);
 				}
 
 				// New child: add
@@ -225,6 +234,10 @@ export class ExplorerItem {
 					local.addChild(diskChild);
 				}
 			});
+
+			for (let child of oldLocalChildren.values()) {
+				child._dispose();
+			}
 		}
 	}
 
@@ -249,7 +262,7 @@ export class ExplorerItem {
 			const resolveMetadata = explorerService.sortOrder === 'modified';
 			try {
 				const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-				const resolved = ExplorerItem.create(stat, this);
+				const resolved = ExplorerItem.create(fileService, stat, this);
 				ExplorerItem.mergeLocalWithDisk(resolved, this);
 			} catch (e) {
 				this.isError = true;
@@ -274,8 +287,18 @@ export class ExplorerItem {
 	}
 
 	forgetChildren(): void {
+		for (let c of this.children.values()) {
+			c._dispose();
+		}
 		this.children.clear();
 		this._isDirectoryResolved = false;
+	}
+
+	private _dispose() {
+		this._isDisposed = true;
+		for (let child of this.children.values()) {
+			child._dispose();
+		}
 	}
 
 	private getPlatformAwareName(name: string): string {

@@ -23,7 +23,7 @@ function createScopedOnMessageEvent(senderId: number, eventName: string): Event<
 
 export class Server extends IPCServer {
 
-	private static Clients = new Map<number, IDisposable>();
+	private static readonly Clients = new Map<number, IDisposable>();
 
 	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
 		const onHello = Event.fromNodeEventEmitter<WebContents>(ipcMain, 'ipc:hello', ({ sender }) => sender);

@@ -305,17 +305,7 @@ export class CreateNewWithCwdTerminalCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: { cwd: string } | undefined): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-
-		let cwd: string | undefined;
-		if (args && args.cwd) {
-			cwd = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.cwd);
-		}
-		const instance = terminalService.createTerminal({ cwd });
+		const instance = terminalService.createTerminal({ cwd: args?.cwd });
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
@@ -722,7 +712,7 @@ export class RunActiveFileInTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
-		return this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title).then(path => {
+		return this.terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType).then(path => {
 			instance.sendText(path, true);
 			return this.terminalService.showPanel();
 		});
@@ -1065,6 +1055,31 @@ export class RenameTerminalAction extends Action {
 		});
 	}
 }
+export class RenameWithArgTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.RENAME_WITH_ARG;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
+	public static readonly NAME_ARG_LABEL = nls.localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal");
+
+	public runCommand(
+		accessor: ServicesAccessor,
+		args?: { name?: string }
+	): void {
+		const notificationService = accessor.get(INotificationService);
+		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+
+		if (!terminalInstance) {
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noTerminal', "No active terminal to rename"));
+			return;
+		}
+
+		if (!args || !args.name) {
+			notificationService.warn(nls.localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
+			return;
+		}
+
+		terminalInstance.setTitle(args.name, TitleEventSource.Api);
+	}
+}
 
 export class FocusTerminalFindWidgetAction extends Action {
 
@@ -1328,7 +1343,6 @@ abstract class ToggleFindOptionCommand extends Action {
 
 export class ToggleRegexCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
 
 	protected runInner(state: FindReplaceState): void {
@@ -1338,7 +1352,6 @@ export class ToggleRegexCommand extends ToggleFindOptionCommand {
 
 export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
 
 	protected runInner(state: FindReplaceState): void {
@@ -1348,7 +1361,6 @@ export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
 
 export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
 
 	protected runInner(state: FindReplaceState): void {
@@ -1358,7 +1370,6 @@ export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 
 export class FindNext extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.FIND_NEXT;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.findNext', "Find next");
 
 	constructor(
@@ -1376,7 +1387,6 @@ export class FindNext extends Action {
 
 export class FindPrevious extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.FIND_PREVIOUS;
-	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS;
 	public static readonly LABEL = nls.localize('workbench.action.terminal.findPrevious', "Find previous");
 
 	constructor(

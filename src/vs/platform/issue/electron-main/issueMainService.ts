@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/node/issue';
-import { BrowserWindow, ipcMain, screen, Event as IpcMainEvent, Display, shell } from 'electron';
+import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
@@ -81,10 +81,10 @@ export class IssueMainService implements IIssueService {
 
 		ipcMain.on('vscode:issueReporterClipboard', (event: IpcMainEvent) => {
 			const messageOptions = {
-				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub. Would you like to write the information to the clipboard so that it can be pasted?"),
+				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
 				type: 'warning',
 				buttons: [
-					localize('yes', "Yes"),
+					localize('ok', "OK"),
 					localize('cancel', "Cancel")
 				]
 			};
@@ -153,6 +153,12 @@ export class IssueMainService implements IIssueService {
 		ipcMain.on('vscode:closeIssueReporter', (event: IpcMainEvent) => {
 			if (this._issueWindow) {
 				this._issueWindow.close();
+			}
+		});
+
+		ipcMain.on('vscode:closeProcessExplorer', (event: IpcMainEvent) => {
+			if (this._processExplorerWindow) {
+				this._processExplorerWindow.close();
 			}
 		});
 

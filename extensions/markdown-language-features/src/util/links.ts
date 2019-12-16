@@ -13,13 +13,13 @@ export const Schemes = {
 	data: 'data:',
 	vscode: 'vscode:',
 	'vscode-insiders': 'vscode-insiders:',
-	'vscode-resource': 'vscode-resource',
-} as const;
+	'vscode-resource': 'vscode-resource:',
+};
 
 const knownSchemes = [
 	...Object.values(Schemes),
 	`${vscode.env.uriScheme}:`
-] as const;
+];
 
 export function getUriForLinkWithKnownExternalScheme(link: string): vscode.Uri | undefined {
 	if (knownSchemes.some(knownScheme => isOfScheme(knownScheme, link))) {

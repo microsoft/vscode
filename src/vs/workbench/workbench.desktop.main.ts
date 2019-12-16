@@ -61,6 +61,7 @@ import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
 import 'vs/workbench/services/update/electron-browser/updateService';
 import 'vs/workbench/services/issue/electron-browser/issueService';
 import 'vs/workbench/services/menubar/electron-browser/menubarService';
+import 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
@@ -79,9 +80,9 @@ import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 // Logs
 import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
 
-// Stats
-import 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
-import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
+// Tags
+import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';
+import 'vs/workbench/contrib/tags/electron-browser/tags.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';

@@ -5,6 +5,7 @@
 
 import * as semver from 'semver';
 import * as nls from 'vscode-nls';
+
 const localize = nls.loadMessageBundle();
 
 export default class API {
@@ -13,10 +14,6 @@ export default class API {
 	}
 
 	public static readonly defaultVersion = API.fromSimpleString('1.0.0');
-	public static readonly v220 = API.fromSimpleString('2.2.0');
-	public static readonly v222 = API.fromSimpleString('2.2.2');
-	public static readonly v230 = API.fromSimpleString('2.3.0');
-	public static readonly v234 = API.fromSimpleString('2.3.4');
 	public static readonly v240 = API.fromSimpleString('2.4.0');
 	public static readonly v250 = API.fromSimpleString('2.5.0');
 	public static readonly v260 = API.fromSimpleString('2.6.0');
@@ -35,7 +32,6 @@ export default class API {
 	public static readonly v345 = API.fromSimpleString('3.4.5');
 	public static readonly v350 = API.fromSimpleString('3.5.0');
 
-
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);
 		if (!version) {
@@ -51,8 +47,8 @@ export default class API {
 	}
 
 	private constructor(
-		public readonly versionString: string,
-		private readonly version: string
+		public readonly displayName: string,
+		public readonly version: string
 	) { }
 
 	public gte(other: API): boolean {

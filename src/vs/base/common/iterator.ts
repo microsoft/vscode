@@ -60,7 +60,7 @@ export module Iterator {
 		};
 	}
 
-	export function fromArray<T>(array: T[], index = 0, length = array.length): Iterator<T> {
+	export function fromArray<T>(array: ReadonlyArray<T>, index = 0, length = array.length): Iterator<T> {
 		return {
 			next(): IteratorResult<T> {
 				if (index >= length) {
@@ -172,13 +172,28 @@ export module Iterator {
 			}
 		};
 	}
+
+	export function chain<T>(iterator: Iterator<T>): ChainableIterator<T> {
+		return new ChainableIterator(iterator);
+	}
+}
+
+export class ChainableIterator<T> implements Iterator<T> {
+
+	constructor(private it: Iterator<T>) { }
+
+	next(): IteratorResult<T> { return this.it.next(); }
+	map<R>(fn: (t: T) => R): ChainableIterator<R> { return new ChainableIterator(Iterator.map(this.it, fn)); }
+	filter(fn: (t: T) => boolean): ChainableIterator<T> { return new ChainableIterator(Iterator.filter(this.it, fn)); }
 }
 
 export type ISequence<T> = Iterator<T> | T[];
 
-export function getSequenceIterator<T>(arg: Iterator<T> | T[]): Iterator<T> {
+export function getSequenceIterator<T>(arg: ISequence<T> | undefined): Iterator<T> {
 	if (Array.isArray(arg)) {
 		return Iterator.fromArray(arg);
+	} else if (!arg) {
+		return Iterator.empty();
 	} else {
 		return arg;
 	}
@@ -271,7 +286,7 @@ export interface INavigator<T> extends INextIterator<T> {
 
 export class MappedNavigator<T, R> extends MappedIterator<T, R> implements INavigator<R> {
 
-	constructor(protected navigator: INavigator<T>, fn: (item: T) => R) {
+	constructor(protected navigator: INavigator<T>, fn: (item: T | null) => R) {
 		super(navigator, fn);
 	}
 

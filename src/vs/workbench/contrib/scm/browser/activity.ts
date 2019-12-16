@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { basename } from 'vs/base/common/resources';
+import { basename, relativePath } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
@@ -13,7 +13,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { commonPrefixLength } from 'vs/base/common/strings';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 function getCount(repository: ISCMRepository): number {
@@ -51,23 +50,23 @@ export class SCMStatusController implements IWorkbenchContribution {
 			this.onDidAddRepository(repository);
 		}
 
-		editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.disposables);
+		editorService.onDidActiveEditorChange(this.tryFocusRepositoryBasedOnActiveEditor, this, this.disposables);
 		this.renderActivityCount();
 	}
 
-	private onDidActiveEditorChange(): void {
+	private tryFocusRepositoryBasedOnActiveEditor(): boolean {
 		if (!this.editorService.activeEditor) {
-			return;
+			return false;
 		}
 
 		const resource = this.editorService.activeEditor.getResource();
 
-		if (!resource || resource.scheme !== 'file') {
-			return;
+		if (!resource) {
+			return false;
 		}
 
 		let bestRepository: ISCMRepository | null = null;
-		let bestMatchLength = Number.NEGATIVE_INFINITY;
+		let bestMatchLength = Number.POSITIVE_INFINITY;
 
 		for (const repository of this.scmService.repositories) {
 			const root = repository.provider.rootUri;
@@ -76,22 +75,24 @@ export class SCMStatusController implements IWorkbenchContribution {
 				continue;
 			}
 
-			const rootFSPath = root.fsPath;
-			const prefixLength = commonPrefixLength(rootFSPath, resource.fsPath);
+			const path = relativePath(root, resource);
 
-			if (prefixLength === rootFSPath.length && prefixLength > bestMatchLength) {
+			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
 				bestRepository = repository;
-				bestMatchLength = prefixLength;
+				bestMatchLength = path.length;
 			}
 		}
 
-		if (bestRepository) {
-			this.onDidFocusRepository(bestRepository);
+		if (!bestRepository) {
+			return false;
 		}
+
+		this.focusRepository(bestRepository);
+		return true;
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const focusDisposable = repository.onDidFocus(() => this.onDidFocusRepository(repository));
+		const focusDisposable = repository.onDidFocus(() => this.focusRepository(repository));
 
 		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
 		const changeDisposable = onDidChange(() => this.renderActivityCount());
@@ -102,7 +103,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 			this.disposables = this.disposables.filter(d => d !== removeDisposable);
 
 			if (this.scmService.repositories.length === 0) {
-				this.onDidFocusRepository(undefined);
+				this.focusRepository(undefined);
 			} else if (this.focusedRepository === repository) {
 				this.scmService.repositories[0].focus();
 			}
@@ -113,12 +114,18 @@ export class SCMStatusController implements IWorkbenchContribution {
 		const disposable = combinedDisposable(focusDisposable, changeDisposable, removeDisposable);
 		this.disposables.push(disposable);
 
-		if (!this.focusedRepository) {
-			this.onDidFocusRepository(repository);
+		if (this.focusedRepository) {
+			return;
 		}
+
+		if (this.tryFocusRepositoryBasedOnActiveEditor()) {
+			return;
+		}
+
+		this.focusRepository(repository);
 	}
 
-	private onDidFocusRepository(repository: ISCMRepository | undefined): void {
+	private focusRepository(repository: ISCMRepository | undefined): void {
 		if (this.focusedRepository === repository) {
 			return;
 		}

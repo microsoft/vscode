@@ -19,7 +19,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Themable } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -41,11 +41,72 @@ export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	light: '#F3F3F3',
 	hc: '#000000'
 }, localize('debugToolBarBackground', "Debug toolbar background color."));
+
 export const debugToolBarBorder = registerColor('debugToolBar.border', {
 	dark: null,
 	light: null,
 	hc: null
 }, localize('debugToolBarBorder', "Debug toolbar border color."));
+
+export const debugIconStartForeground = registerColor('debugIcon.startForeground', {
+	dark: '#89D185',
+	light: '#388A34',
+	hc: '#89D185'
+}, localize('debugIcon.startForeground', "Debug toolbar icon for start debugging."));
+
+export const debugIconPauseForeground = registerColor('debugIcon.pauseForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.pauseForeground', "Debug toolbar icon for pause."));
+
+export const debugIconStopForeground = registerColor('debugIcon.stopForeground', {
+	dark: '#F48771',
+	light: '#A1260D',
+	hc: '#F48771'
+}, localize('debugIcon.stopForeground', "Debug toolbar icon for stop."));
+
+export const debugIconDisconnectForeground = registerColor('debugIcon.disconnectForeground', {
+	dark: '#F48771',
+	light: '#A1260D',
+	hc: '#F48771'
+}, localize('debugIcon.disconnectForeground', "Debug toolbar icon for disconnect."));
+
+export const debugIconRestartForeground = registerColor('debugIcon.restartForeground', {
+	dark: '#89D185',
+	light: '#388A34',
+	hc: '#89D185'
+}, localize('debugIcon.restartForeground', "Debug toolbar icon for restart."));
+
+export const debugIconStepOverForeground = registerColor('debugIcon.stepOverForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepOverForeground', "Debug toolbar icon for step over."));
+
+export const debugIconStepIntoForeground = registerColor('debugIcon.stepIntoForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepIntoForeground', "Debug toolbar icon for step into."));
+
+export const debugIconStepOutForeground = registerColor('debugIcon.stepOutForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepOutForeground', "Debug toolbar icon for step over."));
+
+export const debugIconContinueForeground = registerColor('debugIcon.continueForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.continueForeground', "Debug toolbar icon for continue."));
+
+export const debugIconStepBackForeground = registerColor('debugIcon.stepBackForeground', {
+	dark: '#75BEFF',
+	light: '#007ACC',
+	hc: '#75BEFF'
+}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
 
 export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
@@ -56,6 +117,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
 	private disposeOnUpdate: IDisposable | undefined;
+	private yCoordinate = 0;
 
 	private isVisible = false;
 	private isBuilt = false;
@@ -79,7 +141,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.$el = dom.$('div.debug-toolbar');
 		this.$el.style.top = `${layoutService.getTitleBarOffset()}px`;
 
-		this.dragArea = dom.append(this.$el, dom.$('div.drag-area'));
+		this.dragArea = dom.append(this.$el, dom.$('div.drag-area.codicon.codicon-gripper'));
 
 		const actionBarContainer = dom.append(this.$el, dom.$('div.action-bar-container'));
 		this.debugToolBarMenu = menuService.createMenu(MenuId.DebugToolBar, contextKeyService);
@@ -146,7 +208,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));
 
-		this._register(dom.addDisposableListener(this.dragArea, dom.EventType.MOUSE_UP, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseUpListner(this.dragArea, (event: MouseEvent) => {
 			const mouseClickEvent = new StandardMouseEvent(event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
@@ -156,10 +218,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 		}));
 
-		this._register(dom.addDisposableListener(this.dragArea, dom.EventType.MOUSE_DOWN, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseDownListner(this.dragArea, (event: MouseEvent) => {
 			dom.addClass(this.dragArea, 'dragged');
 
-			const mouseMoveListener = dom.addDisposableListener(window, 'mousemove', (e: MouseEvent) => {
+			const mouseMoveListener = dom.addDisposableGenericMouseMoveListner(window, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
@@ -167,7 +229,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - this.layoutService.getTitleBarOffset());
 			});
 
-			const mouseUpListener = dom.addDisposableListener(window, 'mouseup', (e: MouseEvent) => {
+			const mouseUpListener = dom.addDisposableGenericMouseUpListner(window, (e: MouseEvent) => {
 				this.storePosition();
 				dom.removeClass(this.dragArea, 'dragged');
 
@@ -176,7 +238,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			});
 		}));
 
-		this._register(this.layoutService.onTitleBarVisibilityChange(() => this.setYCoordinate()));
+		this._register(this.layoutService.onPartVisibilityChange(() => this.setYCoordinate()));
 		this._register(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
 	}
 
@@ -192,10 +254,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		super.updateStyles();
 
 		if (this.$el) {
-			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground);
+			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground) || '';
 
 			const widgetShadowColor = this.getColor(widgetShadow);
-			this.$el.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
+			this.$el.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : '';
 
 			const contrastBorderColor = this.getColor(contrastBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
@@ -209,9 +271,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	private setYCoordinate(y = 0): void {
+	private setYCoordinate(y = this.yCoordinate): void {
 		const titlebarOffset = this.layoutService.getTitleBarOffset();
 		this.$el.style.top = `${titlebarOffset + y}px`;
+		this.yCoordinate = y;
 	}
 
 	private setCoordinates(x?: number, y?: number): void {
@@ -289,3 +352,56 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+
+	const debugIconStartColor = theme.getColor(debugIconStartForeground);
+	if (debugIconStartColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-start { color: ${debugIconStartColor} !important; }`);
+	}
+
+	const debugIconPauseColor = theme.getColor(debugIconPauseForeground);
+	if (debugIconPauseColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-pause { color: ${debugIconPauseColor} !important; }`);
+	}
+
+	const debugIconStopColor = theme.getColor(debugIconStopForeground);
+	if (debugIconStopColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-stop { color: ${debugIconStopColor} !important; }`);
+	}
+
+	const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);
+	if (debugIconDisconnectColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-disconnect { color: ${debugIconDisconnectColor} !important; }`);
+	}
+
+	const debugIconRestartColor = theme.getColor(debugIconRestartForeground);
+	if (debugIconRestartColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-restart, .monaco-workbench .codicon-debug-restart-frame { color: ${debugIconRestartColor} !important; }`);
+	}
+
+	const debugIconStepOverColor = theme.getColor(debugIconStepOverForeground);
+	if (debugIconStepOverColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-over { color: ${debugIconStepOverColor} !important; }`);
+	}
+
+	const debugIconStepIntoColor = theme.getColor(debugIconStepIntoForeground);
+	if (debugIconStepIntoColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-into { color: ${debugIconStepIntoColor} !important; }`);
+	}
+
+	const debugIconStepOutColor = theme.getColor(debugIconStepOutForeground);
+	if (debugIconStepOutColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-out { color: ${debugIconStepOutColor} !important; }`);
+	}
+
+	const debugIconContinueColor = theme.getColor(debugIconContinueForeground);
+	if (debugIconContinueColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-continue,.monaco-workbench .codicon-debug-reverse-continue { color: ${debugIconContinueColor} !important; }`);
+	}
+
+	const debugIconStepBackColor = theme.getColor(debugIconStepBackForeground);
+	if (debugIconStepBackColor) {
+		collector.addRule(`.monaco-workbench .codicon-debug-step-back { color: ${debugIconStepBackColor} !important; }`);
+	}
+});

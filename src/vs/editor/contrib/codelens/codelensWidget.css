@@ -11,10 +11,9 @@
 
 .monaco-editor .codelens-decoration > span,
 .monaco-editor .codelens-decoration > a {
-	-moz-user-select: none;
+	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
-	user-select: none;
 	white-space: nowrap;
 	vertical-align: sub;
 }
@@ -28,8 +27,14 @@
 	cursor: pointer;
 }
 
-.monaco-editor .codelens-decoration.invisible-cl {
-	opacity: 0;
+.monaco-editor .codelens-decoration .codicon {
+	line-height: inherit;
+	font-size: inherit;
+}
+
+.monaco-editor .codelens-decoration > a:hover .codicon::before {
+	text-decoration: underline;
+	cursor: pointer;
 }
 
 @keyframes fadein {

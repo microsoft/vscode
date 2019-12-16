@@ -138,7 +138,7 @@ export class DisposableStore implements IDisposable {
 
 export abstract class Disposable implements IDisposable {
 
-	static None = Object.freeze<IDisposable>({ dispose() { } });
+	static readonly None = Object.freeze<IDisposable>({ dispose() { } });
 
 	private readonly _store = new DisposableStore();
 
@@ -203,43 +203,6 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 			this._value.dispose();
 		}
 		this._value = undefined;
-	}
-}
-
-/**
- * Wrapper class that stores a disposable that is not currently "owned" by anyone.
- *
- * Example use cases:
- *
- * - Express that a function/method will take ownership of a disposable parameter.
- * - Express that a function returns a disposable that the caller must explicitly take ownership of.
- */
-export class UnownedDisposable<T extends IDisposable> extends Disposable {
-	private _hasBeenAcquired = false;
-	private _value?: T;
-
-	public constructor(value: T) {
-		super();
-		this._value = value;
-	}
-
-	public acquire(): T {
-		if (this._hasBeenAcquired) {
-			throw new Error('This disposable has already been acquired');
-		}
-		this._hasBeenAcquired = true;
-		const value = this._value!;
-		this._value = undefined;
-		return value;
-	}
-
-	public dispose() {
-		super.dispose();
-		if (!this._hasBeenAcquired) {
-			this._hasBeenAcquired = true;
-			this._value!.dispose();
-			this._value = undefined;
-		}
 	}
 }
 

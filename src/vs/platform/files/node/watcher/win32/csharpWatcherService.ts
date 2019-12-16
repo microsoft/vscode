@@ -55,7 +55,7 @@ export class OutOfProcessWin32FolderWatcher {
 		const stdoutLineDecoder = new decoder.LineDecoder();
 
 		// Events over stdout
-		this.handle.stdout.on('data', (data: Buffer) => {
+		this.handle.stdout!.on('data', (data: Buffer) => {
 
 			// Collect raw events from output
 			const rawEvents: IDiskFileChange[] = [];
@@ -99,7 +99,7 @@ export class OutOfProcessWin32FolderWatcher {
 
 		// Errors
 		this.handle.on('error', (error: Error) => this.onError(error));
-		this.handle.stderr.on('data', (data: Buffer) => this.onError(data));
+		this.handle.stderr!.on('data', (data: Buffer) => this.onError(data));
 
 		// Exit
 		this.handle.on('exit', (code: number, signal: string) => this.onExit(code, signal));

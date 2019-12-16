@@ -35,7 +35,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 			return false; // no dirty: no veto
 		}
 
-		if (!this.isHotExitEnabled) {
+		if (!this.filesConfigurationService.isHotExitEnabled) {
 			return true; // dirty without backup: veto
 		}
 
@@ -44,9 +44,9 @@ export class BrowserTextFileService extends AbstractTextFileService {
 
 			if (this.fileService.canHandleResource(dirtyResource)) {
 				const model = this.models.get(dirtyResource);
-				hasBackup = !!(model && model.hasBackup());
+				hasBackup = !!(model?.hasBackup());
 			} else if (dirtyResource.scheme === Schemas.untitled) {
-				hasBackup = this.untitledEditorService.hasBackup(dirtyResource);
+				hasBackup = this.untitledTextEditorService.hasBackup(dirtyResource);
 			}
 
 			if (!hasBackup) {

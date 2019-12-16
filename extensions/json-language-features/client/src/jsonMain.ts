@@ -10,8 +10,16 @@ import { xhr, XHRResponse, getErrorStatusDescription } from 'request-light';
 
 const localize = nls.loadMessageBundle();
 
-import { workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration, Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, ProviderResult, TextEdit, Range, Disposable } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
+import {
+	workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration,
+	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext
+} from 'vscode';
+import {
+	LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType,
+	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature
+} from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { hash } from './utils/hash';
@@ -36,6 +44,10 @@ namespace SchemaAssociationNotification {
 	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
 }
 
+namespace ResultLimitReachedNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/resultLimitReached');
+}
+
 interface IPackageInfo {
 	name: string;
 	version: string;
@@ -46,6 +58,7 @@ interface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
 		format?: { enable: boolean; };
+		resultLimit?: number;
 	};
 	http?: {
 		proxy?: string;
@@ -131,6 +144,29 @@ export function activate(context: ExtensionContext) {
 				}
 
 				next(uri, diagnostics);
+			},
+			// testing the replace / insert mode
+			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				function updateRanges(item: CompletionItem) {
+					const range = item.range;
+					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range2 = { inserting: new Range(range.start, position), replacing: range };
+						item.range = undefined;
+					}
+				}
+				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
+					if (r) {
+						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+					}
+					return r;
+				}
+				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+
+				const r = next(document, position, context, token);
+				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+					return r.then(updateProposals);
+				}
+				return updateProposals(r);
 			}
 		}
 	};
@@ -142,12 +178,6 @@ export function activate(context: ExtensionContext) {
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-		disposable = client.onTelemetry(e => {
-			if (telemetryReporter) {
-				telemetryReporter.sendTelemetryEvent(e.key, e.data);
-			}
-		});
-
 		const schemaDocuments: { [uri: string]: boolean } = {};
 
 		// handle content request
@@ -161,11 +191,23 @@ export function activate(context: ExtensionContext) {
 					return Promise.reject(error);
 				});
 			} else {
+				if (telemetryReporter && uri.authority === 'schema.management.azure.com') {
+					/* __GDPR__
+						"json.schema" : {
+							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					 */
+					telemetryReporter.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
+				}
 				const headers = { 'Accept-Encoding': 'gzip, deflate' };
 				return xhr({ url: uriPath, followRedirects: 5, headers }).then(response => {
 					return response.responseText;
 				}, (error: XHRResponse) => {
-					return Promise.reject(new ResponseError(error.status, error.responseText || getErrorStatusDescription(error.status) || error.toString()));
+					let extraInfo = error.responseText || error.toString();
+					if (extraInfo.length > 256) {
+						extraInfo = `${extraInfo.substr(0, 256)}...`;
+					}
+					return Promise.reject(new ResponseError(error.status, getErrorStatusDescription(error.status) + '\n' + extraInfo));
 				});
 			}
 		});
@@ -232,6 +274,12 @@ export function activate(context: ExtensionContext) {
 		updateFormatterRegistration();
 		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
 		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
+
+
+		client.onNotification(ResultLimitReachedNotification.type, message => {
+			window.showInformationMessage(`${message}\nUse setting 'json.maxItemsComputed' to configure the limit.`);
+		});
+
 	});
 
 	let languageConfiguration: LanguageConfiguration = {
@@ -313,6 +361,8 @@ function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 function getSettings(): Settings {
 	let httpSettings = workspace.getConfiguration('http');
 
+	let resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get('json.maxItemsComputed')))) || 5000;
+
 	let settings: Settings = {
 		http: {
 			proxy: httpSettings.get('proxy'),
@@ -320,6 +370,7 @@ function getSettings(): Settings {
 		},
 		json: {
 			schemas: [],
+			resultLimit
 		}
 	};
 	let schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
@@ -414,5 +465,4 @@ function readJSONFile(location: string) {
 		console.log(`Problems reading ${location}: ${e}`);
 		return {};
 	}
-
 }

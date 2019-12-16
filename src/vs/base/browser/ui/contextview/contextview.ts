@@ -5,8 +5,10 @@
 
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export interface IAnchor {
 	x: number;
@@ -178,7 +180,7 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate!.canRelayout === false) {
+		if (this.delegate!.canRelayout === false && !(platform.isIOS && BrowserFeatures.pointerEvents)) {
 			this.hide();
 			return;
 		}
@@ -263,7 +265,7 @@ export class ContextView extends Disposable {
 		const delegate = this.delegate;
 		this.delegate = null;
 
-		if (delegate && delegate.onHide) {
+		if (delegate?.onHide) {
 			delegate.onHide(data);
 		}
 

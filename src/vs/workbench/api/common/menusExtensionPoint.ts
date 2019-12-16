@@ -12,7 +12,8 @@ import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } fr
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, ILocalizedString, IMenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 namespace schema {
 
@@ -347,10 +348,14 @@ commandsExtensionPoint.setHandler(extensions => {
 
 		const { icon, enablement, category, title, command } = userFriendlyCommand;
 
-		let absoluteIcon: { dark: URI; light?: URI; } | undefined;
+		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				if (extension.description.enableProposedApi) {
+					absoluteIcon = ThemeIcon.fromString(icon) || { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				} else {
+					absoluteIcon = { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				}
 			} else {
 				absoluteIcon = {
 					dark: resources.joinPath(extension.description.extensionLocation, icon.dark),
@@ -367,7 +372,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			title,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
-			iconLocation: absoluteIcon
+			icon: absoluteIcon
 		});
 		_commandRegistrations.add(registration);
 	}
@@ -387,7 +392,7 @@ commandsExtensionPoint.setHandler(extensions => {
 	}
 });
 
-let _menuRegistrations: IDisposable[] = [];
+const _menuRegistrations = new DisposableStore();
 
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>({
 	extensionPoint: 'menus',
@@ -395,7 +400,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 }).setHandler(extensions => {
 
 	// remove all previous menu registrations
-	_menuRegistrations = dispose(_menuRegistrations);
+	_menuRegistrations.clear();
 
 	for (let extension of extensions) {
 		const { value, collector } = extension;
@@ -450,7 +455,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					order,
 					when: ContextKeyExpr.deserialize(item.when)
 				} as IMenuItem);
-				_menuRegistrations.push(registration);
+				_menuRegistrations.add(registration);
 			}
 		});
 	}

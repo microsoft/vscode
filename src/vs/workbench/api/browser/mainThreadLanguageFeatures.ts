@@ -21,6 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
+import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -324,9 +325,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- semantic tokens
+
+	$registerSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void {
+		this._registrations.set(handle, modes.SemanticTokensProviderRegistry.register(selector, new MainThreadSemanticTokensProvider(this._proxy, handle, legend)));
+	}
+
 	// --- suggest
 
-	private static _inflateSuggestDto(defaultRange: IRange, data: ISuggestDataDto): modes.CompletionItem {
+	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
+
 		return {
 			label: data[ISuggestDataDtoField.label],
 			kind: data[ISuggestDataDtoField.kind],
@@ -337,8 +345,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			filterText: data[ISuggestDataDtoField.filterText],
 			preselect: data[ISuggestDataDtoField.preselect],
 			insertText: typeof data.h === 'undefined' ? data[ISuggestDataDtoField.label] : data.h,
-			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			range: data[ISuggestDataDtoField.range] || defaultRange,
+			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
 			additionalTextEdits: data[ISuggestDataDtoField.additionalTextEdits],
 			command: data[ISuggestDataDtoField.command],
@@ -370,6 +378,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					if (!result) {
 						return suggestion;
 					}
+
 					let newSuggestion = MainThreadLanguageFeatures._inflateSuggestDto(suggestion.range, result);
 					return mixin(suggestion, newSuggestion, true);
 				});
@@ -494,29 +503,37 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
-			provideOutgoingCalls: async (model, position, token) => {
-				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, model.uri, position, token);
+
+			prepareCallHierarchy: async (document, position, token) => {
+				const item = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
+				if (!item) {
+					return undefined;
+				}
+				return {
+					dispose: () => this._proxy.$releaseCallHierarchy(handle, item._sessionId),
+					root: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item)
+				};
+			},
+
+			provideOutgoingCalls: async (item, token) => {
+				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item._sessionId, item._itemId, token);
 				if (!outgoing) {
 					return outgoing;
 				}
-				return outgoing.map(([item, sourceRanges]): callh.OutgoingCall => {
-					return {
-						target: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
-						sourceRanges
-					};
+				outgoing.forEach(value => {
+					value.to = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.to);
 				});
+				return <any>outgoing;
 			},
-			provideIncomingCalls: async (model, position, token) => {
-				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, model.uri, position, token);
+			provideIncomingCalls: async (item, token) => {
+				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item._sessionId, item._itemId, token);
 				if (!incoming) {
 					return incoming;
 				}
-				return incoming.map(([item, sourceRanges]): callh.IncomingCall => {
-					return {
-						source: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item),
-						sourceRanges
-					};
+				incoming.forEach(value => {
+					value.from = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.from);
 				});
+				return <any>incoming;
 			}
 		}));
 	}
@@ -583,4 +600,46 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
+}
+
+export class MainThreadSemanticTokensProvider implements modes.SemanticTokensProvider {
+
+	constructor(
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		private readonly _handle: number,
+		private readonly _legend: modes.SemanticTokensLegend,
+	) {
+	}
+
+	public releaseSemanticTokens(resultId: string | undefined): void {
+		if (resultId) {
+			this._proxy.$releaseSemanticTokens(this._handle, parseInt(resultId, 10));
+		}
+	}
+
+	public getLegend(): modes.SemanticTokensLegend {
+		return this._legend;
+	}
+
+	async provideSemanticTokens(model: ITextModel, lastResultId: string | null, ranges: EditorRange[] | null, token: CancellationToken): Promise<modes.SemanticTokens | modes.SemanticTokensEdits | null> {
+		const nLastResultId = lastResultId ? parseInt(lastResultId, 10) : 0;
+		const encodedDto = await this._proxy.$provideSemanticTokens(this._handle, model.uri, ranges, nLastResultId, token);
+		if (!encodedDto) {
+			return null;
+		}
+		if (token.isCancellationRequested) {
+			return null;
+		}
+		const dto = decodeSemanticTokensDto(encodedDto);
+		if (dto.type === 'full') {
+			return {
+				resultId: String(dto.id),
+				data: dto.data
+			};
+		}
+		return {
+			resultId: String(dto.id),
+			edits: dto.deltas
+		};
+	}
 }

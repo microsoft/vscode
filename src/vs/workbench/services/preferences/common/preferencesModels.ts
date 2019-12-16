@@ -429,7 +429,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 
 export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 
-	private _configurationGroups: ISettingsGroup[];
+	private _configurationGroups: ISettingsGroup[] = [];
 
 	get configurationGroups(): ISettingsGroup[] {
 		return this._configurationGroups;
@@ -448,9 +448,9 @@ export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 
 export class DefaultSettings extends Disposable {
 
-	private _allSettingsGroups: ISettingsGroup[];
-	private _content: string;
-	private _settingsByName: Map<string, ISetting>;
+	private _allSettingsGroups: ISettingsGroup[] | undefined;
+	private _content: string | undefined;
+	private _settingsByName = new Map<string, ISetting>();
 
 	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -467,7 +467,7 @@ export class DefaultSettings extends Disposable {
 			this.initialize();
 		}
 
-		return this._content;
+		return this._content!;
 	}
 
 	getSettingsGroups(forceUpdate = false): ISettingsGroup[] {
@@ -475,7 +475,7 @@ export class DefaultSettings extends Disposable {
 			this.initialize();
 		}
 
-		return this._allSettingsGroups;
+		return this._allSettingsGroups!;
 	}
 
 	private initialize(): void {
@@ -1056,7 +1056,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 				}
 
 				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
-					message += nls.localize('validations.stringArrayMaxItem', 'Array must have less than {0} items', prop.maxItems);
+					message += nls.localize('validations.stringArrayMaxItem', 'Array must have at most {0} items', prop.maxItems);
 					message += '\n';
 				}
 
@@ -1117,7 +1117,7 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 			patternRegex = new RegExp(prop.pattern);
 		}
 
-		const type = Array.isArray(prop.type) ? prop.type : [prop.type];
+		const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
 		const canBeType = (t: string) => type.indexOf(t) > -1;
 
 		const isNullable = canBeType('null');
@@ -1249,7 +1249,7 @@ export function defaultKeybindingsContents(keybindingService: IKeybindingService
 
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
-	private _content: string;
+	private _content: string | undefined;
 
 	constructor(private _uri: URI,
 		@IKeybindingService private readonly keybindingService: IKeybindingService) {

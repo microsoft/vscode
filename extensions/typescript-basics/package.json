@@ -77,16 +77,6 @@
           "meta.import string.quoted": "other",
           "variable.other.jsdoc": "other"
         }
-      },
-      {
-        "scopeName": "documentation.injection",
-        "path": "./syntaxes/jsdoc.injection.tmLanguage.json",
-        "injectTo": [
-          "source.ts",
-          "source.tsx",
-          "source.js",
-          "source.js.jsx"
-        ]
       }
     ],
     "snippets": [

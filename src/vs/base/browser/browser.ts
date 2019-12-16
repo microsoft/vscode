@@ -123,20 +123,3 @@ export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
 export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
 export const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-
-export function hasClipboardSupport() {
-	if (isIE) {
-		return false;
-	}
-
-	if (isEdge) {
-		let index = userAgent.indexOf('Edge/');
-		let version = parseInt(userAgent.substring(index + 5, userAgent.indexOf('.', index)), 10);
-
-		if (!version || (version >= 12 && version <= 16)) {
-			return false;
-		}
-	}
-
-	return true;
-}
