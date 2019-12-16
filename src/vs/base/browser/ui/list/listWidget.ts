@@ -1577,6 +1577,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
+	getElementTop(index: number): number {
+		return this.view.elementTop(index);
+	}
+
 	/**
 	 * Returns the relative position of an element rendered in the list.
 	 * Returns `null` if the element isn't *entirely* in the visible viewport.

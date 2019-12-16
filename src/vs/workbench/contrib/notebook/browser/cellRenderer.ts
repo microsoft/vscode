@@ -40,6 +40,9 @@ export class ViewCell {
 	private _dynamicHeight: number | null = null;
 	private _output: HTMLElement | null = null;
 
+	protected readonly _onDidDispose = new Emitter<void>();
+	readonly onDidDispose = this._onDidDispose.event;
+
 	protected readonly _onDidChangeEditingState = new Emitter<void>();
 	readonly onDidChangeEditingState = this._onDidChangeEditingState.event;
 
@@ -76,6 +79,20 @@ export class ViewCell {
 	hasDynamicHeight() {
 		if (this._dynamicHeight !== null) {
 			return false;
+		}
+
+		if (this.cellType === 'code') {
+			if (this.outputs) {
+				// for (let i = 0; i < this.outputs.length; i++) {
+				// 	if (this.outputs[i].output_type === 'display_data' || this.outputs[i].output_type === 'execute_result') {
+				// 		return false;
+				// 	}
+				// }
+
+				return true;
+			} else {
+				return false;
+			}
 		}
 
 		return true;
@@ -144,7 +161,6 @@ export class ViewCell {
 		}
 
 		return this._mdRenderer;
-
 	}
 }
 
@@ -154,7 +170,7 @@ export interface NotebookHandler {
 	editNotebookCell(cell: ViewCell): void;
 	saveNotebookCell(cell: ViewCell): void;
 	layoutElement(cell: ViewCell, height: number): void;
-	trackScrolling(trackingElement: HTMLElement, targetElement: HTMLElement, offset: number): void;
+	createContentWidget(cell: ViewCell, shadowContent: string, shadowElement: HTMLElement, offset: number): void;
 }
 
 export interface CellRenderTemplate {
@@ -165,6 +181,7 @@ export interface CellRenderTemplate {
 	outputContainer?: HTMLElement;
 	editor?: CodeEditorWidget;
 	model?: ITextModel;
+	index: number;
 }
 
 export class NotebookCellListDelegate implements IListVirtualDelegate<ViewCell> {
@@ -386,6 +403,7 @@ class StatefullMarkdownCell extends Disposable {
 export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<ViewCell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 	private disposables: Map<ViewCell, DisposableStore> = new Map();
+	private count = 0;
 
 	constructor(
 		handler: NotebookHandler,
@@ -415,12 +433,15 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		DOM.addClasses(action, 'menu', 'codicon-settings-gear', 'codicon');
 		container.appendChild(action);
 
-		return {
+		const template = {
 			container: container,
 			cellContainer: innerContent,
 			menuContainer: action,
-			editingContainer: codeInnerContent
+			editingContainer: codeInnerContent,
+			index: ++this.count
 		};
+
+		return template;
 	}
 
 	renderElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
@@ -447,6 +468,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	disposeTemplate(templateData: CellRenderTemplate): void {
 		// throw nerendererw Error('Method not implemented.');
+
 	}
 
 	disposeElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
@@ -459,6 +481,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<ViewCell, CellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 	private disposables: Map<HTMLElement, IDisposable> = new Map();
+	private count = 0;
 
 	constructor(
 		handler: NotebookHandler,
@@ -494,13 +517,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		DOM.addClasses(outputContainer, 'output');
 		container.appendChild(outputContainer);
 
-		return {
+		let tempalte = {
 			container: container,
 			cellContainer: innerContent,
 			menuContainer: action,
 			outputContainer: outputContainer,
-			editor
+			editor,
+			index: ++this.count
 		};
+
+		return tempalte;
 	}
 
 	renderElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
@@ -531,19 +557,19 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 
 		if (element.outputs.length > 0) {
-			let hasDynamicHeight = false;
+			let hasDynamicHeight = true;
 			for (let i = 0; i < element.outputs.length; i++) {
 				let result = MimeTypeRenderer.render(element.outputs[i], this.themeService, this.webviewService);
 				if (result) {
-					hasDynamicHeight = result?.hasDynamicHeight;
+					hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
 					templateData.outputContainer?.appendChild(result.element);
-					if (result.shadowElement) {
-						this.handler.trackScrolling(result.shadowElement!, templateData.container, totalHeight + 8);
+					if (result.shadowContent) {
+						this.handler.createContentWidget(element, result.shadowContent, result.whitespaceElement!, totalHeight + 8);
 					}
 				}
 			}
 
-			if (element.hasDynamicHeight() && height !== undefined) {
+			if (height !== undefined) {
 				let dimensions = DOM.getClientArea(templateData.outputContainer!);
 				const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
 					if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {

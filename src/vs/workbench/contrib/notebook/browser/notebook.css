@@ -9,6 +9,7 @@
 	line-height: 22px;
 	user-select: initial;
 	-webkit-user-select: initial;
+	position: relative;
 }
 
 .cell.markdown {
@@ -26,6 +27,17 @@
 .cell.code {
 	transform: translate3d(0, 0, 0);
 	padding: 8px 24px 8px 24px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container {
+	position: relative;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .notebook-content-widgets {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output {

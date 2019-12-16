@@ -20,17 +20,97 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { NotebookHandler, ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import * as UUID from 'vs/base/common/uuid';
 
 const $ = DOM.$;
 
+export interface IContentWidget {
+	offset: number;
+	cell: ViewCell;
+	element: HTMLElement;
+	webview: WebviewElement;
+}
+
+export class WebviewContentWidget implements IContentWidget {
+	public element: HTMLElement;
+	public webview: WebviewElement;
+
+	private _dimension: DOM.Dimension | null = null;
+
+	constructor(
+		public shadowElement: HTMLElement,
+		public cell: ViewCell,
+		public offset: number,
+		webviewService: IWebviewService,
+		shadowContent: string,
+		public notebookHandler: NotebookHandler
+	) {
+		this.element = document.createElement('div');
+		this.element.style.width = 'calc(100% - 36px)';
+		this.element.style.height = '700px';
+		this.element.style.position = 'absolute';
+		this.element.style.margin = '0px 24px 0px 24px';
+
+		this.webview = this._createInset(webviewService, shadowContent);
+		this.webview.mountTo(this.element);
+
+		this.webview.onDidSetInitialDimension(dimension => {
+			this._dimension = dimension;
+			// this.shadowElement.style.minWidth = `${dimension.width}px`;
+			this.shadowElement.style.height = `${dimension.height}px`;
+			this.shadowElement.style.maxWidth = '100%';
+			this.shadowElement.style.maxHeight = '700px';
+			// this.element.style.minWidth= `${dimension.width}px`;
+			this.element.style.height = `${dimension.height}px`;
+			this.element.style.maxWidth = '100%';
+			this.element.style.maxHeight = '700px';
+			const lineNum = cell.lineCount;
+			const totalHeight = Math.max(lineNum + 1, 5) * 21;
+			cell.setDynamicHeight(totalHeight + 32 + dimension.height);
+			notebookHandler.layoutElement(cell, totalHeight + 32 + dimension.height);
+		});
+	}
+
+	public updateShadowElement(element: HTMLElement) {
+		this.shadowElement = element;
+		if (this._dimension) {
+			this.shadowElement.style.minWidth = `${this._dimension.width}px`;
+			this.shadowElement.style.height = `${this._dimension.height}px`;
+			this.shadowElement.style.maxWidth = '100%';
+			this.shadowElement.style.maxHeight = '700px';
+			const lineNum = this.cell.lineCount;
+			const totalHeight = Math.max(lineNum + 1, 5) * 21;
+			this.cell.setDynamicHeight(totalHeight + 32 + this._dimension.height);
+			this.notebookHandler.layoutElement(this.cell, totalHeight + 32 + this._dimension.height);
+		}
+	}
+
+	private _createInset(webviewService: IWebviewService, content: string) {
+		const webview = webviewService.createWebview('' + UUID.generateUuid(), {
+			enableFindWidget: false,
+		}, {
+			allowScripts: true
+		});
+
+		webview.html = content;
+		return webview;
+	}
+
+	dispose() {
+
+	}
+}
 export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
+	private contentWidgets!: HTMLElement;
+	private contentWidgetsMap: Map<ViewCell, WebviewContentWidget> = new Map();
+
 	private list: WorkbenchList<ViewCell> | undefined;
 	private model: NotebookEditorModel | undefined;
 	private viewCells: ViewCell[] = [];
-	private trackingMap: Map<HTMLElement, { element: HTMLElement, offset: number }> = new Map();
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -38,7 +118,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IWebviewService private webviewService: IWebviewService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 	}
@@ -61,6 +142,10 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		DOM.addClass(this.body, 'cell-list-container');
 		this.createCellList();
 		DOM.append(parent, this.body);
+
+		this.contentWidgets = document.createElement('div');
+		DOM.addClass(this.contentWidgets, 'notebook-content-widgets');
+		DOM.append(this.body, this.contentWidgets);
 	}
 
 	private createCellList(): void {
@@ -105,17 +190,36 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		);
 
 		this.list.onDidScroll((e) => {
-			// console.log(-e.scrollTop);
-			// this.trackingMap.forEach((val, index) => {
-			// 	val.element.style.top = `${Number(index.style.top.replace(/px$/, '')) - e.scrollTop + val.offset}px`;
-			// });
+			this.contentWidgetsMap.forEach((value, cell) => {
+				let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+				let top = this.list?.getElementTop(index);
+				if (top !== null && top !== undefined) {
+					let domElement = value.element;
+					let scrollTop = this.list?.scrollTop || 0;
+					domElement.style.top = `${-scrollTop + top + value.offset}px`;
+				}
+			});
 		});
 	}
 
-	trackScrolling(trackingElement: HTMLElement, targetElement: HTMLElement, offset: number): void {
-		// this.trackingMap.set(targetElement, { element: trackingElement, offset });
-		// let top = Number(targetElement.style.top.replace(/px$/, '')) - this.list!.scrollTop + offset;
-		// trackingElement.style.top = `${top}px`;
+	createContentWidget(cell: ViewCell, shadowContent: string, shadowElement: HTMLElement, offset: number) {
+		let zone = this.contentWidgetsMap.get(cell);
+
+		if (!zone) {
+			let contentWidget = new WebviewContentWidget(
+				shadowElement,
+				cell,
+				offset,
+				this.webviewService,
+				shadowContent,
+				this
+			);
+
+			this.contentWidgets.appendChild(contentWidget.element);
+			this.contentWidgetsMap.set(cell, contentWidget);
+		} else {
+			zone.updateShadowElement(shadowElement);
+		}
 	}
 
 	onHide() {
@@ -144,6 +248,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				this.viewCells.forEach(cell => {
 					cell.save();
 				});
+
+				this.contentWidgetsMap.forEach((value, cell) => {
+					this.contentWidgets.removeChild(value.element);
+				});
+				this.contentWidgetsMap.clear();
 
 				this.model = model;
 				this.viewCells = model.getNotebook().cells.map(cell => {

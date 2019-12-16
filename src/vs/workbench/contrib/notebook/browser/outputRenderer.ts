@@ -9,7 +9,6 @@ import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IOutput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import * as UUID from 'vs/base/common/uuid';
 import { isArray } from 'vs/base/common/types';
 import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 
@@ -21,7 +20,8 @@ export function registerMineTypeRenderer(types: string[], renderer: IMimeRendere
 
 export interface IRenderOutput {
 	element: HTMLElement;
-	shadowElement?: HTMLElement;
+	whitespaceElement?: HTMLElement;
+	shadowContent?: string;
 	hasDynamicHeight: boolean;
 }
 
@@ -97,31 +97,20 @@ class RichDisplayRenderer implements IMimeRenderer {
 			outputNode.appendChild(display);
 			hasDynamicHeight = true;
 		} else if (output.data && output.data['text/html']) {
+
 			let data = output.data['text/html'];
 			let str = isArray(data) ? data.join('') : data;
-			let webview = this._createInset(webviewService, str);
-			webview.mountTo(display);
-			// const absoluteElement = document.createElement('div');
-			// document.body.appendChild(absoluteElement);
-			// DOM.addClass(absoluteElement, 'notebook-webview');
-			// webview.mountTo(absoluteElement);
-
-			webview.onDidSetInitialDimension(dimension => {
-				display.style.minWidth = `${dimension.width}px`;
-				display.style.height = `${dimension.height}px`;
-				display.style.maxWidth = '100%';
-				display.style.maxHeight = '700px';
-				// absoluteElement.style.minWidth= `${dimension.width}px`;
-				// absoluteElement.style.height= `${dimension.height}px`;
-				// absoluteElement.style.maxWidth = '100%';
-				// absoluteElement.style.maxHeight = '700px';
-			});
+			display.style.width = '100%';
+			display.style.height = '100px';
+			// display.style.backgroundColor  = 'gray';
+			hasDynamicHeight = true;
 
 			outputNode.appendChild(display);
 			hasDynamicHeight = true;
 			return {
 				element: outputNode,
-				// shadowElement: absoluteElement,
+				whitespaceElement: display,
+				shadowContent: str,
 				hasDynamicHeight
 			};
 		}
@@ -132,16 +121,7 @@ class RichDisplayRenderer implements IMimeRenderer {
 		};
 	}
 
-	private _createInset(webviewService: IWebviewService, content: string) {
-		const webview = webviewService.createWebview('' + UUID.generateUuid(), {
-			enableFindWidget: false,
-		}, {
-			allowScripts: true
-		});
 
-		webview.html = content;
-		return webview;
-	}
 }
 
 registerMineTypeRenderer(['display_data', 'execute_result'], new RichDisplayRenderer());
