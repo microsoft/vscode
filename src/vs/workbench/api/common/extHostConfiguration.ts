@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfigurationInitData, MainContext } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { ConfigurationTarget, IConfigurationChange, IConfigurationData } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
@@ -104,13 +104,14 @@ export class ExtHostConfigProvider {
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
 	}
 
-	getConfiguration(section?: string, resource?: URI, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
+	getConfiguration(section?: string, scope?: vscode.ConfigurationScope, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
+		const overrides: IConfigurationOverrides = scope ? scope instanceof vscode.Uri ? { resource: scope } : { resource: scope.resource, overrideIdentifier: scope.language } : {};
 		const config = this._toReadonlyValue(section
-			? lookUp(this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(undefined, { resource }, this._extHostWorkspace.workspace));
+			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
+			: this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace));
 
 		if (section) {
-			this._validateConfigurationAccess(section, resource, extensionId);
+			this._validateConfigurationAccess(section, overrides, extensionId);
 		}
 
 		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget | null {
@@ -133,7 +134,7 @@ export class ExtHostConfigProvider {
 				return typeof lookUp(config, key) !== 'undefined';
 			},
 			get: <T>(key: string, defaultValue?: T) => {
-				this._validateConfigurationAccess(section ? `${section}.${key}` : key, resource, extensionId);
+				this._validateConfigurationAccess(section ? `${section}.${key}` : key, overrides, extensionId);
 				let result = lookUp(config, key);
 				if (typeof result === 'undefined') {
 					result = defaultValue;
@@ -193,14 +194,14 @@ export class ExtHostConfigProvider {
 				key = section ? `${section}.${key}` : key;
 				const target = parseConfigurationTarget(arg);
 				if (value !== undefined) {
-					return this._proxy.$updateConfigurationOption(target, key, value, resource);
+					return this._proxy.$updateConfigurationOption(target, key, value, overrides);
 				} else {
-					return this._proxy.$removeConfigurationOption(target, key, resource);
+					return this._proxy.$removeConfigurationOption(target, key, overrides);
 				}
 			},
 			inspect: <T>(key: string): ConfigurationInspect<T> | undefined => {
 				key = section ? `${section}.${key}` : key;
-				const config = deepClone(this._configuration.inspect<T>(key, { resource }, this._extHostWorkspace.workspace));
+				const config = deepClone(this._configuration.inspect<T>(key, overrides, this._extHostWorkspace.workspace));
 				if (config) {
 					return {
 						key,
@@ -237,17 +238,17 @@ export class ExtHostConfigProvider {
 		return readonlyProxy(result);
 	}
 
-	private _validateConfigurationAccess(key: string, resource: URI | undefined, extensionId?: ExtensionIdentifier): void {
+	private _validateConfigurationAccess(key: string, overrides?: IConfigurationOverrides, extensionId?: ExtensionIdentifier): void {
 		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes.get(key);
 		const extensionIdText = extensionId ? `[${extensionId.value}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
-			if (resource === undefined) {
+			if (overrides?.resource) {
 				this._logService.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the URI of a resource or 'null' for any resource.`);
 			}
 			return;
 		}
 		if (ConfigurationScope.WINDOW === scope) {
-			if (resource) {
+			if (overrides?.resource) {
 				this._logService.warn(`${extensionIdText}Accessing a window scoped configuration for a resource is not expected. To associate '${key}' to a resource, define its scope to 'resource' in configuration contributions in 'package.json'.`);
 			}
 			return;
