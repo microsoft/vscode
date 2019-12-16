@@ -778,6 +778,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private validateWindowState(state: IWindowState, displays: Display[]): IWindowState | undefined {
+		this.logService.trace(`window#validateWindowState: validating window state on ${displays.length} display(s)`, state);
+
 		if (typeof state.x !== 'number'
 			|| typeof state.y !== 'number'
 			|| typeof state.width !== 'number'
@@ -796,7 +798,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (displays.length === 1) {
 			const displayWorkingArea = this.getWorkingArea(displays[0]);
 			if (displayWorkingArea) {
-				this.logService.trace('window#validateWindowState: 1 display', displayWorkingArea);
+				this.logService.trace('window#validateWindowState: 1 monitor working area', displayWorkingArea);
 
 				if (state.x < displayWorkingArea.x) {
 					state.x = displayWorkingArea.x; // prevent window from falling out of the screen to the left
@@ -852,7 +854,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			bounds.x + bounds.width > displayWorkingArea.x &&				// prevent window from falling out of the screen to the left
 			bounds.y + bounds.height > displayWorkingArea.y					// prevent window from falling out of the scree nto the top
 		) {
-			this.logService.trace('window#validateWindowState: multi display', displayWorkingArea);
+			this.logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
 
 			return state;
 		}
