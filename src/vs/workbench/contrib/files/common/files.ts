@@ -133,15 +133,13 @@ export interface IFileResource {
 	isDirectory?: boolean;
 }
 
-export const SortOrderConfiguration = {
-	DEFAULT: 'default',
-	MIXED: 'mixed',
-	FILES_FIRST: 'filesFirst',
-	TYPE: 'type',
-	MODIFIED: 'modified'
-};
-
-export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
+export const enum SortOrder {
+	Default = 'default',
+	Mixed = 'mixed',
+	FilesFirst = 'filesFirst',
+	Type = 'type',
+	Modified = 'modified'
+}
 
 export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {
 	private readonly fileWatcherDisposable = this._register(new MutableDisposable());

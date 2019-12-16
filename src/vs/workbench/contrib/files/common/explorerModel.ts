@@ -14,7 +14,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, SortOrder } from 'vs/workbench/contrib/files/common/files';
 import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
 
 export class ExplorerModel implements IDisposable {
@@ -263,7 +263,7 @@ export class ExplorerItem {
 		if (!this._isDirectoryResolved) {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'
-			const resolveMetadata = explorerService.sortOrder === 'modified';
+			const resolveMetadata = explorerService.sortOrder === SortOrder.Modified;
 			try {
 				const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
 				const resolved = ExplorerItem.create(explorerService, fileService, stat, this);

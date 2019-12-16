@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService, IFilesConfiguration, SortOrder, SortOrderConfiguration, IContextProvider } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, IFilesConfiguration, SortOrder, IContextProvider } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
@@ -187,7 +187,7 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === 'modified' };
+		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === SortOrder.Modified };
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		if (workspaceFolder === null) {
 			return Promise.resolve(undefined);
@@ -361,7 +361,7 @@ export class ExplorerService implements IExplorerService {
 				}
 
 				// Handle updated files/folders if we sort by modified
-				if (this._sortOrder === SortOrderConfiguration.MODIFIED) {
+				if (this._sortOrder === SortOrder.Modified) {
 					const updated = e.getUpdated();
 
 					// Check updated: Refresh if updated file/folder part of resolved root
@@ -387,7 +387,7 @@ export class ExplorerService implements IExplorerService {
 
 	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
-			if (change.type === FileChangeType.UPDATED && this._sortOrder !== SortOrderConfiguration.MODIFIED) {
+			if (change.type === FileChangeType.UPDATED && this._sortOrder !== SortOrder.Modified) {
 				return false; // we only are about updated if we sort by modified time
 			}
 
