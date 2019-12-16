@@ -138,6 +138,10 @@ interface ISerializedTestInput {
 
 class TestEditorInputFactory implements IEditorInputFactory {
 
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
+
 	serialize(editorInput: EditorInput): string {
 		let testEditorInput = <TestEditorInput>editorInput;
 		let testInput: ISerializedTestInput = {

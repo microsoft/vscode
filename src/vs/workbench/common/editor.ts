@@ -199,6 +199,11 @@ export interface IEditorInputFactoryRegistry {
 export interface IEditorInputFactory {
 
 	/**
+	 * Determines wether the given editor input can be serialized by the factory.
+	 */
+	canSerialize(editorInput: IEditorInput): boolean;
+
+	/**
 	 * Returns a string representation of the provided editor input that contains enough information
 	 * to deserialize back to the original editor input from the deserialize() method.
 	 */

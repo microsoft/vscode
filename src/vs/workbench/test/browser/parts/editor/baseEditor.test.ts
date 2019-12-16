@@ -12,7 +12,7 @@ import * as Platform from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroup, TestEditorGroupsService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
@@ -49,6 +49,10 @@ export class MyOtherEditor extends BaseEditor {
 }
 
 class MyInputFactory implements IEditorInputFactory {
+
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
 
 	serialize(input: EditorInput): string {
 		return input.toString();
@@ -98,7 +102,7 @@ suite('Workbench base editor', () => {
 		await e.setInput(input, options, CancellationToken.None);
 		assert.strictEqual(input, e.input);
 		assert.strictEqual(options, e.options);
-		const group = new TestEditorGroup(1);
+		const group = new TestEditorGroupView(1);
 		e.setVisible(true, group);
 		assert(e.isVisible());
 		assert.equal(e.group, group);
@@ -187,14 +191,14 @@ suite('Workbench base editor', () => {
 	});
 
 	test('EditorMemento - basics', function () {
-		const testGroup0 = new TestEditorGroup(0);
-		const testGroup1 = new TestEditorGroup(1);
-		const testGroup4 = new TestEditorGroup(4);
+		const testGroup0 = new TestEditorGroupView(0);
+		const testGroup1 = new TestEditorGroupView(1);
+		const testGroup4 = new TestEditorGroupView(4);
 
 		const editorGroupService = new TestEditorGroupsService([
 			testGroup0,
 			testGroup1,
-			new TestEditorGroup(2)
+			new TestEditorGroupView(2)
 		]);
 
 		interface TestViewState {
@@ -255,7 +259,7 @@ suite('Workbench base editor', () => {
 	});
 
 	test('EditoMemento - use with editor input', function () {
-		const testGroup0 = new TestEditorGroup(0);
+		const testGroup0 = new TestEditorGroupView(0);
 
 		interface TestViewState {
 			line: number;

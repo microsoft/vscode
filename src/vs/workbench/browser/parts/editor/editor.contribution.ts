@@ -119,6 +119,10 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) { }
 
+	canSerialize(editorInput: EditorInput): boolean {
+		return this.filesConfigurationService.isHotExitEnabled;
+	}
+
 	serialize(editorInput: EditorInput): string | undefined {
 		if (!this.filesConfigurationService.isHotExitEnabled) {
 			return undefined; // never restore untitled unless hot exit is enabled
@@ -168,6 +172,20 @@ interface ISerializedSideBySideEditorInput {
 
 // Register Side by Side Editor Input Factory
 class SideBySideEditorInputFactory implements IEditorInputFactory {
+
+	canSerialize(editorInput: EditorInput): boolean {
+		const input = <SideBySideEditorInput>editorInput;
+
+		if (input.details && input.master) {
+			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
+			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
+			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
+
+			return !!(detailsInputFactory?.canSerialize(input.details) && masterInputFactory?.canSerialize(input.master));
+		}
+
+		return false;
+	}
 
 	serialize(editorInput: EditorInput): string | undefined {
 		const input = <SideBySideEditorInput>editorInput;
