@@ -296,9 +296,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.updateOverridePropertyPatternKey();
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, overridable: boolean = false): string[] {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW): string[] {
 		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
-		overridable = configuration.overridable || overridable;
 		let propertyKeys: string[] = [];
 		let properties = configuration.properties;
 		if (properties) {
@@ -315,11 +314,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (types.isUndefined(defaultValue)) {
 					property.default = getDefaultValue(property.type);
 				}
-				// Inherit overridable property from parent
-				if (overridable) {
-					property.overridable = true;
-				}
-
 				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
 					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
 				} else {
@@ -342,7 +336,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, scope, overridable));
+				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, scope));
 			}
 		}
 		return propertyKeys;

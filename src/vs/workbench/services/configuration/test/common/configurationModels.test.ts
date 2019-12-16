@@ -27,7 +27,11 @@ suite('FolderSettingsModelParser', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.RESOURCE,
-					overridable: true
+				},
+				'FolderSettingsModelParser.resourceLanguage': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.RESOURCE_LANGUAGE,
 				},
 				'FolderSettingsModelParser.application': {
 					'type': 'string',
@@ -59,12 +63,12 @@ suite('FolderSettingsModelParser', () => {
 		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
 	});
 
-	test('parse overridable resource settings', () => {
-		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE]);
+	test('parse resource and resource language settings', () => {
+		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.RESOURCE_LANGUAGE]);
 
-		testObject.parseContent(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' } }));
+		testObject.parseContent(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.resourceLanguage': 'resourceLanguage', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' } }));
 
-		assert.deepEqual(testObject.configurationModel.overrides, [{ 'contents': { 'FolderSettingsModelParser': { 'resource': 'resource' } }, 'identifiers': ['json'], 'keys': ['FolderSettingsModelParser.resource'] }]);
+		assert.deepEqual(testObject.configurationModel.overrides, [{ 'contents': { 'FolderSettingsModelParser': { 'resource': 'resource', 'resourceLanguage': 'resourceLanguage' } }, 'identifiers': ['json'], 'keys': ['FolderSettingsModelParser.resource', 'FolderSettingsModelParser.resourceLanguage'] }]);
 	});
 
 	test('reprocess folder settings excludes application and machine setting', () => {
