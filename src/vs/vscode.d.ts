@@ -2342,12 +2342,6 @@ declare module 'vscode' {
 	export class MarkdownString {
 
 		/**
-		 * Escapes any [ThemeIcons](#ThemeIcon), e.g. `$(zap)`, in the string.
-		 * @param value A string.
-		 */
-		static escapeThemeIcons(value: string): string;
-
-		/**
 		 * The markdown string.
 		 */
 		value: string;
@@ -2362,9 +2356,9 @@ declare module 'vscode' {
 		 * Creates a new markdown string with the given value.
 		 *
 		 * @param value Optional, initial value.
-		 * @param options Optional, options to specify whether [ThemeIcons](#ThemeIcon) are supported within the [`MarkdownString`](#MarkdownString).
+		 * @param supportThemeIcons Optional, Specifies whether [ThemeIcons](#ThemeIcon) are supported within the [`MarkdownString`](#MarkdownString).
 		 */
-		constructor(value?: string, options?: { supportThemeIcons?: boolean });
+		constructor(value?: string, supportThemeIcons?: boolean);
 
 		/**
 		 * Appends and escapes the given string to this markdown string.
@@ -2373,7 +2367,7 @@ declare module 'vscode' {
 		appendText(value: string): MarkdownString;
 
 		/**
-		 * Appends the given string 'as is' to this markdown string.
+		 * Appends the given string 'as is' to this markdown string. When [`supportThemeIcons`](#MarkdownString.supportThemeIcons) is `true`, [ThemeIcons](#ThemeIcon) in the `value` will be iconified.
 		 * @param value Markdown string.
 		 */
 		appendMarkdown(value: string): MarkdownString;

@@ -5,7 +5,7 @@
 
 import { equals } from 'vs/base/common/arrays';
 import { UriComponents } from 'vs/base/common/uri';
-import { escapeCodicons, markdownUnescapeCodicons } from 'vs/base/common/codicons';
+import { escapeCodicons } from 'vs/base/common/codicons';
 
 export interface IMarkdownString {
 	readonly value: string;
@@ -39,10 +39,9 @@ export class MarkdownString implements IMarkdownString {
 
 	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		value = value
+		this._value += (this._supportThemeIcons ? escapeCodicons(value) : value)
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
 			.replace('\n', '\n\n');
-		this._value += this.supportThemeIcons ? markdownUnescapeCodicons(value) : value;
 
 		return this;
 	}
@@ -60,10 +59,6 @@ export class MarkdownString implements IMarkdownString {
 		this._value += code;
 		this._value += '\n```\n';
 		return this;
-	}
-
-	static escapeThemeIcons(value: string): string {
-		return escapeCodicons(value);
 	}
 }
 
