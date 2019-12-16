@@ -34,7 +34,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		});
 	});
 
-	return <CancelablePromise<T>>new class implements Omit<CancelablePromise<T>, typeof Symbol.toStringTag> {
+	return <CancelablePromise<T>>new class {
 		cancel() {
 			source.cancel();
 		}
