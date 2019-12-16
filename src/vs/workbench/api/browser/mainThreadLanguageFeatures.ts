@@ -505,13 +505,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
 
 			prepareCallHierarchy: async (document, position, token) => {
-				const item = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
-				if (!item) {
+				const items = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
+				if (!items) {
 					return undefined;
 				}
 				return {
-					dispose: () => this._proxy.$releaseCallHierarchy(handle, item._sessionId),
-					root: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item)
+					dispose: () => {
+						for (const item of items) {
+							this._proxy.$releaseCallHierarchy(handle, item._sessionId);
+						}
+					},
+					roots: items.map(MainThreadLanguageFeatures._reviveCallHierarchyItemDto)
 				};
 			},
 

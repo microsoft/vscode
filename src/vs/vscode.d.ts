@@ -4015,7 +4015,7 @@ declare module 'vscode' {
 		 * @returns A call hierarchy item or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem>;
+		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem | CallHierarchyItem[]>;
 
 		/**
 		 * Provide all incoming calls for an item, e.g all callers for a method. In graph terms this describes directed
