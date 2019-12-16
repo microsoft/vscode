@@ -878,11 +878,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
-		// Update model
-		this._group.openEditor(editor, openEditorOptions);
+		// Update model and make sure to continue to use the editor we get from
+		// the model. It is possible that the editor was already opened and we
+		// want to ensure that we use the existing instance in that case.
+		const openedEditor = this._group.openEditor(editor, openEditorOptions);
 
 		// Show editor
-		return this.doShowEditor(editor, !!openEditorOptions.active, options);
+		return this.doShowEditor(openedEditor, !!openEditorOptions.active, options);
 	}
 
 	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | undefined> {
@@ -1051,16 +1053,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private doMoveEditorInsideGroup(editor: EditorInput, moveOptions?: IMoveEditorOptions): void {
+	private doMoveEditorInsideGroup(candidate: EditorInput, moveOptions?: IMoveEditorOptions): void {
 		const moveToIndex = moveOptions ? moveOptions.index : undefined;
 		if (typeof moveToIndex !== 'number') {
 			return; // do nothing if we move into same group without index
 		}
 
-		const currentIndex = this._group.indexOf(editor);
-		if (currentIndex === moveToIndex) {
-			return; // do nothing if editor is already at the given index
+		const currentIndex = this._group.indexOf(candidate);
+		if (currentIndex === -1 || currentIndex === moveToIndex) {
+			return; // do nothing if editor unknown in model or is already at the given index
 		}
+
+		// Update model and make sure to continue to use the editor we get from
+		// the model. It is possible that the editor was already opened and we
+		// want to ensure that we use the existing instance in that case.
+		const editor = this.group.getEditorByIndex(currentIndex)!;
 
 		// Update model
 		this._group.moveEditor(editor, moveToIndex);

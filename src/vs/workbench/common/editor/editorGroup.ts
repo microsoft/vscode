@@ -152,18 +152,19 @@ export class EditorGroup extends Disposable {
 		return this.matches(this.preview, editor);
 	}
 
-	openEditor(editor: EditorInput, options?: IEditorOpenOptions): void {
-		const index = this.indexOf(editor);
-
+	openEditor(candidate: EditorInput, options?: IEditorOpenOptions): EditorInput {
 		const makePinned = options?.pinned;
 		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
 
+		const existingEditor = this.findEditor(candidate);
+
 		// New editor
-		if (index === -1) {
-			let targetIndex: number;
+		if (!existingEditor) {
+			const newEditor = candidate;
 			const indexOfActive = this.indexOf(this.active);
 
 			// Insert into specific position
+			let targetIndex: number;
 			if (options && typeof options.index === 'number') {
 				targetIndex = options.index;
 			}
@@ -194,7 +195,7 @@ export class EditorGroup extends Disposable {
 
 			// Insert into our list of editors if pinned or we have no preview editor
 			if (makePinned || !this.preview) {
-				this.splice(targetIndex, false, editor);
+				this.splice(targetIndex, false, newEditor);
 			}
 
 			// Handle preview
@@ -207,22 +208,24 @@ export class EditorGroup extends Disposable {
 						targetIndex--; // accomodate for the fact that the preview editor closes
 					}
 
-					this.replaceEditor(this.preview, editor, targetIndex, !makeActive);
+					this.replaceEditor(this.preview, newEditor, targetIndex, !makeActive);
 				}
 
-				this.preview = editor;
+				this.preview = newEditor;
 			}
 
 			// Listeners
-			this.registerEditorListeners(editor);
+			this.registerEditorListeners(newEditor);
 
 			// Event
-			this._onDidEditorOpen.fire(editor);
+			this._onDidEditorOpen.fire(newEditor);
 
 			// Handle active
 			if (makeActive) {
-				this.setActive(editor);
+				this.setActive(newEditor);
 			}
+
+			return newEditor;
 		}
 
 		// Existing editor
@@ -230,18 +233,20 @@ export class EditorGroup extends Disposable {
 
 			// Pin it
 			if (makePinned) {
-				this.pin(editor);
+				this.pin(existingEditor);
 			}
 
 			// Activate it
 			if (makeActive) {
-				this.setActive(editor);
+				this.setActive(existingEditor);
 			}
 
 			// Respect index
 			if (options && typeof options.index === 'number') {
-				this.moveEditor(editor, options.index);
+				this.moveEditor(existingEditor, options.index);
 			}
+
+			return existingEditor;
 		}
 	}
 
@@ -287,8 +292,8 @@ export class EditorGroup extends Disposable {
 		}
 	}
 
-	closeEditor(editor: EditorInput, openNext = true): number | undefined {
-		const event = this.doCloseEditor(editor, openNext, false);
+	closeEditor(candidate: EditorInput, openNext = true): number | undefined {
+		const event = this.doCloseEditor(candidate, openNext, false);
 
 		if (event) {
 			this._onDidEditorClose.fire(event);
@@ -299,11 +304,13 @@ export class EditorGroup extends Disposable {
 		return undefined;
 	}
 
-	private doCloseEditor(editor: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent | null {
-		const index = this.indexOf(editor);
+	private doCloseEditor(candidate: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent | null {
+		const index = this.indexOf(candidate);
 		if (index === -1) {
 			return null; // not found
 		}
+
+		const editor = this.editors[index];
 
 		// Active Editor closed
 		if (openNext && this.matches(this.active, editor)) {
@@ -377,11 +384,13 @@ export class EditorGroup extends Disposable {
 		}
 	}
 
-	moveEditor(editor: EditorInput, toIndex: number): void {
-		const index = this.indexOf(editor);
+	moveEditor(candidate: EditorInput, toIndex: number): void {
+		const index = this.indexOf(candidate);
 		if (index < 0) {
 			return;
 		}
+
+		const editor = this.editors[index];
 
 		// Move
 		this.editors.splice(index, 1);
@@ -391,9 +400,9 @@ export class EditorGroup extends Disposable {
 		this._onDidEditorMove.fire(editor);
 	}
 
-	setActive(editor: EditorInput): void {
-		const index = this.indexOf(editor);
-		if (index === -1) {
+	setActive(candidate: EditorInput): void {
+		const editor = this.findEditor(candidate);
+		if (!editor) {
 			return; // not found
 		}
 
@@ -410,9 +419,9 @@ export class EditorGroup extends Disposable {
 		this._onDidEditorActivate.fire(editor);
 	}
 
-	pin(editor: EditorInput): void {
-		const index = this.indexOf(editor);
-		if (index === -1) {
+	pin(candidate: EditorInput): void {
+		const editor = this.findEditor(candidate);
+		if (!editor) {
 			return; // not found
 		}
 
@@ -427,9 +436,9 @@ export class EditorGroup extends Disposable {
 		this._onDidEditorPin.fire(editor);
 	}
 
-	unpin(editor: EditorInput): void {
-		const index = this.indexOf(editor);
-		if (index === -1) {
+	unpin(candidate: EditorInput): void {
+		const editor = this.findEditor(candidate);
+		if (!editor) {
 			return; // not found
 		}
 
@@ -531,6 +540,15 @@ export class EditorGroup extends Disposable {
 		return -1;
 	}
 
+	private findEditor(candidate: IEditorInput | null): EditorInput | undefined {
+		const index = this.indexOf(candidate, this.editors);
+		if (index === -1) {
+			return undefined;
+		}
+
+		return this.editors[index];
+	}
+
 	contains(candidate: EditorInput, searchInSideBySideEditors?: boolean): boolean {
 		for (const editor of this.editors) {
 			if (this.matches(editor, candidate)) {
@@ -547,10 +565,10 @@ export class EditorGroup extends Disposable {
 		return false;
 	}
 
-	private setMostRecentlyUsed(editor: EditorInput): void {
-		const index = this.indexOf(editor);
-		if (index === -1) {
-			return; // editor not found
+	private setMostRecentlyUsed(candidate: EditorInput): void {
+		const editor = this.findEditor(candidate);
+		if (!editor) {
+			return; // not found
 		}
 
 		const mruIndex = this.indexOf(editor, this.mru);

@@ -401,9 +401,9 @@ suite('Workbench editor groups', () => {
 		const group = createGroup();
 		const events = groupListener(group);
 
-		const input1 = input();
-		const input2 = input();
-		const input3 = input();
+		const input1 = input('1');
+		const input2 = input('2');
+		const input3 = input('3');
 
 		// Pinned and Active
 		group.openEditor(input1, { pinned: true, active: true });
@@ -427,10 +427,32 @@ suite('Workbench editor groups', () => {
 		assert.equal(events.opened[1], input2);
 		assert.equal(events.opened[2], input3);
 
+		assert.equal(events.activated[0], input1);
+		assert.equal(events.activated[1], input2);
+		assert.equal(events.activated[2], input3);
+
 		const mru = group.getEditors(true);
 		assert.equal(mru[0], input3);
 		assert.equal(mru[1], input2);
 		assert.equal(mru[2], input1);
+
+		// Add some tests where a matching input is used
+		// and verify that events carry the original input
+		const sameInput1 = input('1');
+		group.openEditor(sameInput1, { pinned: true, active: true });
+		assert.equal(events.activated[3], input1);
+
+		group.unpin(sameInput1);
+		assert.equal(events.unpinned[0], input1);
+
+		group.pin(sameInput1);
+		assert.equal(events.pinned[0], input1);
+
+		group.moveEditor(sameInput1, 1);
+		assert.equal(events.moved[0], input1);
+
+		group.closeEditor(sameInput1);
+		assert.equal(events.closed[0].editor, input1);
 
 		group.closeAllEditors();
 
@@ -930,24 +952,36 @@ suite('Workbench editor groups', () => {
 		const group = createGroup();
 
 		// [] -> /index.html/
-		let indexHtml = input('index.html');
-		group.openEditor(indexHtml);
+		const indexHtml = input('index.html');
+		let openedEditor = group.openEditor(indexHtml);
+		assert.equal(openedEditor, indexHtml);
+		assert.equal(group.activeEditor, indexHtml);
+		assert.equal(group.previewEditor, indexHtml);
+		assert.equal(group.getEditors()[0], indexHtml);
+		assert.equal(group.count, 1);
+
+		// /index.html/ -> /index.html/
+		const sameIndexHtml = input('index.html');
+		openedEditor = group.openEditor(sameIndexHtml);
+		assert.equal(openedEditor, indexHtml);
 		assert.equal(group.activeEditor, indexHtml);
 		assert.equal(group.previewEditor, indexHtml);
 		assert.equal(group.getEditors()[0], indexHtml);
 		assert.equal(group.count, 1);
 
 		// /index.html/ -> /style.css/
-		let styleCss = input('style.css');
-		group.openEditor(styleCss);
+		const styleCss = input('style.css');
+		openedEditor = group.openEditor(styleCss);
+		assert.equal(openedEditor, styleCss);
 		assert.equal(group.activeEditor, styleCss);
 		assert.equal(group.previewEditor, styleCss);
 		assert.equal(group.getEditors()[0], styleCss);
 		assert.equal(group.count, 1);
 
 		// /style.css/ -> [/style.css/, test.js]
-		let testJs = input('test.js');
-		group.openEditor(testJs, { active: true, pinned: true });
+		const testJs = input('test.js');
+		openedEditor = group.openEditor(testJs, { active: true, pinned: true });
+		assert.equal(openedEditor, testJs);
 		assert.equal(group.previewEditor, styleCss);
 		assert.equal(group.activeEditor, testJs);
 		assert.equal(group.isPreview(styleCss), true);
@@ -957,28 +991,28 @@ suite('Workbench editor groups', () => {
 		assert.equal(group.count, 2);
 
 		// [/style.css/, test.js] -> [test.js, /index.html/]
-		indexHtml = input('index.html');
-		group.openEditor(indexHtml, { active: true });
-		assert.equal(group.activeEditor, indexHtml);
-		assert.equal(group.previewEditor, indexHtml);
-		assert.equal(group.isPreview(indexHtml), true);
+		const indexHtml2 = input('index.html');
+		group.openEditor(indexHtml2, { active: true });
+		assert.equal(group.activeEditor, indexHtml2);
+		assert.equal(group.previewEditor, indexHtml2);
+		assert.equal(group.isPreview(indexHtml2), true);
 		assert.equal(group.isPinned(testJs), true);
 		assert.equal(group.getEditors()[0], testJs);
-		assert.equal(group.getEditors()[1], indexHtml);
+		assert.equal(group.getEditors()[1], indexHtml2);
 		assert.equal(group.count, 2);
 
 		// make test.js active
-		testJs = input('test.js');
-		group.setActive(testJs);
+		const testJs2 = input('test.js');
+		group.setActive(testJs2);
 		assert.equal(group.activeEditor, testJs);
-		assert.equal(group.isActive(testJs), true);
+		assert.equal(group.isActive(testJs2), true);
 		assert.equal(group.count, 2);
 
 		// [test.js, /indexHtml/] -> [test.js, index.html]
-		indexHtml = input('index.html');
-		group.pin(indexHtml);
-		assert.equal(group.isPinned(indexHtml), true);
-		assert.equal(group.isPreview(indexHtml), false);
+		const indexHtml3 = input('index.html');
+		group.pin(indexHtml3);
+		assert.equal(group.isPinned(indexHtml3), true);
+		assert.equal(group.isPreview(indexHtml3), false);
 		assert.equal(group.activeEditor, testJs);
 
 		// [test.js, index.html] -> [test.js, file.ts, index.html]
@@ -1006,9 +1040,9 @@ suite('Workbench editor groups', () => {
 		assert.ok(group.getEditors()[2].matches(indexHtml));
 
 		// make index.html active
-		indexHtml = input('index.html');
-		group.setActive(indexHtml);
-		assert.equal(group.activeEditor, indexHtml);
+		const indexHtml4 = input('index.html');
+		group.setActive(indexHtml4);
+		assert.equal(group.activeEditor, indexHtml2);
 
 		// [test.js, /other.ts/, index.html] -> [test.js, /other.ts/]
 		group.closeEditor(indexHtml);
