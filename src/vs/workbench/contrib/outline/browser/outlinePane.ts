@@ -371,9 +371,7 @@ export class OutlinePane extends ViewPane {
 			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
 				this._tree.updateChildren();
 			}
-			// This is a temporary solution to try and minimize refilters while
-			// ConfigurationChangeEvents only provide the first section of the config path.
-			if (e.affectedKeys.some(key => key.search(/(outline|\[\w+\])/) === 0)) {
+			if (e.affectsConfiguration('outline')) {
 				this._tree.refilter();
 			}
 		}));
