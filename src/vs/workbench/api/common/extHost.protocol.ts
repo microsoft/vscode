@@ -777,6 +777,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined>;
 	$closeTunnel(remotePort: number): Promise<void>;
 	$registerCandidateFinder(): Promise<void>;
+	$setTunnelProvider(): Promise<void>;
 }
 
 // -- extension host
@@ -1396,6 +1397,8 @@ export interface ExtHostStorageShape {
 
 export interface ExtHostTunnelServiceShape {
 	$findCandidatePorts(): Promise<{ port: number, detail: string }[]>;
+	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined;
+	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 }
 
 // --- proxy identifiers

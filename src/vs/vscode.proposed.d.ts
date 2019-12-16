@@ -39,9 +39,11 @@ declare module 'vscode' {
 		name?: string;
 	}
 
-	export interface Tunnel extends Disposable {
+	export interface Tunnel {
 		remote: { port: number, host: string };
 		localAddress: string;
+		onDispose: Event<void>;
+		dispose(): void;
 	}
 
 	/**
@@ -72,7 +74,7 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		forwardPort?(tunnelOptions: TunnelOptions): Thenable<Tunnel | undefined>;
+		forwardPort?(tunnelOptions: TunnelOptions): Thenable<Tunnel> | undefined;
 	}
 
 	export namespace workspace {

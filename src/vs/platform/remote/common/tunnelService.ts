@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService, RemoteTunnel, ITunnelProvider } from 'vs/platform/remote/common/tunnel';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class NoOpTunnelService implements ITunnelService {
 	_serviceBrand: undefined;
@@ -18,5 +19,8 @@ export class NoOpTunnelService implements ITunnelService {
 		return undefined;
 	}
 	async closeTunnel(_remotePort: number): Promise<void> {
+	}
+	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable {
+		throw new Error('Method not implemented.');
 	}
 }
