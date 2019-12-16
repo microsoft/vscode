@@ -8712,7 +8712,6 @@ declare module 'vscode' {
 		 * @return The full configuration or a subset.
 		 */
 		export function getConfiguration(section?: string): WorkspaceConfiguration;
-		export function getConfiguration(section: string | undefined, scope: { resource: Uri, language?: string }): WorkspaceConfiguration;
 
 		/**
 		 * Get a workspace folder configuration object for the given workspace folder.
@@ -8754,7 +8753,7 @@ declare module 'vscode' {
 		export function getConfiguration(section: string | undefined, scope: { resource: Uri, language?: string }): WorkspaceConfiguration;
 
 		/**
-		 * @deprecated Pass [workspaceFolder](#WorkspaceFolder) instead of [resource](#Uri)
+		 * @deprecated Instead use other variants of `getConfiguration`
 		 */
 		export function getConfiguration(section: string | undefined, resource: Uri | null): WorkspaceConfiguration;
 
