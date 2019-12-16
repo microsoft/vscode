@@ -572,11 +572,10 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void;
+	$registerEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: readonly WebviewEditorCapabilities[]): void;
 	$unregisterEditorProvider(viewType: string): void;
-	$registerCapabilities(handle: WebviewPanelHandle, capabilities: readonly WebviewEditorCapabilities[]): void;
 
-	$onEdit(handle: WebviewPanelHandle, editJson: any): void;
+	$onEdit(resource: UriComponents, viewType: string, editJson: any): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -594,13 +593,13 @@ export interface ExtHostWebviewsShape {
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
-	$resolveWebviewEditor(input: { resource: UriComponents, edits: readonly any[] }, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 
-	$undoEdits(handle: WebviewPanelHandle, edits: readonly any[]): void;
-	$applyEdits(handle: WebviewPanelHandle, edits: readonly any[]): void;
+	$undoEdits(resource: UriComponents, viewType: string, edits: readonly any[]): void;
+	$applyEdits(resource: UriComponents, viewType: string, edits: readonly any[]): void;
 
-	$onSave(handle: WebviewPanelHandle): Promise<void>;
-	$onSaveAs(handle: WebviewPanelHandle, resource: UriComponents, targetResource: UriComponents): Promise<void>;
+	$onSave(resource: UriComponents, viewType: string): Promise<void>;
+	$onSaveAs(resource: UriComponents, viewType: string, targetResource: UriComponents): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
