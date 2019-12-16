@@ -342,9 +342,11 @@ registerThemingParticipant((theme, collector) => {
 	const codeLensForeground = theme.getColor(editorCodeLensForeground);
 	if (codeLensForeground) {
 		collector.addRule(`.monaco-editor .codelens-decoration { color: ${codeLensForeground}; }`);
+		collector.addRule(`.monaco-editor .codelens-decoration .codicon { color: ${codeLensForeground}; }`);
 	}
 	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
 		collector.addRule(`.monaco-editor .codelens-decoration > a:hover { color: ${activeLinkForeground} !important; }`);
+		collector.addRule(`.monaco-editor .codelens-decoration > a:hover .codicon { color: ${activeLinkForeground} !important; }`);
 	}
 });
