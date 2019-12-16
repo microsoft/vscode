@@ -100,6 +100,10 @@ export const enum ConfigurationScope {
 	 */
 	RESOURCE,
 	/**
+	 * Resource specific configuration that can also be configured in language specific settings
+	 */
+	RESOURCE_LANGUAGE,
+	/**
 	 * Machine specific configuration that can also be configured in workspace or folder settings.
 	 */
 	MACHINE_OVERRIDABLE,
@@ -143,6 +147,7 @@ export const machineSettings: { properties: SettingProperties, patternProperties
 export const machineOverridableSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
 export const windowSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
 export const resourceSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
+export const resourceLanguageSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
 
 export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -222,6 +227,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 							break;
 						case ConfigurationScope.RESOURCE:
 							delete resourceSettings.properties[key];
+							break;
+						case ConfigurationScope.RESOURCE_LANGUAGE:
+							delete resourceSettings.properties[key];
+							delete resourceLanguageSettings.properties[key];
 							break;
 					}
 				}
@@ -376,6 +385,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 							break;
 						case ConfigurationScope.RESOURCE:
 							resourceSettings.properties[key] = properties[key];
+							break;
+						case ConfigurationScope.RESOURCE_LANGUAGE:
+							resourceSettings.properties[key] = properties[key];
+							resourceLanguageSettings.properties[key] = properties[key];
 							break;
 					}
 				}
