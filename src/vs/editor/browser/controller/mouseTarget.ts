@@ -673,6 +673,13 @@ export class MouseTargetFactory {
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), undefined, detail);
 				}
+
+				const lineWidth = ctx.getLineWidth(lineNumber);
+				if (request.mouseContentHorizontalOffset >= lineWidth) {
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					const pos = new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber));
+					return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, undefined, detail);
+				}
 			}
 
 			// We have already executed hit test...
