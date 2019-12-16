@@ -14,11 +14,40 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 	let resultTokens: SemanticTokenData[] = [];
 	const tokens = jsLanguageService.getSemanticClassifications(fileName, { start: 0, length: currentTextDocument.getText().length });
 	for (let token of tokens) {
-		const typeIdx = tokenMapping[token.classificationType];
+		const typeIdx = tokenFromClassificationMapping[token.classificationType];
 		if (typeIdx !== undefined) {
 			resultTokens.push({ offset: token.textSpan.start, length: token.textSpan.length, typeIdx, modifierSet: 0 });
 		}
 	}
+
+	const program = jsLanguageService.getProgram();
+	if (program) {
+		const typeChecker = program.getTypeChecker();
+
+
+		function visit(node: ts.Node) {
+			if (node.kind === ts.SyntaxKind.Identifier) {
+				const symbol = typeChecker.getSymbolAtLocation(node);
+				if (symbol) {
+					let typeIdx = tokenFromDeclarationMapping[symbol.valueDeclaration.kind];
+					let modifierSet = 0;
+					if (symbol.valueDeclaration === node.parent) {
+						modifierSet = TokenModifier.declaration;
+					}
+					if (typeIdx !== undefined) {
+						resultTokens.push({ offset: node.pos, length: node.end - node.pos, typeIdx, modifierSet });
+					}
+				}
+			}
+
+			ts.forEachChild(node, visit);
+		}
+		const sourceFile = program.getSourceFile(fileName);
+		if (sourceFile) {
+			visit(sourceFile);
+		}
+	}
+
 
 	resultTokens = resultTokens.sort((d1, d2) => d1.offset - d2.offset);
 	const offsetRanges = ranges.map(r => ({ startOffset: currentTextDocument.offsetAt(r.start), endOffset: currentTextDocument.offsetAt(r.end) })).sort((d1, d2) => d1.startOffset - d2.startOffset);
@@ -62,15 +91,45 @@ export function getSemanticTokenLegend() {
 }
 
 
-const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'parameterType', 'type', 'parameter'];
-const tokenModifiers: string[] = [];
+const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'parameterType', 'type', 'parameter', 'variable', 'property', 'constant', 'function'];
+const tokenModifiers: string[] = ['declaration',];
 
-const tokenMapping: { [name: string]: number } = {
-	[ts.ClassificationTypeNames.className]: tokenTypes.indexOf('class'),
-	[ts.ClassificationTypeNames.enumName]: tokenTypes.indexOf('enum'),
-	[ts.ClassificationTypeNames.interfaceName]: tokenTypes.indexOf('interface'),
-	[ts.ClassificationTypeNames.moduleName]: tokenTypes.indexOf('namespace'),
-	[ts.ClassificationTypeNames.typeParameterName]: tokenTypes.indexOf('parameterType'),
-	[ts.ClassificationTypeNames.typeAliasName]: tokenTypes.indexOf('type'),
-	[ts.ClassificationTypeNames.parameterName]: tokenTypes.indexOf('parameter')
+enum TokenType {
+	'class' = 0,
+	'enum' = 1,
+	'interface' = 2,
+	'namespace' = 3,
+	'parameterType' = 4,
+	'type' = 5,
+	'parameter' = 6,
+	'variable' = 7,
+	'property' = 8,
+	'constant' = 9,
+	'function' = 10,
+}
+
+enum TokenModifier {
+	'declaration' = 0x01,
+
+}
+
+const tokenFromClassificationMapping: { [name: string]: TokenType } = {
+	[ts.ClassificationTypeNames.className]: TokenType.class,
+	[ts.ClassificationTypeNames.enumName]: TokenType.enum,
+	[ts.ClassificationTypeNames.interfaceName]: TokenType.interface,
+	[ts.ClassificationTypeNames.moduleName]: TokenType.namespace,
+	[ts.ClassificationTypeNames.typeParameterName]: TokenType.parameterType,
+	[ts.ClassificationTypeNames.typeAliasName]: TokenType.type,
+	[ts.ClassificationTypeNames.parameterName]: TokenType.parameter
+};
+
+const tokenFromDeclarationMapping: { [name: string]: TokenType } = {
+	[ts.SyntaxKind.VariableDeclaration]: TokenType.variable,
+	[ts.SyntaxKind.Parameter]: TokenType.parameter,
+	[ts.SyntaxKind.PropertyDeclaration]: TokenType.property,
+	[ts.SyntaxKind.ModuleDeclaration]: TokenType.namespace,
+	[ts.SyntaxKind.EnumDeclaration]: TokenType.enum,
+	[ts.SyntaxKind.EnumMember]: TokenType.property,
+	[ts.SyntaxKind.ClassDeclaration]: TokenType.property,
+	[ts.SyntaxKind.MethodDeclaration]: TokenType.function
 };
