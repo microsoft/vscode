@@ -117,7 +117,7 @@ export class ExtHostConfigProvider {
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
 	}
 
-	getConfiguration(section: string | undefined, scope: vscode.Uri | vscode.WorkspaceFolder | vscode.TextDocument | null | undefined, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
+	getConfiguration(section?: string, scope?: vscode.Uri | vscode.WorkspaceFolder | vscode.TextDocument | null, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
 		const overrides: IConfigurationOverrides = scope ?
 			scope instanceof vscode.Uri ? { resource: scope }
 				: isWorkspaceFolder(scope) ? { resource: scope.uri }
@@ -309,8 +309,10 @@ export class ExtHostConfigProvider {
 		/**
 		 * Special scenario: Write a configuration under a specific language
 		 */
-		const configuration = vscode.workspace.getConfiguration('editor', { resource: vscode.Uri.file('abc'), language: 'javascript' });
-		configuration.update('formatOnSave', false); // Writes under languge overrides
+		const languageConfiguration = vscode.workspace.getConfiguration();
+		const value = languageConfiguration.get<{ 'editor.formatOnSave': boolean }>('[javascript]')!;
+		value['editor.formatOnSave'] = false;
+		languageConfiguration.update('[javascript]', value);
 
 		/**
 		 * deprecated
