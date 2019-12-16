@@ -593,14 +593,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.updateContextKeys();
 	}
 
-	//#region Navigation
+	//#region Navigation (Go Forward, Go Backward)
 
 	private static readonly MAX_NAVIGATION_STACK_ITEMS = 50;
 
 	private navigationStack: IStackEntry[] = [];
 	private navigationStackIndex = -1;
 	private lastNavigationStackIndex = -1;
+
 	private navigatingInStack = false;
+
 	private currentTextEditorState: TextEditorState | null = null;
 
 	forward(): void {
@@ -637,7 +639,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private navigate(): void {
 		this.navigatingInStack = true;
 
-		this.doNavigate(this.navigationStack[this.navigationStackIndex]).finally(() => this.navigatingInStack = false);
+		const navigateToStackEntry = this.navigationStack[this.navigationStackIndex];
+
+		this.doNavigate(navigateToStackEntry).finally(() => this.navigatingInStack = false);
 	}
 
 	private doNavigate(location: IStackEntry): Promise<IBaseEditor | undefined> {
@@ -1260,7 +1264,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#endregion
 
-	//#region Editor MRU History
+	//#region Editor Most Recently Used History
 
 	private readonly mostRecentlyUsedOpenEditors = this._register(this.instantiationService.createInstance(EditorsHistory));
 
