@@ -69,7 +69,7 @@ import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { IDimension } from 'vs/platform/layout/browser/layoutService';
@@ -346,46 +346,24 @@ export class TestMenuService implements IMenuService {
 
 export class TestHistoryService implements IHistoryService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
-	constructor(private root?: URI) {
-	}
+	constructor(private root?: URI) { }
 
-	public reopenLastClosedEditor(): void {
-	}
-
-	public forward(_acrossEditors?: boolean): void {
-	}
-
-	public back(_acrossEditors?: boolean): void {
-	}
-
-	public last(): void {
-	}
-
-	public remove(_input: IEditorInput | IResourceInput): void {
-	}
-
-	public clear(): void {
-	}
-
-	public clearRecentlyOpened(): void {
-	}
-
-	public getHistory(): Array<IEditorInput | IResourceInput> {
-		return [];
-	}
-
-	public getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined {
-		return this.root;
-	}
-
-	public getLastActiveFile(_schemeFilter: string): URI | undefined {
-		return undefined;
-	}
-
-	public openLastEditLocation(): void {
-	}
+	reopenLastClosedEditor(): void { }
+	forward(): void { }
+	back(): void { }
+	last(): void { }
+	remove(_input: IEditorInput | IResourceInput): void { }
+	clear(): void { }
+	clearRecentlyOpened(): void { }
+	getHistory(): Array<IEditorInput | IResourceInput> { return []; }
+	openNextRecentlyUsedEditor(group?: GroupIdentifier): void { }
+	openPreviouslyUsedEditor(group?: GroupIdentifier): void { }
+	getMostRecentlyUsedOpenEditors(): Array<IEditorIdentifier> { return []; }
+	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
+	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
+	openLastEditLocation(): void { }
 }
 
 export class TestDialogService implements IDialogService {
@@ -677,7 +655,10 @@ export class TestPanelService implements IPanelService {
 	}
 }
 
-export class TestStorageService extends InMemoryStorageService { }
+export class TestStorageService extends InMemoryStorageService {
+	readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
+	readonly onWillSaveState: Event<IWillSaveStateEvent> = this._onWillSaveState.event;
+}
 
 export class TestEditorGroupsService implements IEditorGroupsService {
 
@@ -825,7 +806,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 		throw new Error('not implemented');
 	}
 
-	isOpened(_editor: IEditorInput): boolean {
+	isOpened(_editor: IEditorInput | IResourceInput): boolean {
 		return false;
 	}
 
@@ -902,7 +883,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	public gotReverted = false;
 	public dirty = false;
 	private fails = false;
-	constructor(private resource: URI) { super(); }
+	constructor(public resource: URI) { super(); }
 
 	getTypeId() { return 'testEditorInputForEditorService'; }
 	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }

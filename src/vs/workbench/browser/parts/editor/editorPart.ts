@@ -240,7 +240,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				const mostRecentActive = coalesce(this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId)));
 
 				// there can be groups that got never active, even though they exist. in this case
-				// make sure to ust append them at the end so that all groups are returned properly
+				// make sure to just append them at the end so that all groups are returned properly
 				return distinct([...mostRecentActive, ...this.groups]);
 
 			case GroupsOrder.GRID_APPEARANCE:
@@ -544,7 +544,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.groupViews.set(groupView.id, groupView);
 
 		// Track focus
-		let groupDisposables = new DisposableStore();
+		const groupDisposables = new DisposableStore();
 		groupDisposables.add(groupView.onDidFocus(() => {
 			this.doSetGroupActive(groupView);
 		}));

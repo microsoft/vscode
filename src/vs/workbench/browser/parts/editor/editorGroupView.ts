@@ -49,7 +49,7 @@ import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOpenContext, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -766,7 +766,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.indexOf(editor);
 	}
 
-	isOpened(editor: EditorInput): boolean {
+	isOpened(editor: EditorInput | IResourceInput): boolean {
 		return this._group.contains(editor);
 	}
 
@@ -783,14 +783,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidFocus.fire();
 	}
 
-	pinEditor(editor: EditorInput | undefined = this.activeEditor || undefined): void {
-		if (editor && !this._group.isPinned(editor)) {
+	pinEditor(candidate: EditorInput | undefined = this.activeEditor || undefined): void {
+		if (candidate && !this._group.isPinned(candidate)) {
 
 			// Update model
-			this._group.pin(editor);
+			const editor = this._group.pin(candidate);
 
 			// Forward to title control
-			this.titleAreaControl.pinEditor(editor);
+			if (editor) {
+				this.titleAreaControl.pinEditor(editor);
+			}
 		}
 	}
 

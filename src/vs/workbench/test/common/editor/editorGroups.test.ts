@@ -264,6 +264,16 @@ suite('Workbench editor groups', () => {
 		assert.equal(group.contains(input2, true), false);
 		assert.equal(group.contains(diffInput1), false);
 		assert.equal(group.contains(diffInput2), false);
+
+		const input3 = input(undefined, true, URI.parse('foo://bar'));
+
+		group.openEditor(input3, { pinned: true, active: true });
+		assert.equal(group.contains({ resource: URI.parse('foo://barsomething') }), false);
+		assert.equal(group.contains({ resource: URI.parse('foo://bar') }), true);
+
+		group.closeEditor(input3);
+
+		assert.equal(group.contains({ resource: URI.parse('foo://bar') }), false);
 	});
 
 	test('group serialization', function () {
@@ -297,7 +307,8 @@ suite('Workbench editor groups', () => {
 
 		// Active && Pinned
 		const input1 = input();
-		group.openEditor(input1, { active: true, pinned: true });
+		const openedEditor = group.openEditor(input1, { active: true, pinned: true });
+		assert.equal(openedEditor, input1);
 
 		assert.equal(group.count, 1);
 		assert.equal(group.getEditors(true).length, 1);
@@ -310,8 +321,8 @@ suite('Workbench editor groups', () => {
 		assert.equal(events.opened[0], input1);
 		assert.equal(events.activated[0], input1);
 
-		let index = group.closeEditor(input1);
-		assert.equal(index, 0);
+		let editor = group.closeEditor(input1);
+		assert.equal(editor, input1);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, undefined);
@@ -342,8 +353,8 @@ suite('Workbench editor groups', () => {
 		assert.equal(events.closed[1].index, 0);
 		assert.equal(events.closed[1].replaced, false);
 
-		index = group.closeEditor(input2);
-		assert.ok(typeof index !== 'number');
+		editor = group.closeEditor(input2);
+		assert.ok(!editor);
 		assert.equal(group.count, 0);
 		assert.equal(group.getEditors(true).length, 0);
 		assert.equal(group.activeEditor, undefined);
@@ -406,11 +417,17 @@ suite('Workbench editor groups', () => {
 		const events = groupListener(group);
 
 		const input1 = input('1');
+		const input1Copy = input('1');
 		const input2 = input('2');
 		const input3 = input('3');
 
 		// Pinned and Active
-		group.openEditor(input1, { pinned: true, active: true });
+		let openedEditor = group.openEditor(input1, { pinned: true, active: true });
+		assert.equal(openedEditor, input1);
+
+		openedEditor = group.openEditor(input1Copy, { pinned: true, active: true }); // opening copy of editor should still return existing one
+		assert.equal(openedEditor, input1);
+
 		group.openEditor(input2, { pinned: true, active: true });
 		group.openEditor(input3, { pinned: true, active: true });
 

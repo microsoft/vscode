@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Extensions, IEditorInputFactoryRegistry, EditorInput, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, CloseDirection, IEditorInput, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, CloseDirection, SideBySideEditorInput, IEditorInput } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
+import { isEqual } from 'vs/base/common/resources';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -292,22 +294,22 @@ export class EditorGroup extends Disposable {
 		}
 	}
 
-	closeEditor(candidate: EditorInput, openNext = true): number | undefined {
+	closeEditor(candidate: EditorInput, openNext = true): EditorInput | undefined {
 		const event = this.doCloseEditor(candidate, openNext, false);
 
 		if (event) {
 			this._onDidEditorClose.fire(event);
 
-			return event.index;
+			return event.editor;
 		}
 
 		return undefined;
 	}
 
-	private doCloseEditor(candidate: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent | null {
+	private doCloseEditor(candidate: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent | undefined {
 		const index = this.indexOf(candidate);
 		if (index === -1) {
-			return null; // not found
+			return undefined; // not found
 		}
 
 		const editor = this.editors[index];
@@ -384,7 +386,7 @@ export class EditorGroup extends Disposable {
 		}
 	}
 
-	moveEditor(candidate: EditorInput, toIndex: number): void {
+	moveEditor(candidate: EditorInput, toIndex: number): EditorInput | undefined {
 		const index = this.indexOf(candidate);
 		if (index < 0) {
 			return;
@@ -398,15 +400,19 @@ export class EditorGroup extends Disposable {
 
 		// Event
 		this._onDidEditorMove.fire(editor);
+
+		return editor;
 	}
 
-	setActive(candidate: EditorInput): void {
+	setActive(candidate: EditorInput): EditorInput | undefined {
 		const editor = this.findEditor(candidate);
 		if (!editor) {
 			return; // not found
 		}
 
 		this.doSetActive(editor);
+
+		return editor;
 	}
 
 	private doSetActive(editor: EditorInput): void {
@@ -425,13 +431,15 @@ export class EditorGroup extends Disposable {
 		this._onDidEditorActivate.fire(editor);
 	}
 
-	pin(candidate: EditorInput): void {
+	pin(candidate: EditorInput): EditorInput | undefined {
 		const editor = this.findEditor(candidate);
 		if (!editor) {
 			return; // not found
 		}
 
 		this.doPin(editor);
+
+		return editor;
 	}
 
 	private doPin(editor: EditorInput): void {
@@ -446,13 +454,15 @@ export class EditorGroup extends Disposable {
 		this._onDidEditorPin.fire(editor);
 	}
 
-	unpin(candidate: EditorInput): void {
+	unpin(candidate: EditorInput): EditorInput | undefined {
 		const editor = this.findEditor(candidate);
 		if (!editor) {
 			return; // not found
 		}
 
 		this.doUnpin(editor);
+
+		return editor;
 	}
 
 	private doUnpin(editor: EditorInput): void {
@@ -554,7 +564,7 @@ export class EditorGroup extends Disposable {
 		return -1;
 	}
 
-	private findEditor(candidate: IEditorInput | null): EditorInput | undefined {
+	private findEditor(candidate: EditorInput | null): EditorInput | undefined {
 		const index = this.indexOf(candidate, this.editors);
 		if (index === -1) {
 			return undefined;
@@ -563,7 +573,7 @@ export class EditorGroup extends Disposable {
 		return this.editors[index];
 	}
 
-	contains(candidate: EditorInput, searchInSideBySideEditors?: boolean): boolean {
+	contains(candidate: EditorInput | IResourceInput, searchInSideBySideEditors?: boolean): boolean {
 		for (const editor of this.editors) {
 			if (this.matches(editor, candidate)) {
 				return true;
@@ -579,8 +589,18 @@ export class EditorGroup extends Disposable {
 		return false;
 	}
 
-	private matches(editorA: IEditorInput | null, editorB: IEditorInput | null): boolean {
-		return !!editorA && !!editorB && editorA.matches(editorB);
+	private matches(editor: IEditorInput | null, candidate: IEditorInput | IResourceInput | null): boolean {
+		if (!editor || !candidate) {
+			return false;
+		}
+
+		if (candidate instanceof EditorInput) {
+			return editor.matches(candidate);
+		}
+
+		const resource = editor.getResource();
+
+		return !!(resource && isEqual(resource, (candidate as IResourceInput).resource));
 	}
 
 	clone(): EditorGroup {

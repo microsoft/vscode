@@ -175,19 +175,15 @@ export interface IEditorService {
 	 * a specific editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
-	 *
-	 * @param group optional to specify a group to check for the editor being opened
 	 */
-	isOpen(editor: IEditorInput | IResourceInput | IUntitledTextResourceInput, group?: IEditorGroup | GroupIdentifier): boolean;
+	isOpen(editor: IEditorInput | IResourceInput | IUntitledTextResourceInput): boolean;
 
 	/**
 	 * Get the actual opened editor input in any or a specific editor group based on the resource.
 	 *
 	 * Note: An editor can be opened but not actively visible.
-	 *
-	 * @param group optional to specify a group to check for the editor
 	 */
-	getOpened(editor: IResourceInput | IUntitledTextResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
+	getOpened(editor: IResourceInput | IUntitledTextResourceInput): IEditorInput | undefined;
 
 	/**
 	 * Allows to override the opening of editors by installing a handler that will
