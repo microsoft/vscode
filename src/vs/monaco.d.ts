@@ -3799,6 +3799,11 @@ declare namespace monaco.editor {
 		 */
 		onCompositionEnd(listener: () => void): IDisposable;
 		/**
+		 * An event emitted when users paste text in the editor.
+		 * @event
+		 */
+		onDidPaste(listener: (range: Range) => void): IDisposable;
+		/**
 		 * An event emitted on a "mouseup".
 		 * @event
 		 */
