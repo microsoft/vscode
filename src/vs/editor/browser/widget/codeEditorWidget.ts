@@ -53,8 +53,6 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 let EDITOR_ID = 0;
 
-const SHOW_UNUSED_ENABLED_CLASS = 'showUnused';
-
 export interface ICodeEditorWidgetOptions {
 	/**
 	 * Is this a simple widget (not a real code editor) ?
@@ -262,11 +260,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (e.hasChanged(EditorOption.layoutInfo)) {
 				const layoutInfo = options.get(EditorOption.layoutInfo);
 				this._onDidLayoutChange.fire(layoutInfo);
-			}
-			if (options.get(EditorOption.showUnused)) {
-				this._domElement.classList.add(SHOW_UNUSED_ENABLED_CLASS);
-			} else {
-				this._domElement.classList.remove(SHOW_UNUSED_ENABLED_CLASS);
 			}
 		}));
 
@@ -1871,12 +1864,12 @@ registerThemingParticipant((theme, collector) => {
 
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
+		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
 	}
 
 	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);
 	if (unnecessaryBorder) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
+		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
 	}
 
 	const deprecatedForeground = theme.getColor(editorForeground) || 'inherit';
