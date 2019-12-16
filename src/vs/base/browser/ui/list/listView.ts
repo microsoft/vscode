@@ -631,7 +631,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
 		item.row!.domNode!.style.top = `${this.elementTop(index)}px`;
-		item.row!.domNode!.style.height = `${item.size}px`;
+		// item.row!.domNode!.style.height = `${item.size}px`;
 
 		if (this.setRowLineHeight) {
 			item.row!.domNode!.style.lineHeight = `${item.size}px`;
@@ -1106,6 +1106,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		const size = item.size;
+
+		if (item.row && item.row.domNode) {
+			let newSize = item.row.domNode.offsetHeight;
+			item.size = newSize;
+			return newSize - size;
+		}
+
 		const row = this.cache.alloc(item.templateId);
 
 		row.domNode!.style.height = '';
