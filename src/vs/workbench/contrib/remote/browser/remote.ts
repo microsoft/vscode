@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/contrib/remote/common/remote.contribution';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -44,7 +44,7 @@ import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService, HelpInformation } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { startsWith } from 'vs/base/common/strings';
-import { TunnelPanelDescriptor, TunnelViewModel } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { TunnelPanelDescriptor, TunnelViewModel, forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
@@ -287,8 +287,6 @@ export class RemoteViewlet extends Viewlet {
 		super(VIEWLET_ID, instantiationService.createInstance(RemoteViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
 	}
 }
-
-export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
 export class RemoteViewPaneContainer extends FilterViewPaneContainer {
 	private actions: IAction[] | undefined;
