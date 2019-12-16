@@ -1396,9 +1396,9 @@ export class QuickOpenPreviousEditorFromHistoryAction extends Action {
 	}
 
 	run(): Promise<any> {
-		const keys = this.keybindingService.lookupKeybindings(this.id);
+		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickOpenService.show(undefined, { quickNavigateConfiguration: { keybindings: keys } });
+		this.quickOpenService.show(undefined, { quickNavigateConfiguration: { keybindings } });
 
 		return Promise.resolve(true);
 	}
