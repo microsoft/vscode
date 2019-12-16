@@ -7,7 +7,7 @@ import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/com
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
-import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditor as ICodeEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -103,7 +103,7 @@ export interface IEditorService {
 	 *
 	 * @see `IEditorService.activeEditor`
 	 */
-	readonly activeTextEditorWidget: ICodeEditor | undefined;
+	readonly activeTextEditorWidget: ICodeEditor | IDiffEditor | undefined;
 
 	/**
 	 * All editors that are currently visible. An editor is visible when it is opened in an
