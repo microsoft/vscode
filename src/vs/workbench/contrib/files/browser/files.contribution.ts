@@ -244,25 +244,22 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.encoding': {
 			'type': 'string',
-			'overridable': true,
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.RESOURCE,
+			'scope': ConfigurationScope.RESOURCE_LANGUAGE,
 			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong),
 			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
-			'overridable': true,
 			'default': false,
 			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.RESOURCE,
+			'scope': ConfigurationScope.RESOURCE_LANGUAGE,
 			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
 		},
 		'files.eol': {
 			'type': 'string',
-			'overridable': true,
 			'enum': [
 				'\n',
 				'\r\n',
@@ -275,7 +272,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'auto',
 			'description': nls.localize('eol', "The default end of line character."),
-			'scope': ConfigurationScope.RESOURCE
+			'scope': ConfigurationScope.RESOURCE_LANGUAGE
 		},
 		'files.enableTrash': {
 			'type': 'boolean',
@@ -286,22 +283,19 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
+			'scope': ConfigurationScope.RESOURCE_LANGUAGE
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
+			'scope': ConfigurationScope.RESOURCE_LANGUAGE
 		},
 		'files.trimFinalNewlines': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimFinalNewlines', "When enabled, will trim all new lines after the final new line at the end of the file when saving it."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
+			scope: ConfigurationScope.RESOURCE_LANGUAGE,
 		},
 		'files.autoSave': {
 			'type': 'string',
@@ -358,15 +352,13 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
+			scope: ConfigurationScope.RESOURCE_LANGUAGE,
 		},
 		'editor.formatOnSaveTimeout': {
 			'type': 'number',
 			'default': 750,
 			'description': nls.localize('formatOnSaveTimeout', "Timeout in milliseconds after which the formatting that is run on file save is cancelled."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
+			scope: ConfigurationScope.RESOURCE_LANGUAGE,
 		}
 	}
 });
