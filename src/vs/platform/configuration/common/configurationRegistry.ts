@@ -110,7 +110,6 @@ export const enum ConfigurationScope {
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
-	overridable?: boolean;
 	scope?: ConfigurationScope;
 	included?: boolean;
 	tags?: string[];
@@ -128,7 +127,6 @@ export interface IConfigurationNode {
 	description?: string;
 	properties?: { [path: string]: IConfigurationPropertySchema; };
 	allOf?: IConfigurationNode[];
-	overridable?: boolean;
 	scope?: ConfigurationScope;
 	extensionInfo?: IConfigurationExtensionInfo;
 }
