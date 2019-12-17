@@ -33,7 +33,7 @@ import { ITextFileStreamContent, ITextFileService, IResourceEncoding, IReadTextF
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { MenuBarVisibility, IWindowConfiguration, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -94,6 +94,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { find } from 'vs/base/common/arrays';
 import { WorkingCopyService, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -276,7 +277,11 @@ export class TestTextFileService extends NativeTextFileService {
 	}
 }
 
-export function workbenchInstantiationService(): IInstantiationService {
+export interface ITestInstantiationService extends IInstantiationService {
+	stub<T>(service: ServiceIdentifier<T>, ctor: any): T;
+}
+
+export function workbenchInstantiationService(): ITestInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	const contextKeyService = <IContextKeyService>instantiationService.createInstance(MockContextKeyService);
@@ -291,6 +296,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkbenchLayoutService, new TestLayoutService());
 	instantiationService.stub(IDialogService, new TestDialogService());
+	instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 	instantiationService.stub(IFileDialogService, new TestFileDialogService());
 	instantiationService.stub(IElectronService, new TestElectronService());
 	instantiationService.stub(IModeService, instantiationService.createInstance(ModeServiceImpl));
@@ -320,6 +326,17 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
 
 	return instantiationService;
+}
+
+export class TestAccessibilityService implements IAccessibilityService {
+
+	_serviceBrand: undefined;
+
+	onDidChangeAccessibilitySupport = Event.None;
+
+	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
+	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
+	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
 }
 
 export class TestDecorationsService implements IDecorationsService {
