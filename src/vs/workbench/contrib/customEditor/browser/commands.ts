@@ -204,9 +204,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 		let toggleView = defaultEditorId;
 		if (!(activeEditor instanceof CustomFileEditorInput)) {
-			const viewIDs = customEditorService.getContributedCustomEditors(targetResource);
-			if (viewIDs && viewIDs.length) {
-				toggleView = viewIDs[0].id;
+			const bestAvailableEditor = customEditorService.getContributedCustomEditors(targetResource).bestAvailableEditor;
+			if (bestAvailableEditor) {
+				toggleView = bestAvailableEditor.id;
 			} else {
 				return;
 			}
