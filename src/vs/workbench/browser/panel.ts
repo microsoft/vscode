@@ -16,7 +16,7 @@ import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
 export abstract class Panel extends Composite implements IPanel { }
 
-export abstract class PanelV2 extends PaneComposite implements IPanel { }
+export abstract class PanelPaneComposite extends PaneComposite implements IPanel { }
 
 /**
  * A panel descriptor is a leightweight descriptor of a panel in the workbench.
