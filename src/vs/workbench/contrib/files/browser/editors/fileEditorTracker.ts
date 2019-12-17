@@ -111,12 +111,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						}
 
 						let encoding: string | undefined = undefined;
-						let mode: string | undefined = undefined;
-
 						const model = this.textFileService.models.get(resource);
 						if (model) {
 							encoding = model.getEncoding();
-							mode = model.textEditorModel?.getModeId();
 						}
 
 						this.editorService.replaceEditors([{
@@ -124,7 +121,6 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 							replacement: {
 								resource: reopenFileResource,
 								encoding,
-								mode,
 								options: {
 									preserveFocus: true,
 									pinned: group.isPinned(editor),

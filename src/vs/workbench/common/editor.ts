@@ -618,12 +618,12 @@ export const enum EncodingMode {
 export interface IEncodingSupport {
 
 	/**
-	 * Gets the encoding of the input if known.
+	 * Gets the encoding of the type if known.
 	 */
 	getEncoding(): string | undefined;
 
 	/**
-	 * Sets the encoding for the input for saving.
+	 * Sets the encoding for the type for saving.
 	 */
 	setEncoding(encoding: string, mode: EncodingMode): void;
 }
@@ -631,7 +631,7 @@ export interface IEncodingSupport {
 export interface IModeSupport {
 
 	/**
-	 * Sets the language mode of the input.
+	 * Sets the language mode of the type.
 	 */
 	setMode(mode: string): void;
 }

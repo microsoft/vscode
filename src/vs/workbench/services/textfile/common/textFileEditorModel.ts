@@ -960,6 +960,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
+	getMode(): string | undefined {
+		if (this.textEditorModel) {
+			return this.textEditorModel.getModeId();
+		}
+
+		return this.preferredMode;
+	}
+
 	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.contentEncoding;
 	}
