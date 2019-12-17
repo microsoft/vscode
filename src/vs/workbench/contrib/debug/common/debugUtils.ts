@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IConfig, IDebuggerContribution, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute } from 'vs/base/common/path';
 import { deepClone } from 'vs/base/common/objects';
@@ -24,19 +24,28 @@ export function formatPII(value: string, excludePII: boolean, args: { [key: stri
 }
 
 export function isSessionAttach(session: IDebugSession): boolean {
-	return !session.parentSession && session.configuration.request === 'attach' && !isExtensionHostDebugging(session.configuration);
+	return !session.parentSession && session.configuration.request === 'attach' && !getExtensionHostDebugSession(session);
 }
 
-export function isExtensionHostDebugging(config: IConfig) {
-	if (!config.type) {
-		return false;
+/**
+ * Returns the session or any parent which is an extension host debug session.
+ * Returns undefined if there's none.
+ */
+export function getExtensionHostDebugSession(session: IDebugSession): IDebugSession | void {
+	let type = session.configuration.type;
+	if (!type) {
+		return;
 	}
 
-	const type = config.type === 'vslsShare'
-		? (<any>config).adapterProxy.configuration.type
-		: config.type;
+	if (type === 'vslsShare') {
+		type = (<any>session.configuration).adapterProxy.configuration.type;
+	}
 
-	return equalsIgnoreCase(type, 'extensionhost') || equalsIgnoreCase(type, 'pwa-extensionhost');
+	if (equalsIgnoreCase(type, 'extensionhost') || equalsIgnoreCase(type, 'pwa-extensionhost')) {
+		return session;
+	}
+
+	return session.parentSession ? getExtensionHostDebugSession(session.parentSession) : undefined;
 }
 
 // only a debugger contributions with a label, program, or runtime attribute is considered a "defining" or "main" debugger contribution

@@ -422,7 +422,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
-	 * @internal
 	 */
 	onDidPaste(listener: (range: Range) => void): IDisposable;
 	/**

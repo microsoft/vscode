@@ -90,6 +90,11 @@
                     "default": true,
                     "description": "%json.colorDecorators.enable.desc%",
                     "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
+                },
+                "json.maxItemsComputed": {
+                    "type": "number",
+                    "default": 5000,
+                    "description": "%json.maxItemsComputed.desc%"
                 }
             }
         },

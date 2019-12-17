@@ -18,7 +18,7 @@ import { MarkersFilterActionViewItem, MarkersFilterAction, IMarkersFilterActionC
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -37,7 +37,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Separator, ActionViewItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { domEvent } from 'vs/base/browser/event';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarker } from 'vs/platform/markers/common/markers';
@@ -46,6 +46,8 @@ import { MementoObject } from 'vs/workbench/common/memento';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterator<ITreeElement<TreeElement>> {
 	const markersIt = Iterator.fromArray(resourceMarkers.markers);
@@ -165,8 +167,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.updateTitleArea();
 			dom.toggleClass(this.filterActionBar.getContainer(), 'hide', !this.isSmallLayout);
 		}
-		const treeHeight = this.isSmallLayout ? dimension.height - 44 : dimension.height;
-		this.tree.layout(treeHeight, dimension.width);
+		const height = this.isSmallLayout ? dimension.height - 44 : dimension.height;
+		this.tree.layout(height, dimension.width);
+		this.messageBoxContainer.style.height = `${height}px`;
 		this.filterAction.layout(this.isSmallLayout ? dimension.width : dimension.width - 200);
 	}
 
@@ -439,6 +442,7 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
 		this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+			this.reportFilteringUsed();
 			if (event.activeFile) {
 				this.refreshPanel();
 			} else if (event.filterText || event.excludedFiles || event.showWarnings || event.showErrors || event.showInfos) {
@@ -520,10 +524,14 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		if (filtered === 0) {
 			this.messageBoxContainer.style.display = 'block';
 			this.messageBoxContainer.setAttribute('tabIndex', '0');
-			if (total > 0) {
-				this.renderFilteredByFilterMessage(this.messageBoxContainer);
+			if (this.filterAction.activeFile) {
+				this.renderFilterMessageForActiveFile(this.messageBoxContainer);
 			} else {
-				this.renderNoProblemsMessage(this.messageBoxContainer);
+				if (total > 0) {
+					this.renderFilteredByFilterMessage(this.messageBoxContainer);
+				} else {
+					this.renderNoProblemsMessage(this.messageBoxContainer);
+				}
 			}
 		} else {
 			this.messageBoxContainer.style.display = 'none';
@@ -536,16 +544,50 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		}
 	}
 
+	private renderFilterMessageForActiveFile(container: HTMLElement): void {
+		if (this.currentActiveResource && this.markersWorkbenchService.markersModel.getResourceMarkers(this.currentActiveResource)) {
+			this.renderFilteredByFilterMessage(container);
+		} else {
+			this.renderNoProblemsMessageForActiveFile(container);
+		}
+	}
+
 	private renderFilteredByFilterMessage(container: HTMLElement) {
 		const span1 = dom.append(container, dom.$('span'));
 		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('clearFilter', "Clear Filters");
+		link.setAttribute('tabIndex', '0');
+		const span2 = dom.append(container, dom.$('span'));
+		span2.textContent = '.';
+		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.clearFilters());
+		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				this.clearFilters();
+				e.stopPropagation();
+			}
+		});
 		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
+	}
+
+	private renderNoProblemsMessageForActiveFile(container: HTMLElement) {
+		const span = dom.append(container, dom.$('span'));
+		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT;
+		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT);
 	}
 
 	private renderNoProblemsMessage(container: HTMLElement) {
 		const span = dom.append(container, dom.$('span'));
 		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
 		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
+	}
+
+	private clearFilters(): void {
+		this.filterAction.filterText = '';
+		this.filterAction.excludedFiles = false;
+		this.filterAction.showErrors = true;
+		this.filterAction.showWarnings = true;
+		this.filterAction.showInfos = true;
 	}
 
 	private autoReveal(focus: boolean = false): void {
@@ -714,6 +756,26 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 		return { source, code };
 	}
 
+	private reportFilteringUsed(): void {
+		const data = {
+			errors: this.filterAction.showErrors,
+			warnings: this.filterAction.showWarnings,
+			infos: this.filterAction.showInfos,
+			activeFile: this.filterAction.activeFile,
+			excludedFiles: this.filterAction.excludedFiles,
+		};
+		/* __GDPR__
+			"problems.filter" : {
+				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"activeFile": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"excludedFiles": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		this.telemetryService.publicLog('problems.filter', data);
+	}
+
 	protected saveState(): void {
 		this.panelState['filter'] = this.filterAction.filterText;
 		this.panelState['filterHistory'] = this.filterAction.filterHistory;
@@ -757,3 +819,25 @@ class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
 	}
 
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Lightbulb Icon
+	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
+	if (editorLightBulbForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .markers-panel-container .codicon-lightbulb {
+			color: ${editorLightBulbForegroundColor};
+		}`);
+	}
+
+	// Lightbulb Auto Fix Icon
+	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
+	if (editorLightBulbAutoFixForegroundColor) {
+		collector.addRule(`
+		.monaco-workbench .markers-panel-container .codicon-lightbulb-autofix {
+			color: ${editorLightBulbAutoFixForegroundColor};
+		}`);
+	}
+
+});

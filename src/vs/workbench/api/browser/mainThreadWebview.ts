@@ -252,7 +252,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._revivers.delete(viewType);
 	}
 
-	public $registerEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void {
+	public $registerEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]): void {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
@@ -270,15 +270,17 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
+				const resource = webviewInput.getResource();
 
-				const model = await this.getModel(webviewInput);
+				const model = await this.loadOrCreateModel(webviewInput, resource, viewType, capabilities);
 				webviewInput.onDisposeWebview(() => {
+					// TODO: This should be reference counted
 					this._customEditorService.models.disposeModel(model);
 				});
 
 				try {
 					await this._proxy.$resolveWebviewEditor(
-						{ resource: webviewInput.getResource(), edits: model.currentEdits },
+						resource,
 						handle,
 						viewType,
 						webviewInput.getTitle(),
@@ -304,43 +306,45 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._editorProviders.delete(viewType);
 	}
 
-	public async $registerCapabilities(handle: extHostProtocol.WebviewPanelHandle, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]): Promise<void> {
-		const webviewInput = this.getWebviewInput(handle);
-		const model = await this.getModel(webviewInput);
+	private async loadOrCreateModel(webviewInput: WebviewInput, resource: URI, viewType: string, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]) {
+		const existingModel = this._customEditorService.models.get(webviewInput.getResource(), webviewInput.viewType);
+		if (existingModel) {
+			return existingModel;
+		}
+
+		const newModel = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
 
 		const capabilitiesSet = new Set(capabilities);
 		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable)) {
-			model.onUndo(edits => { this._proxy.$undoEdits(handle, edits.map(x => x.data)); });
+			newModel.onUndo(edits => {
+				this._proxy.$undoEdits(resource, viewType, edits.map(x => x.data));
+			});
 
-			model.onApplyEdit(edits => {
-				const editsToApply = edits.filter(x => x.source !== webviewInput).map(x => x.data);
+			newModel.onApplyEdit(edits => {
+				const editsToApply = edits.filter(x => x.source !== newModel).map(x => x.data);
 				if (editsToApply.length) {
-					this._proxy.$applyEdits(handle, editsToApply);
+					this._proxy.$applyEdits(resource, viewType, editsToApply);
 				}
 			});
 
-			model.onWillSave(e => { e.waitUntil(this._proxy.$onSave(handle)); });
+			newModel.onWillSave(e => {
+				e.waitUntil(this._proxy.$onSave(resource.toJSON(), viewType));
+			});
 
-			model.onWillSaveAs(e => { e.waitUntil(this._proxy.$onSaveAs(handle, e.resource.toJSON(), e.targetResource.toJSON())); });
+			newModel.onWillSaveAs(e => {
+				e.waitUntil(this._proxy.$onSaveAs(e.resource.toJSON(), viewType, e.targetResource.toJSON()));
+			});
 		}
+		return newModel;
 	}
 
-	private getModel(webviewInput: WebviewInput) {
-		return this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
-	}
-
-	public $onEdit(handle: extHostProtocol.WebviewPanelHandle, editData: any): void {
-		const webview = this.getWebviewInput(handle);
-		if (!(webview instanceof CustomFileEditorInput)) {
-			throw new Error('Webview is not a webview editor');
-		}
-
-		const model = this._customEditorService.models.get(webview.getResource(), webview.viewType);
+	public $onEdit(resource: UriComponents, viewType: string, editData: any): void {
+		const model = this._customEditorService.models.get(URI.revive(resource), viewType);
 		if (!model) {
 			throw new Error('Could not find model for webview editor');
 		}
 
-		model.makeEdit({ source: webview, data: editData });
+		model.pushEdit({ source: model, data: editData });
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {

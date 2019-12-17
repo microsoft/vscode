@@ -9,8 +9,8 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { NullAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import * as Errors from 'vs/base/common/errors';
 import * as sinon from 'sinon';
-import { getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class TestTelemetryAppender implements ITelemetryAppender {
 
@@ -767,30 +767,14 @@ suite('TelemetryService', () => {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({
 			appender: testAppender
-		}, {
-			_serviceBrand: undefined,
+		}, new class extends TestConfigurationService {
+			onDidChangeConfiguration = emitter.event;
 			getValue() {
 				return {
 					enableTelemetry: enableTelemetry
 				} as any;
-			},
-			updateValue(): Promise<void> {
-				return null!;
-			},
-			inspect(key: string) {
-				return {
-					value: getConfigurationValue(this.getValue(), key),
-					default: getConfigurationValue(this.getValue(), key),
-					user: getConfigurationValue(this.getValue(), key),
-					workspace: null!,
-					workspaceFolder: null!
-				};
-			},
-			keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; },
-			onDidChangeConfiguration: emitter.event,
-			reloadConfiguration(): Promise<void> { return null!; },
-			getConfigurationData() { return null; }
-		});
+			}
+		}());
 
 		assert.equal(service.isOptedIn, false);
 

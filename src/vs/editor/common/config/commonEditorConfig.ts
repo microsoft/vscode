@@ -263,6 +263,13 @@ function migrateOptions(options: IEditorOptions): void {
 	} else if (<any>autoIndent === false) {
 		options.autoIndent = 'advanced';
 	}
+
+	const matchBrackets = options.matchBrackets;
+	if (<any>matchBrackets === true) {
+		options.matchBrackets = 'always';
+	} else if (<any>matchBrackets === false) {
+		options.matchBrackets = 'never';
+	}
 }
 
 function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {
@@ -425,8 +432,7 @@ export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	order: 5,
 	type: 'object',
 	title: nls.localize('editorConfigurationTitle', "Editor"),
-	overridable: true,
-	scope: ConfigurationScope.RESOURCE,
+	scope: ConfigurationScope.RESOURCE_LANGUAGE,
 });
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);

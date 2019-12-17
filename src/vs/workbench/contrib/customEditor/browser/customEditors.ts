@@ -29,7 +29,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CustomFileEditorInput } from './customEditorInput';
-const defaultEditorId = 'default';
+export const defaultEditorId = 'default';
 
 const defaultEditorInfo = new CustomEditorInfo({
 	id: defaultEditorId,
@@ -335,6 +335,9 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		return {
 			override: (async () => {
 				const standardEditor = await this.editorService.openEditor(editor, { ...options, ignoreOverrides: true }, group);
+				// Give a moment to make sure the editor is showing.
+				// Otherwise the focus shift can cause the prompt to be dismissed right away.
+				await new Promise(resolve => setTimeout(resolve, 20));
 				const selectedEditor = await this.customEditorService.promptOpenWith(resource, options, group);
 				if (selectedEditor && selectedEditor.input) {
 					await group.replaceEditors([{

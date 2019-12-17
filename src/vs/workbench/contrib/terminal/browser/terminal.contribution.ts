@@ -170,7 +170,7 @@ configurationRegistry.registerConfiguration({
 			default: DEFAULT_LINE_HEIGHT
 		},
 		'terminal.integrated.minimumContrastRatio': {
-			description: nls.localize('terminal.integrated.minimumContrastRatio', "When set the foreground color of each cell will change to try meet the contrast ratio specified. Example values:\n\n- 1: The default, do nothing.\n- 4.5: Minimum for WCAG AA compliance.\n- 7: Minimum for WCAG AAA compliance.\n- 21: White on black or black on white."),
+			markdownDescription: nls.localize('terminal.integrated.minimumContrastRatio', "When set the foreground color of each cell will change to try meet the contrast ratio specified. Example values:\n\n- 1: The default, do nothing.\n- 4.5: Minimum for [WCAG AA compliance](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast-contrast.html).\n- 7: Minimum for [WCAG AAA compliance](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast7.html).\n- 21: White on black or black on white."),
 			type: 'number',
 			default: 1
 		},
@@ -205,7 +205,7 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('terminal.integrated.detectLocale', "Controls whether to detect and set the `$LANG` environment variable to a UTF-8 compliant option since VS Code's terminal only supports UTF-8 encoded data coming from the shell."),
 			type: 'string',
 			enum: ['auto', 'off', 'on'],
-			enumDescriptions: [
+			markdownEnumDescriptions: [
 				nls.localize('terminal.integrated.detectLocale.auto', "Set the `$LANG` environment variable if the existing variable does not exist or it does not end in `'.UTF-8'`."),
 				nls.localize('terminal.integrated.detectLocale.off', "Do not set the `$LANG` environment variable."),
 				nls.localize('terminal.integrated.detectLocale.on', "Always set the `$LANG` environment variable.")
@@ -215,7 +215,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.rendererType': {
 			type: 'string',
 			enum: ['auto', 'canvas', 'dom', 'experimentalWebgl'],
-			enumDescriptions: [
+			markdownEnumDescriptions: [
 				nls.localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
 				nls.localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
 				nls.localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
@@ -252,7 +252,7 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'terminal.integrated.commandsToSkipShell': {
-			description: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open.\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
+			markdownDescription: nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open.\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -260,7 +260,7 @@ configurationRegistry.registerConfiguration({
 			default: []
 		},
 		'terminal.integrated.allowChords': {
-			markdownDescription: nls.localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass `terminal.integrated.commandsToSkipShell`, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code)."),
+			markdownDescription: nls.localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass `#terminal.integrated.commandsToSkipShell#`, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code)."),
 			type: 'boolean',
 			default: true
 		},

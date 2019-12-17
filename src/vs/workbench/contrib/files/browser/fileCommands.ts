@@ -12,7 +12,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, IExplorerService, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition } from 'vs/workbench/contrib/files/common/files';
-import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
+import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -119,7 +119,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
 		const fileService = accessor.get(IFileService);
-		const resources = getMultiSelectedResources(resource, listService, editorService);
+		const explorerService = accessor.get(IExplorerService);
+		const resources = getMultiSelectedResources(resource, listService, editorService, explorerService);
 
 		// Set side input
 		if (resources.length) {
@@ -201,7 +202,8 @@ CommandsRegistry.registerCommand({
 	id: COMPARE_SELECTED_COMMAND_ID,
 	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		const explorerService = accessor.get(IExplorerService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, explorerService);
 
 		if (resources.length === 2) {
 			return editorService.openEditor({
@@ -251,7 +253,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: COPY_PATH_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService));
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
 		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
 	}
 });
@@ -265,7 +267,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService));
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
 		await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
 	}
 });
@@ -292,7 +294,7 @@ CommandsRegistry.registerCommand({
 		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
-		const viewlet = await viewletService.openViewlet(VIEWLET_ID, false) as ExplorerViewlet;
+		const viewlet = (await viewletService.openViewlet(VIEWLET_ID, false))?.getViewPaneContainer() as ExplorerViewPaneContainer;
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
 			const explorerView = viewlet.getExplorerView();
@@ -488,7 +490,7 @@ CommandsRegistry.registerCommand({
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const workspace = contextService.getWorkspace();
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService)).filter(r =>
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService)).filter(r =>
 			// Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
 			workspace.folders.some(f => isEqual(f.uri, r))
 		);
@@ -512,7 +514,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		const explorer = viewlet as ExplorerViewlet;
+		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
 		const view = explorer.getExplorerView();
 		view.previousCompressedStat();
 	}
@@ -531,7 +533,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		const explorer = viewlet as ExplorerViewlet;
+		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
 		const view = explorer.getExplorerView();
 		view.nextCompressedStat();
 	}
@@ -550,7 +552,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		const explorer = viewlet as ExplorerViewlet;
+		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
 		const view = explorer.getExplorerView();
 		view.firstCompressedStat();
 	}
@@ -569,7 +571,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return;
 		}
 
-		const explorer = viewlet as ExplorerViewlet;
+		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
 		const view = explorer.getExplorerView();
 		view.lastCompressedStat();
 	}

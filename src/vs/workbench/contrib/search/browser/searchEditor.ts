@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextQuery, IPatternInfo, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import * as network from 'vs/base/common/network';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ITextModel, TrackedRangeStickiness, EndOfLinePreference } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
@@ -20,6 +20,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
+import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { localize } from 'vs/nls';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
@@ -45,7 +47,7 @@ const matchToSearchResultFormat = (match: Match): { line: string, ranges: Range[
 			const prefix = `  ${lineNumber}: ${paddingStr}`;
 			const prefixOffset = prefix.length;
 
-			const line = (prefix + sourceLine);
+			const line = (prefix + sourceLine).replace(/\r?\n?$/, '');
 
 			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 
@@ -172,7 +174,28 @@ const searchHeaderToContentPattern = (header: string[]): SearchHeader => {
 		context: undefined
 	};
 
-	const unescapeNewlines = (str: string) => str.replace(/\\\\/g, '\\').replace(/\\n/g, '\n');
+	const unescapeNewlines = (str: string) => {
+		let out = '';
+		for (let i = 0; i < str.length; i++) {
+			if (str[i] === '\\') {
+				i++;
+				const escaped = str[i];
+
+				if (escaped === 'n') {
+					out += '\n';
+				}
+				else if (escaped === '\\') {
+					out += '\\';
+				}
+				else {
+					throw Error(localize('invalidQueryStringError', "All backslashes in Query string must be escaped (\\\\)"));
+				}
+			} else {
+				out += str[i];
+			}
+		}
+		return out;
+	};
 	const parseYML = /^# ([^:]*): (.*)$/;
 	for (const line of header) {
 		const parsed = parseYML.exec(line);
@@ -216,7 +239,7 @@ export const refreshActiveEditorSearch =
 
 		const textModel = model as ITextModel;
 
-		const header = textModel.getValueInRange(new Range(1, 1, 5, 1))
+		const header = textModel.getValueInRange(new Range(1, 1, 5, 1), EndOfLinePreference.LF)
 			.split(lineDelimiter)
 			.filter(line => line.indexOf('# ') === 0);
 
@@ -277,22 +300,29 @@ export const createEditorFromSearchResult =
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
 		const results = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter);
-
+		const contents = results.text.join(lineDelimiter);
 		let possible = {
-			contents: results.text.join(lineDelimiter),
+			contents,
 			mode: 'search-result',
 			resource: URI.from({ scheme: network.Schemas.untitled, path: searchTerm })
 		};
 
 		let id = 0;
-		while (editorService.getOpened(possible)) {
+		let existing = editorService.getOpened(possible);
+		while (existing) {
+			if (existing instanceof UntitledTextEditorInput) {
+				const model = await existing.resolve();
+				const existingContents = model.textEditorModel.getValue(EndOfLinePreference.LF);
+				if (existingContents === contents) {
+					break;
+				}
+			}
 			possible.resource = possible.resource.with({ path: searchTerm + '-' + ++id });
+			existing = editorService.getOpened(possible);
 		}
 
 		const editor = await editorService.openEditor(possible);
 		const control = editor?.getControl()!;
-		control.updateOptions({ lineNumbers: 'off' });
-
 		const model = control.getModel() as ITextModel;
 
 		model.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));

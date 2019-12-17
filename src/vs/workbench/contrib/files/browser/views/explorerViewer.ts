@@ -138,22 +138,30 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	static ID = 0;
 
 	private _index: number;
-	readonly labels: HTMLElement[];
+	private _labels!: HTMLElement[];
+	private _updateLabelDisposable: IDisposable;
 
 	get index(): number { return this._index; }
 	get count(): number { return this.items.length; }
 	get current(): ExplorerItem { return this.items[this._index]!; }
 	get currentId(): string { return `${this.id}_${this.index}`; }
+	get labels(): HTMLElement[] { return this._labels; }
 
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData) {
 		this._index = items.length - 1;
-		this.labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
 
-		for (let i = 0; i < items.length; i++) {
-			this.labels[i].setAttribute('aria-label', items[i].name);
+		this.updateLabels(templateData);
+		this._updateLabelDisposable = templateData.label.onDidRender(() => this.updateLabels(templateData));
+	}
+
+	private updateLabels(templateData: IFileTemplateData): void {
+		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
+
+		for (let i = 0; i < this.items.length; i++) {
+			this.labels[i].setAttribute('aria-label', this.items[i].name);
 		}
 
 		DOM.addClass(this.labels[this._index], 'active');
@@ -205,6 +213,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 
 	dispose(): void {
 		this._onDidChange.dispose();
+		this._updateLabelDisposable.dispose();
 	}
 }
 
@@ -601,7 +610,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 	}
 }
 
-const fileOverwriteConfirm = (name: string) => {
+const getFileOverwriteConfirm = (name: string) => {
 	return <IConfirmation>{
 		message: localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name),
 		detail: localize('irreversible', "This action is irreversible!"),
@@ -844,14 +853,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const name = file.name;
 				if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
 					if (target.getChild(name)) {
-						const { confirmed } = await this.dialogService.confirm(fileOverwriteConfirm(name));
+						const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(name));
 						if (!confirmed) {
 							return;
 						}
 					}
 
 					const resource = joinPath(target.resource, name);
-					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target?.result)));
+					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
 					if (data.files.length === 1) {
 						await this.editorService.openEditor({ resource, options: { pinned: true } });
 					}
@@ -917,18 +926,16 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				});
 			}
 
-			const filtered = resources.filter(resource => targetNames.has(!hasToIgnoreCase(resource) ? basename(resource) : basename(resource).toLowerCase()));
-			const resourceExists = filtered.length >= 1;
-			if (resourceExists) {
-				const confirmationResult = await this.dialogService.confirm(fileOverwriteConfirm(basename(filtered[0])));
-				if (!confirmationResult.confirmed) {
-					return;
-				}
-			}
-
 			// Run add in sequence
 			const addPromisesFactory: ITask<Promise<void>>[] = [];
-			resources.forEach(resource => {
+			await Promise.all(resources.map(async resource => {
+				if (targetNames.has(!hasToIgnoreCase(resource) ? basename(resource) : basename(resource).toLowerCase())) {
+					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
+					if (!confirmationResult.confirmed) {
+						return;
+					}
+				}
+
 				addPromisesFactory.push(async () => {
 					const sourceFile = resource;
 					const targetFile = joinPath(target.resource, basename(sourceFile));
@@ -947,7 +954,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 					}
 				});
-			});
+			}));
 
 			await sequence(addPromisesFactory);
 		}
@@ -1044,13 +1051,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-				const confirm: IConfirmation = {
-					message: localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
-					detail: localize('irreversible', "This action is irreversible!"),
-					primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-					type: 'warning'
-				};
-
+				const confirm = getFileOverwriteConfirm(source.name);
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {

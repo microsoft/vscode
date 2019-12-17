@@ -58,7 +58,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -610,7 +610,7 @@ class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluationInput,
 	}
 
 	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		dom.append(container, $('span.arrow.codicon.codicon-arrow-small-right'));
+		dom.append(container, $('span.arrow.codicon.codicon-chevron-right'));
 		const input = dom.append(container, $('.expression'));
 		const label = new HighlightedLabel(input, false);
 		return { label };
@@ -636,7 +636,7 @@ class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResul
 	constructor(private readonly linkDetector: LinkDetector) { }
 
 	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
-		dom.append(container, $('span.arrow.codicon.codicon-arrow-small-left'));
+		dom.append(container, $('span.arrow.codicon.codicon-chevron-left'));
 		const output = dom.append(container, $('.evaluation-result.expression'));
 		const value = dom.append(output, $('span.value'));
 		const annotation = dom.append(output, $('span'));

@@ -11,7 +11,9 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
 import { ITypeScriptServer } from './tsServer/server';
-import { ITypeScriptServiceClient, ServerResponse, TypeScriptRequests, ExecConfig } from './typescriptService';
+import { TypeScriptServerError } from './tsServer/serverError';
+import { TypeScriptServerSpawner } from './tsServer/spawner';
+import { ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
@@ -25,7 +27,6 @@ import Tracer from './utils/tracer';
 import { inferredProjectConfig } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
-import { TypeScriptServerSpawner } from './tsServer/spawner';
 
 const localize = nls.loadMessageBundle();
 
@@ -314,7 +315,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.onDidChangeTypeScriptVersion(currentVersion);
 		let mytoken = ++this.token;
 		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager, {
-			onFatalError: (command) => this.fatalError(command),
+			onFatalError: (command, err) => this.fatalError(command, err),
 		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
@@ -670,7 +671,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (config?.nonRecoverable) {
-			execution.catch(() => this.fatalError(command));
+			execution.catch(err => this.fatalError(command, err));
 		}
 
 		return execution;
@@ -704,15 +705,20 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this.bufferSyncSupport.interuptGetErr(f);
 	}
 
-	private fatalError(command: string): void {
+	private fatalError(command: string, error: Error): void {
 		/* __GDPR__
 			"fatalError" : {
-				"${include}": [ "${TypeScriptCommonProperties}" ],
-				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"${include}": [
+					"${TypeScriptCommonProperties}",
+					"${TypeScriptRequestErrorProperties}"
+				]
 			}
 		*/
-		this.logTelemetry('fatalError', { command });
+		this.logTelemetry('fatalError', { command, ...(error instanceof TypeScriptServerError ? error.telemetry : {}) });
 		console.error(`A non-recoverable error occured while executing tsserver command: ${command}`);
+		if (error instanceof TypeScriptServerError && error.serverErrorText) {
+			console.error(error.serverErrorText);
+		}
 
 		if (this.serverState.type === ServerState.Type.Running) {
 			this.info('Killing TS Server');

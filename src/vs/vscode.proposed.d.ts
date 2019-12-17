@@ -16,7 +16,7 @@
 
 declare module 'vscode' {
 
-	//#region Alex - resolvers
+	//#region Alex - resolvers, AlexR - ports
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -33,7 +33,32 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export type ResolverResult = ResolvedAuthority & ResolvedOptions;
+	export interface TunnelOptions {
+		remote: { port: number, host: string };
+		localPort?: number;
+		name?: string;
+	}
+
+	export interface Tunnel {
+		remote: { port: number, host: string };
+		localAddress: string;
+		onDispose: Event<void>;
+		dispose(): void;
+	}
+
+	/**
+	 * Used as part of the ResolverResult if the extension has any candidate, published, or forwarded ports.
+	 */
+	export interface TunnelInformation {
+		/**
+		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
+		 * The localAddress should be the complete local address(ex. localhost:1234) for connecting to the port. Tunnels provided through
+		 * detected are read-only from the forwarded ports UI.
+		 */
+		detectedTunnels?: { remote: { port: number, host: string }, localAddress: string }[];
+	}
+
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
@@ -44,6 +69,20 @@ declare module 'vscode' {
 
 	export interface RemoteAuthorityResolver {
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+		/**
+		 * Can be optionally implemented if the extension can forward ports better than the core.
+		 * When not implemented, the core will use its default forwarding logic.
+		 * When implemented, the core will use this to forward ports.
+		 */
+		forwardPort?(tunnelOptions: TunnelOptions): Thenable<Tunnel> | undefined;
+	}
+
+	export namespace workspace {
+		/**
+		 * Forwards a port. Currently only works for a remote host of localhost.
+		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -68,7 +107,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex - semantic tokens
+	//#region Semantic tokens: https://github.com/microsoft/vscode/issues/86415
 
 	export class SemanticTokensLegend {
 		public readonly tokenTypes: string[];
@@ -84,6 +123,12 @@ declare module 'vscode' {
 	}
 
 	export class SemanticTokens {
+		/**
+		 * The result id of the tokens.
+		 *
+		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
+		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
+		 */
 		readonly resultId?: string;
 		readonly data: Uint32Array;
 
@@ -91,6 +136,12 @@ declare module 'vscode' {
 	}
 
 	export class SemanticTokensEdits {
+		/**
+		 * The result id of the tokens.
+		 *
+		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
+		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
+		 */
 		readonly resultId?: string;
 		readonly edits: SemanticTokensEdit[];
 
@@ -107,6 +158,11 @@ declare module 'vscode' {
 
 	export interface SemanticTokensRequestOptions {
 		readonly ranges?: readonly Range[];
+		/**
+		 * The previous result id that the editor still holds in memory.
+		 *
+		 * Only when this is set it is safe for a `SemanticTokensProvider` to return `SemanticTokensEdits`.
+		 */
 		readonly previousResultId?: string;
 	}
 
@@ -116,12 +172,15 @@ declare module 'vscode' {
 	 */
 	export interface SemanticTokensProvider {
 		/**
-		 * A file can contain many tokens, perhaps even hundreds of thousands tokens. Therefore, to improve
-		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating objects
-		 * and we have decided to represent tokens from a file as an array of integers.
+		 * A file can contain many tokens, perhaps even hundreds of thousands of tokens. Therefore, to improve
+		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating an object
+		 * for each token and we represent tokens from a file as an array of integers. Furthermore, the position
+		 * of each token is expressed relative to the token before it because most tokens remain stable relative to
+		 * each other when edits are made in a file.
 		 *
 		 *
-		 * In short, each token takes 5 integers to represent, so a specific token i in the file consists of the following fields:
+		 * ---
+		 * In short, each token takes 5 integers to represent, so a specific token `i` in the file consists of the following fields:
 		 *  - at index `5*i`   - `deltaLine`: token line number, relative to the previous token
 		 *  - at index `5*i+1` - `deltaStart`: token start character, relative to the previous token (relative to 0 or the previous token's start if they are on the same line)
 		 *  - at index `5*i+2` - `length`: the length of the token. A token cannot be multiline.
@@ -129,81 +188,119 @@ declare module 'vscode' {
 		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticTokensLegend.tokenModifiers`
 		 *
 		 *
+		 *
+		 * ---
+		 * ### How to encode tokens
+		 *
 		 * Here is an example for encoding a file with 3 tokens:
 		 * ```
-		 *  [ { line: 2, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 2, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
 		 *    { line: 2, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
-		 *    { line: 5, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] } ]
+		 *    { line: 5, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] }
 		 * ```
 		 *
 		 * 1. First of all, a legend must be devised. This legend must be provided up-front and capture all possible token types.
-		 * For this example, we will choose the following legend which is passed in when registering the provider:
+		 * For this example, we will choose the following legend which must be passed in when registering the provider:
 		 * ```
-		 *  { tokenTypes: ['', 'properties', 'types', 'classes'],
-		 *    tokenModifiers: ['', 'private', 'static'] }
-		 * ```
-		 *
-		 * 2. The first transformation is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
-		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Token modifiers are a set and they are looked up by a bitmap,
-		 * so a `tokenModifier` value of `6` is first viewed as a bitmap `0b110`, so it will mean `[tokenModifiers[1], tokenModifiers[2]]` because
-		 * bits 1 and 2 are set. Using this legend, the tokens now are:
-		 * ```
-		 *  [ { line: 2, startChar:  5, length: 3, tokenType: 1, tokenModifiers: 6 }, // 6 is 0b110
-		 *    { line: 2, startChar: 10, length: 4, tokenType: 2, tokenModifiers: 0 },
-		 *    { line: 5, startChar:  2, length: 7, tokenType: 3, tokenModifiers: 0 } ]
+		 *    tokenTypes: ['properties', 'types', 'classes'],
+		 *    tokenModifiers: ['private', 'static']
 		 * ```
 		 *
-		 * 3. Then, we will encode each token relative to the previous token in the file:
+		 * 2. The first transformation step is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
+		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Multiple token modifiers can be set by using bit flags,
+		 * so a `tokenModifier` value of `3` is first viewed as binary `0b00000011`, which means `[tokenModifiers[0], tokenModifiers[1]]` because
+		 * bits 0 and 1 are set. Using this legend, the tokens now are:
 		 * ```
-		 *  [ { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 1, tokenModifiers: 6 },
-		 *    // this token is on the same line as the first one, so the startChar is made relative
-		 *    { deltaLine: 0, deltaStartChar: 5, length: 4, tokenType: 2, tokenModifiers: 0 },
-		 *    // this token is on a different line than the second one, so the startChar remains unchanged
-		 *    { deltaLine: 3, deltaStartChar: 2, length: 7, tokenType: 3, tokenModifiers: 0 } ]
+		 *    { line: 2, startChar:  5, length: 3, tokenType: 0, tokenModifiers: 3 },
+		 *    { line: 2, startChar: 10, length: 4, tokenType: 1, tokenModifiers: 0 },
+		 *    { line: 5, startChar:  2, length: 7, tokenType: 2, tokenModifiers: 0 }
 		 * ```
 		 *
-		 * 4. Finally, the integers are organized in a single array, which is a memory friendly representation:
+		 * 3. The next steps is to encode each token relative to the previous token in the file. In this case, the second token
+		 * is on the same line as the first token, so the `startChar` of the second token is made relative to the `startChar`
+		 * of the first token, so it will be `10 - 5`. The third token is on a different line than the second token, so the
+		 * `startChar` of the third token will not be altered:
+		 * ```
+		 *    { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 0, tokenModifiers: 3 },
+		 *    { deltaLine: 0, deltaStartChar: 5, length: 4, tokenType: 1, tokenModifiers: 0 },
+		 *    { deltaLine: 3, deltaStartChar: 2, length: 7, tokenType: 2, tokenModifiers: 0 }
+		 * ```
+		 *
+		 * 4. Finally, the last step is to inline each of the 5 fields for a token in a single array, which is a memory friendly representation:
 		 * ```
 		 *    // 1st token,  2nd token,  3rd token
-		 *    [  2,5,3,1,6,  0,5,4,2,0,  3,2,7,3,0 ]
+		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
 		 * ```
 		 *
-		 * In principle, each call to `provideSemanticTokens` expects a complete representations of the semantic tokens.
-		 * It is possible to simply return all the tokens at each call.
 		 *
-		 * But oftentimes, a small edit in the file will result in a small change to the above delta-based represented tokens.
-		 * (In fact, that is why the above tokens are delta-encoded relative to their corresponding previous tokens).
-		 * In such a case, if VS Code passes in the previous result id, it is possible for an advanced tokenization provider
-		 * to return a delta to the integers array.
 		 *
-		 * To continue with the previous example, suppose a new line has been pressed at the beginning of the file, such that
-		 * all the tokens are now one line lower, and that a new token has appeared since the last result on line 4.
-		 * For example, the tokens might look like:
+		 * ---
+		 * ### How tokens change when the document changes
+		 *
+		 * Let's look at how tokens might change.
+		 *
+		 * Continuing with the above example, suppose a new line was inserted at the top of the file.
+		 * That would make all the tokens move down by one line (notice how the line has changed for each one):
 		 * ```
-		 *  [ { line: 3, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 3, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 3, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
+		 *    { line: 6, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] }
+		 * ```
+		 * The integer encoding of the tokens does not change substantially because of the delta-encoding of positions:
+		 * ```
+		 *    // 1st token,  2nd token,  3rd token
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 * ```
+		 * It is possible to express these new tokens in terms of an edit applied to the previous tokens:
+		 * ```
+		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 *
+		 *    edit: { start:  0, deleteCount: 1, data: [3] } // replace integer at offset 0 with 3
+		 * ```
+		 *
+		 * Furthermore, let's assume that a new token has appeared on line 4:
+		 * ```
+		 *    { line: 3, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
 		 *    { line: 3, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
 		 *    { line: 4, startChar:  3, length: 5, tokenType: "properties", tokenModifiers: ["static"] },
-		 *    { line: 6, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] } ]
+		 *    { line: 6, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] }
+		 * ```
+		 * The integer encoding of the tokens is:
+		 * ```
+		 *    // 1st token,  2nd token,  3rd token,  4th token
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]
+		 * ```
+		 * Again, it is possible to express these new tokens in terms of an edit applied to the previous tokens:
+		 * ```
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]
+		 *
+		 *    edit: { start: 10, deleteCount: 1, data: [1,3,5,0,2,2] } // replace integer at offset 10 with [1,3,5,0,2,2]
 		 * ```
 		 *
-		 * The integer encoding of all new tokens would be:
-		 * ```
-		 *     [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
-		 * ```
 		 *
-		 * A smart tokens provider can compute a diff from the previous result to the new result
-		 * ```
-		 *    [  2,5,3,1,6,  0,5,4,2,0,              3,2,7,3,0 ]
-		 *    [  3,5,3,1,6,  0,5,4,2,0,  1,3,5,1,2,  2,2,7,3,0 ]
-		 * ```
-		 * and return as simple integer edits the diff:
-		 * ```
-		 * { edits: [
-		 *    { start:  0, deleteCount: 1, data: [3] } // replace integer at offset 0 with 3
-		 *    { start: 10, deleteCount: 1, data: [1,3,5,1,2,2] } // replace integer at offset 10 with [1,3,5,1,2,2]
-		 * ]}
-		 * ```
-		 * All indices expressed in the returned diff represent indices in the old result array, so they all refer to the previous result state.
+		 *
+		 * ---
+		 * ### When to return `SemanticTokensEdits`
+		 *
+		 * When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
+		 * In principle, each call to `provideSemanticTokens` can return a full representations of the semantic tokens, and that would
+		 * be a perfectly reasonable semantic tokens provider implementation.
+		 *
+		 * However, when having a language server running in a separate process, transferring all the tokens between processes
+		 * might be slow, so VS Code allows to return the new tokens expressed in terms of multiple edits applied to the previous
+		 * tokens.
+		 *
+		 * To clearly define what "previous tokens" means, it is possible to return a `resultId` with the semantic tokens. If the
+		 * editor still has in memory the previous result, the editor will pass in options the previous `resultId` at
+		 * `SemanticTokensRequestOptions.previousResultId`. Only when the editor passes in the previous `resultId`, it is allowed
+		 * that a semantic tokens provider returns the new tokens expressed as edits to be applied to the previous result. Even in this
+		 * case, the semantic tokens provider needs to return a new `resultId` that will identify these new tokens as a basis
+		 * for the next request.
+		 *
+		 * *NOTE 1*: It is illegal to return `SemanticTokensEdits` if `options.previousResultId` is not set.
+		 * *NOTE 2*: All edits in `SemanticTokensEdits` contain indices in the old integers array, so they all refer to the previous result state.
 		 */
 		provideSemanticTokens(document: TextDocument, options: SemanticTokensRequestOptions, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	}
@@ -702,10 +799,10 @@ declare module 'vscode' {
 	export interface DebugAdapter extends Disposable {
 
 		/**
-		 * An event which fires when the debug adapter sends a Debug Adapter Protocol message to VS Code.
+		 * An event which fires after the debug adapter has sent a Debug Adapter Protocol message to VS Code.
 		 * Messages can be requests, responses, or events.
 		 */
-		readonly onSendMessage: Event<DebugProtocolMessage>;
+		readonly onDidSendMessage: Event<DebugProtocolMessage>;
 
 		/**
 		 * Handle a Debug Adapter Protocol message.
@@ -1033,7 +1130,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Ben - status bar item with ID and Name
+	//#region Status bar item with ID and Name: https://github.com/microsoft/vscode/issues/74972
 
 	export namespace window {
 
@@ -1081,45 +1178,80 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Ben - extension auth flow (desktop+web)
-
-	export interface AppUriOptions {
-		payload?: {
-			path?: string;
-			query?: string;
-			fragment?: string;
-		};
-	}
-
-	export namespace env {
-
-		/**
-		 * @deprecated use `vscode.env.asExternalUri` instead.
-		 */
-		export function createAppUri(options?: AppUriOptions): Thenable<Uri>;
-	}
-
-	//#endregion
-
 	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	/**
-	 * Defines how a webview editor interacts with VS Code.
+	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
+	 * editor events such as `undo` or `save`.
+	 *
+	 * @param EditType Type of edits. Edit objects must be json serializable.
 	 */
-	interface WebviewEditorCapabilities {
+	interface WebviewCustomEditorEditingDelegate<EditType> {
 		/**
-		 * Invoked when the resource has been renamed in VS Code.
+		 * Save a resource.
 		 *
-		 * This is called when the resource's new name also matches the custom editor selector.
+		 * @param resource Resource being saved.
 		 *
-		 * If this is not implemented—or if the new resource name does not match the existing selector—then VS Code
-		 * will close and reopen the editor on  rename.
-		 *
-		 * @param newResource Full path to the resource.
-		 *
-		 * @return Thenable that signals the save is complete.
+		 * @return Thenable signaling that the save has completed.
 		 */
-		// rename?(newResource: Uri): Thenable<void>;
+		save(resource: Uri): Thenable<void>;
+
+		/**
+		 * Save an existing resource at a new path.
+		 *
+		 * @param resource Resource being saved.
+		 * @param targetResource Location to save to.
+		 *
+		 * @return Thenable signaling that the save has completed.
+		 */
+		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
+
+		/**
+		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
+		 */
+		readonly onEdit: Event<{ readonly resource: Uri, readonly edit: EditType }>;
+
+		/**
+		 * Apply a set of edits.
+		 *
+		 * Note that is not invoked when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
+		 *
+		 * @param resource Resource being edited.
+		 * @param edit Array of edits. Sorted from oldest to most recent.
+		 *
+		 * @return Thenable signaling that the change has completed.
+		 */
+		applyEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
+
+		/**
+		 * Undo a set of edits.
+		 *
+		 * This is triggered when a user undoes an edit or when revert is called on a file.
+		 *
+		 * @param resource Resource being edited.
+		 * @param edit Array of edits. Sorted from most recent to oldest.
+		 *
+		 * @return Thenable signaling that the change has completed.
+		 */
+		undoEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
+	}
+
+	export interface WebviewCustomEditorProvider {
+		/**
+		 * Resolve a webview editor for a given resource.
+		 *
+		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
+		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
+		 *
+		 * @param resource Resource being resolved.
+		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 *
+		 * @return Thenable indicating that the webview editor has been resolved.
+		 */
+		resolveWebviewEditor(
+			resource: Uri,
+			webview: WebviewPanel,
+		): Thenable<void>;
 
 		/**
 		 * Controls the editing functionality of a webview editor. This allows the webview editor to hook into standard
@@ -1128,76 +1260,7 @@ declare module 'vscode' {
 		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
 		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
 		 */
-		readonly editingCapability?: WebviewEditorEditingCapability;
-	}
-
-	/**
-	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
-	 * editor events such as `undo` or `save`.
-	 */
-	interface WebviewEditorEditingCapability {
-		/**
-		 * Persist the resource.
-		 *
-		 * Extensions should persist the resource
-		 *
-		 * @return Thenable signaling that the save has completed.
-		 */
-		save(): Thenable<void>;
-
-		/**
-		 *
-		 * @param resource Resource being saved.
-		 * @param targetResource Location to save to.
-		 */
-		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
-
-		/**
-		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
-		 *
-		 * The edit must be a json serializable object.
-		 */
-		readonly onEdit: Event<any>;
-
-		/**
-		 * Apply a set of edits.
-		 *
-		 * This is triggered on redo and when restoring a custom editor after restart. Note that is not invoked
-		 * when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
-		 *
-		 * @param edit Array of edits. Sorted from oldest to most recent.
-		 */
-		applyEdits(edits: readonly any[]): Thenable<void>;
-
-		/**
-		 * Undo a set of edits.
-		 *
-		 * This is triggered when a user undoes an edit or when revert is called on a file.
-		 *
-		 * @param edit Array of edits. Sorted from most recent to oldest.
-		 */
-		undoEdits(edits: readonly any[]): Thenable<void>;
-	}
-
-	export interface WebviewEditorProvider {
-		/**
-		 * Resolve a webview editor for a given resource.
-		 *
-		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
-		 *
-		 * @param input Information about the resource being resolved.
-		 * @param webview Webview being resolved. The provider should take ownership of this webview.
-		 *
-		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
-		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
-		 */
-		resolveWebviewEditor(
-			input: {
-				readonly resource: Uri
-			},
-			webview: WebviewPanel,
-		): Thenable<WebviewEditorCapabilities>;
+		readonly editingDelegate?: WebviewCustomEditorEditingDelegate<unknown>;
 	}
 
 	namespace window {
@@ -1208,11 +1271,11 @@ declare module 'vscode' {
 		 * @param provider Resolves webview editors.
 		 * @param options Content settings for a webview panels the provider is given.
 		 *
-		 * @return Disposable that unregisters the `WebviewEditorProvider`.
+		 * @return Disposable that unregisters the `WebviewCustomEditorProvider`.
 		 */
-		export function registerWebviewEditorProvider(
+		export function registerWebviewCustomEditorProvider(
 			viewType: string,
-			provider: WebviewEditorProvider,
+			provider: WebviewCustomEditorProvider,
 			options?: WebviewPanelOptions,
 		): Disposable;
 	}
@@ -1256,10 +1319,28 @@ declare module 'vscode' {
 		/**
 		 * Marks that the code action cannot currently be applied.
 		 *
-		 * This should be a human readable description of why the code action is currently disabled. Disabled code actions
-		 * will be surfaced in the refactor UI but cannot be applied.
+		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
 		 */
-		disabled?: string;
+		disabled?: {
+			/**
+			 * Human readable description of why the code action is currently disabled.
+			 *
+			 * This is displayed in the UI.
+			 */
+			reason: string;
+		};
+	}
+
+	//#endregion
+
+	//#region Allow theme icons in hovers: https://github.com/microsoft/vscode/issues/84695
+
+	export interface MarkdownString {
+
+		/**
+		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
+		 */
+		readonly supportThemeIcons?: boolean;
 	}
 
 	//#endregion

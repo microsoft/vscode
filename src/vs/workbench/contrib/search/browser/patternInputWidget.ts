@@ -149,12 +149,6 @@ export class PatternInputWidget extends Widget {
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
-		this._register(this.inputBox.onDidChange(() => {
-			if (this.searchConfig.searchOnType) {
-				this._onCancel.fire();
-				this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(true), this.searchConfig.searchOnTypeDebouncePeriod);
-			}
-		}));
 
 		const controls = document.createElement('div');
 		controls.className = 'controls';
@@ -170,12 +164,17 @@ export class PatternInputWidget extends Widget {
 	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
+				this.onSearchSubmit();
 				this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(false), 0);
 				return;
 			case KeyCode.Escape:
 				this._onCancel.fire();
 				return;
 			default:
+				if (this.searchConfig.searchOnType) {
+					this._onCancel.fire();
+					this.searchOnTypeDelayer.trigger(() => this._onSubmit.fire(true), this.searchConfig.searchOnTypeDebouncePeriod);
+				}
 				return;
 		}
 	}

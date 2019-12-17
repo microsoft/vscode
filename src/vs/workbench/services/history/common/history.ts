@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
@@ -26,19 +26,13 @@ export interface IHistoryService {
 
 	/**
 	 * Navigate forwards in history.
-	 *
-	 * @param acrossEditors instructs the history to skip navigation entries that
-	 * are only within the same document.
 	 */
-	forward(acrossEditors?: boolean): void;
+	forward(): void;
 
 	/**
 	 * Navigate backwards in history.
-	 *
-	 * @param acrossEditors instructs the history to skip navigation entries that
-	 * are only within the same document.
 	 */
-	back(acrossEditors?: boolean): void;
+	back(): void;
 
 	/**
 	 * Navigate forward or backwards to previous entry in history.
@@ -61,7 +55,7 @@ export interface IHistoryService {
 	clearRecentlyOpened(): void;
 
 	/**
-	 * Get the entire history of opened editors.
+	 * Get the entire history of editors that were opened.
 	 */
 	getHistory(): Array<IEditorInput | IResourceInput>;
 
@@ -79,4 +73,23 @@ export interface IHistoryService {
 	 * @param schemeFilter filter to restrict roots by scheme.
 	 */
 	getLastActiveFile(schemeFilter: string): URI | undefined;
+
+	/**
+	 * Opens the next used editor if any.
+	 *
+	 * @param group optional indicator to scope to a specific group.
+	 */
+	openNextRecentlyUsedEditor(group?: GroupIdentifier): void;
+
+	/**
+	 * Opens the previously used editor if any.
+	 *
+	 * @param group optional indicator to scope to a specific group.
+	 */
+	openPreviouslyUsedEditor(group?: GroupIdentifier): void;
+
+	/**
+	 * Get a list of most recently used editors that are open.
+	 */
+	getMostRecentlyUsedOpenEditors(): Array<IEditorIdentifier>;
 }

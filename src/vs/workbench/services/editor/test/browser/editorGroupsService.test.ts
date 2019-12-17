@@ -20,7 +20,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export class TestEditorControl extends BaseEditor {
+class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
@@ -35,7 +35,7 @@ export class TestEditorControl extends BaseEditor {
 	createEditor(): any { }
 }
 
-export class TestEditorInput extends EditorInput implements IFileEditorInput {
+class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 	constructor(private resource: URI) { super(); }
 
@@ -60,6 +60,10 @@ suite('EditorGroupsService', () => {
 		}
 
 		class TestEditorInputFactory implements IEditorInputFactory {
+
+			canSerialize(editorInput: EditorInput): boolean {
+				return true;
+			}
 
 			serialize(editorInput: EditorInput): string {
 				const testEditorInput = <TestEditorInput>editorInput;
@@ -435,6 +439,8 @@ suite('EditorGroupsService', () => {
 		assert.equal(group.isActive(inputInactive), false);
 		assert.equal(group.isOpened(input), true);
 		assert.equal(group.isOpened(inputInactive), true);
+		assert.equal(group.isOpened({ resource: input.getResource() }), true);
+		assert.equal(group.isOpened({ resource: inputInactive.getResource() }), true);
 		assert.equal(group.isEmpty, false);
 		assert.equal(group.count, 2);
 		assert.equal(editorWillOpenCounter, 2);

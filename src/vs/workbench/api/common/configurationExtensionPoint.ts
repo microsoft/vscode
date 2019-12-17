@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
@@ -48,7 +48,7 @@ const configurationEntrySchema: IJSONSchema = {
 									nls.localize('scope.resource.description', "Configuration that can be configured in the user, remote, workspace or folder settings."),
 									nls.localize('scope.machine-overridable.description', "Machine configuration that can be configured also in workspace or folder settings.")
 								],
-								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource` and `machine-overridable`.")
+								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, and `machine-overridable`.")
 							},
 							enumDescriptions: {
 								type: 'array',
@@ -90,7 +90,7 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 			'\\[.*\\]$': {
 				type: 'object',
 				default: {},
-				$ref: editorConfigurationSchemaId,
+				$ref: resourceLanguageSettingsSchemaId,
 			}
 		}
 	}
