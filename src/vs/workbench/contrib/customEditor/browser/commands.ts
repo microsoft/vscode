@@ -22,6 +22,7 @@ import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/fi
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
@@ -193,21 +194,16 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 		const activeGroup = activeControl.group;
 		const activeEditor = activeControl.input;
-
-		if (!activeEditor) {
-			return;
-		}
-
 		const targetResource = activeEditor.getResource();
+
 		if (!targetResource) {
 			return;
 		}
 
 		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
-		const activeCustomEditor = customEditorService.activeCustomEditor;
 
 		let toggleView = defaultEditorId;
-		if (!activeCustomEditor) {
+		if (!(activeEditor instanceof CustomFileEditorInput)) {
 			const viewIDs = customEditorService.getContributedCustomEditors(targetResource);
 			if (viewIDs && viewIDs.length) {
 				toggleView = viewIDs[0].id;
