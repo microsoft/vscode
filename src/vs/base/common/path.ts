@@ -69,11 +69,11 @@ function validateString(value: string, name: string) {
 	}
 }
 
-function isPathSeparator(code: number) {
+function isPathSeparator(code: number | undefined) {
 	return code === CHAR_FORWARD_SLASH || code === CHAR_BACKWARD_SLASH;
 }
 
-function isPosixPathSeparator(code: number) {
+function isPosixPathSeparator(code: number | undefined) {
 	return code === CHAR_FORWARD_SLASH;
 }
 

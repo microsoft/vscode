@@ -172,7 +172,7 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(await exists(resource.fsPath), true);
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('create - UTF 8 BOM - content provided', async () => {
@@ -183,7 +183,7 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(await exists(resource.fsPath), true);
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('create - UTF 8 BOM - empty content - snapshot', async () => {
@@ -194,7 +194,7 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(await exists(resource.fsPath), true);
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('create - UTF 8 BOM - content provided - snapshot', async () => {
@@ -205,7 +205,7 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(await exists(resource.fsPath), true);
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('write - use encoding (UTF 16 BE) - small content as string', async () => {
@@ -325,12 +325,12 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, content, { encoding: UTF8_with_bom });
 
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		// ensure BOM preserved
 		await service.write(resource, content, { encoding: UTF8 });
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		// allow to remove BOM
 		await service.write(resource, content, { encoding: UTF8, overwriteEncoding: true });
@@ -353,12 +353,12 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8_with_bom });
 
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		// ensure BOM preserved
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8 });
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		// allow to remove BOM
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8, overwriteEncoding: true });
@@ -375,11 +375,11 @@ suite('Files - TextFileService i/o', () => {
 		const resource = URI.file(join(testDir, 'some_utf8_bom.txt'));
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		await service.write(resource, 'Hello World');
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('write - ensure BOM in empty file - content as string', async () => {
@@ -388,7 +388,7 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, '', { encoding: UTF8_with_bom });
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('write - ensure BOM in empty file - content as snapshot', async () => {
@@ -397,7 +397,7 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, TextModel.createFromString('').createSnapshot(), { encoding: UTF8_with_bom });
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('readStream - small text', async () => {

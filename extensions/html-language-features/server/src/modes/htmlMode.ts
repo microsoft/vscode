@@ -18,8 +18,8 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		getId() {
 			return 'html';
 		},
-		getSelectionRanges(document: TextDocument, positions: Position[]): SelectionRange[] {
-			return htmlLanguageService.getSelectionRanges(document, positions);
+		getSelectionRange(document: TextDocument, position: Position): SelectionRange {
+			return htmlLanguageService.getSelectionRanges(document, [position])[0];
 		},
 		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
@@ -74,8 +74,16 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			}
 			return null;
 		},
+		doRename(document: TextDocument, position: Position, newName: string) {
+			const htmlDocument = htmlDocuments.get(document);
+			return htmlLanguageService.doRename(document, position, newName, htmlDocument);
+		},
 		onDocumentRemoved(document: TextDocument) {
 			htmlDocuments.onDocumentRemoved(document);
+		},
+		findMatchingTagPosition(document: TextDocument, position: Position) {
+			const htmlDocument = htmlDocuments.get(document);
+			return htmlLanguageService.findMatchingTagPosition(document, position, htmlDocument);
 		},
 		dispose() {
 			htmlDocuments.dispose();

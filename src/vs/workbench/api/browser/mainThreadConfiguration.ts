@@ -8,9 +8,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from '../common/extHost.protocol';
+import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IConfigurationInitData } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationModel, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadConfiguration)
@@ -28,7 +28,7 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 
 		proxy.$initializeConfiguration(this._getConfigurationData());
 		this._configurationListener = configurationService.onDidChangeConfiguration(e => {
-			proxy.$acceptConfigurationChanged(this._getConfigurationData(), this.toConfigurationChangeEventData(e));
+			proxy.$acceptConfigurationChanged(this._getConfigurationData(), e.change);
 		});
 	}
 
@@ -63,28 +63,10 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 	private deriveConfigurationTarget(key: string, resource: URI | null): ConfigurationTarget {
 		if (resource && this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-			if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.RESOURCE) {
+			if (configurationProperties[key] && (configurationProperties[key].scope === ConfigurationScope.RESOURCE || configurationProperties[key].scope === ConfigurationScope.RESOURCE_LANGUAGE)) {
 				return ConfigurationTarget.WORKSPACE_FOLDER;
 			}
 		}
 		return ConfigurationTarget.WORKSPACE;
-	}
-
-	private toConfigurationChangeEventData(event: IConfigurationChangeEvent): IWorkspaceConfigurationChangeEventData {
-		return {
-			changedConfiguration: this.toJSONConfiguration(event.changedConfiguration),
-			changedConfigurationByResource: event.changedConfigurationByResource.keys().reduce((result, resource) => {
-				result[resource.toString()] = this.toJSONConfiguration(event.changedConfigurationByResource.get(resource));
-				return result;
-			}, Object.create({}))
-		};
-	}
-
-	private toJSONConfiguration({ contents, keys, overrides }: IConfigurationModel = { contents: {}, keys: [], overrides: [] }): IConfigurationModel {
-		return {
-			contents,
-			keys,
-			overrides
-		};
 	}
 }

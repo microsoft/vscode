@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IEditorModel, EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { workbenchInstantiationService, TestStorageService, TestEditorInput } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -16,15 +16,12 @@ import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement }
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -32,8 +29,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { CancellationToken } from 'vscode';
 
-export class TestEditorControl extends BaseEditor {
+class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForEditorService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
@@ -48,30 +48,6 @@ export class TestEditorControl extends BaseEditor {
 	createEditor(): any { }
 }
 
-export class TestEditorInput extends EditorInput implements IFileEditorInput {
-	public gotDisposed = false;
-	private fails = false;
-	constructor(private resource: URI) { super(); }
-
-	getTypeId() { return 'testEditorInputForEditorService'; }
-	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
-	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
-	setEncoding(encoding: string) { }
-	getEncoding() { return undefined; }
-	setPreferredEncoding(encoding: string) { }
-	setMode(mode: string) { }
-	setPreferredMode(mode: string) { }
-	getResource(): URI { return this.resource; }
-	setForceOpenAsBinary(): void { }
-	setFailToOpen(): void {
-		this.fails = true;
-	}
-	dispose(): void {
-		super.dispose();
-		this.gotDisposed = true;
-	}
-}
-
 class FileServiceProvider extends Disposable {
 	constructor(scheme: string, @IFileService fileService: IFileService) {
 		super();
@@ -83,7 +59,7 @@ class FileServiceProvider extends Disposable {
 suite('EditorService', () => {
 
 	function registerTestEditorInput(): void {
-		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForEditorService', 'My Test Editor For Next Editor Service'), [new SyncDescriptor(TestEditorInput)]);
+		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditorControl, 'MyTestEditorForEditorService', 'My Test Editor For Next Editor Service'), [new SyncDescriptor(TestEditorInput)]);
 	}
 
 	registerTestEditorInput();
@@ -113,7 +89,7 @@ suite('EditorService', () => {
 		});
 
 		let didCloseEditorListenerCounter = 0;
-		const didCloseEditorListener = service.onDidCloseEditor(editor => {
+		const didCloseEditorListener = service.onDidCloseEditor(() => {
 			didCloseEditorListenerCounter++;
 		});
 
@@ -131,7 +107,6 @@ suite('EditorService', () => {
 		assert.equal(service.visibleTextEditorWidgets.length, 0);
 		assert.equal(service.isOpen(input), true);
 		assert.equal(service.getOpened({ resource: input.getResource() }), input);
-		assert.equal(service.isOpen(input, part.activeGroup), true);
 		assert.equal(activeEditorChangeEventCounter, 1);
 		assert.equal(visibleEditorChangeEventCounter, 1);
 
@@ -157,6 +132,8 @@ suite('EditorService', () => {
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
 		didCloseEditorListener.dispose();
+
+		part.dispose();
 	});
 
 	test('openEditors() / replaceEditors()', async () => {
@@ -184,6 +161,8 @@ suite('EditorService', () => {
 		await service.replaceEditors([{ editor: input, replacement: replaceInput }], part.activeGroup);
 		assert.equal(part.activeGroup.count, 2);
 		assert.equal(part.activeGroup.getIndexOfEditor(replaceInput), 0);
+
+		part.dispose();
 	});
 
 	test('caching', function () {
@@ -330,7 +309,7 @@ suite('EditorService', () => {
 
 		const inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource-delegate'), undefined);
 		const delegate = instantiationService.createInstance(DelegatingEditorService);
-		delegate.setEditorOpenHandler((delegate, group: IEditorGroup, input: IEditorInput, options?: EditorOptions) => {
+		delegate.setEditorOpenHandler((delegate, group, input) => {
 			assert.strictEqual(input, inp);
 
 			done();
@@ -374,6 +353,8 @@ suite('EditorService', () => {
 
 		await rightGroup.closeEditor(input);
 		assert.equal(input.isDisposed(), true);
+
+		part.dispose();
 	});
 
 	test('open to the side', async () => {
@@ -406,6 +387,8 @@ suite('EditorService', () => {
 		assert.equal(part.activeGroup, rootGroup);
 		assert.equal(part.count, 2);
 		assert.equal(editor!.group, part.groups[1]);
+
+		part.dispose();
 	});
 
 	test('editor group activation', async () => {
@@ -447,6 +430,8 @@ suite('EditorService', () => {
 		part.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.RESTORE }, rootGroup);
 		assert.equal(part.activeGroup, sideGroup);
+
+		part.dispose();
 	});
 
 	test('active editor change / visible editor change events', async function () {
@@ -657,6 +642,8 @@ suite('EditorService', () => {
 		// cleanup
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
+
+		part.dispose();
 	});
 
 	test('openEditor returns NULL when opening fails or is inactive', async function () {
@@ -685,5 +672,50 @@ suite('EditorService', () => {
 
 		let failingEditor = await service.openEditor(failingInput);
 		assert.ok(!failingEditor);
+
+		part.dispose();
+	});
+
+	test('save, saveAll, revertAll', async function () {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart);
+		part.create(document.createElement('div'));
+		part.layout(400, 300);
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+
+		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
+		input1.dirty = true;
+		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openside'));
+		input2.dirty = true;
+
+		const rootGroup = part.activeGroup;
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true });
+		await service.openEditor(input2, { pinned: true });
+
+		await service.save({ groupId: rootGroup.id, editor: input1 });
+		assert.equal(input1.gotSaved, true);
+
+		await service.save({ groupId: rootGroup.id, editor: input1 }, { saveAs: true });
+		assert.equal(input1.gotSavedAs, true);
+
+		await service.revertAll();
+		assert.equal(input1.gotReverted, true);
+
+		await service.saveAll();
+		assert.equal(input1.gotSaved, true);
+		assert.equal(input2.gotSaved, true);
+
+		await service.saveAll({ saveAs: true });
+		assert.equal(input1.gotSavedAs, true);
+		assert.equal(input2.gotSavedAs, true);
+
+		part.dispose();
 	});
 });

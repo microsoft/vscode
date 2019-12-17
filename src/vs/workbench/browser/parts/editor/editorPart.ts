@@ -89,26 +89,26 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region Events
 
-	private readonly _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
-	readonly onDidLayout: Event<Dimension> = this._onDidLayout.event;
+	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
+	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onDidActiveGroupChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidActiveGroupChange: Event<IEditorGroupView> = this._onDidActiveGroupChange.event;
+	private readonly _onDidActiveGroupChange = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidActiveGroupChange = this._onDidActiveGroupChange.event;
 
-	private readonly _onDidGroupIndexChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidGroupIndexChange: Event<IEditorGroupView> = this._onDidGroupIndexChange.event;
+	private readonly _onDidGroupIndexChange = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidGroupIndexChange = this._onDidGroupIndexChange.event;
 
-	private readonly _onDidActivateGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidActivateGroup: Event<IEditorGroupView> = this._onDidActivateGroup.event;
+	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
-	private readonly _onDidAddGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidAddGroup: Event<IEditorGroupView> = this._onDidAddGroup.event;
+	private readonly _onDidAddGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidAddGroup = this._onDidAddGroup.event;
 
-	private readonly _onDidRemoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidRemoveGroup: Event<IEditorGroupView> = this._onDidRemoveGroup.event;
+	private readonly _onDidRemoveGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidRemoveGroup = this._onDidRemoveGroup.event;
 
-	private readonly _onDidMoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidMoveGroup: Event<IEditorGroupView> = this._onDidMoveGroup.event;
+	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidMoveGroup = this._onDidMoveGroup.event;
 
 	private onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
@@ -121,7 +121,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private _partOptions: IEditorPartOptions;
 
-	private groupViews: Map<GroupIdentifier, IEditorGroupView> = new Map<GroupIdentifier, IEditorGroupView>();
+	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	private container: HTMLElement | undefined;
@@ -139,7 +139,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -240,7 +240,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				const mostRecentActive = coalesce(this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId)));
 
 				// there can be groups that got never active, even though they exist. in this case
-				// make sure to ust append them at the end so that all groups are returned properly
+				// make sure to just append them at the end so that all groups are returned properly
 				return distinct([...mostRecentActive, ...this.groups]);
 
 			case GroupsOrder.GRID_APPEARANCE:
@@ -544,7 +544,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.groupViews.set(groupView.id, groupView);
 
 		// Track focus
-		let groupDisposables = new DisposableStore();
+		const groupDisposables = new DisposableStore();
 		groupDisposables.add(groupView.onDidFocus(() => {
 			this.doSetGroupActive(groupView);
 		}));

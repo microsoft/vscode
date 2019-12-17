@@ -54,7 +54,7 @@ suite('QuickOpen', () => {
 
 	test('QuickOpen Handler and Registry', () => {
 		let registry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
-		let handler = new QuickOpenHandlerDescriptor(
+		let handler = QuickOpenHandlerDescriptor.create(
 			TestHandler,
 			'testhandler',
 			',',
@@ -71,8 +71,8 @@ suite('QuickOpen', () => {
 	});
 
 	test('QuickOpen Action', () => {
-		let defaultAction = new QuickOpenAction('id', 'label', (undefined)!, new TestQuickOpenService((prefix: string) => assert(!prefix)));
-		let prefixAction = new QuickOpenAction('id', 'label', ',', new TestQuickOpenService((prefix: string) => assert(!!prefix)));
+		let defaultAction = new QuickOpenAction('id', 'label', (undefined)!, new TestQuickOpenService(prefix => assert(!prefix)));
+		let prefixAction = new QuickOpenAction('id', 'label', ',', new TestQuickOpenService(prefix => assert(!!prefix)));
 
 		defaultAction.run();
 		prefixAction.run();

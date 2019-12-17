@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass, position, size } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -95,6 +95,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onCenteredLayoutChange: Emitter<boolean> = this._register(new Emitter<boolean>());
 	readonly onCenteredLayoutChange: Event<boolean> = this._onCenteredLayoutChange.event;
 
+	private readonly _onMaximizeChange: Emitter<boolean> = this._register(new Emitter<boolean>());
+	readonly onMaximizeChange: Event<boolean> = this._onMaximizeChange.event;
+
 	private readonly _onPanelPositionChange: Emitter<string> = this._register(new Emitter<string>());
 	readonly onPanelPositionChange: Event<string> = this._onPanelPositionChange.event;
 
@@ -142,6 +145,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	protected readonly state = {
 		fullscreen: false,
+		maximized: false,
 		hasFocus: false,
 		windowBorder: false,
 
@@ -174,7 +178,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			position: Position.BOTTOM,
 			lastNonMaximizedWidth: 300,
 			lastNonMaximizedHeight: 300,
-			panelToRestore: undefined as string | undefined
+			panelToRestore: undefined as string | undefined,
+			restored: false
 		},
 
 		statusBar: {
@@ -304,6 +309,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
+			this.updateWindowBorder(true);
+
 			this.layout(); // handle title bar when fullscreen changes
 		}
 
@@ -399,7 +406,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
 
 		let windowBorder = false;
-		if (activeBorder || inactiveBorder) {
+		if (!this.state.fullscreen && !this.state.maximized && (activeBorder || inactiveBorder)) {
 			windowBorder = true;
 
 			// If one color is missing, just fallback to the other one
@@ -536,7 +543,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Empty workbench
-		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.inspect('workbench.startupEditor').value === 'newUntitledFile') {
+		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
 			if (this.editorGroupService.willRestoreEditors) {
 				return []; // do not open any empty untitled file if we restored editors from previous session
 			}
@@ -564,9 +571,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private updatePanelPosition() {
 		const defaultPanelPosition = this.configurationService.getValue<string>(Settings.PANEL_POSITION);
-		const panelPosition = this.storageService.get(Storage.PANEL_POSITION, StorageScope.WORKSPACE, defaultPanelPosition);
+		const panelPosition = this.storageService.get(Storage.PANEL_POSITION, StorageScope.WORKSPACE, undefined);
 
-		this.state.panel.position = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
+		this.state.panel.restored = panelPosition !== undefined;
+		this.state.panel.position = ((panelPosition || defaultPanelPosition) === 'right') ? Position.RIGHT : Position.BOTTOM;
 	}
 
 	registerPart(part: Part): void {
@@ -747,6 +755,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (config.silentNotifications) {
 				this.notificationService.setFilter(NotificationsFilter.ERROR);
 			}
+			this.state.zenMode.transitionDisposables.add(this.configurationService.onDidChangeConfiguration(c => {
+				const silentNotificationsKey = 'zenMode.silentNotifications';
+				if (c.affectsConfiguration(silentNotificationsKey)) {
+					const filter = this.configurationService.getValue(silentNotificationsKey) ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
+					this.notificationService.setFilter(filter);
+				}
+			}));
 
 			if (config.centerLayout) {
 				this.centerEditorLayout(true, true);
@@ -892,13 +907,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	getClientArea(): Dimension {
-		const dim = getClientArea(this.parent);
-		return this.state.windowBorder ? new Dimension(dim.width - 2, dim.height - 2) : dim;
+		return getClientArea(this.parent);
 	}
 
 	layout(): void {
 		if (!this.disposed) {
 			this._dimension = this.getClientArea();
+
+			position(this.container, 0, 0, 0, 0, 'relative');
+			size(this.container, this._dimension.width, this._dimension.height);
 
 			// Layout the grid widget
 			this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
@@ -1243,13 +1260,28 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onPanelPositionChange.fire(positionToString(this.state.panel.position));
 	}
 
+	isWindowMaximized() {
+		return this.state.maximized;
+	}
+
+	updateWindowMaximizedState(maximized: boolean) {
+		if (this.state.maximized === maximized) {
+			return;
+		}
+
+		this.state.maximized = maximized;
+
+		this.updateWindowBorder();
+		this._onMaximizeChange.fire(maximized);
+	}
+
 	private createGridDescriptor(): ISerializedGrid {
 		const workbenchDimensions = this.getClientArea();
 		const width = this.storageService.getNumber(Storage.GRID_WIDTH, StorageScope.GLOBAL, workbenchDimensions.width);
 		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, workbenchDimensions.height);
 		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys
 		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, this.storageService.getNumber('workbench.sidebar.width', StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300)));
-		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, workbenchDimensions.height / 3));
+		const panelSize = this.state.panel.restored ? this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, workbenchDimensions.height / 3)) : workbenchDimensions.height / 3;
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;

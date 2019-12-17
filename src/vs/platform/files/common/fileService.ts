@@ -209,16 +209,19 @@ export class FileService extends Disposable implements IFileService {
 		});
 	}
 
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat>;
+	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat, siblings: number | undefined, resolveMetadata: true, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStatWithMetadata>;
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 
 		// convert to file stat
 		const fileStat: IFileStat = {
 			resource,
 			name: getBaseLabel(resource),
+			isFile: (stat.type & FileType.File) !== 0,
 			isDirectory: (stat.type & FileType.Directory) !== 0,
 			isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
-			isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 			mtime: stat.mtime,
+			ctime: stat.ctime,
 			size: stat.size,
 			etag: etag({ mtime: stat.mtime, size: stat.size })
 		};
@@ -358,7 +361,7 @@ export class FileService extends Disposable implements IFileService {
 		// mtime and etag, we bail out to prevent dirty writing.
 		//
 		// First, we check for a mtime that is in the future before we do more checks. The assumption is
-		// that only the mtime is an indicator for a file that has changd on disk.
+		// that only the mtime is an indicator for a file that has changed on disk.
 		//
 		// Second, if the mtime has advanced, we compare the size of the file on disk with our previous
 		// one using the etag() function. Relying only on the mtime check has prooven to produce false
@@ -679,7 +682,7 @@ export class FileService extends Disposable implements IFileService {
 			}
 
 			if (!isSameResourceWithDifferentPathCase && isEqualOrParent(target, source, !isPathCaseSensitive)) {
-				throw new Error(localize('unableToMoveCopyError2', "Unable to move/copy when source is parent of target"));
+				throw new Error(localize('unableToMoveCopyError2', "Unable to move/copy when source is parent of target."));
 			}
 		}
 
@@ -689,7 +692,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Bail out if target exists and we are not about to overwrite
 			if (!overwrite) {
-				throw new FileOperationError(localize('unableToMoveCopyError3', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
+				throw new FileOperationError(localize('unableToMoveCopyError3', "Unable to move/copy since a file already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT);
 			}
 
 			// Special case: if the target is a parent of the source, we cannot delete
@@ -697,7 +700,7 @@ export class FileService extends Disposable implements IFileService {
 			if (sourceProvider === targetProvider) {
 				const isPathCaseSensitive = !!(sourceProvider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
 				if (isEqualOrParent(source, target, !isPathCaseSensitive)) {
-					throw new Error(localize('unableToMoveCopyError4', "Unable to move/copy. File would replace folder it is contained in."));
+					throw new Error(localize('unableToMoveCopyError4', "Unable to move/copy since a file would replace the folder it is contained in."));
 				}
 			}
 		}
@@ -761,9 +764,18 @@ export class FileService extends Disposable implements IFileService {
 			throw new Error(localize('err.trash', "Provider does not support trash."));
 		}
 
+		// Validate delete
+		const exists = await this.exists(resource);
+		if (!exists) {
+			throw new FileOperationError(
+				localize('fileNotFoundError', "File not found ({0})", this.resourceForError(resource)),
+				FileOperationResult.FILE_NOT_FOUND
+			);
+		}
+
 		// Validate recursive
 		const recursive = !!options?.recursive;
-		if (!recursive && await this.exists(resource)) {
+		if (!recursive && exists) {
 			const stat = await this.resolve(resource);
 			if (stat.isDirectory && Array.isArray(stat.children) && stat.children.length > 0) {
 				throw new Error(localize('deleteFailed', "Unable to delete non-empty folder '{0}'.", this.resourceForError(resource)));

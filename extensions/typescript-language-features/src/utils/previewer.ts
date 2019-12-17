@@ -38,7 +38,10 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 
 function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 	switch (tag.name) {
+		case 'augments':
+		case 'extends':
 		case 'param':
+		case 'template':
 			const body = (tag.text || '').split(/^([\w\.]+)\s*-?\s*/);
 			if (body && body.length === 3) {
 				const param = body[1];

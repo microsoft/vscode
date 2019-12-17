@@ -94,7 +94,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		return {
 			x: position.left + position.width, // center above the container
-			y: position.top - 9, // above status bar
+			y: position.top - 26, // above status bar and beak
 			width: position.width,
 			height: position.height
 		};

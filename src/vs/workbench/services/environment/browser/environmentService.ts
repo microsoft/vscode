@@ -19,6 +19,7 @@ import product from 'vs/platform/product/common/product';
 import { serializableToMap } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
 
+// TODO@ben remove properties that are node/electron only
 export class BrowserWindowConfiguration implements IWindowConfiguration {
 
 	constructor(
@@ -136,6 +137,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get settingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.settings.json'); }
 
 	@memoize
+	get keybindingsSyncPreviewResource(): URI { return joinPath(this.userRoamingDataHome, '.keybindings.json'); }
+
+	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
 
 	@memoize
@@ -186,7 +190,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get webviewExternalEndpoint(): string {
 		// TODO: get fallback from product.json
-		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}').replace('{{commit}}', product.commit || 'b53811e67e65c6a564a80e1c412ca2b13de02907');
+		return (this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}').replace('{{commit}}', product.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
 	}
 
 	@memoize
@@ -300,38 +304,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						break;
 					case 'inspect-brk-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
-						extensionHostDebugEnvironment.params.break = false;
+						extensionHostDebugEnvironment.params.break = true;
 						break;
-				}
-			}
-		} else {
-			// TODO@Ben remove me once environment is adopted
-			if (document && document.location && document.location.search) {
-				const map = new Map<string, string>();
-				const query = document.location.search.substring(1);
-				const vars = query.split('&');
-				for (let p of vars) {
-					const pair = p.split('=');
-					if (pair.length >= 2) {
-						map.set(pair[0], decodeURIComponent(pair[1]));
-					}
-				}
-
-				const edp = map.get('extensionDevelopmentPath');
-				if (edp) {
-					extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(edp)];
-					extensionHostDebugEnvironment.isExtensionDevelopment = true;
-				}
-
-				const di = map.get('debugId');
-				if (di) {
-					extensionHostDebugEnvironment.params.debugId = di;
-				}
-
-				const ibe = map.get('inspect-brk-extensions');
-				if (ibe) {
-					extensionHostDebugEnvironment.params.port = parseInt(ibe);
-					extensionHostDebugEnvironment.params.break = false;
 				}
 			}
 		}

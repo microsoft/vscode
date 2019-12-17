@@ -17,6 +17,7 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDeco
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -205,7 +206,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 				color = themeColorFromId(overviewRulerWarning);
 				zIndex = 20;
 				minimap = {
-					color,
+					color: themeColorFromId(minimapWarning),
 					position: MinimapPosition.Inline
 				};
 				break;
@@ -220,7 +221,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 				color = themeColorFromId(overviewRulerError);
 				zIndex = 30;
 				minimap = {
-					color,
+					color: themeColorFromId(minimapError),
 					position: MinimapPosition.Inline
 				};
 				break;

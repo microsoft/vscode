@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-action-bar .action-item.markers-panel-action-filter-container {
-	flex: 1;
 	cursor: default;
 	display: flex;
 }
@@ -30,7 +29,7 @@
 	position: absolute;
 	top: 0px;
 	bottom: 0;
-	right: 4px;
+	right: 0px;
 	display: flex;
 	align-items: center;
 }
@@ -46,10 +45,22 @@
 	display: none;
 }
 
+.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters {
+	line-height: 20px;
+	height: 20px;
+	min-width: 22px;
+	margin-left: 4px;
+}
+
 .panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container {
 	max-width: 600px;
 	min-width: 300px;
 	margin-right: 10px;
+}
+
+.markers-panel-container .monaco-action-bar.markers-panel-filter-container .action-item.markers-panel-action-filter-container,
+.panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container.grow {
+	flex: 1;
 }
 
 .markers-panel .markers-panel-container {
@@ -67,7 +78,6 @@
 .markers-panel .markers-panel-container .message-box-container {
 	line-height: 22px;
 	padding-left: 20px;
-	height: 100%;
 }
 
 .markers-panel .markers-panel-container .message-box-container .messageAction {
@@ -136,15 +146,11 @@
 	margin-left: 6px;
 }
 
-.markers-panel .monaco-tl-contents .marker-icon {
+.markers-panel .monaco-tl-contents .codicon {
 	margin-right: 6px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-}
-
-.markers-panel .monaco-tl-contents .actions .action-item {
-	margin-right: 2px;
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,
@@ -159,7 +165,7 @@
 	font-weight: bold;
 }
 
-.markers-panel .monaco-tl-contents .marker-icon {
+.markers-panel .monaco-tl-contents .codicon {
 	height: 22px;
 }
 
@@ -182,9 +188,6 @@
 .markers-panel .monaco-tl-contents .multiline-actions .action-label,
 .markers-panel .monaco-tl-contents .actions .action-label {
 	width: 16px;
-	height: 100%;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
 }
 
 .markers-panel .monaco-tl-contents .multiline-actions .action-label {

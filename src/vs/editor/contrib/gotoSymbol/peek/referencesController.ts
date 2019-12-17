@@ -14,16 +14,16 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel, OneReference } from '../referencesModel';
-import { ReferenceWidget, LayoutData, ctxReferenceWidgetSearchTreeFocused } from './referencesWidget';
+import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { Location } from 'vs/editor/common/modes';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -151,10 +151,8 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 				if (this._widget && this._model && this._editor.hasModel()) { // might have been closed
 
 					// set title
-					if (this._model.references.length === 1) {
-						this._widget.setMetaTitle(nls.localize('metaTitle.1', "1 result"));
-					} else if (!this._model.isEmpty) {
-						this._widget.setMetaTitle(nls.localize('metaTitle.N', "{0} results", this._model.references.length));
+					if (!this._model.isEmpty) {
+						this._widget.setMetaTitle(nls.localize('metaTitle.N', "{0} ({1})", this._model.title, this._model.references.length));
 					} else {
 						this._widget.setMetaTitle('');
 					}
@@ -173,6 +171,18 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}, error => {
 			this._notificationService.error(error);
 		});
+	}
+
+	changeFocusBetweenPreviewAndReferences() {
+		if (!this._widget) {
+			// can be called while still resolving...
+			return;
+		}
+		if (this._widget.isPreviewEditorFocused()) {
+			this._widget.focusOnReferenceTree();
+		} else {
+			this._widget.focusOnPreviewEditor();
+		}
 	}
 
 	async goToNextOrPreviousReference(fwd: boolean) {
@@ -231,7 +241,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			if (this._editor === openedEditor) {
 				//
 				this._widget.show(range);
-				this._widget.focus();
+				this._widget.focusOnReferenceTree();
 
 			} else {
 				// we opened a different editor instance which means a different controller instance.
@@ -279,6 +289,18 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 		fn(controller);
 	}
 }
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'changePeekFocus',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.F2),
+	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
+	handler(accessor) {
+		withController(accessor, controller => {
+			controller.changeFocusBetweenPreviewAndReferences();
+		});
+	}
+});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReference',
@@ -361,12 +383,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ctxReferenceWidgetSearchTreeFocused),
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
-		const focus = listService.lastFocusedList && listService.lastFocusedList.getFocus();
-		if (focus instanceof OneReference) {
-			withController(accessor, controller => controller.openReference(focus, true));
+		const focus = <any[]>listService.lastFocusedList?.getFocus();
+		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
+			withController(accessor, controller => controller.openReference(focus[0], true));
 		}
 	}
 });

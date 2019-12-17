@@ -59,6 +59,10 @@ export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.getFoldingRanges(embedded, {});
 		},
+		getSelectionRange(document: TextDocument, position: Position) {
+			let embedded = embeddedCSSDocuments.get(document);
+			return cssLanguageService.getSelectionRanges(embedded, [position], cssStylesheets.get(embedded))[0];
+		},
 		onDocumentRemoved(document: TextDocument) {
 			embeddedCSSDocuments.onDocumentRemoved(document);
 			cssStylesheets.onDocumentRemoved(document);

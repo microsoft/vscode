@@ -26,6 +26,7 @@ export class FastDomNode<T extends HTMLElement> {
 	private _position: string;
 	private _visibility: string;
 	private _layerHint: boolean;
+	private _contain: 'none' | 'strict' | 'content' | 'size' | 'layout' | 'style' | 'paint';
 
 	constructor(domNode: T) {
 		this.domNode = domNode;
@@ -47,6 +48,7 @@ export class FastDomNode<T extends HTMLElement> {
 		this._position = '';
 		this._visibility = '';
 		this._layerHint = false;
+		this._contain = 'none';
 	}
 
 	public setMaxWidth(maxWidth: number): void {
@@ -203,7 +205,15 @@ export class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._layerHint = layerHint;
-		(<any>this.domNode.style).willChange = this._layerHint ? 'transform' : 'auto';
+		this.domNode.style.transform = this._layerHint ? 'translate3d(0px, 0px, 0px)' : '';
+	}
+
+	public setContain(contain: 'none' | 'strict' | 'content' | 'size' | 'layout' | 'style' | 'paint'): void {
+		if (this._contain === contain) {
+			return;
+		}
+		this._contain = contain;
+		(<any>this.domNode.style).contain = this._contain;
 	}
 
 	public setAttribute(name: string, value: string): void {

@@ -78,7 +78,10 @@ export class DebugHoverWidget implements IContentWidget {
 			ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
-			horizontalScrolling: true
+			horizontalScrolling: true,
+			overrideStyles: {
+				listBackground: editorHoverBackground
+			}
 		});
 
 		this.valueContainer = $('.value');

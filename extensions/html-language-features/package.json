@@ -161,6 +161,12 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
+        "html.mirrorCursorOnMatchingTag": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%html.mirrorCursorOnMatchingTag%"
+        },
         "html.trace.server": {
           "type": "string",
           "scope": "window",
@@ -172,6 +178,14 @@
           "default": "off",
           "description": "%html.trace.server.desc%"
         }
+      }
+    },
+    "configurationDefaults": {
+      "[html]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[handlebars]": {
+        "editor.suggest.insertMode": "replace"
       }
     },
     "jsonValidation": [

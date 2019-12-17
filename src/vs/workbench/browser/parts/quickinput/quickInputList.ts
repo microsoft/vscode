@@ -7,7 +7,7 @@ import 'vs/css!./media/quickInput';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchList, IWorkbenchListOptions } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
@@ -22,13 +22,13 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { memoize } from 'vs/base/common/decorators';
 import { range } from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
-import { listFocusBackground, pickerGroupBorder, pickerGroupForeground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { listFocusBackground, pickerGroupBorder, pickerGroupForeground, activeContrastBorder, listFocusForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
-import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { QUICK_INPUT_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -222,6 +222,7 @@ export class QuickInputList {
 	matchOnDescription = false;
 	matchOnDetail = false;
 	matchOnLabel = true;
+	sortByLabel = true;
 	private readonly _onChangedAllVisibleChecked = new Emitter<boolean>();
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
 	private readonly _onChangedCheckedCount = new Emitter<number>();
@@ -251,8 +252,11 @@ export class QuickInputList {
 			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
-			horizontalScrolling: false
-		} as IListOptions<ListElement>);
+			horizontalScrolling: false,
+			overrideStyles: {
+				listBackground: QUICK_INPUT_BACKGROUND
+			}
+		} as IWorkbenchListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
@@ -468,18 +472,19 @@ export class QuickInputList {
 		this.list.domFocus();
 	}
 
-	layout(): void {
+	layout(maxHeight?: number): void {
+		this.list.getHTMLElement().style.maxHeight = maxHeight ? `calc(${Math.floor(maxHeight / 44) * 44}px)` : '';
 		this.list.layout();
 	}
 
 	filter(query: string) {
-		if (!(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+		if (!(this.sortByLabel || this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
 			return;
 		}
 		query = query.trim();
 
 		// Reset filtering
-		if (!query) {
+		if (!query || !(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
 			this.elements.forEach(element => {
 				element.labelHighlights = undefined;
 				element.descriptionHighlights = undefined;
@@ -515,7 +520,7 @@ export class QuickInputList {
 		const shownElements = this.elements.filter(element => !element.hidden);
 
 		// Sort by value
-		if (query) {
+		if (this.sortByLabel && query) {
 			const normalizedSearchValue = query.toLowerCase();
 			shownElements.sort((a, b) => {
 				return compareEntries(a, b, normalizedSearchValue);
@@ -590,18 +595,21 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 }
 
 registerThemingParticipant((theme, collector) => {
+	// Override inactive focus foreground with active focus foreground for single-pick case.
+	const listInactiveFocusForeground = theme.getColor(listFocusForeground);
+	if (listInactiveFocusForeground) {
+		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { color:  ${listInactiveFocusForeground}; }`);
+	}
 	// Override inactive focus background with active focus background for single-pick case.
 	const listInactiveFocusBackground = theme.getColor(listFocusBackground);
 	if (listInactiveFocusBackground) {
 		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { background-color:  ${listInactiveFocusBackground}; }`);
 		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused:hover { background-color:  ${listInactiveFocusBackground}; }`);
 	}
+	// dotted instead of solid (as in listWidget.ts) to match QuickOpen
 	const activeContrast = theme.getColor(activeContrastBorder);
 	if (activeContrast) {
-		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { border: 1px dotted ${activeContrast}; }`);
-		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row { border: 1px solid transparent; }`);
-		collector.addRule(`.quick-input-list .monaco-list .quick-input-list-entry { padding: 0 5px; height: 18px; align-items: center; }`);
-		collector.addRule(`.quick-input-list .monaco-list .quick-input-list-entry-action-bar { margin-top: 0; }`);
+		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { outline: 1px dotted ${activeContrast}; outline-offset: -1px; }`);
 	}
 	const pickerGroupBorderColor = theme.getColor(pickerGroupBorder);
 	if (pickerGroupBorderColor) {

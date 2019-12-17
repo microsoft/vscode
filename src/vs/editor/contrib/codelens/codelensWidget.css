@@ -27,8 +27,14 @@
 	cursor: pointer;
 }
 
-.monaco-editor .codelens-decoration.invisible-cl {
-	opacity: 0;
+.monaco-editor .codelens-decoration .codicon {
+	line-height: inherit;
+	font-size: inherit;
+}
+
+.monaco-editor .codelens-decoration > a:hover .codicon::before {
+	text-decoration: underline;
+	cursor: pointer;
 }
 
 @keyframes fadein {

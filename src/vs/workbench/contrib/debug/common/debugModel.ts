@@ -122,7 +122,7 @@ export class ExpressionContainer implements IExpressionContainer {
 					new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
 				: [];
 		} catch (e) {
-			return [new Variable(this.session, this.threadId, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, undefined, false)];
+			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, { kind: 'virtual' }, undefined, false)];
 		}
 	}
 
@@ -157,6 +157,11 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.session = session;
 		try {
 			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			if (response && response.success === false) {
+				this.value = response.message || '';
+				return false;
+			}
+
 			if (response && response.body) {
 				this.value = response.body.result || '';
 				this.reference = response.body.variablesReference;
@@ -743,13 +748,14 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 	constructor(
-		public label: string,
+		public description: string,
 		public dataId: string,
 		public canPersist: boolean,
 		enabled: boolean,
 		hitCondition: string | undefined,
 		condition: string | undefined,
 		logMessage: string | undefined,
+		private accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
@@ -757,8 +763,9 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 	toJSON(): any {
 		const result = super.toJSON();
-		result.label = this.label;
-		result.dataid = this.dataId;
+		result.description = this.description;
+		result.dataId = this.dataId;
+		result.accessTypes = this.accessTypes;
 
 		return result;
 	}
@@ -772,7 +779,7 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 	}
 
 	toString(): string {
-		return this.label;
+		return this.description;
 	}
 }
 
@@ -810,9 +817,9 @@ export class DebugModel implements IDebugModel {
 	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsActivated = true;
-	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent | undefined>;
-	private readonly _onDidChangeCallStack: Emitter<void>;
-	private readonly _onDidChangeWatchExpressions: Emitter<IExpression | undefined>;
+	private readonly _onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent | undefined>();
+	private readonly _onDidChangeCallStack = new Emitter<void>();
+	private readonly _onDidChangeWatchExpressions = new Emitter<IExpression | undefined>();
 
 	constructor(
 		private breakpoints: Breakpoint[],
@@ -824,9 +831,6 @@ export class DebugModel implements IDebugModel {
 	) {
 		this.sessions = [];
 		this.toDispose = [];
-		this._onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent>();
-		this._onDidChangeCallStack = new Emitter<void>();
-		this._onDidChangeWatchExpressions = new Emitter<IExpression>();
 	}
 
 	getId(): string {
@@ -1077,7 +1081,7 @@ export class DebugModel implements IDebugModel {
 				if (first.column && second.column) {
 					return first.column - second.column;
 				}
-				return -1;
+				return 1;
 			}
 
 			return first.lineNumber - second.lineNumber;
@@ -1093,6 +1097,9 @@ export class DebugModel implements IDebugModel {
 			}
 
 			element.enabled = enable;
+			if (enable) {
+				this.breakpointsActivated = true;
+			}
 
 			this._onDidChangeBreakpoints.fire({ changed: changed });
 		}
@@ -1119,6 +1126,9 @@ export class DebugModel implements IDebugModel {
 			}
 			dbp.enabled = enable;
 		});
+		if (enable) {
+			this.breakpointsActivated = true;
+		}
 
 		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}
@@ -1151,8 +1161,8 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed });
 	}
 
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean): void {
-		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined);
+	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined): void {
+		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes);
 		this.dataBreakopints.push(newDataBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint] });
 	}

@@ -35,7 +35,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 			return false; // no dirty: no veto
 		}
 
-		if (!this.isHotExitEnabled) {
+		if (!this.filesConfigurationService.isHotExitEnabled) {
 			return true; // dirty without backup: veto
 		}
 

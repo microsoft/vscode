@@ -15,7 +15,7 @@ import { exists, stat, chmod, rimraf, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/ba
 import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, encodeStream, UTF8_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer, isUTFEncoding } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
@@ -31,18 +31,16 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ConfirmResult } from 'vs/workbench/common/editor';
 import { assign } from 'vs/base/common/objects';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -52,22 +50,21 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IHistoryService historyService: IHistoryService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IElectronService private readonly electronService: IElectronService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, configurationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, contextKeyService, dialogService, fileDialogService, editorService, textResourceConfigurationService);
+		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService);
 	}
 
 	private _encoding: EncodingOracle | undefined;
@@ -317,16 +314,6 @@ export class NativeTextFileService extends AbstractTextFileService {
 	protected getWindowCount(): Promise<number> {
 		return this.electronService.getWindowCount();
 	}
-
-	async confirmSave(resources?: URI[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment) {
-			if (!this.environmentService.args['extension-development-confirm-save']) {
-				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
-			}
-		}
-
-		return super.confirmSave(resources);
-	}
 }
 
 export interface IEncodingOverride {
@@ -363,8 +350,9 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		// Global settings
 		defaultEncodingOverrides.push({ parent: this.environmentService.userRoamingDataHome, encoding: UTF8 });
 
-		// Workspace files
+		// Workspace files (via extension and via untitled workspaces location)
 		defaultEncodingOverrides.push({ extension: WORKSPACE_EXTENSION, encoding: UTF8 });
+		defaultEncodingOverrides.push({ parent: this.environmentService.untitledWorkspacesHome, encoding: UTF8 });
 
 		// Folder Settings
 		this.contextService.getWorkspace().folders.forEach(folder => {
@@ -388,7 +376,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		if (!overwriteEncoding && encoding === UTF8) {
 			try {
 				const buffer = (await this.fileService.readFile(resource, { length: UTF8_BOM.length })).value;
-				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8) {
+				if (detectEncodingByBOMFromBuffer(buffer, buffer.byteLength) === UTF8_with_bom) {
 					return { encoding, addBOM: true };
 				}
 			} catch (error) {
@@ -413,7 +401,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 		// Encoding passed in as option
 		if (options?.encoding) {
-			if (detectedEncoding === UTF8 && options.encoding === UTF8) {
+			if (detectedEncoding === UTF8_with_bom && options.encoding === UTF8) {
 				preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
 			} else {
 				preferredEncoding = options.encoding; // give passed in encoding highest priority
@@ -422,11 +410,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 		// Encoding detected
 		else if (detectedEncoding) {
-			if (detectedEncoding === UTF8) {
-				preferredEncoding = UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
-			} else {
-				preferredEncoding = detectedEncoding;
-			}
+			preferredEncoding = detectedEncoding;
 		}
 
 		// Encoding configured

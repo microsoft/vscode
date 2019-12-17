@@ -97,13 +97,18 @@ export interface IProductConfiguration {
 
 	readonly portable?: string;
 
-	readonly extensionKind?: { readonly [extensionId: string]: ExtensionKind | ExtensionKind[]; };
+	readonly extensionKind?: { readonly [extensionId: string]: ExtensionKind[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
-	readonly settingsSyncStoreUrl?: string;
+	readonly auth?: {
+		loginUrl: string;
+		tokenUrl: string;
+		redirectUrl: string;
+		clientId: string;
+	};
 }
 
 export interface IExeBasedExtensionTip {

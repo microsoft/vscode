@@ -13,6 +13,7 @@ import * as converter from './extHostTypeConverters';
 import { mergeSort } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { keys } from 'vs/base/common/map';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -253,7 +254,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(Event.debounce(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);
 
-	constructor(mainContext: IMainContext) {
+	constructor(mainContext: IMainContext, @ILogService private readonly _logService: ILogService) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
 	}
 
@@ -266,7 +267,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		} else if (!_collections.has(name)) {
 			owner = name;
 		} else {
-			console.warn(`DiagnosticCollection with name '${name}' does already exist.`);
+			this._logService.warn(`DiagnosticCollection with name '${name}' does already exist.`);
 			do {
 				owner = name + ExtHostDiagnostics._idPool++;
 			} while (_collections.has(owner));

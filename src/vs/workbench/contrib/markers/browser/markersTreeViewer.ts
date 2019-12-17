@@ -37,7 +37,7 @@ import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/com
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -314,6 +314,7 @@ class MarkerWidget extends Disposable {
 		const lineMatches = filterData && filterData.lineMatches || [];
 
 		let lastLineElement: HTMLElement | undefined = undefined;
+		this.messageAndDetailsContainer.title = element.marker.message;
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
 			lastLineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
 			const messageElement = dom.append(lastLineElement, dom.$('.marker-message'));
@@ -425,16 +426,21 @@ export class Filter implements ITreeFilter<TreeElement, FilterData> {
 	}
 
 	private filterMarker(marker: Marker, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		if (this.options.filterErrors && MarkerSeverity.Error === marker.marker.severity) {
-			return true;
+		let shouldAppear: boolean = false;
+		if (this.options.showErrors && MarkerSeverity.Error === marker.marker.severity) {
+			shouldAppear = true;
 		}
 
-		if (this.options.filterWarnings && MarkerSeverity.Warning === marker.marker.severity) {
-			return true;
+		if (this.options.showWarnings && MarkerSeverity.Warning === marker.marker.severity) {
+			shouldAppear = true;
 		}
 
-		if (this.options.filterInfos && MarkerSeverity.Info === marker.marker.severity) {
-			return true;
+		if (this.options.showInfos && MarkerSeverity.Info === marker.marker.severity) {
+			shouldAppear = true;
+		}
+
+		if (!shouldAppear) {
+			return false;
 		}
 
 		if (!this.options.textFilter) {
@@ -546,7 +552,7 @@ export class MarkerViewModel extends Disposable {
 				if (model) {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
-							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } }, cancellationToken).then(actions => {
+							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { include: CodeActionKind.QuickFix } }, cancellationToken).then(actions => {
 								return this._register(actions);
 							});
 						});
@@ -558,7 +564,7 @@ export class MarkerViewModel extends Disposable {
 	}
 
 	private toActions(codeActions: CodeActionSet): IAction[] {
-		return codeActions.actions.map(codeAction => new Action(
+		return codeActions.validActions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,
 			undefined,

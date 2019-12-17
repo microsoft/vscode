@@ -8,10 +8,10 @@ import * as peekView from 'vs/editor/contrib/peekView/peekView';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
-import { IAsyncDataTreeOptions, IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { localize } from 'vs/nls';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -49,10 +49,10 @@ class ChangeHierarchyDirectionAction extends Action {
 		});
 		const update = () => {
 			if (getDirection() === CallHierarchyDirection.CallsFrom) {
-				this.label = localize('toggle.from', "Showing Calls");
+				this.label = localize('toggle.from', "Show Incoming Calls");
 				this.class = 'calls-from';
 			} else {
-				this.label = localize('toggle.to', "Showing Callers");
+				this.label = localize('toggle.to', "Showing Outgoing Calls");
 				this.class = 'calls-to';
 			}
 		};
@@ -175,7 +175,8 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
-				horizontalHasArrows: false
+				horizontalHasArrows: false,
+				alwaysConsumeMouseWheel: false
 			},
 			overviewRulerLanes: 2,
 			fixedOverflowWidgets: true,
@@ -194,11 +195,14 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		const treeContainer = document.createElement('div');
 		addClass(treeContainer, 'tree');
 		container.appendChild(treeContainer);
-		const options: IAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
+		const options: IWorkbenchAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
 			sorter: new callHTree.Sorter(),
 			identityProvider: new callHTree.IdentityProvider(() => this._direction),
 			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,
+			overrideStyles: {
+				listBackground: peekView.peekViewResultsBackground
+			}
 		};
 		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
@@ -322,7 +326,11 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		// set decorations for caller ranges (if in the same file)
 		let decorations: IModelDeltaDecoration[] = [];
 		let fullRange: IRange | undefined;
-		for (const loc of element.locations) {
+		let locations = element.locations;
+		if (!locations) {
+			locations = [{ uri: element.item.uri, range: element.item.selectionRange }];
+		}
+		for (const loc of locations) {
 			if (loc.uri.toString() === previewUri.toString()) {
 				decorations.push({ range: loc.range, options });
 				fullRange = !fullRange ? loc.range : Range.plusRange(loc.range, fullRange);
@@ -421,7 +429,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 	}
 
 	protected _doLayoutBody(height: number, width: number): void {
-		if (this._dim.height !== height || this._dim.width === width) {
+		if (this._dim.height !== height || this._dim.width !== width) {
 			super._doLayoutBody(height, width);
 			this._dim = { height, width };
 			this._layoutInfo.height = this._viewZone ? this._viewZone.heightInLines : this._layoutInfo.height;

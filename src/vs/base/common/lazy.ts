@@ -55,6 +55,11 @@ export class Lazy<T> {
 	}
 
 	/**
+	 * Get the wrapped value without forcing evaluation.
+	 */
+	get rawValue(): T | undefined { return this._value; }
+
+	/**
 	 * Create a new lazy value that is the result of applying `f` to the wrapped value.
 	 *
 	 * This does not force the evaluation of the current lazy value.

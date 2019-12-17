@@ -10,34 +10,39 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { getWebviewContentMimeType } from 'vs/workbench/contrib/webview/common/mimeTypes';
+import { isUNC } from 'vs/base/common/extpath';
 
 export const WebviewResourceScheme = 'vscode-resource';
 
-class Success {
-	readonly type = 'success';
+export namespace WebviewResourceResponse {
+	export enum Type { Success, Failed, AccessDenied }
 
-	constructor(
-		public readonly data: VSBuffer,
-		public readonly mimeType: string
-	) { }
+	export class Success {
+		readonly type = Type.Success;
+
+		constructor(
+			public readonly data: VSBuffer,
+			public readonly mimeType: string
+		) { }
+	}
+
+	export const Failed = { type: Type.Failed } as const;
+	export const AccessDenied = { type: Type.AccessDenied } as const;
+
+	export type Response = Success | typeof Failed | typeof AccessDenied;
+
 }
-
-const Failed = new class { readonly type = 'failed'; };
-const AccessDenied = new class { readonly type = 'access-denied'; };
-
-type LocalResourceResponse = Success | typeof Failed | typeof AccessDenied;
-
 async function resolveContent(
 	fileService: IFileService,
 	resource: URI,
 	mime: string
-): Promise<LocalResourceResponse> {
+): Promise<WebviewResourceResponse.Response> {
 	try {
 		const contents = await fileService.readFile(resource);
-		return new Success(contents.value, mime);
+		return new WebviewResourceResponse.Success(contents.value, mime);
 	} catch (err) {
 		console.log(err);
-		return Failed;
+		return WebviewResourceResponse.Failed;
 	}
 }
 
@@ -46,7 +51,7 @@ export async function loadLocalResource(
 	fileService: IFileService,
 	extensionLocation: URI | undefined,
 	getRoots: () => ReadonlyArray<URI>
-): Promise<LocalResourceResponse> {
+): Promise<WebviewResourceResponse.Response> {
 	const normalizedPath = normalizeRequestPath(requestUri);
 
 	for (const root of getRoots()) {
@@ -69,7 +74,7 @@ export async function loadLocalResource(
 		}
 	}
 
-	return AccessDenied;
+	return WebviewResourceResponse.AccessDenied;
 }
 
 function normalizeRequestPath(requestUri: URI) {
@@ -79,7 +84,10 @@ function normalizeRequestPath(requestUri: URI) {
 
 	// Modern vscode-resources uris put the scheme of the requested resource as the authority
 	if (requestUri.authority) {
-		return URI.parse(requestUri.authority + ':' + requestUri.path);
+		return URI.parse(`${requestUri.authority}:${encodeURIComponent(requestUri.path).replace(/%2F/g, '/')}`).with({
+			query: requestUri.query,
+			fragment: requestUri.fragment
+		});
 	}
 
 	// Old style vscode-resource uris lose the scheme of the resource which means they are unable to
@@ -88,6 +96,13 @@ function normalizeRequestPath(requestUri: URI) {
 }
 
 function containsResource(root: URI, resource: URI): boolean {
-	const rootPath = root.fsPath + (endsWith(root.fsPath, sep) ? '' : sep);
+	let rootPath = root.fsPath + (endsWith(root.fsPath, sep) ? '' : sep);
+	let resourceFsPath = resource.fsPath;
+
+	if (isUNC(root.fsPath) && isUNC(resource.fsPath)) {
+		rootPath = rootPath.toLowerCase();
+		resourceFsPath = resourceFsPath.toLowerCase();
+	}
+
 	return startsWith(resource.fsPath, rootPath);
 }

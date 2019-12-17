@@ -32,17 +32,24 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 	_serviceBrand: undefined;
 
+	private _context: IVariableResolveContext;
+	private _envVariables?: IProcessEnvironment;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
-	constructor(
-		private _context: IVariableResolveContext,
-		private _envVariables: IProcessEnvironment
-	) {
-		if (isWindows && _envVariables) {
-			this._envVariables = Object.create(null);
-			Object.keys(_envVariables).forEach(key => {
-				this._envVariables[key.toLowerCase()] = _envVariables[key];
-			});
+
+	constructor(_context: IVariableResolveContext, _envVariables?: IProcessEnvironment) {
+		this._context = _context;
+		if (_envVariables) {
+			if (isWindows) {
+				// windows env variables are case insensitive
+				const ev: IProcessEnvironment = Object.create(null);
+				this._envVariables = ev;
+				Object.keys(_envVariables).forEach(key => {
+					ev[key.toLowerCase()] = _envVariables[key];
+				});
+			} else {
+				this._envVariables = _envVariables;
+			}
 		}
 	}
 
@@ -180,14 +187,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			case 'env':
 				if (argument) {
-					if (isWindows) {
-						argument = argument.toLowerCase();
+					if (this._envVariables) {
+						const env = this._envVariables[isWindows ? argument.toLowerCase() : argument];
+						if (types.isString(env)) {
+							return env;
+						}
 					}
-					const env = this._envVariables[argument];
-					if (types.isString(env)) {
-						return env;
-					}
-					// For `env` we should do the same as a normal shell does - evaluates missing envs to an empty string #46436
+					// For `env` we should do the same as a normal shell does - evaluates undefined envs to an empty string #46436
 					return '';
 				}
 				throw new Error(localize('missingEnvVarName', "'{0}' can not be resolved because no environment variable name is given.", match));

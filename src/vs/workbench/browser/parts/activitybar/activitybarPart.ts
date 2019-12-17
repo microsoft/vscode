@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
@@ -24,7 +24,7 @@ import { Dimension, addClass, removeNode } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -68,6 +68,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private globalActivityAction: ActivityAction | undefined;
 	private globalActivityActionBar: ActionBar | undefined;
+	private globalActivity: ICompositeActivity[] = [];
 
 	private customMenubar: CustomMenubarControl | undefined;
 	private menubar: HTMLElement | undefined;
@@ -83,7 +84,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -202,18 +203,68 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		if (viewletOrActionId === GLOBAL_ACTIVITY_ID) {
-			return this.showGlobalActivity(badge, clazz);
+			return this.showGlobalActivity(badge, clazz, priority);
 		}
 
 		return Disposable.None;
 	}
 
-	private showGlobalActivity(badge: IBadge, clazz?: string): IDisposable {
+	private showGlobalActivity(badge: IBadge, clazz?: string, priority?: number): IDisposable {
+		if (typeof priority !== 'number') {
+			priority = 0;
+		}
+		const activity: ICompositeActivity = { badge, clazz, priority };
+
+		for (let i = 0; i <= this.globalActivity.length; i++) {
+			if (i === this.globalActivity.length) {
+				this.globalActivity.push(activity);
+				break;
+			} else if (this.globalActivity[i].priority <= priority) {
+				this.globalActivity.splice(i, 0, activity);
+				break;
+			}
+		}
+		this.updateGlobalActivity();
+
+		return toDisposable(() => this.removeGlobalActivity(activity));
+	}
+
+	private removeGlobalActivity(activity: ICompositeActivity): void {
+		const index = this.globalActivity.indexOf(activity);
+		if (index !== -1) {
+			this.globalActivity.splice(index, 1);
+			this.updateGlobalActivity();
+		}
+	}
+
+	private updateGlobalActivity(): void {
 		const globalActivityAction = assertIsDefined(this.globalActivityAction);
+		if (this.globalActivity.length) {
+			const [{ badge, clazz, priority }] = this.globalActivity;
+			if (badge instanceof NumberBadge && this.globalActivity.length > 1) {
+				const cumulativeNumberBadge = this.getCumulativeNumberBadge(priority);
+				globalActivityAction.setBadge(cumulativeNumberBadge);
+			} else {
+				globalActivityAction.setBadge(badge, clazz);
+			}
+		} else {
+			globalActivityAction.setBadge(undefined);
+		}
+	}
 
-		globalActivityAction.setBadge(badge, clazz);
-
-		return toDisposable(() => globalActivityAction.setBadge(undefined));
+	private getCumulativeNumberBadge(priority: number): NumberBadge {
+		const numberActivities = this.globalActivity.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
+		let number = numberActivities.reduce((result, activity) => { return result + (<NumberBadge>activity.badge).number; }, 0);
+		let descriptorFn = (): string => {
+			return numberActivities.reduce((result, activity, index) => {
+				result = result + (<NumberBadge>activity.badge).getDescription();
+				if (index < numberActivities.length - 1) {
+					result = result + '\n';
+				}
+				return result;
+			}, '');
+		};
+		return new NumberBadge(number, descriptorFn);
 	}
 
 	private uninstallMenubar() {

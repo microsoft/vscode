@@ -38,7 +38,7 @@ class OpenSCMViewletAction extends ShowViewletAction {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	SCMViewlet,
 	VIEWLET_ID,
 	localize('source control', "Source Control"),
@@ -51,7 +51,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
+	SyncActionDescriptor.create(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
 		primary: 0,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
@@ -81,6 +81,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.diffDecorations': {
 			type: 'string',
 			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],
+			enumDescriptions: [
+				localize('scm.diffDecorations.all', "Show the diff decorations in all available locations."),
+				localize('scm.diffDecorations.gutter', "Show the diff decorations only in the editor gutter."),
+				localize('scm.diffDecorations.overviewRuler', "Show the diff decorations only in the overview ruler."),
+				localize('scm.diffDecorations.minimap', "Show the diff decorations only in the minimap."),
+				localize('scm.diffDecorations.none', "Do not show the diff decorations.")
+			],
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},

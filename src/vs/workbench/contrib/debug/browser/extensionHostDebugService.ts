@@ -18,6 +18,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient implements IExtensionHostDebugService {
 
@@ -25,7 +26,8 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@ILogService logService: ILogService
 	) {
 		const connection = remoteAgentService.getConnection();
 		let channel: IChannel;
@@ -34,7 +36,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		} else {
 			channel = { call: async () => undefined, listen: () => Event.None } as any;
 			// TODO@weinand TODO@isidorn fallback?
-			console.warn('Extension Host Debugging not available due to missing connection.');
+			logService.warn('Extension Host Debugging not available due to missing connection.');
 		}
 
 		super(channel);
@@ -43,7 +45,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			this.workspaceProvider = environmentService.options.workspaceProvider;
 		} else {
 			this.workspaceProvider = { open: async () => undefined, workspace: undefined };
-			console.warn('Extension Host Debugging not available due to missing workspace provider.');
+			logService.warn('Extension Host Debugging not available due to missing workspace provider.');
 		}
 
 		// Reload window on reload request
@@ -62,11 +64,6 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	}
 
 	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment): Promise<void> {
-
-		if (!this.workspaceProvider.payload) {
-			// TODO@Ben remove me once environment is adopted
-			return this.openExtensionDevelopmentHostWindowLegacy(args);
-		}
 
 		// Find out which workspace to open debug window on
 		let debugWorkspace: IWorkspace = undefined;
@@ -113,66 +110,6 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			reuse: false, 							// debugging always requires a new window
 			payload: mapToSerializable(environment)	// mandatory properties to enable debugging
 		});
-	}
-
-	private openExtensionDevelopmentHostWindowLegacy(args: string[]): Promise<void> {
-		// we pass the "args" as query parameters of the URL
-
-		let newAddress = `${document.location.origin}${document.location.pathname}?`;
-		let gotFolder = false;
-
-		const addQueryParameter = (key: string, value: string) => {
-			const lastChar = newAddress.charAt(newAddress.length - 1);
-			if (lastChar !== '?' && lastChar !== '&') {
-				newAddress += '&';
-			}
-			newAddress += `${key}=${encodeURIComponent(value)}`;
-		};
-
-		const findArgument = (key: string) => {
-			for (let a of args) {
-				const k = `--${key}=`;
-				if (a.indexOf(k) === 0) {
-					return a.substr(k.length);
-				}
-			}
-			return undefined;
-		};
-
-		const f = findArgument('folder-uri');
-		if (f) {
-			const u = URI.parse(f);
-			gotFolder = true;
-			addQueryParameter('folder', u.path);
-		}
-		if (!gotFolder) {
-			// request empty window
-			addQueryParameter('ew', 'true');
-		}
-
-		const ep = findArgument('extensionDevelopmentPath');
-		if (ep) {
-			addQueryParameter('extensionDevelopmentPath', ep);
-		}
-
-		const etp = findArgument('extensionTestsPath');
-		if (etp) {
-			addQueryParameter('extensionTestsPath', etp);
-		}
-
-		const di = findArgument('debugId');
-		if (di) {
-			addQueryParameter('debugId', di);
-		}
-
-		const ibe = findArgument('inspect-brk-extensions');
-		if (ibe) {
-			addQueryParameter('inspect-brk-extensions', ibe);
-		}
-
-		window.open(newAddress);
-
-		return Promise.resolve();
 	}
 
 	private findArgument(key: string, args: string[]): string | undefined {

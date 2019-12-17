@@ -14,6 +14,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { escapeCodicons } from 'vs/base/common/codicons';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -29,8 +30,8 @@ function es5ClassCompat(target: Function): any {
 @es5ClassCompat
 export class Disposable {
 
-	static from(...inDisposables: { dispose(): any }[]): Disposable {
-		let disposables: ReadonlyArray<{ dispose(): any }> | undefined = inDisposables;
+	static from(...inDisposables: { dispose(): any; }[]): Disposable {
+		let disposables: ReadonlyArray<{ dispose(): any; }> | undefined = inDisposables;
 		return new Disposable(function () {
 			if (disposables) {
 				for (const disposable of disposables) {
@@ -333,9 +334,9 @@ export class Range {
 		return this._start.line === this._end.line;
 	}
 
-	with(change: { start?: Position, end?: Position }): Range;
+	with(change: { start?: Position, end?: Position; }): Range;
 	with(start?: Position, end?: Position): Range;
-	with(startOrChange: Position | undefined | { start?: Position, end?: Position }, end: Position = this.end): Range {
+	with(startOrChange: Position | undefined | { start?: Position, end?: Position; }, end: Position = this.end): Range {
 
 		if (startOrChange === null || end === null) {
 			throw illegalArgument();
@@ -589,15 +590,15 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	private _edits = new Array<IFileOperation | IFileTextEdit>();
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void {
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }): void {
 		this._edits.push({ _type: 1, from, to, options });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void {
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }): void {
 		this._edits.push({ _type: 1, from: undefined, to: uri, options });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }): void {
+	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }): void {
 		this._edits.push({ _type: 1, from: uri, to: undefined, options });
 	}
 
@@ -736,6 +737,18 @@ export class SnippetString {
 		this.value += ':';
 		this.value += value;
 		this.value += '}';
+
+		return this;
+	}
+
+	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
+		const value = SnippetString._escape(values.toString());
+
+		this.value += '${';
+		this.value += number;
+		this.value += '|';
+		this.value += value;
+		this.value += '|}';
 
 		return this;
 	}
@@ -1142,6 +1155,10 @@ export class SelectionRange {
 }
 
 export class CallHierarchyItem {
+
+	_sessionId?: string;
+	_itemId?: string;
+
 	kind: SymbolKind;
 	name: string;
 	detail?: string;
@@ -1215,21 +1232,25 @@ export class MarkdownString {
 
 	value: string;
 	isTrusted?: boolean;
+	readonly supportThemeIcons?: boolean;
 
-	constructor(value?: string) {
-		this.value = value || '';
+	constructor(value?: string, supportThemeIcons: boolean = false) {
+		this.value = value ?? '';
+		this.supportThemeIcons = supportThemeIcons;
 	}
 
 	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += value
+		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
 			.replace('\n', '\n\n');
+
 		return this;
 	}
 
 	appendMarkdown(value: string): MarkdownString {
 		this.value += value;
+
 		return this;
 	}
 
@@ -1496,7 +1517,7 @@ export class Color {
 	}
 }
 
-export type IColorFormat = string | { opaque: string, transparent: string };
+export type IColorFormat = string | { opaque: string, transparent: string; };
 
 @es5ClassCompat
 export class ColorInformation {
@@ -2051,13 +2072,13 @@ export class TreeItem {
 
 	label?: string | vscode.TreeItemLabel;
 	resourceUri?: URI;
-	iconPath?: string | URI | { light: string | URI; dark: string | URI };
+	iconPath?: string | URI | { light: string | URI; dark: string | URI; };
 	command?: vscode.Command;
 	contextValue?: string;
 	tooltip?: string;
 
-	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState)
-	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)
+	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState);
+	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState);
 	constructor(arg1: string | vscode.TreeItemLabel | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
 		if (URI.isUri(arg1)) {
 			this.resourceUri = arg1;
@@ -2234,16 +2255,14 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	}
 }
 
-/*
 @es5ClassCompat
-export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
-	readonly implementation: any;
+export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInlineImplementation {
+	readonly implementation: vscode.DebugAdapter;
 
-	constructor(transport: any) {
-		this.implementation = transport;
+	constructor(impl: vscode.DebugAdapter) {
+		this.implementation = impl;
 	}
 }
-*/
 
 export enum LogLevel {
 	Trace = 1,
@@ -2348,6 +2367,91 @@ export enum CommentThreadCollapsibleState {
 export enum CommentMode {
 	Editing = 0,
 	Preview = 1
+}
+
+//#endregion
+
+//#region Semantic Coloring
+
+export class SemanticTokensLegend {
+	public readonly tokenTypes: string[];
+	public readonly tokenModifiers: string[];
+
+	constructor(tokenTypes: string[], tokenModifiers: string[]) {
+		this.tokenTypes = tokenTypes;
+		this.tokenModifiers = tokenModifiers;
+	}
+}
+
+export class SemanticTokensBuilder {
+
+	private _prevLine: number;
+	private _prevChar: number;
+	private _data: number[];
+	private _dataLen: number;
+
+	constructor() {
+		this._prevLine = 0;
+		this._prevChar = 0;
+		this._data = [];
+		this._dataLen = 0;
+	}
+
+	public push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void {
+		let pushLine = line;
+		let pushChar = char;
+		if (this._dataLen > 0) {
+			pushLine -= this._prevLine;
+			if (pushLine === 0) {
+				pushChar -= this._prevChar;
+			}
+		}
+
+		this._data[this._dataLen++] = pushLine;
+		this._data[this._dataLen++] = pushChar;
+		this._data[this._dataLen++] = length;
+		this._data[this._dataLen++] = tokenType;
+		this._data[this._dataLen++] = tokenModifiers;
+
+		this._prevLine = line;
+		this._prevChar = char;
+	}
+
+	public build(): Uint32Array {
+		return new Uint32Array(this._data);
+	}
+}
+
+export class SemanticTokens {
+	readonly resultId?: string;
+	readonly data: Uint32Array;
+
+	constructor(data: Uint32Array, resultId?: string) {
+		this.resultId = resultId;
+		this.data = data;
+	}
+}
+
+export class SemanticTokensEdit {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly data?: Uint32Array;
+
+	constructor(start: number, deleteCount: number, data?: Uint32Array) {
+		this.start = start;
+		this.deleteCount = deleteCount;
+		this.data = data;
+	}
+}
+
+export class SemanticTokensEdits {
+	readonly resultId?: string;
+	readonly edits: SemanticTokensEdit[];
+
+	constructor(edits: SemanticTokensEdit[], resultId?: string) {
+		this.resultId = resultId;
+		this.edits = edits;
+	}
 }
 
 //#endregion

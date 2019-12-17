@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorIsSaveableContext, toResource, SideBySideEditor, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorIsReadonlyContext, EditorAreaVisibleContext, DirtyWorkingCopiesContext } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -21,8 +21,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isMacintosh, isLinux, isWindows, isWeb } from 'vs/base/common/platform';
 import { PanelPositionContext } from 'vs/workbench/common/panel';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
 export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
@@ -51,8 +50,10 @@ export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', fa
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
 
+	private dirtyWorkingCopiesContext: IContextKey<boolean>;
+
 	private activeEditorContext: IContextKey<string | null>;
-	private activeEditorIsSaveable: IContextKey<boolean>;
+	private activeEditorIsReadonly: IContextKey<boolean>;
 
 	private activeEditorGroupEmpty: IContextKey<boolean>;
 	private activeEditorGroupIndex: IContextKey<number>;
@@ -75,18 +76,17 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private panelPositionContext: IContextKey<string>;
 
 	constructor(
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
-		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
-		@IViewletService private viewletService: IViewletService,
-		@IFileService private fileService: IFileService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super();
-
 
 		// Platform
 		IsMacContext.bindTo(this.contextKeyService);
@@ -107,7 +107,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Editors
 		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
-		this.activeEditorIsSaveable = ActiveEditorIsSaveableContext.bindTo(this.contextKeyService);
+		this.activeEditorIsReadonly = ActiveEditorIsReadonlyContext.bindTo(this.contextKeyService);
 		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		this.textCompareEditorVisibleContext = TextCompareEditorVisibleContext.bindTo(this.contextKeyService);
 		this.textCompareEditorActiveContext = TextCompareEditorActiveContext.bindTo(this.contextKeyService);
@@ -115,6 +115,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.activeEditorGroupIndex = ActiveEditorGroupIndexContext.bindTo(this.contextKeyService);
 		this.activeEditorGroupLast = ActiveEditorGroupLastContext.bindTo(this.contextKeyService);
 		this.multipleEditorGroupsContext = MultipleEditorGroupsContext.bindTo(this.contextKeyService);
+
+		// Working Copies
+		this.dirtyWorkingCopiesContext = DirtyWorkingCopiesContext.bindTo(this.contextKeyService);
 
 		// Inputs
 		this.inputFocusedContext = InputFocusedContext.bindTo(this.contextKeyService);
@@ -183,6 +186,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
 
 		this._register(this.layoutService.onPartVisibilityChange(() => this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART))));
+
+		this._register(this.workingCopyService.onDidChangeDirty(w => this.dirtyWorkingCopiesContext.set(w.isDirty() || this.workingCopyService.hasDirty)));
 	}
 
 	private updateEditorContextKeys(): void {
@@ -217,13 +222,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		if (activeControl) {
 			this.activeEditorContext.set(activeControl.getId());
-
-			const resource = toResource(activeControl.input, { supportSideBySide: SideBySideEditor.MASTER });
-			const canSave = resource ? this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled : false;
-			this.activeEditorIsSaveable.set(canSave);
+			this.activeEditorIsReadonly.set(activeControl.input.isReadonly());
 		} else {
 			this.activeEditorContext.reset();
-			this.activeEditorIsSaveable.reset();
+			this.activeEditorIsReadonly.reset();
 		}
 	}
 

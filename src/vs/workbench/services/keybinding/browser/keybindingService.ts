@@ -11,7 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Keybinding, ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS, OperatingSystem, isWeb } from 'vs/base/common/platform';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -43,9 +43,10 @@ import * as objects from 'vs/base/common/objects';
 import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { getDispatchConfig } from 'vs/workbench/services/keybinding/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
-import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
+import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 import { flatten } from 'vs/base/common/arrays';
+import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -192,13 +193,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 		});
 		this._register(this.userKeybindings.onDidChange(() => {
-			type CustomKeybindingsChangedClassification = {
-				keyCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true }
-			};
-
-			this._telemetryService.publicLog2<{ keyCount: number }, CustomKeybindingsChangedClassification>('customKeybindingsChanged', {
-				keyCount: this.userKeybindings.keybindings.length
-			});
 			this.updateResolver({
 				source: KeybindingSource.User,
 				keybindings: this.userKeybindings.keybindings
@@ -228,6 +222,28 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}));
 
 		let data = this.keymapService.getCurrentKeyboardLayout();
+		/* __GDPR__FRAGMENT__
+			"IKeyboardLayoutInfo" : {
+				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		/* __GDPR__FRAGMENT__
+			"IKeyboardLayoutInfo" : {
+				"model" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"layout": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"variant": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"options": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"rules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		/* __GDPR__FRAGMENT__
+			"IKeyboardLayoutInfo" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		/* __GDPR__
 			"keyboardLayout" : {
 				"currentKeyboardLayout": { "${inline}": [ "${IKeyboardLayoutInfo}" ] }
@@ -238,16 +254,16 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		});
 
 		this._register(browser.onDidChangeFullscreen(() => {
-			const keyboard = (<INavigatorWithKeyboard>navigator).keyboard;
+			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
 
-			if (!keyboard) {
+			if (BrowserFeatures.keyboard === KeyboardSupport.None) {
 				return;
 			}
 
 			if (browser.isFullscreen()) {
-				keyboard.lock(['Escape']);
+				keyboard?.lock(['Escape']);
 			} else {
-				keyboard.unlock();
+				keyboard?.unlock();
 			}
 
 			// update resolver which will bring back all unbound keyboard shortcuts
@@ -322,7 +338,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				}
 
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (const resolvedKeybinding of resolvedKeybindings) {
+				for (let i = resolvedKeybindings.length - 1; i >= 0; i--) {
+					const resolvedKeybinding = resolvedKeybindings[i];
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
@@ -351,15 +368,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private _assertBrowserConflicts(kb: Keybinding, commandId: string): boolean {
-		if (!isWeb) {
+		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
 			return false;
 		}
 
-		if (browser.isStandalone) {
-			return false;
-		}
-
-		if (browser.isFullscreen() && (<any>navigator).keyboard) {
+		if (BrowserFeatures.keyboard === KeyboardSupport.FullScreen && browser.isFullscreen()) {
 			return false;
 		}
 
@@ -517,7 +530,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		);
 	}
 
-	private static _getDefaultKeybindings(defaultKeybindings: ResolvedKeybindingItem[]): string {
+	private static _getDefaultKeybindings(defaultKeybindings: readonly ResolvedKeybindingItem[]): string {
 		let out = new OutputBuilder();
 		out.writeLine('[');
 
@@ -732,7 +745,6 @@ const keyboardConfiguration: IConfigurationNode = {
 	'order': 15,
 	'type': 'object',
 	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'overridable': true,
 	'properties': {
 		'keyboard.dispatch': {
 			'type': 'string',

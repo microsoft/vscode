@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { basename, normalize, join, } from 'vs/base/common/path';
+import { basename, normalize, join, posix } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
@@ -326,7 +326,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Persist
-		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, getWindowsStateStoreData(currentWindowsState));
+		const state = getWindowsStateStoreData(currentWindowsState);
+		this.logService.trace('onBeforeShutdown', state);
+		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, state);
 	}
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
@@ -496,7 +498,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing, only if opened individually
-		if (!usedWindows.some(window => window.isExtensionDevelopmentHost) && !(fileInputs?.filesToDiff) && !openConfig.noRecentEntry) {
+		const isDiff = fileInputs && fileInputs.filesToDiff.length > 0;
+		if (!usedWindows.some(window => window.isExtensionDevelopmentHost) && !isDiff && !openConfig.noRecentEntry) {
 			const recents: IRecent[] = [];
 			for (let pathToOpen of pathsToOpen) {
 				if (pathToOpen.workspace) {
@@ -1107,8 +1110,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const remoteAuthority = options.remoteAuthority;
 
 		if (remoteAuthority) {
-			// assume it's a folder or workspace file
-
 			const first = anyPath.charCodeAt(0);
 			// make absolute
 			if (first !== CharCode.Slash) {
@@ -1120,11 +1121,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: anyPath });
 
-			if (hasWorkspaceFileExtension(anyPath)) {
-				if (forceOpenWorkspaceAsFile) {
+			// guess the file type: If it ends with a slash it's a folder. If it has a file extension, it's a file or a workspace. By defaults it's a folder.
+			if (anyPath.charCodeAt(anyPath.length - 1) !== CharCode.Slash) {
+				if (hasWorkspaceFileExtension(anyPath)) {
+					if (forceOpenWorkspaceAsFile) {
+						return { fileUri: uri, remoteAuthority };
+					}
+				} else if (posix.extname(anyPath).length > 0) {
 					return { fileUri: uri, remoteAuthority };
 				}
-				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
 			}
 			return { folderUri: uri, remoteAuthority };
 		}
@@ -1378,7 +1383,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
 			let allowFullscreen: boolean;
 			if (state.hasDefaultState) {
-				allowFullscreen = (windowConfig?.newWindowDimensions && ['fullscreen', 'inherit'].indexOf(windowConfig.newWindowDimensions) >= 0);
+				allowFullscreen = (windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
 			}
 
 			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
@@ -1573,7 +1578,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			} else if (windowConfig.newWindowDimensions === 'fullscreen') {
 				state.mode = WindowMode.Fullscreen;
 				ensureNoOverlap = false;
-			} else if (windowConfig.newWindowDimensions === 'inherit' && lastActive) {
+			} else if ((windowConfig.newWindowDimensions === 'inherit' || windowConfig.newWindowDimensions === 'offset') && lastActive) {
 				const lastActiveState = lastActive.serializeWindowState();
 				if (lastActiveState.mode === WindowMode.Fullscreen) {
 					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/Microsoft/vscode/issues/19331)
@@ -1581,7 +1586,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					state = lastActiveState;
 				}
 
-				ensureNoOverlap = false;
+				ensureNoOverlap = state.mode !== WindowMode.Fullscreen && windowConfig.newWindowDimensions === 'offset';
 			}
 		}
 
