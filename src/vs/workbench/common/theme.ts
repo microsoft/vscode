@@ -551,12 +551,12 @@ export const NOTIFICATIONS_BACKGROUND = registerColor('notifications.background'
 	dark: editorWidgetBackground,
 	light: editorWidgetBackground,
 	hc: editorWidgetBackground
-}, nls.localize('notificationsBackground', "Notification Center background color. Notifications shown as a list in the bottom right of the window."));
+}, nls.localize('notificationsBackground', "Notification background color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_TOAST_BACKGROUND = registerColor('notificationsToast.background', {
-	dark: editorWidgetBackground,
-	light: editorWidgetBackground,
-	hc: editorWidgetBackground
+	dark: NOTIFICATIONS_BACKGROUND,
+	light: NOTIFICATIONS_BACKGROUND,
+	hc: NOTIFICATIONS_BACKGROUND
 }, nls.localize('notificationsToastBackground', "Notification Toast background color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_LINKS = registerColor('notificationLink.foreground', {
@@ -572,9 +572,9 @@ export const NOTIFICATIONS_CENTER_HEADER_FOREGROUND = registerColor('notificatio
 }, nls.localize('notificationCenterHeaderForeground', "Notifications center header foreground color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_CENTER_HEADER_BACKGROUND = registerColor('notificationCenterHeader.background', {
-	dark: lighten(editorWidgetBackground, 0.3),
-	light: darken(editorWidgetBackground, 0.05),
-	hc: editorWidgetBackground
+	dark: lighten(NOTIFICATIONS_BACKGROUND, 0.3),
+	light: darken(NOTIFICATIONS_BACKGROUND, 0.05),
+	hc: NOTIFICATIONS_BACKGROUND
 }, nls.localize('notificationCenterHeaderBackground', "Notifications center header background color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
