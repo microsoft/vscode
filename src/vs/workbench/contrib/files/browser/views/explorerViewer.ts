@@ -20,7 +20,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { dirname, joinPath, isEqualOrParent, basename, hasToIgnoreCase, distinctParents } from 'vs/base/common/resources';
+import { dirname, joinPath, isEqualOrParent, basename, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -95,7 +95,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			if (element instanceof ExplorerItem && element.isRoot) {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					// Single folder create a dummy explorer item to show error
-					const placeholder = new ExplorerItem(element.resource, undefined, false);
+					const placeholder = new ExplorerItem(element.resource, this.explorerService, undefined, false);
 					placeholder.isError = true;
 					return [placeholder];
 				} else {
@@ -920,7 +920,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// Check for name collisions
 			const targetNames = new Set<string>();
 			if (targetStat.children) {
-				const ignoreCase = hasToIgnoreCase(target.resource);
+				const ignoreCase = this.explorerService.shouldIgnoreCase(target.resource);
 				targetStat.children.forEach(child => {
 					targetNames.add(ignoreCase ? child.name.toLowerCase() : child.name);
 				});
@@ -929,7 +929,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// Run add in sequence
 			const addPromisesFactory: ITask<Promise<void>>[] = [];
 			await Promise.all(resources.map(async resource => {
-				if (targetNames.has(!hasToIgnoreCase(resource) ? basename(resource) : basename(resource).toLowerCase())) {
+				if (targetNames.has(this.explorerService.shouldIgnoreCase(resource) ? basename(resource).toLowerCase() : basename(resource))) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
 						return;
@@ -1031,7 +1031,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const stat = await this.textFileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
+			const stat = await this.textFileService.copy(source.resource, findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
 			if (!stat.isDirectory) {
 				await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
