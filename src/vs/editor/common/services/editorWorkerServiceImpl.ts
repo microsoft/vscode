@@ -236,7 +236,7 @@ class WorkerManager extends Disposable {
 	public withWorker(): Promise<EditorWorkerClient> {
 		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new EditorWorkerClient(this._modelService, 'editorWorkerService');
+			this._editorWorkerClient = new EditorWorkerClient(this._modelService, false, 'editorWorkerService');
 		}
 		return Promise.resolve(this._editorWorkerClient);
 	}
@@ -374,13 +374,15 @@ export class EditorWorkerHost {
 export class EditorWorkerClient extends Disposable {
 
 	private readonly _modelService: IModelService;
+	private readonly _keepIdleModels: boolean;
 	private _worker: IWorkerClient<EditorSimpleWorker> | null;
 	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: EditorModelManager | null;
 
-	constructor(modelService: IModelService, label: string | undefined) {
+	constructor(modelService: IModelService, keepIdleModels: boolean, label: string | undefined) {
 		super();
 		this._modelService = modelService;
+		this._keepIdleModels = keepIdleModels;
 		this._workerFactory = new DefaultWorkerFactory(label);
 		this._worker = null;
 		this._modelManager = null;
@@ -417,7 +419,7 @@ export class EditorWorkerClient extends Disposable {
 
 	private _getOrCreateModelManager(proxy: EditorSimpleWorker): EditorModelManager {
 		if (!this._modelManager) {
-			this._modelManager = this._register(new EditorModelManager(proxy, this._modelService, false));
+			this._modelManager = this._register(new EditorModelManager(proxy, this._modelService, this._keepIdleModels));
 		}
 		return this._modelManager;
 	}
