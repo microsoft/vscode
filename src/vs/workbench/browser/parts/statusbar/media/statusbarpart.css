@@ -95,7 +95,10 @@
 	height: 100%;
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
-	align-items: center
+	align-items: center;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover {
