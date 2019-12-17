@@ -66,13 +66,13 @@ export function activateMirrorCursor(
 			if (event.selections[0].isEmpty) {
 				matchingTagPositionProvider(event.textEditor.document, event.selections[0].active).then(matchingTagPosition => {
 					if (matchingTagPosition && window.activeTextEditor) {
-						const charBeforeAndAfterPositionsRoughtlyEqual = isCharBeforeAndAfterPositionsRoughtlyEqual(
+						const charBeforeAndAfterPositionsRoughlyEqual = isCharBeforeAndAfterPositionsRoughlyEqual(
 							event.textEditor.document,
 							event.selections[0].anchor,
 							new Position(matchingTagPosition.line, matchingTagPosition.character)
 						);
 
-						if (charBeforeAndAfterPositionsRoughtlyEqual) {
+						if (charBeforeAndAfterPositionsRoughlyEqual) {
 							inMirrorMode = true;
 							const newCursor = new Selection(
 								matchingTagPosition.line,
@@ -93,6 +93,9 @@ export function activateMirrorCursor(
 		};
 
 		if (cursors.length === 2 && inMirrorMode) {
+			/**
+			 * Both cursors are positions
+			 */
 			if (event.selections[0].isEmpty && event.selections[1].isEmpty) {
 				if (
 					prevCursors.length === 2 &&
@@ -103,13 +106,13 @@ export function activateMirrorCursor(
 					return;
 				}
 
-				const charBeforeAndAfterPositionsRoughtlyEqual = isCharBeforeAndAfterPositionsRoughtlyEqual(
+				const charBeforeAndAfterPositionsRoughlyEqual = isCharBeforeAndAfterPositionsRoughlyEqual(
 					event.textEditor.document,
 					event.selections[0].anchor,
 					event.selections[1].anchor
 				);
 
-				if (!charBeforeAndAfterPositionsRoughtlyEqual) {
+				if (!charBeforeAndAfterPositionsRoughlyEqual) {
 					exitMirrorMode();
 					return;
 				} else {
@@ -127,6 +130,26 @@ export function activateMirrorCursor(
 						exitMirrorMode();
 						workspace.applyEdit(cleanupEdit);
 					}
+				}
+			}
+			/**
+			 * Both cursors are selections
+			 */
+			else {
+				const charBeforeAndAfterAnchorPositionsRoughlyEqual = isCharBeforeAndAfterPositionsRoughlyEqual(
+					event.textEditor.document,
+					event.selections[0].anchor,
+					event.selections[1].anchor
+				);
+
+				const charBeforeAndAfterActivePositionsRoughlyEqual = isCharBeforeAndAfterPositionsRoughlyEqual(
+					event.textEditor.document,
+					event.selections[0].active,
+					event.selections[1].active
+				);
+
+				if (!charBeforeAndAfterAnchorPositionsRoughlyEqual || !charBeforeAndAfterActivePositionsRoughlyEqual) {
+					exitMirrorMode();
 				}
 			}
 		}
@@ -154,8 +177,8 @@ function getCharAfter(document: TextDocument, position: Position) {
 }
 
 // Check if chars before and after the two positions are equal
-// For the chars before, `<` and `/` are consiered equal to handle the case of `<|></|>`
-function isCharBeforeAndAfterPositionsRoughtlyEqual(document: TextDocument, firstPos: Position, secondPos: Position) {
+// For the chars before, `<` and `/` are considered equal to handle the case of `<|></|>`
+function isCharBeforeAndAfterPositionsRoughlyEqual(document: TextDocument, firstPos: Position, secondPos: Position) {
 	const charBeforePrimarySelection = getCharBefore(document, firstPos);
 	const charAfterPrimarySelection = getCharAfter(document, firstPos);
 	const charBeforeSecondarySelection = getCharBefore(document, secondPos);
