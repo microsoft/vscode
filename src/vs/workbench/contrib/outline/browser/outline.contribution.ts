@@ -4,14 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
 import { OutlinePane } from './outlinePane';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
+import { Action } from 'vs/base/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionsExtensions } from 'vs/workbench/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { PanelV2, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
 
 // import './outlineNavigation';
+
+export const PANEL_ID = 'panel.view.outline';
+export const VIEW_CONTAINER_PANEL: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer(PANEL_ID, ViewContainerLocation.Panel);
+
 
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
@@ -26,6 +44,76 @@ const _outlineDesc = <IViewDescriptor>{
 };
 
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([_outlineDesc], VIEW_CONTAINER);
+
+export class OutlineViewPaneContainer extends ViewPaneContainer {
+	constructor(
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IStorageService protected storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService,
+	) {
+		super(PANEL_ID, `${PANEL_ID}.state`, { showHeaderInTitleWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
+	}
+}
+
+export class OutlinePanel extends PanelV2 {
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService protected storageService: IStorageService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IExtensionService protected extensionService: IExtensionService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
+		@IConfigurationService protected configurationService: IConfigurationService
+	) {
+		super(PANEL_ID, instantiationService.createInstance(OutlineViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+	}
+}
+
+export class ToggleOutlinePositionAction extends Action {
+
+	static ID = 'outline.view.togglePosition';
+	static LABEL = 'Toggle Outline View Position';
+
+	constructor(
+		id: string,
+		label: string,
+	) {
+		super(id, label, '', true);
+	}
+
+	async run(): Promise<void> {
+		const viewContainer = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(OutlineViewId);
+		if (viewContainer === VIEW_CONTAINER) {
+			// Register panel before adding to view container
+			Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
+				OutlinePanel,
+				PANEL_ID,
+				localize('name', "Outline"),
+				'outline',
+				10
+			));
+
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).moveViews([_outlineDesc], VIEW_CONTAINER_PANEL);
+		} else {
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).moveViews([_outlineDesc], VIEW_CONTAINER);
+
+			// Deregister panel
+			Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(PANEL_ID);
+		}
+	}
+}
+
+Registry.as<IWorkbenchActionRegistry>(ActionsExtensions.WorkbenchActions)
+	.registerWorkbenchAction(SyncActionDescriptor.create(ToggleOutlinePositionAction, ToggleOutlinePositionAction.ID, ToggleOutlinePositionAction.LABEL), 'Show Release Notes');
+
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'outline',
