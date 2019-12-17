@@ -12,17 +12,16 @@ import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IEditorCommandsContext, IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { defaultEditorId } from 'vs/workbench/contrib/customEditor/browser/customEditors';
 import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
+import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { defaultEditorId } from 'vs/workbench/contrib/customEditor/browser/customEditors';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
@@ -212,24 +211,16 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			const viewIDs = customEditorService.getContributedCustomEditors(targetResource);
 			if (viewIDs && viewIDs.length) {
 				toggleView = viewIDs[0].id;
-			}
-			else {
+			} else {
 				return;
 			}
 		}
 
-		let replInput: IEditorInput;
-		if (toggleView === defaultEditorId) {
-			const instantiationService = accessor.get<IInstantiationService>(IInstantiationService);
-			replInput = instantiationService.createInstance(FileEditorInput, targetResource, undefined, undefined);
-		}
-		else {
-			replInput = customEditorService.createInput(targetResource, toggleView, activeGroup);
-		}
+		const newEditorInput = customEditorService.createInput(targetResource, toggleView, activeGroup);
 
 		editorService.replaceEditors([{
 			editor: activeEditor,
-			replacement: replInput,
+			replacement: newEditorInput,
 			options: {
 				ignoreOverrides: true,
 			}
