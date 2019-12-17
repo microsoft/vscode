@@ -21,18 +21,11 @@ export const COLOR_THEME_SETTING = 'workbench.colorTheme';
 export const COLOR_THEME_DARK_SETTING = 'workbench.colorThemeDark';
 export const COLOR_THEME_LIGHT_SETTING = 'workbench.colorThemeLight';
 export const DETECT_AS_SETTING = 'workbench.colorThemeAutoSwitch';
-export const WINDOW_MATCH_PREFERS_COLOR_SCHEME = '(prefers-color-scheme: dark)';
 export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
 export const CUSTOM_EDITOR_TOKENSTYLES_SETTING = 'editor.tokenColorCustomizationsExperimental';
-
-export enum ColorScheme {
-	LIGHT = 'light',
-	DARK = 'dark',
-	NO_PREFERENCE = 'no-preference'
-}
 
 export interface IColorTheme extends ITheme {
 	readonly id: string;
@@ -66,7 +59,6 @@ export interface IWorkbenchThemeService extends IThemeService {
 	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IColorTheme | null>;
 	getColorTheme(): IColorTheme;
 	getColorThemes(): Promise<IColorTheme[]>;
-	getColorThemeData(colorThemeSetting: string): Promise<IColorTheme | null>;
 	onDidColorThemeChange: Event<IColorTheme>;
 	restoreColorTheme(): void;
 
