@@ -414,18 +414,18 @@ export class ExplorerView extends ViewPane {
 		this._register(explorerNavigator);
 		// Open when selecting via keyboard
 		this._register(explorerNavigator.onDidOpenResource(async e => {
-			const selection = this.tree.getSelection();
+			const element = e.element;
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
 			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
-			if (selection.length === 1 && !shiftDown) {
-				if (selection[0].isDirectory || this.explorerService.isEditable(undefined)) {
+			if (element && !shiftDown) {
+				if (element.isDirectory || this.explorerService.isEditable(undefined)) {
 					// Do not react if user is clicking on explorer items while some are being edited #70276
 					// Do not react if clicking on directories
 					return;
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				await this.editorService.openEditor({ resource: selection[0].resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			}
 		}));
 
