@@ -664,7 +664,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return configProvider.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
-			getConfiguration(section?: string, scope?: vscode.Uri | vscode.WorkspaceFolder | vscode.TextDocument | null): vscode.WorkspaceConfiguration {
+			getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null): vscode.WorkspaceConfiguration {
 				scope = arguments.length === 1 ? undefined : scope;
 				return configProvider.getConfiguration(section, scope, extension.identifier);
 			},

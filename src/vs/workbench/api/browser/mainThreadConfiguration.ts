@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IConfigurationInitData } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ConfigurationTarget, IConfigurationService, IConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadConfiguration)
@@ -45,59 +45,42 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		this._configurationListener.dispose();
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides | undefined): Promise<void> {
+	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void> {
 		overrides = { resource: overrides?.resource ? URI.revive(overrides.resource) : undefined, overrideIdentifier: overrides?.overrideIdentifier };
-		return this.writeConfiguration(target, key, value, overrides);
+		return this.writeConfiguration(target, key, value, overrides, scopeToLanguage);
 	}
 
-	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined): Promise<void> {
+	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void> {
 		overrides = { resource: overrides?.resource ? URI.revive(overrides.resource) : undefined, overrideIdentifier: overrides?.overrideIdentifier };
-		return this.writeConfiguration(target, key, undefined, overrides);
+		return this.writeConfiguration(target, key, undefined, overrides, scopeToLanguage);
 	}
 
-	private writeConfiguration(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides): Promise<void> {
+	private writeConfiguration(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides, scopeToLanguage: boolean | undefined): Promise<void> {
+		target = target !== null && target !== undefined ? target : this.deriveConfigurationTarget(key, overrides);
 		const configurationValue = this.configurationService.inspect(key, overrides);
-		target = target !== null && target !== undefined ? target : this.deriveConfigurationTarget(key, configurationValue, overrides);
 		switch (target) {
 			case ConfigurationTarget.MEMORY:
-				return this._updateValue(key, value, target, configurationValue.memory?.override, overrides);
+				return this._updateValue(key, value, target, configurationValue.memory?.override, overrides, scopeToLanguage);
 			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return this._updateValue(key, value, target, configurationValue.workspaceFolder?.override, overrides);
+				return this._updateValue(key, value, target, configurationValue.workspaceFolder?.override, overrides, scopeToLanguage);
 			case ConfigurationTarget.WORKSPACE:
-				return this._updateValue(key, value, target, configurationValue.workspace?.override, overrides);
+				return this._updateValue(key, value, target, configurationValue.workspace?.override, overrides, scopeToLanguage);
 			case ConfigurationTarget.USER_REMOTE:
-				return this._updateValue(key, value, target, configurationValue.userRemote?.override, overrides);
+				return this._updateValue(key, value, target, configurationValue.userRemote?.override, overrides, scopeToLanguage);
 			default:
-				return this._updateValue(key, value, target, configurationValue.userLocal?.override, overrides);
+				return this._updateValue(key, value, target, configurationValue.userLocal?.override, overrides, scopeToLanguage);
 		}
 	}
 
-	private _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, overriddenValue: any | undefined, overrides: IConfigurationOverrides): Promise<void> {
-		if (overrides.overrideIdentifier && overriddenValue !== undefined) {
-			return this.configurationService.updateValue(key, value, overrides, configurationTarget);
-		} else {
-			return this.configurationService.updateValue(key, value, { resource: overrides.resource }, configurationTarget);
-		}
+	private _updateValue(key: string, value: any, configurationTarget: ConfigurationTarget, overriddenValue: any | undefined, overrides: IConfigurationOverrides, scopeToLanguage: boolean | undefined): Promise<void> {
+		overrides = scopeToLanguage === true ? overrides
+			: scopeToLanguage === false ? { resource: overrides.resource }
+				: overrides.overrideIdentifier && overriddenValue !== undefined ? overrides
+					: { resource: overrides.resource };
+		return this.configurationService.updateValue(key, value, overrides, configurationTarget);
 	}
 
-	private deriveConfigurationTarget(key: string, configurationValue: IConfigurationValue<any>, overrides: IConfigurationOverrides): ConfigurationTarget {
-		if (overrides.overrideIdentifier) {
-			if (configurationValue.memory?.override !== undefined) {
-				return ConfigurationTarget.MEMORY;
-			}
-			if (configurationValue.workspaceFolder?.override !== undefined) {
-				return ConfigurationTarget.WORKSPACE_FOLDER;
-			}
-			if (configurationValue.workspace?.override !== undefined) {
-				return ConfigurationTarget.WORKSPACE;
-			}
-			if (configurationValue.userRemote?.override !== undefined) {
-				return ConfigurationTarget.USER_REMOTE;
-			}
-			if (configurationValue.userLocal?.override !== undefined) {
-				return ConfigurationTarget.USER_LOCAL;
-			}
-		}
+	private deriveConfigurationTarget(key: string, overrides: IConfigurationOverrides): ConfigurationTarget {
 		if (overrides.resource && this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 			if (configurationProperties[key] && (configurationProperties[key].scope === ConfigurationScope.RESOURCE || configurationProperties[key].scope === ConfigurationScope.RESOURCE_LANGUAGE)) {

@@ -52,7 +52,7 @@ function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
 		&& (!thing.index || typeof thing.index === 'number');
 }
 
-function scopeToOverrides(scope: vscode.ConfigurationScope | undefined): IConfigurationOverrides | undefined {
+function scopeToOverrides(scope: vscode.ConfigurationScope | undefined | null): IConfigurationOverrides | undefined {
 	return scope ?
 		scope instanceof vscode.Uri ? { resource: scope }
 			: isWorkspaceFolder(scope) ? { resource: scope.uri }
@@ -125,7 +125,7 @@ export class ExtHostConfigProvider {
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
 	}
 
-	getConfiguration(section?: string, scope?: vscode.ConfigurationScope, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
+	getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
 		const overrides = scopeToOverrides(scope) || {};
 		const config = this._toReadonlyValue(section
 			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
@@ -211,13 +211,13 @@ export class ExtHostConfigProvider {
 				}
 				return result;
 			},
-			update: (key: string, value: any, arg: ExtHostConfigurationTarget | boolean) => {
+			update: (key: string, value: any, extHostConfigurationTarget: ExtHostConfigurationTarget | boolean, scopeToLanguage?: boolean) => {
 				key = section ? `${section}.${key}` : key;
-				const target = parseConfigurationTarget(arg);
+				const target = parseConfigurationTarget(extHostConfigurationTarget);
 				if (value !== undefined) {
-					return this._proxy.$updateConfigurationOption(target, key, value, overrides);
+					return this._proxy.$updateConfigurationOption(target, key, value, overrides, scopeToLanguage);
 				} else {
-					return this._proxy.$removeConfigurationOption(target, key, overrides);
+					return this._proxy.$removeConfigurationOption(target, key, overrides, scopeToLanguage);
 				}
 			},
 			inspect: <T>(key: string): ConfigurationInspect<T> | undefined => {
