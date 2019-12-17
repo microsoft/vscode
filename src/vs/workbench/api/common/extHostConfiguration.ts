@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mixin, deepClone } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -51,6 +50,15 @@ function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
 		&& thing.uri instanceof vscode.Uri
 		&& (!thing.name || typeof thing.name === 'string')
 		&& (!thing.index || typeof thing.index === 'number');
+}
+
+function scopeToOverrides(scope: vscode.ConfigurationScope | undefined): IConfigurationOverrides | undefined {
+	return scope ?
+		scope instanceof vscode.Uri ? { resource: scope }
+			: isWorkspaceFolder(scope) ? { resource: scope.uri }
+				: isTextDocument(scope) ? { resource: scope.uri, overrideIdentifier: scope.languageId }
+					: scope
+		: undefined;
 }
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
@@ -117,13 +125,8 @@ export class ExtHostConfigProvider {
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
 	}
 
-	getConfiguration(section?: string, scope?: vscode.Uri | vscode.WorkspaceFolder | vscode.TextDocument | null, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
-		const overrides: IConfigurationOverrides = scope ?
-			scope instanceof vscode.Uri ? { resource: scope }
-				: isWorkspaceFolder(scope) ? { resource: scope.uri }
-					: isTextDocument(scope) ? { resource: scope.uri, overrideIdentifier: scope.languageId }
-						: scope
-			: {};
+	getConfiguration(section?: string, scope?: vscode.ConfigurationScope, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
+		const overrides = scopeToOverrides(scope) || {};
 		const config = this._toReadonlyValue(section
 			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
 			: this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace));
@@ -276,7 +279,7 @@ export class ExtHostConfigProvider {
 	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData, workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
 		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace);
 		return Object.freeze({
-			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, resource ? { resource } : undefined)
+			affectsConfiguration: (section: string, scope?: vscode.ConfigurationScope) => event.affectsConfiguration(section, scopeToOverrides(scope))
 		});
 	}
 
