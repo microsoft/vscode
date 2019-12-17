@@ -25,7 +25,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { hash } from 'vs/base/common/hash';
 
 export class UserConfiguration extends Disposable {
-	
+
 	private readonly _onDidInitializeCompleteConfiguration: Emitter<void> = this._register(new Emitter<void>());
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
