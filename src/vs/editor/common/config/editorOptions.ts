@@ -1112,6 +1112,9 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 		} else if (options.get(EditorOption.mouseStyle) === 'copy') {
 			className += ' mouse-copy';
 		}
+		if (options.get(EditorOption.showUnused)) {
+			className += ' showUnused';
+		}
 		return className;
 	}
 }

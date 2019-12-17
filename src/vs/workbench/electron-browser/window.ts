@@ -283,6 +283,7 @@ export class ElectronWindow extends Disposable {
 			}));
 		}
 
+		// Detect minimize / maximize
 		this._register(Event.any(
 			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronEnvironmentService.windowId), () => true),
 			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronEnvironmentService.windowId), () => false)

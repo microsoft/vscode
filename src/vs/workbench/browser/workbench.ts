@@ -44,6 +44,7 @@ import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
 import { coalesce } from 'vs/base/common/arrays';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Layout } from 'vs/workbench/browser/layout';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class Workbench extends Layout {
 
@@ -140,6 +141,7 @@ export class Workbench extends Layout {
 				const lifecycleService = accessor.get(ILifecycleService);
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
+				const hostService = accessor.get(IHostService);
 
 				// Layout
 				this.initLayout(accessor);
@@ -151,7 +153,7 @@ export class Workbench extends Layout {
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
 
 				// Register Listeners
-				this.registerListeners(lifecycleService, storageService, configurationService);
+				this.registerListeners(lifecycleService, storageService, configurationService, hostService);
 
 				// Render Workbench
 				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
@@ -224,7 +226,8 @@ export class Workbench extends Layout {
 	private registerListeners(
 		lifecycleService: ILifecycleService,
 		storageService: IStorageService,
-		configurationService: IConfigurationService
+		configurationService: IConfigurationService,
+		hostService: IHostService
 	): void {
 
 		// Configuration changes
@@ -248,6 +251,13 @@ export class Workbench extends Layout {
 			this._onShutdown.fire();
 			this.dispose();
 		}));
+
+		// In some environments we do not get enough time to persist state on shutdown.
+		// In other cases, VSCode might crash, so we periodically save state to reduce
+		// the chance of loosing any state.
+		// The window loosing focus is a good indication that the user has stopped working
+		// in that window so we pick that at a time to collect state.
+		this._register(hostService.onDidChangeFocus(focus => { if (!focus) { storageService.flush(); } }));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;

@@ -130,11 +130,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
-					// By default if Code is in the background, intervals and timeouts get throttled, so we
-					// want to enforce that Code stays in the foreground. This triggers a disable_hidden_
-					// flag that Electron provides via patch:
-					// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
-					backgroundThrottling: false,
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
 					webviewTag: true
@@ -805,15 +800,24 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (displayWorkingArea) {
 				this.logService.trace('window#validateWindowState: 1 monitor working area', displayWorkingArea);
 
-				if (state.x < displayWorkingArea.x) {
-					// prevent window from falling out of the screen to the left
-					state.x = displayWorkingArea.x;
+				function ensureStateInDisplayWorkingArea(): void {
+					if (!state || typeof state.x !== 'number' || typeof state.y !== 'number' || !displayWorkingArea) {
+						return;
+					}
+
+					if (state.x < displayWorkingArea.x) {
+						// prevent window from falling out of the screen to the left
+						state.x = displayWorkingArea.x;
+					}
+
+					if (state.y < displayWorkingArea.y) {
+						// prevent window from falling out of the screen to the top
+						state.y = displayWorkingArea.y;
+					}
 				}
 
-				if (state.y < displayWorkingArea.y) {
-					// prevent window from falling out of the screen to the top
-					state.y = displayWorkingArea.y;
-				}
+				// ensure state is not outside display working area (top, left)
+				ensureStateInDisplayWorkingArea();
 
 				if (state.width > displayWorkingArea.width) {
 					// prevent window from exceeding display bounds width
@@ -838,6 +842,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					// the screen
 					state.y = displayWorkingArea.y + displayWorkingArea.height - state.height;
 				}
+
+				// again ensure state is not outside display working area
+				// (it may have changed from the previous validation step)
+				ensureStateInDisplayWorkingArea();
 			}
 
 			return state;
@@ -857,17 +865,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 		}
 
-		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
-		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
-		const display = screen.getDisplayMatching(bounds);
+		// Multi Monitor (non-fullscreen): ensure window is within display bounds
+		const display = screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
 		const displayWorkingArea = this.getWorkingArea(display);
 		if (
 			display &&														// we have a display matching the desired bounds
 			displayWorkingArea &&											// we have valid working area bounds
-			bounds.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			bounds.y < displayWorkingArea.y + displayWorkingArea.height &&	// prevent window from falling out of the screen to the bottom
-			bounds.x + bounds.width > displayWorkingArea.x &&				// prevent window from falling out of the screen to the left
-			bounds.y + bounds.height > displayWorkingArea.y					// prevent window from falling out of the scree nto the top
+			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
+			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
+			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
 		) {
 			this.logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
 

@@ -57,7 +57,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		return this._edits.slice(0, Math.max(0, this._currentEditIndex + 1));
 	}
 
-	public makeEdit(edit: CustomEditorEdit): void {
+	public pushEdit(edit: CustomEditorEdit): void {
 		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex, edit.data);
 		this._currentEditIndex = this._edits.length - 1;
 		this.updateDirty();
