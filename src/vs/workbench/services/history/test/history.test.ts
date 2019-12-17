@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorOptions, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
+import { EditorOptions, EditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IEditorInputFactory, IFileEditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestStorageService, TestEditorInput } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -25,7 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { timeout } from 'vs/base/common/async';
 
-export class TestEditorControl extends BaseEditor {
+class TestEditorControl extends BaseEditor {
 
 	constructor() { super('MyTestEditorForEditorHistory', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
@@ -38,6 +38,22 @@ export class TestEditorControl extends BaseEditor {
 	getId(): string { return 'MyTestEditorForEditorHistory'; }
 	layout(): void { }
 	createEditor(): any { }
+}
+
+class TestEditorInput extends EditorInput implements IFileEditorInput {
+
+	constructor(public resource: URI) { super(); }
+
+	getTypeId() { return 'testEditorInputForEditorGroupService'; }
+	resolve(): Promise<IEditorModel | null> { return Promise.resolve(null); }
+	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
+	setEncoding(encoding: string) { }
+	getEncoding() { return undefined; }
+	setPreferredEncoding(encoding: string) { }
+	setMode(mode: string) { }
+	setPreferredMode(mode: string) { }
+	getResource(): URI { return this.resource; }
+	setForceOpenAsBinary(): void { }
 }
 
 class HistoryTestEditorInput extends TestEditorInput {

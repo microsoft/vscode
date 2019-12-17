@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestStorageService, TestEditorInput } from 'vs/workbench/test/workbenchTestServices';
+import { EditorInput, EditorOptions, IFileEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -46,6 +46,54 @@ class TestEditorControl extends BaseEditor {
 	getId(): string { return 'MyTestEditorForEditorService'; }
 	layout(): void { }
 	createEditor(): any { }
+}
+
+class TestEditorInput extends EditorInput implements IFileEditorInput {
+	gotDisposed = false;
+	gotSaved = false;
+	gotSavedAs = false;
+	gotReverted = false;
+	dirty = false;
+	private fails = false;
+	constructor(public resource: URI) { super(); }
+
+	getTypeId() { return 'testEditorInputForEditorService'; }
+	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
+	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
+	setEncoding(encoding: string) { }
+	getEncoding() { return undefined; }
+	setPreferredEncoding(encoding: string) { }
+	setMode(mode: string) { }
+	setPreferredMode(mode: string) { }
+	getResource(): URI { return this.resource; }
+	setForceOpenAsBinary(): void { }
+	setFailToOpen(): void {
+		this.fails = true;
+	}
+	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		this.gotSaved = true;
+		return Promise.resolve(true);
+	}
+	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+		this.gotSavedAs = true;
+		return Promise.resolve(true);
+	}
+	revert(options?: IRevertOptions): Promise<boolean> {
+		this.gotReverted = true;
+		this.gotSaved = false;
+		this.gotSavedAs = false;
+		return Promise.resolve(true);
+	}
+	isDirty(): boolean {
+		return this.dirty;
+	}
+	isReadonly(): boolean {
+		return false;
+	}
+	dispose(): void {
+		super.dispose();
+		this.gotDisposed = true;
+	}
 }
 
 class FileServiceProvider extends Disposable {
