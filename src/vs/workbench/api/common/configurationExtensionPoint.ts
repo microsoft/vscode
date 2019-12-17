@@ -39,17 +39,16 @@ const configurationEntrySchema: IJSONSchema = {
 							},
 							scope: {
 								type: 'string',
-								enum: ['application', 'machine', 'window', 'resource', 'resource-language', 'machine-overridable'],
+								enum: ['application', 'machine', 'window', 'resource', 'machine-overridable'],
 								default: 'window',
 								enumDescriptions: [
 									nls.localize('scope.application.description', "Configuration that can be configured only in the user settings."),
 									nls.localize('scope.machine.description', "Configuration that can be configured only in the user settings when the extension is running locally, or only in the remote settings when the extension is running remotely."),
 									nls.localize('scope.window.description', "Configuration that can be configured in the user, remote or workspace settings."),
 									nls.localize('scope.resource.description', "Configuration that can be configured in the user, remote, workspace or folder settings."),
-									nls.localize('scope.resource-language.description', "Resource configuration that can be configured also in language specific settings."),
 									nls.localize('scope.machine-overridable.description', "Machine configuration that can be configured also in workspace or folder settings.")
 								],
-								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, `resource-language` and `machine-overridable`.")
+								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, and `machine-overridable`.")
 							},
 							enumDescriptions: {
 								type: 'array',
@@ -219,8 +218,6 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 					propertyConfiguration.scope = ConfigurationScope.RESOURCE;
 				} else if (propertyConfiguration.scope.toString() === 'machine-overridable') {
 					propertyConfiguration.scope = ConfigurationScope.MACHINE_OVERRIDABLE;
-				} else if (propertyConfiguration.scope.toString() === 'resource-language') {
-					propertyConfiguration.scope = ConfigurationScope.RESOURCE_LANGUAGE;
 				} else {
 					propertyConfiguration.scope = ConfigurationScope.WINDOW;
 				}
