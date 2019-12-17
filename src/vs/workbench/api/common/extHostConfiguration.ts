@@ -19,6 +19,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { URI } from 'vs/base/common/uri';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -41,24 +42,42 @@ type ConfigurationInspect<T> = {
 
 function isTextDocument(thing: any): thing is vscode.TextDocument {
 	return thing
-		&& thing.uri instanceof vscode.Uri
+		&& thing.uri instanceof URI
 		&& (!thing.languageId || typeof thing.languageId === 'string');
 }
 
 function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
 	return thing
-		&& thing.uri instanceof vscode.Uri
+		&& thing.uri instanceof URI
 		&& (!thing.name || typeof thing.name === 'string')
 		&& (!thing.index || typeof thing.index === 'number');
 }
 
+function isUri(thing: any): thing is vscode.Uri {
+	return thing
+		&& thing.uri instanceof URI;
+}
+
+function isResourceLanguage(thing: any): thing is { resource: URI, languageId: string } {
+	return thing
+		&& thing.resource instanceof URI
+		&& (!thing.languageId || typeof thing.languageId === 'string');
+}
+
 function scopeToOverrides(scope: vscode.ConfigurationScope | undefined | null): IConfigurationOverrides | undefined {
-	return scope ?
-		scope instanceof vscode.Uri ? { resource: scope }
-			: isWorkspaceFolder(scope) ? { resource: scope.uri }
-				: isTextDocument(scope) ? { resource: scope.uri, overrideIdentifier: scope.languageId }
-					: scope
-		: undefined;
+	if (isUri(scope)) {
+		return { resource: scope };
+	}
+	if (isWorkspaceFolder(scope)) {
+		return { resource: scope.uri };
+	}
+	if (isTextDocument(scope)) {
+		return { resource: scope.uri, overrideIdentifier: scope.languageId };
+	}
+	if (isResourceLanguage(scope)) {
+		return scope;
+	}
+	return undefined;
 }
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
