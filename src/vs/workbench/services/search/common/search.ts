@@ -16,7 +16,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
 import { relative } from 'vs/base/common/path';
-import { Extensions as ViewContainerExtensions, ViewContainer, IViewContainersRegistry } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEWLET_ID = 'workbench.view.search';
@@ -25,7 +25,7 @@ export const VIEW_ID = 'workbench.view.search';
 /**
  * Search viewlet container.
  */
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID, true);
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 
 export const ISearchService = createDecorator<ISearchService>('searchService');
 

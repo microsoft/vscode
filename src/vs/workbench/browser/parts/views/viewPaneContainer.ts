@@ -36,7 +36,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 import { Component } from 'vs/workbench/common/component';
-import { Extensions, ViewletRegistry } from 'vs/workbench/browser/viewlet';
+import { Extensions as ViewletExtensions, ViewletRegistry } from 'vs/workbench/browser/viewlet';
+import { Extensions as PanelExtensions, PanelRegistry } from 'vs/workbench/browser/panel';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -344,7 +345,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getTitle(): string {
-		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
+		const composite = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getViewlet(this.getId()) || Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanel(this.getId());
+		let title = composite.name;
 
 		if (this.isSingleView()) {
 			const paneItemTitle = this.paneItems[0].pane.title;
