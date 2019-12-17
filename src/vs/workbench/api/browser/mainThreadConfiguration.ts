@@ -60,15 +60,15 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		const configurationValue = this.configurationService.inspect(key, overrides);
 		switch (target) {
 			case ConfigurationTarget.MEMORY:
-				return this._updateValue(key, value, target, configurationValue.memory?.override, overrides, scopeToLanguage);
+				return this._updateValue(key, value, target, configurationValue?.memory?.override, overrides, scopeToLanguage);
 			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return this._updateValue(key, value, target, configurationValue.workspaceFolder?.override, overrides, scopeToLanguage);
+				return this._updateValue(key, value, target, configurationValue?.workspaceFolder?.override, overrides, scopeToLanguage);
 			case ConfigurationTarget.WORKSPACE:
-				return this._updateValue(key, value, target, configurationValue.workspace?.override, overrides, scopeToLanguage);
+				return this._updateValue(key, value, target, configurationValue?.workspace?.override, overrides, scopeToLanguage);
 			case ConfigurationTarget.USER_REMOTE:
-				return this._updateValue(key, value, target, configurationValue.userRemote?.override, overrides, scopeToLanguage);
+				return this._updateValue(key, value, target, configurationValue?.userRemote?.override, overrides, scopeToLanguage);
 			default:
-				return this._updateValue(key, value, target, configurationValue.userLocal?.override, overrides, scopeToLanguage);
+				return this._updateValue(key, value, target, configurationValue?.userLocal?.override, overrides, scopeToLanguage);
 		}
 	}
 

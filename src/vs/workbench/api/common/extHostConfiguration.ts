@@ -34,10 +34,16 @@ function lookUp(tree: any, key: string) {
 
 type ConfigurationInspect<T> = {
 	key: string;
+
 	defaultValue?: T;
 	globalValue?: T;
-	workspaceValue?: T;
-	workspaceFolderValue?: T;
+	workspaceValue?: T,
+	workspaceFolderValue?: T,
+
+	defaultLanguageValue?: T;
+	userLanguageValue?: T;
+	workspaceLanguageValue?: T;
+	workspaceFolderLanguageValue?: T;
 };
 
 function isTextDocument(thing: any): thing is vscode.TextDocument {
@@ -54,8 +60,7 @@ function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
 }
 
 function isUri(thing: any): thing is vscode.Uri {
-	return thing
-		&& thing.uri instanceof URI;
+	return thing instanceof URI;
 }
 
 function isResourceLanguage(thing: any): thing is { resource: URI, languageId: string } {
@@ -245,10 +250,16 @@ export class ExtHostConfigProvider {
 				if (config) {
 					return {
 						key,
+
 						defaultValue: config.defaultValue,
 						globalValue: config.userValue,
 						workspaceValue: config.workspaceValue,
-						workspaceFolderValue: config.workspaceFolderValue
+						workspaceFolderValue: config.workspaceFolderValue,
+
+						defaultLanguageValue: config.default?.override,
+						userLanguageValue: config.user?.override,
+						workspaceLanguageValue: config.workspace?.override,
+						workspaceFolderLanguageValue: config.workspaceFolder?.override,
 					};
 				}
 				return undefined;
