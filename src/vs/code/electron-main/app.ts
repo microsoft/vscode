@@ -171,7 +171,7 @@ export class CodeApplication extends Disposable {
 		app.on('web-contents-created', (_event: Event, contents) => {
 			contents.on('will-attach-webview', (event: Event, webPreferences, params) => {
 
-				const isValidWebviewSource = (source: string): boolean => {
+				const isValidWebviewSource = (source: string | undefined): boolean => {
 					if (!source) {
 						return false;
 					}
@@ -191,11 +191,11 @@ export class CodeApplication extends Disposable {
 				webPreferences.nodeIntegration = false;
 
 				// Verify URLs being loaded
-				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
+				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preload)) {
 					return;
 				}
 
-				delete webPreferences.preloadURL;
+				delete (webPreferences as { preloadURL: string }).preloadURL; // https://github.com/electron/electron/issues/21553
 
 				// Otherwise prevent loading
 				this.logService.error('webContents#web-contents-created: Prevented webview attach');
