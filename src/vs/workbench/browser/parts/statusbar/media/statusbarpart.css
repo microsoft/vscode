@@ -44,6 +44,7 @@
 	line-height: 22px;
 	height: 100%;
 	vertical-align: top;
+	max-width: 40vw;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
