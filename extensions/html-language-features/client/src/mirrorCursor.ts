@@ -54,6 +54,10 @@ export function activateMirrorCursor(
 			return;
 		}
 
+		if (event.textEditor.document?.languageId !== 'html' && event.textEditor.document?.languageId !== 'handlebars') {
+			return;
+		}
+
 		prevCursors = cursors;
 		cursors = event.selections;
 
@@ -131,11 +135,10 @@ export function activateMirrorCursor(
 						workspace.applyEdit(cleanupEdit);
 					}
 				}
-			}
-			/**
-			 * Both cursors are selections
-			 */
-			else {
+			} else {
+				/**
+				 * Both cursors are selections
+				 */
 				const charBeforeAndAfterAnchorPositionsRoughlyEqual = isCharBeforeAndAfterPositionsRoughlyEqual(
 					event.textEditor.document,
 					event.selections[0].anchor,
