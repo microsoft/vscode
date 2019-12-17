@@ -167,8 +167,9 @@ export class MarkersPanel extends Panel implements IMarkerFilterController {
 			this.updateTitleArea();
 			dom.toggleClass(this.filterActionBar.getContainer(), 'hide', !this.isSmallLayout);
 		}
-		const treeHeight = this.isSmallLayout ? dimension.height - 44 : dimension.height;
-		this.tree.layout(treeHeight, dimension.width);
+		const height = this.isSmallLayout ? dimension.height - 44 : dimension.height;
+		this.tree.layout(height, dimension.width);
+		this.messageBoxContainer.style.height = `${height}px`;
 		this.filterAction.layout(this.isSmallLayout ? dimension.width : dimension.width - 200);
 	}
 
