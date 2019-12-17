@@ -284,44 +284,6 @@ export class ExtHostConfigProvider {
 		return scopes.reduce((result, scope) => { result.set(scope[0], scope[1]); return result; }, new Map<string, ConfigurationScope | undefined>());
 	}
 
-	apiExample() {
-		/**
-		 * Most often scenario: Read window configuration effectively
-		 */
-		const windowConfiguration = vscode.workspace.getConfiguration('window');
-		windowConfiguration.get('size');
-		windowConfiguration.update('size', 2); // Updates in workspace
-
-		/**
-		 * Most often scenario: Read and Write workspace folder configuration effectively
-		 */
-		const workspaceFolderConfiguration = vscode.workspace.getConfiguration('git', vscode.workspace.workspaceFolders![0]);
-		workspaceFolderConfiguration.get('enabled');
-		workspaceFolderConfiguration.update('enabled', false); // Effective update
-
-		/**
-		 * Most often scenario: Read and Write language configuration effectively
-		 */
-		const textDocumentConfiguration = vscode.workspace.getConfiguration('editor', vscode.window.activeTextEditor?.document!);
-		textDocumentConfiguration.get('formatOnSave');
-		textDocumentConfiguration.update('formatOnSave', false); //Effective update.
-
-		/**
-		 * Special scenario: Write a configuration under a specific language
-		 */
-		const languageConfiguration = vscode.workspace.getConfiguration();
-		const value = languageConfiguration.get<{ 'editor.formatOnSave': boolean }>('[javascript]')!;
-		value['editor.formatOnSave'] = false;
-		languageConfiguration.update('[javascript]', value);
-
-		/**
-		 * deprecated
-		 */
-		vscode.workspace.getConfiguration('editor', vscode.Uri.file('abc'));
-		vscode.workspace.getConfiguration('editor', null);
-
-	}
-
 }
 
 export const IExtHostConfiguration = createDecorator<IExtHostConfiguration>('IExtHostConfiguration');
