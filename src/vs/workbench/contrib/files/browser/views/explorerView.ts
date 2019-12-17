@@ -83,7 +83,6 @@ export class ExplorerView extends ViewPane {
 	private compressedFocusContext: IContextKey<boolean>;
 	private compressedFocusFirstContext: IContextKey<boolean>;
 	private compressedFocusLastContext: IContextKey<boolean>;
-	private compressedNavigationController: ICompressedNavigationController | undefined;
 
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
@@ -286,18 +285,17 @@ export class ExplorerView extends ViewPane {
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
 		let focusedStat: ExplorerItem | undefined;
 
-		if (this.compressedNavigationController) {
-			focusedStat = this.compressedNavigationController.current;
-		} else {
-			const focus = this.tree.getFocus();
-			focusedStat = focus.length ? focus[0] : undefined;
-		}
+		const focus = this.tree.getFocus();
+		focusedStat = focus.length ? focus[0] : undefined;
+
+		const compressedNavigationController = focusedStat && this.renderer.getCompressedNavigationController(focusedStat);
+		focusedStat = compressedNavigationController ? compressedNavigationController.current : focusedStat;
 
 		const selectedStats: ExplorerItem[] = [];
 
 		for (const stat of this.tree.getSelection()) {
 			const controller = this.renderer.getCompressedNavigationController(stat);
-			if (controller && focusedStat && controller === this.compressedNavigationController) {
+			if (controller && focusedStat && controller === compressedNavigationController) {
 				if (stat === focusedStat) {
 					selectedStats.push(stat);
 				}
@@ -532,16 +530,15 @@ export class ExplorerView extends ViewPane {
 			this.resourceMoveableToTrash.reset();
 		}
 
-		this.compressedNavigationController = stat && this.renderer.getCompressedNavigationController(stat);
+		const compressedNavigationController = stat && this.renderer.getCompressedNavigationController(stat);
 
-		if (!this.compressedNavigationController) {
+		if (!compressedNavigationController) {
 			this.compressedFocusContext.set(false);
 			return;
 		}
 
 		this.compressedFocusContext.set(true);
-		// this.compressedNavigationController.last();
-		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
+		this.updateCompressedNavigationContextKeys(compressedNavigationController);
 	}
 
 	// General methods
@@ -691,39 +688,47 @@ export class ExplorerView extends ViewPane {
 	}
 
 	previousCompressedStat(): void {
-		if (!this.compressedNavigationController) {
+		const focused = this.tree.getFocus();
+		if (!focused.length) {
 			return;
 		}
 
-		this.compressedNavigationController.previous();
-		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
+		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
+		compressedNavigationController.previous();
+		this.updateCompressedNavigationContextKeys(compressedNavigationController);
 	}
 
 	nextCompressedStat(): void {
-		if (!this.compressedNavigationController) {
+		const focused = this.tree.getFocus();
+		if (!focused.length) {
 			return;
 		}
 
-		this.compressedNavigationController.next();
-		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
+		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
+		compressedNavigationController.next();
+		this.updateCompressedNavigationContextKeys(compressedNavigationController);
 	}
 
 	firstCompressedStat(): void {
-		if (!this.compressedNavigationController) {
+		const focused = this.tree.getFocus();
+		if (!focused.length) {
 			return;
 		}
 
-		this.compressedNavigationController.first();
-		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
+		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
+		compressedNavigationController.first();
+		this.updateCompressedNavigationContextKeys(compressedNavigationController);
 	}
 
 	lastCompressedStat(): void {
-		if (!this.compressedNavigationController) {
+		const focused = this.tree.getFocus();
+		if (!focused.length) {
 			return;
 		}
 
-		this.compressedNavigationController.last();
-		this.updateCompressedNavigationContextKeys(this.compressedNavigationController);
+		const compressedNavigationController = this.renderer.getCompressedNavigationController(focused[0])!;
+		compressedNavigationController.last();
+		this.updateCompressedNavigationContextKeys(compressedNavigationController);
 	}
 
 	private updateCompressedNavigationContextKeys(controller: ICompressedNavigationController): void {
