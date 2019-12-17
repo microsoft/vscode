@@ -55,7 +55,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, location?: ViewContainerLocation, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
+	registerViewContainer(id: string, location: ViewContainerLocation, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -93,7 +93,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, location = ViewContainerLocation.Sidebar, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
+	registerViewContainer(id: string, location: ViewContainerLocation, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
 		const existing = this.viewContainers.get(id);
 		if (existing) {
 			return existing;
