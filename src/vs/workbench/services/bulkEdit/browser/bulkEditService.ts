@@ -61,7 +61,7 @@ class ModelEditTask implements IDisposable {
 	}
 
 	dispose() {
-		dispose(this._modelReference);
+		this._modelReference.dispose();
 	}
 
 	addEdit(resourceEdit: ResourceTextEdit): void {
@@ -151,14 +151,16 @@ class BulkEditModel implements IDisposable {
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 	) {
-		edits.forEach(this.addEdit, this);
+		edits.forEach(this._addEdit, this);
 	}
 
 	dispose(): void {
-		this._tasks = dispose(this._tasks!);
+		if (this._tasks) {
+			dispose(this._tasks);
+		}
 	}
 
-	addEdit(edit: ResourceTextEdit): void {
+	private _addEdit(edit: ResourceTextEdit): void {
 		let array = this._edits.get(edit.resource.toString());
 		if (!array) {
 			array = [];
@@ -366,6 +368,7 @@ class BulkEdit {
 
 		const validationResult = model.validate();
 		if (validationResult.canApply === false) {
+			model.dispose();
 			throw new Error(`${validationResult.reason.toString()} has changed in the meantime`);
 		}
 

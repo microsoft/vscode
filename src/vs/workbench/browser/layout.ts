@@ -178,7 +178,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			position: Position.BOTTOM,
 			lastNonMaximizedWidth: 300,
 			lastNonMaximizedHeight: 300,
-			panelToRestore: undefined as string | undefined
+			panelToRestore: undefined as string | undefined,
+			restored: false
 		},
 
 		statusBar: {
@@ -570,9 +571,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private updatePanelPosition() {
 		const defaultPanelPosition = this.configurationService.getValue<string>(Settings.PANEL_POSITION);
-		const panelPosition = this.storageService.get(Storage.PANEL_POSITION, StorageScope.WORKSPACE, defaultPanelPosition);
+		const panelPosition = this.storageService.get(Storage.PANEL_POSITION, StorageScope.WORKSPACE, undefined);
 
-		this.state.panel.position = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
+		this.state.panel.restored = panelPosition !== undefined;
+		this.state.panel.position = ((panelPosition || defaultPanelPosition) === 'right') ? Position.RIGHT : Position.BOTTOM;
 	}
 
 	registerPart(part: Part): void {
@@ -1279,7 +1281,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const height = this.storageService.getNumber(Storage.GRID_HEIGHT, StorageScope.GLOBAL, workbenchDimensions.height);
 		// At some point, we will not fall back to old keys from legacy layout, but for now, let's migrate the keys
 		const sideBarSize = this.storageService.getNumber(Storage.SIDEBAR_SIZE, StorageScope.GLOBAL, this.storageService.getNumber('workbench.sidebar.width', StorageScope.GLOBAL, Math.min(workbenchDimensions.width / 4, 300)));
-		const panelSize = this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, workbenchDimensions.height / 3));
+		const panelSize = this.state.panel.restored ? this.storageService.getNumber(Storage.PANEL_SIZE, StorageScope.GLOBAL, this.storageService.getNumber(this.state.panel.position === Position.BOTTOM ? 'workbench.panel.height' : 'workbench.panel.width', StorageScope.GLOBAL, workbenchDimensions.height / 3)) : workbenchDimensions.height / 3;
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
 		const statusBarHeight = this.statusBarPartView.minimumHeight;

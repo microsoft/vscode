@@ -20,7 +20,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export class TestEditorControl extends BaseEditor {
+class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
@@ -35,7 +35,7 @@ export class TestEditorControl extends BaseEditor {
 	createEditor(): any { }
 }
 
-export class TestEditorInput extends EditorInput implements IFileEditorInput {
+class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 	constructor(private resource: URI) { super(); }
 

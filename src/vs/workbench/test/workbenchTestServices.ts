@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, EditorInput, IFileEditorInput, GroupIdentifier, ISaveOptions } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -20,7 +20,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, IResourceInput, IEditorModel } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
@@ -102,7 +102,7 @@ export function createFileInput(instantiationService: IInstantiationService, res
 export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
 
 export class TestContextService implements IWorkspaceContextService {
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	private workspace: Workspace;
 	private options: any;
@@ -119,23 +119,23 @@ export class TestContextService implements IWorkspaceContextService {
 		this._onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
 	}
 
-	public get onDidChangeWorkspaceName(): Event<void> {
+	get onDidChangeWorkspaceName(): Event<void> {
 		return this._onDidChangeWorkspaceName.event;
 	}
 
-	public get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> {
+	get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> {
 		return this._onDidChangeWorkspaceFolders.event;
 	}
 
-	public get onDidChangeWorkbenchState(): Event<WorkbenchState> {
+	get onDidChangeWorkbenchState(): Event<WorkbenchState> {
 		return this._onDidChangeWorkbenchState.event;
 	}
 
-	public getFolders(): IWorkspaceFolder[] {
+	getFolders(): IWorkspaceFolder[] {
 		return this.workspace ? this.workspace.folders : [];
 	}
 
-	public getWorkbenchState(): WorkbenchState {
+	getWorkbenchState(): WorkbenchState {
 		if (this.workspace.configuration) {
 			return WorkbenchState.WORKSPACE;
 		}
@@ -151,27 +151,27 @@ export class TestContextService implements IWorkspaceContextService {
 		return Promise.resolve(this.getWorkspace());
 	}
 
-	public getWorkspace(): IWorkbenchWorkspace {
+	getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
 	}
 
-	public getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
+	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
 		return this.workspace.getFolder(resource);
 	}
 
-	public setWorkspace(workspace: any): void {
+	setWorkspace(workspace: any): void {
 		this.workspace = workspace;
 	}
 
-	public getOptions() {
+	getOptions() {
 		return this.options;
 	}
 
-	public updateOptions() {
+	updateOptions() {
 
 	}
 
-	public isInsideWorkspace(resource: URI): boolean {
+	isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
 			return resources.isEqualOrParent(resource, this.workspace.folders[0].uri);
 		}
@@ -179,17 +179,17 @@ export class TestContextService implements IWorkspaceContextService {
 		return false;
 	}
 
-	public toResource(workspaceRelativePath: string): URI {
+	toResource(workspaceRelativePath: string): URI {
 		return URI.file(join('C:\\', workspaceRelativePath));
 	}
 
-	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
+	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && resources.isEqual(this.workspace.folders[0].uri, workspaceIdentifier);
 	}
 }
 
 export class TestTextFileService extends NativeTextFileService {
-	public cleanupBackupsBeforeShutdownCalled!: boolean;
+	cleanupBackupsBeforeShutdownCalled!: boolean;
 
 	private promptPath!: URI;
 	private resolveTextContentError!: FileOperationError | null;
@@ -236,15 +236,15 @@ export class TestTextFileService extends NativeTextFileService {
 		);
 	}
 
-	public setPromptPath(path: URI): void {
+	setPromptPath(path: URI): void {
 		this.promptPath = path;
 	}
 
-	public setResolveTextContentErrorOnce(error: FileOperationError): void {
+	setResolveTextContentErrorOnce(error: FileOperationError): void {
 		this.resolveTextContentError = error;
 	}
 
-	public readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
@@ -266,7 +266,7 @@ export class TestTextFileService extends NativeTextFileService {
 		});
 	}
 
-	public promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
+	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
 		return Promise.resolve(this.promptPath);
 	}
 
@@ -333,7 +333,7 @@ export class TestExtensionService extends NullExtensionService { }
 
 export class TestMenuService implements IMenuService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	createMenu(_id: MenuId, _scopedKeybindingService: IContextKeyService): IMenu {
 		return {
@@ -368,68 +368,68 @@ export class TestHistoryService implements IHistoryService {
 
 export class TestDialogService implements IDialogService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
-	public confirm(_confirmation: IConfirmation): Promise<IConfirmationResult> {
+	confirm(_confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return Promise.resolve({ confirmed: false });
 	}
 
-	public show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): Promise<IShowResult> {
+	show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): Promise<IShowResult> {
 		return Promise.resolve({ choice: 0 });
 	}
 
-	public about(): Promise<void> {
+	about(): Promise<void> {
 		return Promise.resolve();
 	}
 }
 
 export class TestFileDialogService implements IFileDialogService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	private confirmResult!: ConfirmResult;
 
-	public defaultFilePath(_schemeFilter?: string): URI | undefined {
+	defaultFilePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
-	public defaultFolderPath(_schemeFilter?: string): URI | undefined {
+	defaultFolderPath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
-	public defaultWorkspacePath(_schemeFilter?: string): URI | undefined {
+	defaultWorkspacePath(_schemeFilter?: string): URI | undefined {
 		return undefined;
 	}
-	public pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
+	pickFileFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
-	public pickFileAndOpen(_options: IPickAndOpenOptions): Promise<any> {
+	pickFileAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
-	public pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
+	pickFolderAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
-	public pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
+	pickWorkspaceAndOpen(_options: IPickAndOpenOptions): Promise<any> {
 		return Promise.resolve(0);
 	}
-	public pickFileToSave(_options: ISaveDialogOptions): Promise<URI | undefined> {
+	pickFileToSave(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
 	}
-	public showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
+	showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
 		return Promise.resolve(undefined);
 	}
-	public showOpenDialog(_options: IOpenDialogOptions): Promise<URI[] | undefined> {
+	showOpenDialog(_options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		return Promise.resolve(undefined);
 	}
-	public setConfirmResult(result: ConfirmResult): void {
+	setConfirmResult(result: ConfirmResult): void {
 		this.confirmResult = result;
 	}
-	public showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
+	showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		return Promise.resolve(this.confirmResult);
 	}
 }
 
 export class TestLayoutService implements IWorkbenchLayoutService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	dimension: IDimension = { width: 800, height: 600 };
 
@@ -445,27 +445,27 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	private readonly _onMenubarVisibilityChange = new Emitter<Dimension>();
 
-	public get onMenubarVisibilityChange(): Event<Dimension> {
+	get onMenubarVisibilityChange(): Event<Dimension> {
 		return this._onMenubarVisibilityChange.event;
 	}
 
-	public isRestored(): boolean {
+	isRestored(): boolean {
 		return true;
 	}
 
-	public hasFocus(_part: Parts): boolean {
+	hasFocus(_part: Parts): boolean {
 		return false;
 	}
 
-	public hasWindowBorder(): boolean {
+	hasWindowBorder(): boolean {
 		return false;
 	}
 
-	public getWindowBorderRadius(): string | undefined {
+	getWindowBorderRadius(): string | undefined {
 		return undefined;
 	}
 
-	public isVisible(_part: Parts): boolean {
+	isVisible(_part: Parts): boolean {
 		return true;
 	}
 
@@ -473,93 +473,93 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 		return new Dimension(0, 0);
 	}
 
-	public getContainer(_part: Parts): HTMLElement {
+	getContainer(_part: Parts): HTMLElement {
 		return null!;
 	}
 
-	public isTitleBarHidden(): boolean {
+	isTitleBarHidden(): boolean {
 		return false;
 	}
 
-	public getTitleBarOffset(): number {
+	getTitleBarOffset(): number {
 		return 0;
 	}
 
-	public isStatusBarHidden(): boolean {
+	isStatusBarHidden(): boolean {
 		return false;
 	}
 
-	public isActivityBarHidden(): boolean {
+	isActivityBarHidden(): boolean {
 		return false;
 	}
 
-	public setActivityBarHidden(_hidden: boolean): void { }
+	setActivityBarHidden(_hidden: boolean): void { }
 
-	public isSideBarHidden(): boolean {
+	isSideBarHidden(): boolean {
 		return false;
 	}
 
-	public setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
+	setEditorHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
 
-	public setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
+	setSideBarHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
 
-	public isPanelHidden(): boolean {
+	isPanelHidden(): boolean {
 		return false;
 	}
 
-	public setPanelHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
+	setPanelHidden(_hidden: boolean): Promise<void> { return Promise.resolve(); }
 
-	public toggleMaximizedPanel(): void { }
+	toggleMaximizedPanel(): void { }
 
-	public isPanelMaximized(): boolean {
+	isPanelMaximized(): boolean {
 		return false;
 	}
 
-	public getMenubarVisibility(): MenuBarVisibility {
+	getMenubarVisibility(): MenuBarVisibility {
 		throw new Error('not implemented');
 	}
 
-	public getSideBarPosition() {
+	getSideBarPosition() {
 		return 0;
 	}
 
-	public getPanelPosition() {
+	getPanelPosition() {
 		return 0;
 	}
 
-	public setPanelPosition(_position: PartPosition): Promise<void> {
+	setPanelPosition(_position: PartPosition): Promise<void> {
 		return Promise.resolve();
 	}
 
-	public addClass(_clazz: string): void { }
-	public removeClass(_clazz: string): void { }
+	addClass(_clazz: string): void { }
+	removeClass(_clazz: string): void { }
 
-	public getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
+	getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
 
-	public getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
-	public getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
+	getWorkbenchContainer(): HTMLElement { throw new Error('not implemented'); }
+	getWorkbenchElement(): HTMLElement { throw new Error('not implemented'); }
 
-	public toggleZenMode(): void { }
+	toggleZenMode(): void { }
 
-	public isEditorLayoutCentered(): boolean { return false; }
-	public centerEditorLayout(_active: boolean): void { }
+	isEditorLayoutCentered(): boolean { return false; }
+	centerEditorLayout(_active: boolean): void { }
 
 
-	public resizePart(_part: Parts, _sizeChange: number): void { }
+	resizePart(_part: Parts, _sizeChange: number): void { }
 
-	public registerPart(part: Part): void { }
+	registerPart(part: Part): void { }
 
 	isWindowMaximized() {
 		return false;
 	}
 
-	public updateWindowMaximizedState(maximized: boolean): void { }
+	updateWindowMaximizedState(maximized: boolean): void { }
 }
 
 let activeViewlet: Viewlet = {} as any;
 
 export class TestViewletService implements IViewletService {
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
 	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
@@ -571,93 +571,93 @@ export class TestViewletService implements IViewletService {
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
-	public openViewlet(id: string, focus?: boolean): Promise<IViewlet | undefined> {
+	openViewlet(id: string, focus?: boolean): Promise<IViewlet | undefined> {
 		return Promise.resolve(undefined);
 	}
 
-	public getViewlets(): ViewletDescriptor[] {
+	getViewlets(): ViewletDescriptor[] {
 		return [];
 	}
 
-	public getAllViewlets(): ViewletDescriptor[] {
+	getAllViewlets(): ViewletDescriptor[] {
 		return [];
 	}
 
-	public getActiveViewlet(): IViewlet {
+	getActiveViewlet(): IViewlet {
 		return activeViewlet;
 	}
 
-	public dispose() {
+	dispose() {
 	}
 
-	public getDefaultViewletId(): string {
+	getDefaultViewletId(): string {
 		return 'workbench.view.explorer';
 	}
 
-	public getViewlet(id: string): ViewletDescriptor | undefined {
+	getViewlet(id: string): ViewletDescriptor | undefined {
 		return undefined;
 	}
 
-	public getProgressIndicator(id: string) {
+	getProgressIndicator(id: string) {
 		return undefined;
 	}
 
-	public hideActiveViewlet(): void { }
+	hideActiveViewlet(): void { }
 
-	public getLastActiveViewletId(): string {
+	getLastActiveViewletId(): string {
 		return undefined!;
 	}
 }
 
 export class TestPanelService implements IPanelService {
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean }>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): undefined {
+	openPanel(id: string, focus?: boolean): undefined {
 		return undefined;
 	}
 
-	public getPanel(id: string): any {
+	getPanel(id: string): any {
 		return activeViewlet;
 	}
 
-	public getPanels() {
+	getPanels() {
 		return [];
 	}
 
-	public getPinnedPanels() {
+	getPinnedPanels() {
 		return [];
 	}
 
-	public getActivePanel(): IViewlet {
+	getActivePanel(): IViewlet {
 		return activeViewlet;
 	}
 
-	public setPanelEnablement(id: string, enabled: boolean): void { }
+	setPanelEnablement(id: string, enabled: boolean): void { }
 
-	public dispose() {
+	dispose() {
 	}
 
-	public showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
+	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		throw new Error('Method not implemented.');
 	}
 
-	public getProgressIndicator(id: string) {
+	getProgressIndicator(id: string) {
 		return null!;
 	}
 
-	public hideActivePanel(): void { }
+	hideActivePanel(): void { }
 
-	public getLastActivePanelId(): string {
+	getLastActivePanelId(): string {
 		return undefined!;
 	}
 }
 
 export class TestStorageService extends InMemoryStorageService {
-	readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
-	readonly onWillSaveState: Event<IWillSaveStateEvent> = this._onWillSaveState.event;
+	readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -876,54 +876,6 @@ export class TestEditorGroupAccessor implements IEditorGroupsAccessor {
 	arrangeGroups(arrangement: GroupsArrangement, target?: number | IEditorGroupView | undefined): void { throw new Error('Method not implemented.'); }
 }
 
-export class TestEditorInput extends EditorInput implements IFileEditorInput {
-	public gotDisposed = false;
-	public gotSaved = false;
-	public gotSavedAs = false;
-	public gotReverted = false;
-	public dirty = false;
-	private fails = false;
-	constructor(public resource: URI) { super(); }
-
-	getTypeId() { return 'testEditorInputForEditorService'; }
-	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
-	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
-	setEncoding(encoding: string) { }
-	getEncoding() { return undefined; }
-	setPreferredEncoding(encoding: string) { }
-	setMode(mode: string) { }
-	setPreferredMode(mode: string) { }
-	getResource(): URI { return this.resource; }
-	setForceOpenAsBinary(): void { }
-	setFailToOpen(): void {
-		this.fails = true;
-	}
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		this.gotSaved = true;
-		return Promise.resolve(true);
-	}
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
-		this.gotSavedAs = true;
-		return Promise.resolve(true);
-	}
-	revert(options?: IRevertOptions): Promise<boolean> {
-		this.gotReverted = true;
-		this.gotSaved = false;
-		this.gotSavedAs = false;
-		return Promise.resolve(true);
-	}
-	isDirty(): boolean {
-		return this.dirty;
-	}
-	isReadonly(): boolean {
-		return false;
-	}
-	dispose(): void {
-		super.dispose();
-		this.gotDisposed = true;
-	}
-}
-
 export class TestEditorService implements EditorServiceImpl {
 
 	_serviceBrand: undefined;
@@ -992,7 +944,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 export class TestFileService implements IFileService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
@@ -1008,31 +960,31 @@ export class TestFileService implements IFileService {
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
 	}
 
-	public setContent(content: string): void {
+	setContent(content: string): void {
 		this.content = content;
 	}
 
-	public getContent(): string {
+	getContent(): string {
 		return this.content;
 	}
 
-	public getLastReadFileUri(): URI {
+	getLastReadFileUri(): URI {
 		return this.lastReadFileUri;
 	}
 
-	public get onFileChanges(): Event<FileChangesEvent> {
+	get onFileChanges(): Event<FileChangesEvent> {
 		return this._onFileChanges.event;
 	}
 
-	public fireFileChanges(event: FileChangesEvent): void {
+	fireFileChanges(event: FileChangesEvent): void {
 		this._onFileChanges.fire(event);
 	}
 
-	public get onAfterOperation(): Event<FileOperationEvent> {
+	get onAfterOperation(): Event<FileOperationEvent> {
 		return this._onAfterOperation.event;
 	}
 
-	public fireAfterOperation(event: FileOperationEvent): void {
+	fireAfterOperation(event: FileOperationEvent): void {
 		this._onAfterOperation.fire(event);
 	}
 
@@ -1170,21 +1122,21 @@ export class TestFileService implements IFileService {
 }
 
 export class TestBackupFileService implements IBackupFileService {
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
-	public hasBackups(): Promise<boolean> {
+	hasBackups(): Promise<boolean> {
 		return Promise.resolve(false);
 	}
 
-	public hasBackup(_resource: URI): Promise<boolean> {
+	hasBackup(_resource: URI): Promise<boolean> {
 		return Promise.resolve(false);
 	}
 
-	public hasBackupSync(resource: URI, versionId?: number): boolean {
+	hasBackupSync(resource: URI, versionId?: number): boolean {
 		return false;
 	}
 
-	public loadBackupResource(resource: URI): Promise<URI | undefined> {
+	loadBackupResource(resource: URI): Promise<URI | undefined> {
 		return this.hasBackup(resource).then(hasBackup => {
 			if (hasBackup) {
 				return this.toBackupResource(resource);
@@ -1194,42 +1146,42 @@ export class TestBackupFileService implements IBackupFileService {
 		});
 	}
 
-	public registerResourceForBackup(_resource: URI): Promise<void> {
+	registerResourceForBackup(_resource: URI): Promise<void> {
 		return Promise.resolve();
 	}
 
-	public deregisterResourceForBackup(_resource: URI): Promise<void> {
+	deregisterResourceForBackup(_resource: URI): Promise<void> {
 		return Promise.resolve();
 	}
 
-	public toBackupResource(_resource: URI): URI {
+	toBackupResource(_resource: URI): URI {
 		throw new Error('not implemented');
 	}
 
-	public backupResource<T extends object>(_resource: URI, _content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	backupResource<T extends object>(_resource: URI, _content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		return Promise.resolve();
 	}
 
-	public getWorkspaceFileBackups(): Promise<URI[]> {
+	getWorkspaceFileBackups(): Promise<URI[]> {
 		return Promise.resolve([]);
 	}
 
-	public parseBackupContent(textBufferFactory: ITextBufferFactory): string {
+	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
 		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF);
 		const lineCount = textBuffer.getLineCount();
 		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
 
-	public resolveBackupContent<T extends object>(_backup: URI): Promise<IResolvedBackup<T>> {
+	resolveBackupContent<T extends object>(_backup: URI): Promise<IResolvedBackup<T>> {
 		throw new Error('not implemented');
 	}
 
-	public discardResourceBackup(_resource: URI): Promise<void> {
+	discardResourceBackup(_resource: URI): Promise<void> {
 		return Promise.resolve();
 	}
 
-	public discardAllWorkspaceBackups(): Promise<void> {
+	discardAllWorkspaceBackups(): Promise<void> {
 		return Promise.resolve();
 	}
 }
@@ -1261,10 +1213,10 @@ export class TestCodeEditorService implements ICodeEditorService {
 
 export class TestLifecycleService implements ILifecycleService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
-	public phase!: LifecyclePhase;
-	public startupKind!: StartupKind;
+	phase!: LifecyclePhase;
+	startupKind!: StartupKind;
 
 	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
 	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
@@ -1274,26 +1226,26 @@ export class TestLifecycleService implements ILifecycleService {
 		return Promise.resolve();
 	}
 
-	public fireShutdown(reason = ShutdownReason.QUIT): void {
+	fireShutdown(reason = ShutdownReason.QUIT): void {
 		this._onWillShutdown.fire({
 			join: () => { },
 			reason
 		});
 	}
 
-	public fireWillShutdown(event: BeforeShutdownEvent): void {
+	fireWillShutdown(event: BeforeShutdownEvent): void {
 		this._onBeforeShutdown.fire(event);
 	}
 
-	public get onBeforeShutdown(): Event<BeforeShutdownEvent> {
+	get onBeforeShutdown(): Event<BeforeShutdownEvent> {
 		return this._onBeforeShutdown.event;
 	}
 
-	public get onWillShutdown(): Event<WillShutdownEvent> {
+	get onWillShutdown(): Event<WillShutdownEvent> {
 		return this._onWillShutdown.event;
 	}
 
-	public get onShutdown(): Event<void> {
+	get onShutdown(): Event<void> {
 		return this._onShutdown.event;
 	}
 }
@@ -1305,7 +1257,7 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 	constructor(private configurationService = new TestConfigurationService()) {
 	}
 
-	public onDidChangeConfiguration() {
+	onDidChangeConfiguration() {
 		return { dispose() { } };
 	}
 

@@ -603,7 +603,7 @@ namespace ForwardPortAction {
 				remoteExplorerService.tunnelModel.forward(arg.remote);
 			} else {
 				const viewsService = accessor.get(IViewsService);
-				viewsService.openView(TunnelPanel.ID, true);
+				await viewsService.openView(TunnelPanel.ID, true);
 				remoteExplorerService.setEditable(undefined, {
 					onFinish: (value, success) => {
 						if (success) {

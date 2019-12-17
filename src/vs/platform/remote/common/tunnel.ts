@@ -6,15 +6,26 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ITunnelService = createDecorator<ITunnelService>('tunnelService');
 
 export interface RemoteTunnel {
 	readonly tunnelRemotePort: number;
 	readonly tunnelRemoteHost: string;
-	readonly tunnelLocalPort: number;
+	readonly tunnelLocalPort?: number;
 	readonly localAddress: string;
 	dispose(): void;
+}
+
+export interface TunnelOptions {
+	remote: { port: number, host: string };
+	localPort?: number;
+	name?: string;
+}
+
+export interface ITunnelProvider {
+	forwardPort(tunnelOptions: TunnelOptions): Promise<RemoteTunnel> | undefined;
 }
 
 export interface ITunnelService {
@@ -26,6 +37,7 @@ export interface ITunnelService {
 
 	openTunnel(remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
 	closeTunnel(remotePort: number): Promise<void>;
+	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable;
 }
 
 export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string, port: number } | undefined {
