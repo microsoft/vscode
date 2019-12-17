@@ -37,7 +37,10 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { URI } from 'vs/base/common/uri';
-import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/remote';
+
+//Avoid circular reference
+//import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/remote';
+import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/forwardedPortsViewEnabled';
 
 class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 	getHeight(element: ITunnelItem): number {
