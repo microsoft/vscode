@@ -47,6 +47,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { timeout } from 'vs/base/common/async';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -717,7 +718,7 @@ suite('WorkspaceService - Initialization', () => {
 
 suite('WorkspaceConfigurationService - Folder', () => {
 
-	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string;
+	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string, globalTasksFile: string;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
@@ -756,6 +757,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				parentResource = parentDir;
 				workspaceDir = folderDir;
 				globalSettingsFile = path.join(parentDir, 'settings.json');
+				globalTasksFile = path.join(parentDir, 'tasks.json');
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new TestEnvironmentService(URI.file(parentDir));
@@ -1074,6 +1076,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
+	test('no change event when there are no global tasks', async () => {
+		const target = sinon.spy();
+		testObject.onDidChangeConfiguration(target);
+		await timeout(500);
+		assert.ok(target.notCalled);
+	});
+
+	test('change event when there are global tasks', () => {
+		fs.writeFileSync(globalTasksFile, '{ "version": "1.0.0", "tasks": [{ "taskName": "myTask" }');
+		return new Promise((c) => testObject.onDidChangeConfiguration(() => c()));
+	});
 });
 
 suite('WorkspaceConfigurationService-Multiroot', () => {
@@ -1430,7 +1443,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 			});
 	});
 
-	test('inspect tasks configuration', () => {
+	test('inspect tasks configuration', async () => {
 		const expectedTasksConfiguration = {
 			'version': '2.0.0',
 			'tasks': [
@@ -1445,12 +1458,10 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				}
 			]
 		};
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => {
-				const actual = testObject.inspect('tasks').workspaceValue;
-				assert.deepEqual(actual, expectedTasksConfiguration);
-			});
+		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'tasks', value: expectedTasksConfiguration }], true);
+		await testObject.reloadConfiguration();
+		const actual = testObject.inspect('tasks').workspaceValue;
+		assert.deepEqual(actual, expectedTasksConfiguration);
 	});
 
 	test('update user configuration', () => {
