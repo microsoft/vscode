@@ -130,11 +130,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
-					// By default if Code is in the background, intervals and timeouts get throttled, so we
-					// want to enforce that Code stays in the foreground. This triggers a disable_hidden_
-					// flag that Electron provides via patch:
-					// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
-					backgroundThrottling: false,
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
 					webviewTag: true
