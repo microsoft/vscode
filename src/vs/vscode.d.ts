@@ -8753,7 +8753,7 @@ declare module 'vscode' {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean, readonly isReadonly?: boolean }): Disposable;
 	}
 
-	export type ConfigurationScope = Uri | { resource: Uri, languageId?: string } | { resource?: Uri, languageId: string };
+	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { resource: Uri, languageId: string };
 
 	/**
 	 * An event describing the change in Configuration
