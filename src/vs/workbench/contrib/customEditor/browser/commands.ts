@@ -230,6 +230,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		editorService.replaceEditors([{
 			editor: activeEditor,
 			replacement: replInput,
+			options: {
+				ignoreOverrides: true,
+			}
 		}], activeGroup);
 	}
 }).register();
