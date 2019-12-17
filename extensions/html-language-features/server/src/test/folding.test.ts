@@ -5,9 +5,8 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { TextDocument } from 'vscode-html-languageservice';
 import { getFoldingRanges } from '../modes/htmlFolding';
-import { getLanguageModes } from '../modes/languageModes';
+import { TextDocument, getLanguageModes } from '../modes/languageModes';
 import { ClientCapabilities } from 'vscode-css-languageservice';
 
 interface ExpectedIndentRange {
@@ -17,7 +16,7 @@ interface ExpectedIndentRange {
 }
 
 function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): void {
-	const document = TextDocument.create('test://foo/bar.json', 'json', 1, lines.join('\n'));
+	const document = TextDocument.create('test://foo/bar.html', 'html', 1, lines.join('\n'));
 	const workspace = {
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]

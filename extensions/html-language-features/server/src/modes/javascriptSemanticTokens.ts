@@ -12,18 +12,17 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 	//https://ts-ast-viewer.com/#code/AQ0g2CmAuwGbALzAJwG4BQZQGNwEMBnQ4AQQEYBmYAb2C22zgEtJwATJVTRxgcwD27AQAp8AGmAAjAJS0A9POB8+7NQ168oscAJz5wANXwAnLug2bsJmAFcTAO2XAA1MHyvgu-UdOeWbOw8ViAAvpagocBAA
 
 	let resultTokens: SemanticTokenData[] = [];
-	const tokens = jsLanguageService.getSemanticClassifications(fileName, { start: 0, length: currentTextDocument.getText().length });
-	for (let token of tokens) {
-		const typeIdx = tokenFromClassificationMapping[token.classificationType];
-		if (typeIdx !== undefined) {
-			resultTokens.push({ offset: token.textSpan.start, length: token.textSpan.length, typeIdx, modifierSet: 0 });
-		}
-	}
+	// const tokens = jsLanguageService.getSemanticClassifications(fileName, { start: 0, length: currentTextDocument.getText().length });
+	// for (let token of tokens) {
+	// 	const typeIdx = tokenFromClassificationMapping[token.classificationType];
+	// 	if (typeIdx !== undefined) {
+	// 		resultTokens.push({ offset: token.textSpan.start, length: token.textSpan.length, typeIdx, modifierSet: 0 });
+	// 	}
+	// }
 
 	const program = jsLanguageService.getProgram();
 	if (program) {
 		const typeChecker = program.getTypeChecker();
-
 
 		function visit(node: ts.Node) {
 			if (node.kind === ts.SyntaxKind.Identifier) {
@@ -31,11 +30,11 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 				if (symbol) {
 					let typeIdx = tokenFromDeclarationMapping[symbol.valueDeclaration.kind];
 					let modifierSet = 0;
-					if (symbol.valueDeclaration === node.parent) {
+					if (node.parent && (<ts.NamedDeclaration>node.parent).name === node) {
 						modifierSet = TokenModifier.declaration;
 					}
 					if (typeIdx !== undefined) {
-						resultTokens.push({ offset: node.pos, length: node.end - node.pos, typeIdx, modifierSet });
+						resultTokens.push({ offset: node.getStart(), length: node.getWidth(), typeIdx, modifierSet });
 					}
 				}
 			}
@@ -91,7 +90,7 @@ export function getSemanticTokenLegend() {
 }
 
 
-const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'parameterType', 'type', 'parameter', 'variable', 'property', 'constant', 'function'];
+const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'parameterType', 'type', 'parameter', 'variable', 'property', 'constant', 'function', 'member'];
 const tokenModifiers: string[] = ['declaration',];
 
 enum TokenType {
@@ -106,22 +105,22 @@ enum TokenType {
 	'property' = 8,
 	'constant' = 9,
 	'function' = 10,
+	'member' = 11
 }
 
 enum TokenModifier {
-	'declaration' = 0x01,
-
+	'declaration' = 0x01
 }
 
-const tokenFromClassificationMapping: { [name: string]: TokenType } = {
-	[ts.ClassificationTypeNames.className]: TokenType.class,
-	[ts.ClassificationTypeNames.enumName]: TokenType.enum,
-	[ts.ClassificationTypeNames.interfaceName]: TokenType.interface,
-	[ts.ClassificationTypeNames.moduleName]: TokenType.namespace,
-	[ts.ClassificationTypeNames.typeParameterName]: TokenType.parameterType,
-	[ts.ClassificationTypeNames.typeAliasName]: TokenType.type,
-	[ts.ClassificationTypeNames.parameterName]: TokenType.parameter
-};
+// const tokenFromClassificationMapping: { [name: string]: TokenType } = {
+// 	[ts.ClassificationTypeNames.className]: TokenType.class,
+// 	[ts.ClassificationTypeNames.enumName]: TokenType.enum,
+// 	[ts.ClassificationTypeNames.interfaceName]: TokenType.interface,
+// 	[ts.ClassificationTypeNames.moduleName]: TokenType.namespace,
+// 	[ts.ClassificationTypeNames.typeParameterName]: TokenType.parameterType,
+// 	[ts.ClassificationTypeNames.typeAliasName]: TokenType.type,
+// 	[ts.ClassificationTypeNames.parameterName]: TokenType.parameter
+// };
 
 const tokenFromDeclarationMapping: { [name: string]: TokenType } = {
 	[ts.SyntaxKind.VariableDeclaration]: TokenType.variable,
