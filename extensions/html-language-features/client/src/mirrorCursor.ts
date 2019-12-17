@@ -93,6 +93,9 @@ export function activateMirrorCursor(
 		};
 
 		if (cursors.length === 2 && inMirrorMode) {
+			/**
+			 * Both cursors are positions
+			 */
 			if (event.selections[0].isEmpty && event.selections[1].isEmpty) {
 				if (
 					prevCursors.length === 2 &&
@@ -128,14 +131,24 @@ export function activateMirrorCursor(
 						workspace.applyEdit(cleanupEdit);
 					}
 				}
-			} else {
-				const charBeforeAndAfterPositionsRoughlyEqual = isCharBeforeAndAfterPositionsRoughlyEqual(
+			}
+			/**
+			 * Both cursors are selections
+			 */
+			else {
+				const charBeforeAndAfterAnchorPositionsRoughlyEqual = isCharBeforeAndAfterPositionsRoughlyEqual(
+					event.textEditor.document,
+					event.selections[0].anchor,
+					event.selections[1].anchor
+				);
+
+				const charBeforeAndAfterActivePositionsRoughlyEqual = isCharBeforeAndAfterPositionsRoughlyEqual(
 					event.textEditor.document,
 					event.selections[0].active,
 					event.selections[1].active
 				);
 
-				if (!charBeforeAndAfterPositionsRoughlyEqual) {
+				if (!charBeforeAndAfterAnchorPositionsRoughlyEqual || !charBeforeAndAfterActivePositionsRoughlyEqual) {
 					exitMirrorMode();
 				}
 			}
