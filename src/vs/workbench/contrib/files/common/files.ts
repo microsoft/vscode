@@ -55,6 +55,7 @@ export interface IExplorerService {
 	refresh(): void;
 	setToCopy(stats: ExplorerItem[], cut: boolean): void;
 	isCut(stat: ExplorerItem): boolean;
+	shouldIgnoreCase(resource: URI): boolean;
 
 	/**
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer.

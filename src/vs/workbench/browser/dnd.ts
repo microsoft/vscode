@@ -383,7 +383,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 			const model = textFileService.models.get(file.resource);
 			if (model) {
 				encoding = model.getEncoding();
-				mode = model.textEditorModel?.getModeId();
+				mode = model.getMode();
 			}
 		}
 

@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { BaseEditor, EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as Platform from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -19,6 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const NullThemeService = new TestThemeService();
 
@@ -131,8 +131,8 @@ suite('Workbench base editor', () => {
 		let oldEditorsCnt = EditorRegistry.getEditors().length;
 		let oldInputCnt = (<any>EditorRegistry).getEditorInputs().length;
 
-		EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyInput)]);
-		EditorRegistry.registerEditor(d2, [new SyncDescriptor(MyInput), new SyncDescriptor(MyOtherInput)]);
+		const dispose1 = EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyInput)]);
+		const dispose2 = EditorRegistry.registerEditor(d2, [new SyncDescriptor(MyInput), new SyncDescriptor(MyOtherInput)]);
 
 		assert.equal(EditorRegistry.getEditors().length, oldEditorsCnt + 2);
 		assert.equal((<any>EditorRegistry).getEditorInputs().length, oldInputCnt + 3);
@@ -143,51 +143,41 @@ suite('Workbench base editor', () => {
 		assert.strictEqual(EditorRegistry.getEditorById('id1'), d1);
 		assert.strictEqual(EditorRegistry.getEditorById('id2'), d2);
 		assert(!EditorRegistry.getEditorById('id3'));
+
+		dispose([dispose1, dispose2]);
 	});
 
 	test('Editor Lookup favors specific class over superclass (match on specific class)', function () {
 		let d1 = EditorDescriptor.create(MyEditor, 'id1', 'name');
-		let d2 = EditorDescriptor.create(MyOtherEditor, 'id2', 'name');
 
-		let oldEditors = EditorRegistry.getEditors();
-		(<any>EditorRegistry).setEditors([]);
+		const disposable = EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceInput)]);
 
-		EditorRegistry.registerEditor(d2, [new SyncDescriptor(ResourceEditorInput)]);
-		EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceInput)]);
-
-		let inst = new TestInstantiationService();
+		let inst = workbenchInstantiationService();
 
 		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'myEditor');
 
 		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
-		assert.strictEqual(otherEditor.getId(), 'myOtherEditor');
+		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
-		(<any>EditorRegistry).setEditors(oldEditors);
+		disposable.dispose();
 	});
 
 	test('Editor Lookup favors specific class over superclass (match on super class)', function () {
-		let d1 = EditorDescriptor.create(MyOtherEditor, 'id1', 'name');
-
-		let oldEditors = EditorRegistry.getEditors();
-		(<any>EditorRegistry).setEditors([]);
-
-		EditorRegistry.registerEditor(d1, [new SyncDescriptor(ResourceEditorInput)]);
-
-		let inst = new TestInstantiationService();
+		let inst = workbenchInstantiationService();
 
 		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
-		assert.strictEqual('myOtherEditor', editor.getId());
-
-		(<any>EditorRegistry).setEditors(oldEditors);
+		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
 	});
 
 	test('Editor Input Factory', function () {
 		workbenchInstantiationService().invokeFunction(accessor => EditorInputRegistry.start(accessor));
-		EditorInputRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
+		const disposable = EditorInputRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
 
 		let factory = EditorInputRegistry.getEditorInputFactory('myInputId');
 		assert(factory);
+
+		disposable.dispose();
 	});
 
 	test('EditorMemento - basics', function () {

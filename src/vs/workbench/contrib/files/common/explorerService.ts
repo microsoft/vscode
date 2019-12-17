@@ -9,8 +9,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExplorerService, IFilesConfiguration, SortOrder, SortOrderConfiguration, IContextProvider } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
-import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
-import { dirname } from 'vs/base/common/resources';
+import { FileOperationEvent, FileOperation, IFileStat, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { dirname, hasToIgnoreCase } from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -41,8 +41,9 @@ export class ExplorerService implements IExplorerService {
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private cutItems: ExplorerItem[] | undefined;
-	private fileSystemProviderSchemes = new Set<string>();
 	private contextProvider: IContextProvider | undefined;
+	private fileSystemProviderCaseSensitivity = new Map<string, boolean>();
+	private model: ExplorerModel;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -53,6 +54,29 @@ export class ExplorerService implements IExplorerService {
 		@IEditorService private editorService: IEditorService,
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
+
+		this.model = new ExplorerModel(this.contextService, this);
+		this.disposables.add(this.model);
+		this.disposables.add(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this.disposables.add(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
+		this.disposables.add(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			const provider = e.provider;
+			if (e.added && provider) {
+				const alreadyRegistered = this.fileSystemProviderCaseSensitivity.has(e.scheme);
+				const readCapability = () => this.fileSystemProviderCaseSensitivity.set(e.scheme, !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive));
+				readCapability();
+
+				if (alreadyRegistered) {
+					// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
+					this.model.roots.forEach(r => r.forgetChildren());
+					this._onDidChangeItem.fire({ recursive: true });
+				} else {
+					this.disposables.add(provider.onDidChangeCapabilities(() => readCapability()));
+				}
+			}
+		}));
+		this.disposables.add(this.model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
 	}
 
 	get roots(): ExplorerItem[] {
@@ -107,24 +131,13 @@ export class ExplorerService implements IExplorerService {
 		return fileEventsFilter;
 	}
 
-	@memoize get model(): ExplorerModel {
-		const model = new ExplorerModel(this.contextService);
-		this.disposables.add(model);
-		this.disposables.add(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
-		this.disposables.add(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
-		this.disposables.add(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (e.added && this.fileSystemProviderSchemes.has(e.scheme)) {
-				// A file system provider got re-registered, we should update all file stats since they might change (got read-only)
-				this.model.roots.forEach(r => r.forgetChildren());
-				this._onDidChangeItem.fire({ recursive: true });
-			} else {
-				this.fileSystemProviderSchemes.add(e.scheme);
-			}
-		}));
-		this.disposables.add(model.onDidChangeRoots(() => this._onDidChangeRoots.fire()));
+	shouldIgnoreCase(resource: URI): boolean {
+		const caseSensitive = this.fileSystemProviderCaseSensitivity.get(resource.scheme);
+		if (typeof caseSensitive === 'undefined') {
+			return hasToIgnoreCase(resource);
+		}
 
-		return model;
+		return !caseSensitive;
 	}
 
 	// IExplorerService methods
@@ -187,7 +200,7 @@ export class ExplorerService implements IExplorerService {
 			const stat = await this.fileService.resolve(rootUri, options);
 
 			// Convert to model
-			const modelStat = ExplorerItem.create(this.fileService, stat, undefined, options.resolveTo);
+			const modelStat = ExplorerItem.create(this, this.fileService, stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 			const item = root.find(resource);
@@ -231,11 +244,11 @@ export class ExplorerService implements IExplorerService {
 					const thenable: Promise<IFileStat | undefined> = p.isDirectoryResolved ? Promise.resolve(undefined) : this.fileService.resolve(p.resource, { resolveMetadata });
 					thenable.then(stat => {
 						if (stat) {
-							const modelStat = ExplorerItem.create(this.fileService, stat, p.parent);
+							const modelStat = ExplorerItem.create(this, this.fileService, stat, p.parent);
 							ExplorerItem.mergeLocalWithDisk(modelStat, p);
 						}
 
-						const childElement = ExplorerItem.create(this.fileService, addedElement, p.parent);
+						const childElement = ExplorerItem.create(this, this.fileService, addedElement, p.parent);
 						// Make sure to remove any previous version of the file if any
 						p.removeChild(childElement);
 						p.addChild(childElement);
