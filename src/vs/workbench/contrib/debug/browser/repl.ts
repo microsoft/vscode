@@ -89,8 +89,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	_serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
-	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
-	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
+	private static readonly REPL_INPUT_LINE_HEIGHT = 19;
 
 	private history: HistoryNavigator<string>;
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
@@ -99,7 +98,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private replInput!: CodeEditorWidget;
 	private replInputContainer!: HTMLElement;
 	private dimension!: dom.Dimension;
-	private replInputHeight: number;
+	private replInputLineCount = 1;
 	private model!: ITextModel;
 	private historyNavigationEnablement!: IContextKey<boolean>;
 	private scopedInstantiationService!: IInstantiationService;
@@ -123,7 +122,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
-		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 		this.registerListeners();
@@ -303,8 +301,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
-			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
-			this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
+			const shouldRelayout = this.replInputLineCount > 1;
+			this.replInputLineCount = 1;
 			if (shouldRelayout) {
 				// Trigger a layout to shrink a potential multi line input
 				this.layout(this.dimension);
@@ -330,18 +328,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	layout(dimension: dom.Dimension): void {
 		this.dimension = dimension;
+		const replInputHeight = Repl.REPL_INPUT_LINE_HEIGHT * this.replInputLineCount;
 		if (this.tree) {
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			const treeHeight = dimension.height - this.replInputHeight;
+			const treeHeight = dimension.height - replInputHeight;
 			this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight, dimension.width);
 			if (lastElementVisible) {
 				revealLastElement(this.tree);
 			}
 		}
-		this.replInputContainer.style.height = `${this.replInputHeight}px`;
+		this.replInputContainer.style.height = `${replInputHeight}px`;
 
-		this.replInput.layout({ width: dimension.width - 20, height: this.replInputHeight });
+		this.replInput.layout({ width: dimension.width - 20, height: replInputHeight });
 	}
 
 	focus(): void {
@@ -466,16 +465,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
-		this._register(this.replInput.onDidScrollChange(e => {
-			if (!e.scrollHeightChanged) {
-				return;
-			}
-			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
-			this.layout(this.dimension);
-		}));
 		this._register(this.replInput.onDidChangeModelContent(() => {
 			const model = this.replInput.getModel();
 			this.historyNavigationEnablement.set(!!model && model.getValue() === '');
+			const lineCount = model ? Math.min(10, model.getLineCount()) : 1;
+			if (lineCount !== this.replInputLineCount) {
+				this.replInputLineCount = lineCount;
+				this.layout(this.dimension);
+			}
 		}));
 		// We add the input decoration only when the focus is in the input #61126
 		this._register(this.replInput.onDidFocusEditorText(() => this.updateInputDecoration()));
