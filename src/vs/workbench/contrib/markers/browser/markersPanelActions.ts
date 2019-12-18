@@ -304,6 +304,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.element.className = this.action.class || '';
 		this.createInput(this.element);
 		this.createControls(this.element);
+		this.updateClass();
 
 		this.adjustInputBox();
 	}

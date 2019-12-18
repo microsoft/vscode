@@ -12,7 +12,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkersPanel, MarkersPane } from 'vs/workbench/contrib/markers/browser/markersPanel';
+import { MarkersPanel, MarkersView, getMarkersView } from 'vs/workbench/contrib/markers/browser/markersPanel';
 import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction } from 'vs/platform/actions/common/actions';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -42,8 +42,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
 	handler: (accessor, args: any) => {
-		const markersPane = (<MarkersPanel>accessor.get(IPanelService).getActivePanel()).getMarkersPane();
-		markersPane.openFileAtElement(markersPane.getFocusElement(), false, true, true);
+		const markersView = getMarkersView(accessor.get(IPanelService))!;
+		markersView.openFileAtElement(markersView.getFocusElement(), false, true, true);
 	}
 });
 
@@ -63,10 +63,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: Constants.MarkerFocusContextKey,
 	primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
 	handler: (accessor, args: any) => {
-		const markersPane = (<MarkersPanel>accessor.get(IPanelService).getActivePanel()).getMarkersPane();
-		const focusedElement = markersPane.getFocusElement();
+		const markersView = getMarkersView(accessor.get(IPanelService))!;
+		const focusedElement = markersView.getFocusElement();
 		if (focusedElement instanceof Marker) {
-			markersPane.showQuickFixes(focusedElement);
+			markersView.showQuickFixes(focusedElement);
 		}
 	}
 });
@@ -107,7 +107,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	id: Constants.MARKERS_VIEW_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 	canToggleVisibility: false,
-	ctorDescriptor: { ctor: MarkersPane },
+	ctorDescriptor: { ctor: MarkersView },
 }], VIEW_CONTAINER);
 
 // workbench
@@ -123,8 +123,8 @@ registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowProblemsPanelAc
 registerAction({
 	id: Constants.MARKER_COPY_ACTION_ID,
 	title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
-	handler(accessor) {
-		copyMarker(accessor.get(IPanelService), accessor.get(IClipboardService));
+	async handler(accessor) {
+		await copyMarker(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -142,8 +142,8 @@ registerAction({
 registerAction({
 	id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
 	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
-	handler(accessor) {
-		copyMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
+	async handler(accessor) {
+		await copyMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -154,8 +154,8 @@ registerAction({
 registerAction({
 	id: Constants.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
 	title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
-	handler(accessor) {
-		copyRelatedInformationMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
+	async handler(accessor) {
+		await copyRelatedInformationMessage(accessor.get(IPanelService), accessor.get(IClipboardService));
 	},
 	menu: {
 		menuId: MenuId.ProblemsPanelContext,
@@ -192,10 +192,9 @@ registerAction({
 registerAction({
 	id: Constants.MARKERS_PANEL_SHOW_MULTILINE_MESSAGE,
 	handler(accessor) {
-		const panelService = accessor.get(IPanelService);
-		const panel = panelService.getActivePanel();
-		if (panel instanceof MarkersPanel) {
-			panel.getMarkersPane().markersViewModel.multiline = true;
+		const markersView = getMarkersView(accessor.get(IPanelService));
+		if (markersView) {
+			markersView.markersViewModel.multiline = true;
 		}
 	},
 	title: { value: localize('show multiline', "Show message in multiple lines"), original: 'Problems: Show message in multiple lines' },
@@ -208,10 +207,9 @@ registerAction({
 registerAction({
 	id: Constants.MARKERS_PANEL_SHOW_SINGLELINE_MESSAGE,
 	handler(accessor) {
-		const panelService = accessor.get(IPanelService);
-		const panel = panelService.getActivePanel();
-		if (panel instanceof MarkersPanel) {
-			panel.getMarkersPane().markersViewModel.multiline = false;
+		const markersView = getMarkersView(accessor.get(IPanelService));
+		if (markersView) {
+			markersView.markersViewModel.multiline = false;
 		}
 	},
 	title: { value: localize('show singleline', "Show message in single line"), original: 'Problems: Show message in single line' },
@@ -222,33 +220,30 @@ registerAction({
 	}
 });
 
-async function copyMarker(panelService: IPanelService, clipboardService: IClipboardService): Promise<void> {
-	const activePanel = panelService.getActivePanel();
-	if (activePanel instanceof MarkersPanel) {
-		const markersPane = activePanel.getMarkersPane();
-		const element = markersPane.getFocusElement();
+async function copyMarker(panelService: IPanelService, clipboardService: IClipboardService) {
+	const markersView = getMarkersView(panelService);
+	if (markersView) {
+		const element = markersView.getFocusElement();
 		if (element instanceof Marker) {
 			await clipboardService.writeText(`${element}`);
 		}
 	}
 }
 
-async function copyMessage(panelService: IPanelService, clipboardService: IClipboardService): Promise<void> {
-	const activePanel = panelService.getActivePanel();
-	if (activePanel instanceof MarkersPanel) {
-		const markersPane = activePanel.getMarkersPane();
-		const element = markersPane.getFocusElement();
+async function copyMessage(panelService: IPanelService, clipboardService: IClipboardService) {
+	const markersView = getMarkersView(panelService);
+	if (markersView) {
+		const element = markersView.getFocusElement();
 		if (element instanceof Marker) {
 			await clipboardService.writeText(element.marker.message);
 		}
 	}
 }
 
-async function copyRelatedInformationMessage(panelService: IPanelService, clipboardService: IClipboardService): Promise<void> {
-	const activePanel = panelService.getActivePanel();
-	if (activePanel instanceof MarkersPanel) {
-		const markersPane = activePanel.getMarkersPane();
-		const element = markersPane.getFocusElement();
+async function copyRelatedInformationMessage(panelService: IPanelService, clipboardService: IClipboardService) {
+	const markersView = getMarkersView(panelService);
+	if (markersView) {
+		const element = markersView.getFocusElement();
 		if (element instanceof RelatedInformation) {
 			await clipboardService.writeText(element.raw.message);
 		}
@@ -263,9 +258,9 @@ function focusProblemsView(panelService: IPanelService) {
 }
 
 function focusProblemsFilter(panelService: IPanelService): void {
-	const activePanel = panelService.getActivePanel();
-	if (activePanel instanceof MarkersPanel) {
-		activePanel.getMarkersPane().focusFilter();
+	const markersView = getMarkersView(panelService);
+	if (markersView) {
+		markersView.focusFilter();
 	}
 }
 
