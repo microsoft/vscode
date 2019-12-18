@@ -13,9 +13,11 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
+const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
 
 export interface Tunnel {
 	remoteHost: string;
@@ -46,7 +48,9 @@ export class TunnelModel extends Disposable {
 	private _candidateFinder: (() => Promise<{ host: string, port: number, detail: string }[]>) | undefined;
 
 	constructor(
-		@ITunnelService private readonly tunnelService: ITunnelService
+		@ITunnelService private readonly tunnelService: ITunnelService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.forwarded = new Map();
@@ -74,6 +78,7 @@ export class TunnelModel extends Disposable {
 					localPort: tunnel.tunnelLocalPort,
 					closeable: true
 				});
+				this.storeForwarded();
 			}
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
@@ -81,9 +86,29 @@ export class TunnelModel extends Disposable {
 			const key = MakeAddress(address.host, address.port);
 			if (this.forwarded.has(key)) {
 				this.forwarded.delete(key);
+				this.storeForwarded();
 				this._onClosePort.fire(address);
 			}
 		}));
+
+		this.restoreForwarded();
+	}
+
+	private async restoreForwarded() {
+		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
+			const tunnelsString = this.storageService.get(TUNNELS_TO_RESTORE, StorageScope.WORKSPACE);
+			if (tunnelsString) {
+				(<Tunnel[] | undefined>JSON.parse(tunnelsString))?.forEach(tunnel => {
+					this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name);
+				});
+			}
+		}
+	}
+
+	private storeForwarded() {
+		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
+			this.storageService.store(TUNNELS_TO_RESTORE, JSON.stringify(Array.from(this.forwarded.values())), StorageScope.WORKSPACE);
+		}
 	}
 
 	async forward(remote: { host: string, port: number }, local?: number, name?: string): Promise<RemoteTunnel | void> {
@@ -110,6 +135,7 @@ export class TunnelModel extends Disposable {
 		const key = MakeAddress(host, port);
 		if (this.forwarded.has(key)) {
 			this.forwarded.get(key)!.name = name;
+			this.storeForwarded();
 			this._onPortName.fire({ host, port });
 		} else if (this.detected.has(key)) {
 			this.detected.get(key)!.name = name;
@@ -212,8 +238,10 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@ITunnelService tunnelService: ITunnelService) {
-		this._tunnelModel = new TunnelModel(tunnelService);
+		@ITunnelService tunnelService: ITunnelService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		this._tunnelModel = new TunnelModel(tunnelService, storageService, configurationService);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			let helpInformation: HelpInformation[] = [];
 			for (let extension of extensions) {
