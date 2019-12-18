@@ -42,8 +42,8 @@ export class BulkEditPanel extends Panel {
 	) {
 		super(BulkEditPanel.ID, telemetryService, themeService, storageService);
 
-		this._acceptAction = new Action('ok', 'Apply', 'codicon-check', false, async () => this._done(true));
-		this._discardAction = new Action('ok', 'Discard', 'codicon-trash', false, async () => this._done(false));
+		this._acceptAction = new Action('ok', localize('ok', "Apply Refactoring"), 'codicon-check', false, async () => this._done(true));
+		this._discardAction = new Action('discard', localize('discard', "Discard"), 'codicon-trash', false, async () => this._done(false));
 	}
 
 	create(parent: HTMLElement): void {
