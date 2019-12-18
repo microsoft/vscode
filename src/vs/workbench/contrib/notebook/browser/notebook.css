@@ -26,7 +26,7 @@
 
 .cell.code {
 	transform: translate3d(0, 0, 0);
-	padding: 8px 24px 8px 24px;
+	padding: 8px 24px 0px 24px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container {
@@ -65,10 +65,6 @@
 }
 
 
-.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover{
-	box-shadow: 0px 2px 3px 0px rgba(0, 0, 0, 0.14);
-}
-
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:focus-within {
 	z-index: 10;
 }
@@ -86,6 +82,10 @@
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .menu {
 	visibility: visible;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row:hover {
+	outline: none !important;
 }
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .menu:hover {
 	cursor: pointer;

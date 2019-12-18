@@ -1115,7 +1115,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private focus: Trait<T>;
 	private selection: Trait<T>;
 	private eventBufferer = new EventBufferer();
-	private view: ListView<T>;
+	public view: ListView<T>;
 	private spliceable: ISpliceable<T>;
 	private styleController: IStyleController;
 	private typeLabelController?: TypeLabelController<T>;

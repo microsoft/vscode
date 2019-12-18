@@ -21,7 +21,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { NotebookHandler, ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewContentWidget } from 'vs/workbench/contrib/notebook/browser/contentWidget';
+import { WebviewContentWidget, BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = DOM.$;
@@ -33,6 +33,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private contentWidgets!: HTMLElement;
 	private contentWidgetsMap: Map<ViewCell, WebviewContentWidget> = new Map();
 	private contentWidgetsPool: WebviewContentWidget[] = [];
+	private webview: BackLayerWebView | null = null;
 
 	private list: WorkbenchList<ViewCell> | undefined;
 	private model: NotebookEditorModel | undefined;
@@ -115,7 +116,19 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			}
 		);
 
-		this._register(this.list.onDidScroll((e) => {
+		this.webview = new BackLayerWebView(this.webviewService, this);
+		this.list.view.rowsContainer.appendChild(this.webview.element);
+
+		const updateScrollPosition = () => {
+			let scrollTop = this.list?.scrollTop || 0;
+			this.webview!.element.style.top = `${scrollTop}px`;
+			this.webview!.mapping.forEach((item) => {
+				let index = this.model!.getNotebook().cells.indexOf(item.cell.cell);
+				let top = this.list?.getElementTop(index);
+				if (top !== null && top !== undefined) {
+					this.webview!.updateTop(item.cell.id, -scrollTop + top);
+				}
+			});
 			this.contentWidgetsMap.forEach((value, cell) => {
 				if (value.detachedFromViewEvents) {
 					return;
@@ -129,7 +142,10 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 					domElement.style.top = `${-scrollTop + top + value.offset}px`;
 				}
 			});
-		}));
+		};
+
+		this._register(this.list.onDidScroll(() => updateScrollPosition()));
+		this._register(this.list.onDidChangeContentHeight(() => updateScrollPosition()));
 
 		this._register(this.list);
 	}
@@ -139,42 +155,54 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	}
 
 	createContentWidget(cell: ViewCell, shadowContent: string, shadowElement: HTMLElement, offset: number) {
-		let zone = this.contentWidgetsMap.get(cell);
-
-		if (!zone) {
-			let existingContentWidget = this.contentWidgetsPool.pop();
-			if (existingContentWidget) {
-				existingContentWidget.detachedFromViewEvents = false;
-				existingContentWidget.updateInitialization(shadowElement, cell, offset, shadowContent);
-				this.contentWidgetsMap.set(cell, existingContentWidget);
-
-				let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-				let top = this.list?.getElementTop(index);
-				if (top !== null && top !== undefined) {
-					let domElement = existingContentWidget.element;
-					let scrollTop = this.list?.scrollTop || 0;
-					domElement.style.top = `${-scrollTop + top + existingContentWidget.offset}px`;
-				}
-				return;
-			}
-
-			let contentWidget = new WebviewContentWidget(
-				shadowElement,
-				cell,
-				offset,
-				this.webviewService,
-				shadowContent,
-				this
-			);
-
-			this.contentWidgets.appendChild(contentWidget.element);
-			this.contentWidgetsMap.set(cell, contentWidget);
+		if (this.webview!.mapping.has(cell.id)) {
 		} else {
-			zone.updateShadowElement(shadowElement);
+			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+			let top = this.list?.getElementTop(index) || 0;
+			let scrollTop = this.list?.scrollTop || 0;
+			this.webview!.createContentWidget(shadowElement, cell, offset, shadowContent, -scrollTop + top + offset);
 		}
+		// let zone = this.contentWidgetsMap.get(cell);
+
+		// if (!zone) {
+		// 	let existingContentWidget = this.contentWidgetsPool.pop();
+		// 	if (existingContentWidget) {
+		// 		existingContentWidget.detachedFromViewEvents = false;
+		// 		existingContentWidget.updateInitialization(shadowElement, cell, offset, shadowContent);
+		// 		this.contentWidgetsMap.set(cell, existingContentWidget);
+
+		// 		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+		// 		let top = this.list?.getElementTop(index);
+		// 		if (top !== null && top !== undefined) {
+		// 			let domElement = existingContentWidget.element;
+		// 			let scrollTop = this.list?.scrollTop || 0;
+		// 			domElement.style.top = `${-scrollTop + top + existingContentWidget.offset}px`;
+		// 		}
+		// 		return;
+		// 	}
+
+		// 	let contentWidget = new WebviewContentWidget(
+		// 		shadowElement,
+		// 		cell,
+		// 		offset,
+		// 		this.webviewService,
+		// 		shadowContent,
+		// 		this
+		// 	);
+
+		// 	this.contentWidgets.appendChild(contentWidget.element);
+		// 	this.contentWidgetsMap.set(cell, contentWidget);
+		// } else {
+		// 	zone.updateShadowElement(shadowElement);
+		// }
 	}
 
 	disposeViewCell(cell: ViewCell) {
+		if (this.webview!.mapping.has(cell.id)) {
+			this.webview!.updateTop(cell.id, -2400);
+			return;
+		}
+
 		let zone = this.contentWidgetsMap.get(cell);
 
 		if (zone) {
@@ -307,10 +335,6 @@ registerThemingParticipant((theme, collector) => {
 	if (activeLink) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor a:hover,
 			.monaco-workbench .part.editor > .content .notebook-editor a:active { color: ${activeLink}; }`);
-	}
-	const focusColor = theme.getColor(focusBorder);
-	if (focusColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor a:focus { outline-color: ${focusColor}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
 	if (shortcut) {

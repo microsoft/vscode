@@ -27,12 +27,13 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/outputRenderer';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
+// import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import * as UUID from 'vs/base/common/uuid';
 
 export class ViewCell {
 	private _textModel: ITextModel | null = null;
@@ -67,13 +68,15 @@ export class ViewCell {
 		this._onDidChangeEditingState.fire();
 	}
 
+	public id: string;
+
 	constructor(
 		public cell: ICell,
 		private _isEditing: boolean,
 		private readonly modelService: IModelService,
 		private readonly modeService: IModeService
 	) {
-
+		this.id = UUID.generateUuid();
 	}
 
 	hasDynamicHeight() {
@@ -100,6 +103,10 @@ export class ViewCell {
 
 	setDynamicHeight(height: number) {
 		this._dynamicHeight = height;
+	}
+
+	getDynamicHeight() {
+		return this._dynamicHeight;
 	}
 
 	getHeight(lineHeight: number) {
@@ -201,6 +208,10 @@ export class NotebookCellListDelegate implements IListVirtualDelegate<ViewCell> 
 
 	hasDynamicHeight(element: ViewCell): boolean {
 		return element.hasDynamicHeight();
+	}
+
+	getDynamicHeight(element: ViewCell) {
+		return element.getDynamicHeight() || 0;
 	}
 
 	getTemplateId(element: ViewCell): string {
@@ -571,30 +582,30 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				}
 			}
 
-			if (height !== undefined) {
-				let dimensions = DOM.getClientArea(templateData.outputContainer!);
-				const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
-					if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
-						let height = elementSizeObserver.getHeight();
-						if (dimensions.height !== height) {
-							element.setDynamicHeight(totalHeight + 32 + height);
-							this.handler.layoutElement(element, totalHeight + 32 + height);
-						}
-					}
-				});
-				elementSizeObserver.startObserving();
-				if (!hasDynamicHeight && dimensions.height !== 0) {
-					element.setDynamicHeight(totalHeight + 32 + dimensions.height);
-					this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
-				}
+			// if (height !== undefined) {
+			// let dimensions = DOM.getClientArea(templateData.outputContainer!);
+			// const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
+			// 	if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
+			// 		let height = elementSizeObserver.getHeight();
+			// 		if (dimensions.height !== height) {
+			// 			element.setDynamicHeight(totalHeight + 32 + height);
+			// 			this.handler.layoutElement(element, totalHeight + 32 + height);
+			// 		}
+			// 	}
+			// });
+			// elementSizeObserver.startObserving();
+			// if (!hasDynamicHeight && dimensions.height !== 0) {
+			// 	element.setDynamicHeight(totalHeight + 32 + dimensions.height);
+			// 	this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
+			// }
 
-				this.disposables.set(templateData.outputContainer!, {
-					dispose: () => {
-						elementSizeObserver.stopObserving();
-						elementSizeObserver.dispose();
-					}
-				});
-			}
+			// this.disposables.set(templateData.outputContainer!, {
+			// 	dispose: () => {
+			// 		elementSizeObserver.stopObserving();
+			// 		elementSizeObserver.dispose();
+			// 	}
+			// });
+			// }
 		}
 
 	}

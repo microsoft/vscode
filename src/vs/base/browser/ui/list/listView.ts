@@ -165,7 +165,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private renderWidth = 0;
-	private rowsContainer: HTMLElement;
+	public rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
 	private _scrollHeight: number = 0;
 	private scrollableElementUpdateDisposable: IDisposable | null = null;
@@ -1109,6 +1109,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const item = this.items[index];
 
 		if (!item.hasDynamicHeight || item.lastDynamicHeightWidth === this.renderWidth) {
+			return 0;
+		}
+
+		if (this.virtualDelegate.hasDynamicHeight && !this.virtualDelegate.hasDynamicHeight(item.element)) {
 			return 0;
 		}
 

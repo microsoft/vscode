@@ -194,7 +194,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	public readonly onDidScroll = this._onDidScroll.event;
 
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
-	public readonly onDidWheel= this._onDidWheel.event;
+	public readonly onDidWheel = this._onDidWheel.event;
 
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
 	public readonly onDidUpdateState = this._onDidUpdateState.event;
@@ -261,9 +261,6 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			state: this.content.state,
 		};
 		this.doUpdateContent();
-		setTimeout(() => {
-			this.speedTest();
-		}, 3000);
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
