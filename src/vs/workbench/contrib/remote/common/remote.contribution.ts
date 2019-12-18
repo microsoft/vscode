@@ -22,6 +22,7 @@ export const VIEWLET_ID = 'workbench.view.remote';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
+		name: localize('remote.explorer', "Remote Explorer"),
 		hideIfEmpty: true,
 		viewOrderDelegate: {
 			getOrder: (group?: string) => {

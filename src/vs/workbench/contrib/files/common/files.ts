@@ -24,6 +24,7 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { localize } from 'vs/nls';
 
 /**
  * Explorer viewlet id.
@@ -33,7 +34,7 @@ export const VIEWLET_ID = 'workbench.view.explorer';
 /**
  * Explorer viewlet container.
  */
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID }, ViewContainerLocation.Sidebar);
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID, name: localize('explore', "Explorer") }, ViewContainerLocation.Sidebar);
 
 export interface IExplorerService {
 	_serviceBrand: undefined;

@@ -28,7 +28,7 @@ import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewCon
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEWLET_ID = 'workbench.view.debug';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID }, ViewContainerLocation.Sidebar);
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID, name: nls.localize('debugAndRun', "Debug and Run") }, ViewContainerLocation.Sidebar);
 
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
 export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';

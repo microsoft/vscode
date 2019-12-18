@@ -14,7 +14,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, VIEW_CONTAINER } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
@@ -79,7 +79,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 const viewletDescriptor = ViewletDescriptor.create(
 	ExtensionsViewlet,
 	VIEWLET_ID,
-	localize('extensions', "Extensions"),
+	VIEW_CONTAINER.name,
 	'codicon-extensions',
 	4
 );

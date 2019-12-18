@@ -36,6 +36,8 @@ export interface IViewContainerDescriptor {
 
 	readonly id: string;
 
+	readonly name: string;
+
 	readonly viewOrderDelegate?: ViewOrderDelegate;
 
 	readonly hideIfEmpty?: boolean;
@@ -99,6 +101,7 @@ export class ViewContainer {
 	protected constructor(private readonly descriptor: IViewContainerDescriptor) { }
 
 	readonly id: string = this.descriptor.id;
+	readonly name: string = this.descriptor.name;
 	readonly hideIfEmpty: boolean = !!this.descriptor.hideIfEmpty;
 	readonly extensionId: ExtensionIdentifier | undefined = this.descriptor.extensionId;
 	readonly orderDelegate: ViewOrderDelegate | undefined = this.descriptor.viewOrderDelegate;
