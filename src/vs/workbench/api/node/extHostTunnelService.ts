@@ -52,7 +52,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		const tunnel = await this._proxy.$openTunnel(forward);
 		if (tunnel) {
 			const disposableTunnel: vscode.Tunnel = new ExtensionTunnel(tunnel.remote, tunnel.localAddress, () => {
-				return this._proxy.$closeTunnel(tunnel.remote.port);
+				return this._proxy.$closeTunnel(tunnel.remote);
 			});
 			this._register(disposableTunnel);
 			return disposableTunnel;
@@ -95,7 +95,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 						this._extensionTunnels.set(tunnelOptions.remote.host, new Map());
 					}
 					this._extensionTunnels.get(tunnelOptions.remote.host)!.set(tunnelOptions.remote.port, tunnel);
-					this._register(tunnel.onDispose(() => this._proxy.$closeTunnel(tunnel.remote.port)));
+					this._register(tunnel.onDispose(() => this._proxy.$closeTunnel(tunnel.remote)));
 					return Promise.resolve(TunnelDto.fromApiTunnel(tunnel));
 				});
 			}
@@ -104,12 +104,12 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 
-	async $findCandidatePorts(): Promise<{ port: number, detail: string }[]> {
+	async $findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]> {
 		if (!isLinux) {
 			return [];
 		}
 
-		const ports: { port: number, detail: string }[] = [];
+		const ports: { host: string, port: number, detail: string }[] = [];
 		const tcp: string = fs.readFileSync('/proc/net/tcp', 'utf8');
 		const tcp6: string = fs.readFileSync('/proc/net/tcp6', 'utf8');
 		const procSockets: string = await (new Promise(resolve => {
@@ -150,7 +150,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		connections.filter((connection => socketMap[connection.socket])).forEach(({ socket, ip, port }) => {
 			const command = processMap[socketMap[socket].pid].cmd;
 			if (!command.match('.*\.vscode\-server\-[a-zA-Z]+\/bin.*') && (command.indexOf('out/vs/server/main.js') === -1)) {
-				ports.push({ port, detail: processMap[socketMap[socket].pid].cmd });
+				ports.push({ host: ip, port, detail: processMap[socketMap[socket].pid].cmd });
 			}
 		});
 

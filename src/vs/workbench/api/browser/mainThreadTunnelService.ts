@@ -22,15 +22,15 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined> {
-		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remote.port, tunnelOptions.localPort, tunnelOptions.name);
+		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remote, tunnelOptions.localPort, tunnelOptions.name);
 		if (tunnel) {
 			return TunnelDto.fromServiceTunnel(tunnel);
 		}
 		return undefined;
 	}
 
-	async $closeTunnel(remotePort: number): Promise<void> {
-		return this.remoteExplorerService.close(remotePort);
+	async $closeTunnel(remote: { host: string, port: number }): Promise<void> {
+		return this.remoteExplorerService.close(remote);
 	}
 
 	async $registerCandidateFinder(): Promise<void> {

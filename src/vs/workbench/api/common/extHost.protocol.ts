@@ -774,7 +774,7 @@ export interface MainThreadWindowShape extends IDisposable {
 
 export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined>;
-	$closeTunnel(remotePort: number): Promise<void>;
+	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$registerCandidateFinder(): Promise<void>;
 	$setTunnelProvider(): Promise<void>;
 }
@@ -1395,7 +1395,7 @@ export interface ExtHostStorageShape {
 
 
 export interface ExtHostTunnelServiceShape {
-	$findCandidatePorts(): Promise<{ port: number, detail: string }[]>;
+	$findCandidatePorts(): Promise<{ host: string, port: number, detail: string }[]>;
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 }
