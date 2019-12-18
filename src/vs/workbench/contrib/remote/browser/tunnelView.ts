@@ -472,7 +472,7 @@ export class TunnelPanel extends ViewPane {
 
 		this._register(Event.debounce(navigator.onDidOpenResource, (last, event) => event, 75, true)(e => {
 			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
-				this.commandService.executeCommand(ForwardPortAction.ID);
+				this.commandService.executeCommand(ForwardPortAction.ID, 'inline add');
 			}
 		}));
 
@@ -598,6 +598,7 @@ namespace LabelTunnelAction {
 namespace ForwardPortAction {
 	export const ID = 'remote.tunnel.forward';
 	export const LABEL = nls.localize('remote.tunnel.forward', "Forward a Port");
+	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
 
 	function parseInput(value: string): { host: string, port: number } | undefined {
 		const matches = value.match(/^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\:|localhost:)?([0-9]+)$/);
@@ -607,14 +608,19 @@ namespace ForwardPortAction {
 		return { host: matches[1]?.substring(0, matches[1].length - 1) || 'localhost', port: Number(matches[2]) };
 	}
 
+	function validateInput(value: string): string | null {
+		if (!parseInput(value)) {
+			return nls.localize('remote.tunnelsView.portNumberValid', "Port number is invalid");
+		}
+		return null;
+	}
+
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			if (arg instanceof TunnelItem) {
 				remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort });
-			} else {
-				const viewsService = accessor.get(IViewsService);
-				await viewsService.openView(TunnelPanel.ID, true);
+			} else if (arg) {
 				remoteExplorerService.setEditable(undefined, undefined, {
 					onFinish: (value, success) => {
 						let parsed: { host: string, port: number } | undefined;
@@ -623,14 +629,21 @@ namespace ForwardPortAction {
 						}
 						remoteExplorerService.setEditable(undefined, undefined, null);
 					},
-					validationMessage: (value) => {
-						if (!parseInput(value)) {
-							return nls.localize('remote.tunnelsView.portNumberValid', "Port number is invalid");
-						}
-						return null;
-					},
-					placeholder: nls.localize('remote.tunnelsView.forwardPortPlaceholder', "Port number")
+					validationMessage: validateInput,
+					placeholder: forwardPrompt
 				});
+			} else {
+				const viewsService = accessor.get(IViewsService);
+				const quickInputService = accessor.get(IQuickInputService);
+				await viewsService.openView(TunnelPanel.ID, true);
+				const value = await quickInputService.input({
+					prompt: forwardPrompt,
+					validateInput: (value) => Promise.resolve(validateInput(value))
+				});
+				let parsed: { host: string, port: number } | undefined;
+				if (value && (parsed = parseInput(value))) {
+					remoteExplorerService.forward({ host: parsed.host, port: parsed.port });
+				}
 			}
 		};
 	}
