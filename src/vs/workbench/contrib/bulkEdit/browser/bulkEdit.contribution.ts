@@ -35,6 +35,12 @@ class BulkEditPreviewContribution {
 		if (!apply) {
 			return { edits: [] };
 		}
+
+		// todo@joh/steVen add view state
+		// if (this._panelService.getLastActivePanelId() === BulkEditPanel.ID) {
+		// 	this._panelService.hideActivePanel();
+		// }
+
 		// todo@joh get 'real' edit
 		return edit;
 	}

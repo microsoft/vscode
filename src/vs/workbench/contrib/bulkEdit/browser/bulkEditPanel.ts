@@ -8,15 +8,19 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { Dimension } from 'vs/base/browser/dom';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { Edit, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
+import { Edit, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 const enum State {
 	Data = 'data',
@@ -31,19 +35,27 @@ export class BulkEditPanel extends Panel {
 	private _tree!: WorkbenchAsyncDataTree<WorkspaceEdit, Edit, FuzzyScore>;
 	private _message!: HTMLSpanElement;
 
-	private readonly _acceptAction: IAction;
-	private readonly _discardAction: IAction;
+	private readonly _acceptAction = new Action('ok', localize('ok', "Apply Refactoring"), 'codicon-check', false, async () => this._done(true));
+	private readonly _discardAction = new Action('discard', localize('discard', "Discard"), 'codicon-trash', false, async () => this._done(false));
+	private readonly _disposables = new DisposableStore();
+
+	private readonly _sessionDisposables = new DisposableStore();
+	private _currentResolve?: (apply: boolean) => void;
 
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
 	) {
 		super(BulkEditPanel.ID, telemetryService, themeService, storageService);
+	}
 
-		this._acceptAction = new Action('ok', localize('ok', "Apply Refactoring"), 'codicon-check', false, async () => this._done(true));
-		this._discardAction = new Action('discard', localize('discard', "Discard"), 'codicon-trash', false, async () => this._done(false));
+	dispose(): void {
+		this._tree.dispose();
+		this._disposables.dispose();
 	}
 
 	create(parent: HTMLElement): void {
@@ -67,7 +79,16 @@ export class BulkEditPanel extends Panel {
 			}
 		);
 
-		// tree
+		this._disposables.add(this._tree.onDidOpen(e => {
+			const [first] = e.elements;
+			if (first instanceof TextEditElement) {
+				this._previewTextEditElement(first);
+			} else if (first instanceof FileElement) {
+				this._previewFileElement(first);
+			}
+		}));
+
+		// message
 		this._message = document.createElement('span');
 		this._message.className = 'message';
 		this._message.innerText = localize('empty.msg', "Invoke a code action, like rename, to see a preview of its changes here.");
@@ -75,6 +96,10 @@ export class BulkEditPanel extends Panel {
 
 		//
 		this._setState(State.Message);
+	}
+
+	getActions() {
+		return [this._acceptAction, this._discardAction];
 	}
 
 	layout(dimension: Dimension): void {
@@ -85,10 +110,11 @@ export class BulkEditPanel extends Panel {
 		this.getContainer()!.dataset['state'] = state;
 	}
 
-	private _currentResolve?: (apply: boolean) => void;
-
 	setInput(edit: WorkspaceEdit): Promise<boolean> {
 		this._setState(State.Data);
+		this._sessionDisposables.clear();
+
+		this._sessionDisposables.add(this._instaService.createInstance(BulkEditPreviewProvider, edit));
 
 		if (this._currentResolve) {
 			this._currentResolve(false);
@@ -114,7 +140,7 @@ export class BulkEditPanel extends Panel {
 
 	private _done(accept: boolean): void {
 		this._setState(State.Message);
-
+		this._sessionDisposables.clear();
 		if (this._currentResolve) {
 			this._currentResolve(accept);
 			this._acceptAction.enabled = false;
@@ -123,8 +149,25 @@ export class BulkEditPanel extends Panel {
 		}
 	}
 
-	getActions() {
-		return [this._acceptAction, this._discardAction];
+	private async _previewTextEditElement(edit: TextEditElement): Promise<void> {
+
+		const previewUri = BulkEditPreviewProvider.asPreviewUri(edit.parent.resource);
+
+		this._editorService.openEditor({
+			leftResource: edit.parent.resource,
+			rightResource: previewUri,
+			label: localize('edt.title', "{0} (Refactor Preview)", this._labelService.getUriLabel(edit.parent.resource)),
+			options: {
+				selection: edit.edit.range
+				// preserveFocus,
+				// pinned,
+				// revealIfVisible: true
+			}
+		});
+	}
+
+	private _previewFileElement(edit: FileElement): void {
+
 	}
 }
 

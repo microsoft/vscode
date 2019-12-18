@@ -3,50 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-// import * as modes from 'vs/editor/common/modes';
-// import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-// import { URI } from 'vs/base/common/uri';
-// import { ITextModel } from 'vs/editor/common/model';
-// import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-// import { IModeService } from 'vs/editor/common/services/modeService';
-// import { IModelService } from 'vs/editor/common/services/modelService';
-// import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { URI } from 'vs/base/common/uri';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/modes';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { flatten, mergeSort } from 'vs/base/common/arrays';
+import { Range } from 'vs/editor/common/core/range';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
-// export class BulkEditPreviewProvider implements ITextModelContentProvider {
+export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
-// 	static readonly Schema = 'vscode-bulkeditpreview';
+	static readonly Schema = 'vscode-bulkeditpreview';
 
-// 	static asPreviewUri(uri: URI): URI {
-// 		return URI.from({ scheme: BulkEditPreviewProvider.Schema, path: uri.toString() });
-// 	}
+	static asPreviewUri(uri: URI): URI {
+		return URI.from({ scheme: BulkEditPreviewProvider.Schema, path: uri.toString() });
+	}
 
-// 	static fromPreviewUri(uri: URI): URI {
-// 		return URI.parse(uri.path);
-// 	}
+	static fromPreviewUri(uri: URI): URI {
+		return URI.parse(uri.path);
+	}
 
-// 	constructor(
-// 		@IModeService private readonly _modeService: IModeService,
-// 		@IModelService private readonly _modelService: IModelService,
-// 		@ITextModelService private readonly textModelResolverService: ITextModelService
-// 	) {
-// 		this.textModelResolverService.registerTextModelContentProvider(BulkEditPreviewProvider.Schema, this);
-// 	}
+	private readonly _reg: IDisposable;
 
-// 	async provideTextContent(previewUri: URI) {
+	constructor(
+		private readonly _edit: WorkspaceEdit,
+		@IModeService private readonly _modeService: IModeService,
+		@IModelService private readonly _modelService: IModelService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService
+	) {
+		this._reg = this.textModelResolverService.registerTextModelContentProvider(BulkEditPreviewProvider.Schema, this);
+	}
 
-// 		const resourceUri = BulkEditPreviewProvider.fromPreviewUri(previewUri);
+	dispose(): void {
+		this._reg.dispose();
+	}
 
-// 		const ref = await this.textModelResolverService.createModelReference(resourceUri);
+	async provideTextContent(previewUri: URI) {
 
-// 		const sourceModel = ref.object.textEditorModel;
+		const resourceUri = BulkEditPreviewProvider.fromPreviewUri(previewUri);
 
-// 		const previewModel = this._modelService.createModel(
-// 			createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
-// 			this._modeService.create(sourceModel.getLanguageIdentifier().language),
-// 			previewUri
-// 		);
+		const ref = await this.textModelResolverService.createModelReference(resourceUri);
 
-// 		return null;
-// 	}
-// }
+		const sourceModel = ref.object.textEditorModel;
+
+		const previewModel = this._modelService.createModel(
+			createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
+			this._modeService.create(sourceModel.getLanguageIdentifier().language),
+			previewUri
+		);
+
+		const textEdits: TextEdit[][] = [];
+		for (let edit of this._edit.edits) {
+			if (isResourceTextEdit(edit) && edit.resource.toString() === resourceUri.toString()) {
+				textEdits.push(edit.edits);
+			}
+		}
+
+		let allEdits = flatten(textEdits).map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text));
+		allEdits = mergeSort(allEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		previewModel.applyEdits(allEdits);
+
+		return previewModel;
+	}
+}

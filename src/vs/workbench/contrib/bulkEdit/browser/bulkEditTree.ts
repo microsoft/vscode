@@ -29,7 +29,12 @@ export class FileElement {
 }
 
 export class TextEditElement {
-	constructor(readonly edit: modes.TextEdit, readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string) { }
+
+	constructor(
+		readonly parent: modes.ResourceTextEdit,
+		readonly edit: modes.TextEdit,
+		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string
+	) { }
 }
 
 export type Edit = FileElement | TextEditElement;
@@ -72,6 +77,7 @@ export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit,
 				}
 
 				return new TextEditElement(
+					<modes.ResourceTextEdit>element.edit,
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, 1, range.startLineNumber, range.startColumn)), // line start to edit start,
 					textModel.getValueInRange(range),
