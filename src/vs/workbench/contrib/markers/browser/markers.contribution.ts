@@ -120,7 +120,7 @@ class MarkersPanel extends PaneCompositePanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(Constants.MARKERS_PANEL_ID, instantiationService.createInstance(ViewPaneContainer, Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { showHeaderInTitleWhenSingleView: true, donotShowViewTitleWhenSingleView: true }),
+		super(Constants.MARKERS_PANEL_ID, instantiationService.createInstance(ViewPaneContainer, Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }),
 			telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 	}
 }
