@@ -7,6 +7,8 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export default {
 	MARKERS_PANEL_ID: 'workbench.panel.markers',
+	MARKERS_PANEL_STORAGE_ID: 'workbench.panel.markers',
+	MARKERS_VIEW_ID: 'workbench.panel.markers.view',
 	MARKER_COPY_ACTION_ID: 'problems.action.copy',
 	MARKER_COPY_MESSAGE_ACTION_ID: 'problems.action.copyMessage',
 	RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID: 'problems.action.copyRelatedInformationMessage',
