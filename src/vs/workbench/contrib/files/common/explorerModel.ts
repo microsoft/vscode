@@ -14,8 +14,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IExplorerService, SortOrder } from 'vs/workbench/contrib/files/common/files';
 import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
+import { SortOrder } from 'vs/workbench/contrib/files/common/files';
 
 export class ExplorerModel implements IDisposable {
 
@@ -25,10 +25,10 @@ export class ExplorerModel implements IDisposable {
 
 	constructor(
 		private readonly contextService: IWorkspaceContextService,
-		explorerService: IExplorerService
+		fileService: IFileService
 	) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, explorerService, undefined, true, false, false, folder.name));
+			.map(folder => new ExplorerItem(folder.uri, fileService, undefined, true, false, folder.name));
 		setRoots();
 
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -83,11 +83,10 @@ export class ExplorerItem {
 
 	constructor(
 		public resource: URI,
-		private readonly explorerService: IExplorerService,
+		private readonly fileService: IFileService,
 		private _parent: ExplorerItem | undefined,
 		private _isDirectory?: boolean,
 		private _isSymbolicLink?: boolean,
-		private _isReadonly?: boolean,
 		private _name: string = basenameOrAuthority(resource),
 		private _mtime?: number,
 	) {
@@ -112,7 +111,7 @@ export class ExplorerItem {
 	}
 
 	get isReadonly(): boolean {
-		return !!this._isReadonly;
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	get mtime(): number | undefined {
@@ -158,8 +157,8 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(explorerService: IExplorerService, fileService: IFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, explorerService, parent, raw.isDirectory, raw.isSymbolicLink, fileService.hasCapability(raw.resource, FileSystemProviderCapabilities.Readonly), raw.name, raw.mtime);
+	static create(fileService: IFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, fileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.name, raw.mtime);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -174,7 +173,7 @@ export class ExplorerItem {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = ExplorerItem.create(explorerService, fileService, raw.children[i], stat, resolveTo);
+					const child = ExplorerItem.create(fileService, raw.children[i], stat, resolveTo);
 					stat.addChild(child);
 				}
 			}
@@ -208,7 +207,6 @@ export class ExplorerItem {
 		local._mtime = disk.mtime;
 		local._isDirectoryResolved = disk._isDirectoryResolved;
 		local._isSymbolicLink = disk.isSymbolicLink;
-		local._isReadonly = disk.isReadonly;
 		local.isError = disk.isError;
 
 		// Merge Children if resolved
@@ -259,14 +257,14 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
-	async fetchChildren(fileService: IFileService, explorerService: IExplorerService): Promise<ExplorerItem[]> {
+	async fetchChildren(sortOrder: SortOrder): Promise<ExplorerItem[]> {
 		if (!this._isDirectoryResolved) {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'
-			const resolveMetadata = explorerService.sortOrder === SortOrder.Modified;
+			const resolveMetadata = sortOrder === SortOrder.Modified;
 			try {
-				const stat = await fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-				const resolved = ExplorerItem.create(explorerService, fileService, stat, this);
+				const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
+				const resolved = ExplorerItem.create(this.fileService, stat, this);
 				ExplorerItem.mergeLocalWithDisk(resolved, this);
 			} catch (e) {
 				this.isError = true;
@@ -306,7 +304,7 @@ export class ExplorerItem {
 	}
 
 	private getPlatformAwareName(name: string): string {
-		return this.explorerService.shouldIgnoreCase(this.resource) ? name.toLowerCase() : name;
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.PathCaseSensitive) ? name : name.toLowerCase();
 	}
 
 	/**
@@ -356,7 +354,7 @@ export class ExplorerItem {
 	find(resource: URI): ExplorerItem | null {
 		// Return if path found
 		// For performance reasons try to do the comparison as fast as possible
-		const ignoreCase = this.explorerService.shouldIgnoreCase(resource);
+		const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
 		if (resource && this.resource.scheme === resource.scheme && equalsIgnoreCase(this.resource.authority, resource.authority) &&
 			(ignoreCase ? startsWithIgnoreCase(resource.path, this.resource.path) : startsWith(resource.path, this.resource.path))) {
 			return this.findByPath(rtrim(resource.path, posix.sep), this.resource.path.length, ignoreCase);
@@ -397,7 +395,7 @@ export class ExplorerItem {
 }
 
 export class NewExplorerItem extends ExplorerItem {
-	constructor(explorerService: IExplorerService, parent: ExplorerItem, isDirectory: boolean) {
-		super(URI.file(''), explorerService, parent, isDirectory);
+	constructor(fileService: IFileService, parent: ExplorerItem, isDirectory: boolean) {
+		super(URI.file(''), fileService, parent, isDirectory);
 	}
 }

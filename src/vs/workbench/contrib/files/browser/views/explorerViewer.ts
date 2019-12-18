@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -90,12 +90,13 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return Promise.resolve(element);
 		}
 
-		const promise = element.fetchChildren(this.fileService, this.explorerService).then(undefined, e => {
+		const sortOrder = this.explorerService.sortOrder;
+		const promise = element.fetchChildren(sortOrder).then(undefined, e => {
 
 			if (element instanceof ExplorerItem && element.isRoot) {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					// Single folder create a dummy explorer item to show error
-					const placeholder = new ExplorerItem(element.resource, this.explorerService, undefined, false);
+					const placeholder = new ExplorerItem(element.resource, this.fileService, undefined, false);
 					placeholder.isError = true;
 					return [placeholder];
 				} else {
@@ -921,17 +922,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Check for name collisions
 			const targetNames = new Set<string>();
+			const caseSensitive = this.fileService.hasCapability(target.resource, FileSystemProviderCapabilities.PathCaseSensitive);
 			if (targetStat.children) {
-				const ignoreCase = this.explorerService.shouldIgnoreCase(target.resource);
 				targetStat.children.forEach(child => {
-					targetNames.add(ignoreCase ? child.name.toLowerCase() : child.name);
+					targetNames.add(caseSensitive ? child.name : child.name.toLowerCase());
 				});
 			}
 
 			// Run add in sequence
 			const addPromisesFactory: ITask<Promise<void>>[] = [];
 			await Promise.all(resources.map(async resource => {
-				if (targetNames.has(this.explorerService.shouldIgnoreCase(resource) ? basename(resource).toLowerCase() : basename(resource))) {
+				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
 						return;
