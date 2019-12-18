@@ -234,7 +234,8 @@ export abstract class ViewPane extends Pane implements IView {
 }
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
-	showHeaderInTitleWhenSingleView: boolean;
+	mergeViewWithContainerWhenSingleView: boolean;
+	donotShowContainerTitleWhenMergedWithContainer?: boolean;
 }
 
 interface IViewPaneItem {
@@ -346,14 +347,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	getTitle(): string {
 		const composite = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getViewlet(this.getId()) || Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanel(this.getId());
-		let title = composite.name;
 
-		if (this.isSingleView()) {
+		if (this.isViewMergedWithContainer()) {
 			const paneItemTitle = this.paneItems[0].pane.title;
-			title = paneItemTitle ? `${title}: ${paneItemTitle}` : title;
+			if (this.options.donotShowContainerTitleWhenMergedWithContainer) {
+				return this.paneItems[0].pane.title;
+			}
+			return paneItemTitle ? `${composite.name}: ${paneItemTitle}` : composite.name;
 		}
 
-		return title;
+		return composite.name;
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
@@ -402,7 +405,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getActions(): IAction[] {
-		if (this.isSingleView()) {
+		if (this.isViewMergedWithContainer()) {
 			return this.paneItems[0].pane.getActions();
 		}
 
@@ -410,7 +413,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getSecondaryActions(): IAction[] {
-		if (this.isSingleView()) {
+		if (this.isViewMergedWithContainer()) {
 			return this.paneItems[0].pane.getSecondaryActions();
 		}
 
@@ -418,7 +421,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (this.isSingleView()) {
+		if (this.isViewMergedWithContainer()) {
 			return this.paneItems[0].pane.getActionViewItem(action);
 		}
 
@@ -459,14 +462,14 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	addPanes(panes: { pane: ViewPane, size: number, index?: number; }[]): void {
-		const wasSingleView = this.isSingleView();
+		const wasMerged = this.isViewMergedWithContainer();
 
 		for (const { pane: pane, size, index } of panes) {
 			this.addPane(pane, size, index);
 		}
 
 		this.updateViewHeaders();
-		if (this.isSingleView() !== wasSingleView) {
+		if (this.isViewMergedWithContainer() !== wasMerged) {
 			this.updateTitleArea();
 		}
 	}
@@ -643,7 +646,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {
 		const onDidFocus = pane.onDidFocus(() => this.lastFocusedPane = pane);
 		const onDidChangeTitleArea = pane.onDidChangeTitleArea(() => {
-			if (this.isSingleView()) {
+			if (this.isViewMergedWithContainer()) {
 				this.updateTitleArea();
 			}
 		});
@@ -668,12 +671,12 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	removePanes(panes: ViewPane[]): void {
-		const wasSingleView = this.isSingleView();
+		const wasMerged = this.isViewMergedWithContainer();
 
 		panes.forEach(pane => this.removePane(pane));
 
 		this.updateViewHeaders();
-		if (wasSingleView !== this.isSingleView()) {
+		if (wasMerged !== this.isViewMergedWithContainer()) {
 			this.updateTitleArea();
 		}
 	}
@@ -726,8 +729,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return assertIsDefined(this.paneview).getPaneSize(pane);
 	}
 
-	protected updateViewHeaders(): void {
-		if (this.isSingleView()) {
+	private updateViewHeaders(): void {
+		if (this.isViewMergedWithContainer()) {
 			this.paneItems[0].pane.setExpanded(true);
 			this.paneItems[0].pane.headerVisible = false;
 		} else {
@@ -735,8 +738,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 
-	protected isSingleView(): boolean {
-		if (!(this.options.showHeaderInTitleWhenSingleView && this.paneItems.length === 1)) {
+	private isViewMergedWithContainer(): boolean {
+		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
 			return false;
 		}
 		if (!this.areExtensionsReady) {
