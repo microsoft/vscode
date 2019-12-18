@@ -1177,6 +1177,11 @@ export interface IEditorPartOptions extends IEditorPartConfiguration {
 	iconTheme?: string;
 }
 
+export interface IEditorPartOptionsChangeEvent {
+	oldPartOptions: IEditorPartOptions;
+	newPartOptions: IEditorPartOptions;
+}
+
 export enum SideBySideEditor {
 	MASTER = 1,
 	DETAILS = 2
