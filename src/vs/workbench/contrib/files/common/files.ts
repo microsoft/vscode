@@ -33,7 +33,7 @@ export const VIEWLET_ID = 'workbench.view.explorer';
 /**
  * Explorer viewlet container.
  */
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID, ViewContainerLocation.Sidebar);
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID }, ViewContainerLocation.Sidebar);
 
 export interface IExplorerService {
 	_serviceBrand: undefined;

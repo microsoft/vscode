@@ -18,7 +18,7 @@ import { Extensions as ViewContainerExtensions, ViewContainer, IViewContainersRe
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID, ViewContainerLocation.Sidebar);
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID }, ViewContainerLocation.Sidebar);
 
 export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 

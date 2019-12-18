@@ -313,7 +313,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 		if (!viewContainer) {
 
-			viewContainer = this.viewContainersRegistry.registerViewContainer(id, ViewContainerLocation.Sidebar, true, extensionId);
+			viewContainer = this.viewContainersRegistry.registerViewContainer({ id, hideIfEmpty: true, extensionId }, ViewContainerLocation.Sidebar);
 
 			class CustomViewPaneContainer extends ViewPaneContainer {
 				constructor(

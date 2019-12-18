@@ -25,7 +25,7 @@ export const VIEW_ID = 'workbench.view.search';
 /**
  * Search viewlet container.
  */
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID, hideIfEmpty: true }, ViewContainerLocation.Sidebar);
 
 export const ISearchService = createDecorator<ISearchService>('searchService');
 

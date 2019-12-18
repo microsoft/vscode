@@ -20,31 +20,30 @@ import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExte
 
 export const VIEWLET_ID = 'workbench.view.remote';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
-	VIEWLET_ID,
-	ViewContainerLocation.Sidebar,
-	true,
-	undefined,
 	{
-		getOrder: (group?: string) => {
-			if (!group) {
+		id: VIEWLET_ID,
+		hideIfEmpty: true,
+		viewOrderDelegate: {
+			getOrder: (group?: string) => {
+				if (!group) {
+					return;
+				}
+
+				let matches = /^targets@(\d+)$/.exec(group);
+				if (matches) {
+					return -1000;
+				}
+
+				matches = /^details(@(\d+))?$/.exec(group);
+
+				if (matches) {
+					return -500;
+				}
+
 				return;
 			}
-
-			let matches = /^targets@(\d+)$/.exec(group);
-			if (matches) {
-				return -1000;
-			}
-
-			matches = /^details(@(\d+))?$/.exec(group);
-
-			if (matches) {
-				return -500;
-			}
-
-			return;
 		}
-	}
-);
+	}, ViewContainerLocation.Sidebar);
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(

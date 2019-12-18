@@ -31,6 +31,18 @@ export enum ViewContainerLocation {
 	Panel
 }
 
+export interface IViewContainerDescriptor {
+
+	readonly id: string;
+
+	readonly viewOrderDelegate?: ViewOrderDelegate;
+
+	readonly hideIfEmpty?: boolean;
+
+	readonly extensionId?: ExtensionIdentifier;
+
+}
+
 export interface IViewContainersRegistry {
 	/**
 	 * An event that is triggerred when a view container is registered.
@@ -48,14 +60,15 @@ export interface IViewContainersRegistry {
 	readonly all: ViewContainer[];
 
 	/**
-	 * Registers a view container with given id
-	 * No op if a view container is already registered with the given id.
+	 * Registers a view container to given location.
+	 * No op if a view container is already registered.
 	 *
-	 * @param id of the view container.
+	 * @param viewContainerDescriptor descriptor of view container
+	 * @param location location of the view container
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, location: ViewContainerLocation, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -76,7 +89,13 @@ interface ViewOrderDelegate {
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly location: ViewContainerLocation, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier, readonly orderDelegate?: ViewOrderDelegate) { }
+
+	protected constructor(private readonly descriptor: IViewContainerDescriptor) { }
+
+	readonly id: string = this.descriptor.id;
+	readonly hideIfEmpty: boolean = !!this.descriptor.hideIfEmpty;
+	readonly extensionId: ExtensionIdentifier | undefined = this.descriptor.extensionId;
+	readonly orderDelegate: ViewOrderDelegate | undefined = this.descriptor.viewOrderDelegate;
 }
 
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
@@ -93,18 +112,18 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, location: ViewContainerLocation, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
-		const existing = this.viewContainers.get(id);
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation): ViewContainer {
+		const existing = this.viewContainers.get(viewContainerDescriptor.id);
 		if (existing) {
 			return existing;
 		}
 
 		const viewContainer = new class extends ViewContainer {
 			constructor() {
-				super(id, location, !!hideIfEmpty, extensionId, viewOrderDelegate);
+				super(viewContainerDescriptor);
 			}
 		};
-		this.viewContainers.set(id, viewContainer);
+		this.viewContainers.set(viewContainerDescriptor.id, viewContainer);
 		this._onDidRegister.fire(viewContainer);
 		return viewContainer;
 	}

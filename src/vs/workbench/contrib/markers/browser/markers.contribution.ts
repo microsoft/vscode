@@ -102,7 +102,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 
 
 // markers view container
-const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(Constants.MARKERS_PANEL_ID, ViewContainerLocation.Panel);
+const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: Constants.MARKERS_PANEL_ID }, ViewContainerLocation.Panel);
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: Constants.MARKERS_VIEW_ID,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
