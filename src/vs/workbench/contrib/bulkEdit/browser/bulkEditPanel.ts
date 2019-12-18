@@ -5,7 +5,7 @@
 
 import 'vs/css!./bulkEdit';
 import { Panel } from 'vs/workbench/browser/panel';
-import { Dimension, addClass } from 'vs/base/browser/dom';
+import { Dimension } from 'vs/base/browser/dom';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { Edit, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
@@ -16,6 +16,12 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Action, IAction } from 'vs/base/common/actions';
 import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
+
+const enum State {
+	Data = 'data',
+	Message = 'message'
+}
 
 export class BulkEditPanel extends Panel {
 
@@ -23,8 +29,10 @@ export class BulkEditPanel extends Panel {
 	private static EmptyWorkspaceEdit = { edits: [] };
 
 	private _tree!: WorkbenchAsyncDataTree<WorkspaceEdit, Edit, FuzzyScore>;
-	private _acceptAction: IAction;
-	private _discardAction: IAction;
+	private _message!: HTMLSpanElement;
+
+	private readonly _acceptAction: IAction;
+	private readonly _discardAction: IAction;
 
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -40,10 +48,11 @@ export class BulkEditPanel extends Panel {
 
 	create(parent: HTMLElement): void {
 		super.create(parent);
+		parent.className = 'bulk-edit-panel';
 
-		addClass(parent, 'bulk-edit-panel');
-
+		// tree
 		const treeContainer = document.createElement('div');
+		treeContainer.className = 'tree';
 		treeContainer.style.width = '100%';
 		treeContainer.style.height = '100%';
 		parent.appendChild(treeContainer);
@@ -57,15 +66,29 @@ export class BulkEditPanel extends Panel {
 				identityProvider: new BulkEditIdentityProvider()
 			}
 		);
+
+		// tree
+		this._message = document.createElement('span');
+		this._message.className = 'message';
+		this._message.innerText = localize('empty.msg', "Invoke a code action, like rename, to see a preview of its changes here.");
+		parent.appendChild(this._message);
+
+		//
+		this._setState(State.Message);
 	}
 
 	layout(dimension: Dimension): void {
 		this._tree.layout(dimension.height, dimension.width);
 	}
 
+	private _setState(state: State): void {
+		this.getContainer()!.dataset['state'] = state;
+	}
+
 	private _currentResolve?: (apply: boolean) => void;
 
 	setInput(edit: WorkspaceEdit): Promise<boolean> {
+		this._setState(State.Data);
 
 		if (this._currentResolve) {
 			this._currentResolve(false);
@@ -90,6 +113,8 @@ export class BulkEditPanel extends Panel {
 	}
 
 	private _done(accept: boolean): void {
+		this._setState(State.Message);
+
 		if (this._currentResolve) {
 			this._currentResolve(accept);
 			this._acceptAction.enabled = false;

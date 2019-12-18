@@ -7,4 +7,20 @@
 	text-decoration: line-through;
 }
 
+.monaco-workbench .bulk-edit-panel .message {
+	padding: 10px 20px
+}
+
+.monaco-workbench .bulk-edit-panel[data-state="message"] .message,
+.monaco-workbench .bulk-edit-panel[data-state="data"] .tree
+{
+	display: inherit;
+}
+
+.monaco-workbench .bulk-edit-panel[data-state="data"] .message,
+.monaco-workbench .bulk-edit-panel[data-state="message"] .tree
+{
+	display: none;
+}
+
 
