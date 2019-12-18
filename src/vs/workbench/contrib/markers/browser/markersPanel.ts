@@ -48,8 +48,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewPaneContainer, ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export function getMarkersView(panelService: IPanelService): MarkersView | undefined {
@@ -69,22 +68,6 @@ function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterat
 
 		return { element: m, children };
 	});
-
-}
-
-export class MarkersPanel extends PaneCompositePanel {
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(Constants.MARKERS_PANEL_ID, instantiationService.createInstance(ViewPaneContainer, Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { showHeaderInTitleWhenSingleView: true, donotShowViewTitleWhenSingleView: true }),
-			telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-	}
 
 }
 
