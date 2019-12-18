@@ -79,7 +79,8 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * Forwards a port. Currently only works for a remote host of localhost.
+		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
+		 * By default, makeTunnel only support localhost; however, RemoteAuthorityResolver:forwardPort can be used to support other ips.
 		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
 		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;
