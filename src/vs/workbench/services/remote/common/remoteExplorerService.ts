@@ -152,11 +152,11 @@ export class TunnelModel extends Disposable {
 		return (this.forwarded.get(key) || this.detected.get(key))?.localAddress;
 	}
 
-	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[]): void {
+	addEnvironmentTunnels(tunnels: { remoteAddress: { port: number, host: string }, localAddress: string }[]): void {
 		tunnels.forEach(tunnel => {
-			this.detected.set(MakeAddress(tunnel.remote.host, tunnel.remote.port), {
-				remoteHost: tunnel.remote.host,
-				remotePort: tunnel.remote.port,
+			this.detected.set(MakeAddress(tunnel.remoteAddress.host, tunnel.remoteAddress.port), {
+				remoteHost: tunnel.remoteAddress.host,
+				remotePort: tunnel.remoteAddress.port,
 				localAddress: tunnel.localAddress,
 				closeable: false
 			});
@@ -186,7 +186,7 @@ export interface IRemoteExplorerService {
 	getEditableData(remoteHost: string | undefined, remotePort: number | undefined): IEditableData | undefined;
 	forward(remote: { host: string, port: number }, localPort?: number, name?: string): Promise<RemoteTunnel | void>;
 	close(remote: { host: string, port: number }): Promise<void>;
-	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): void;
+	addEnvironmentTunnels(tunnels: { remoteAddress: { port: number, host: string }, localAddress: string }[] | undefined): void;
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void;
 }
 
@@ -299,9 +299,9 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		return this.tunnelModel.close(remote.host, remote.port);
 	}
 
-	addDetected(tunnels: { remote: { port: number, host: string }, localAddress: string }[] | undefined): void {
+	addEnvironmentTunnels(tunnels: { remoteAddress: { port: number, host: string }, localAddress: string }[] | undefined): void {
 		if (tunnels) {
-			this.tunnelModel.addDetected(tunnels);
+			this.tunnelModel.addEnvironmentTunnels(tunnels);
 		}
 	}
 

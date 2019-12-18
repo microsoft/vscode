@@ -224,7 +224,7 @@ export class TunnelService implements ITunnelService {
 		}
 
 		if (this._tunnelProvider) {
-			const tunnel = this._tunnelProvider.forwardPort({ remote: { host: remoteHost, port: remotePort } });
+			const tunnel = this._tunnelProvider.forwardPort({ remoteAddress: { host: remoteHost, port: remotePort } });
 			if (tunnel) {
 				this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			}

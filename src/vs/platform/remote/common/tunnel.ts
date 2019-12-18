@@ -19,9 +19,9 @@ export interface RemoteTunnel {
 }
 
 export interface TunnelOptions {
-	remote: { port: number, host: string };
+	remoteAddress: { port: number, host: string };
 	localPort?: number;
-	name?: string;
+	label?: string;
 }
 
 export interface ITunnelProvider {

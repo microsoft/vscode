@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { TunnelOptions, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
+import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ITunnelProvider, ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITunnelProvider, ITunnelService, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
@@ -22,7 +22,7 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined> {
-		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remote, tunnelOptions.localPort, tunnelOptions.name);
+		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remoteAddress, tunnelOptions.localPort, tunnelOptions.label);
 		if (tunnel) {
 			return TunnelDto.fromServiceTunnel(tunnel);
 		}
@@ -44,11 +44,11 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 				if (forward) {
 					return forward.then(tunnel => {
 						return {
-							tunnelRemotePort: tunnel.remote.port,
-							tunnelRemoteHost: tunnel.remote.host,
+							tunnelRemotePort: tunnel.remoteAddress.port,
+							tunnelRemoteHost: tunnel.remoteAddress.host,
 							localAddress: tunnel.localAddress,
 							dispose: () => {
-								this._proxy.$closeTunnel({ host: tunnel.remote.host, port: tunnel.remote.port });
+								this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port });
 							}
 						};
 					});

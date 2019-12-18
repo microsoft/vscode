@@ -13,16 +13,17 @@ import { exec } from 'child_process';
 import * as resources from 'vs/base/common/resources';
 import * as fs from 'fs';
 import { isLinux } from 'vs/base/common/platform';
-import { IExtHostTunnelService, TunnelOptions, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
+import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
+import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
-	onDispose: Event<void> = this._onDispose.event;
+	onDidDispose: Event<void> = this._onDispose.event;
 
 	constructor(
-		public readonly remote: { port: number; host: string; },
+		public readonly remoteAddress: { port: number; host: string; },
 		public readonly localAddress: string,
 		private readonly _dispose: () => void) { }
 
@@ -48,11 +49,11 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			this.registerCandidateFinder();
 		}
 	}
-	async makeTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
+	async openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
 		const tunnel = await this._proxy.$openTunnel(forward);
 		if (tunnel) {
-			const disposableTunnel: vscode.Tunnel = new ExtensionTunnel(tunnel.remote, tunnel.localAddress, () => {
-				return this._proxy.$closeTunnel(tunnel.remote);
+			const disposableTunnel: vscode.Tunnel = new ExtensionTunnel(tunnel.remoteAddress, tunnel.localAddress, () => {
+				return this._proxy.$closeTunnel(tunnel.remoteAddress);
 			});
 			this._register(disposableTunnel);
 			return disposableTunnel;
@@ -65,8 +66,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async setForwardPortProvider(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
-		if (provider && provider.forwardPort) {
-			this._forwardPortProvider = provider.forwardPort;
+		if (provider && provider.tunnelFactory) {
+			this._forwardPortProvider = provider.tunnelFactory;
 			await this._proxy.$setTunnelProvider();
 		} else {
 			this._forwardPortProvider = undefined;
@@ -91,11 +92,11 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			const providedPort = this._forwardPortProvider!(tunnelOptions);
 			if (providedPort !== undefined) {
 				return asPromise(() => providedPort).then(tunnel => {
-					if (!this._extensionTunnels.has(tunnelOptions.remote.host)) {
-						this._extensionTunnels.set(tunnelOptions.remote.host, new Map());
+					if (!this._extensionTunnels.has(tunnelOptions.remoteAddress.host)) {
+						this._extensionTunnels.set(tunnelOptions.remoteAddress.host, new Map());
 					}
-					this._extensionTunnels.get(tunnelOptions.remote.host)!.set(tunnelOptions.remote.port, tunnel);
-					this._register(tunnel.onDispose(() => this._proxy.$closeTunnel(tunnel.remote)));
+					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, tunnel);
+					this._register(tunnel.onDidDispose(() => this._proxy.$closeTunnel(tunnel.remoteAddress)));
 					return Promise.resolve(TunnelDto.fromApiTunnel(tunnel));
 				});
 			}

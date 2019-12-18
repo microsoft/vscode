@@ -714,9 +714,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
 			},
-			makeTunnel: (forward: vscode.TunnelOptions) => {
+			openTunnel: (forward: vscode.TunnelOptions) => {
 				checkProposedApiEnabled(extension);
-				return extHostTunnelService.makeTunnel(forward);
+				return extHostTunnelService.openTunnel(forward);
 			}
 		};
 

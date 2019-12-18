@@ -47,7 +47,8 @@ import { createExtHostContextProxyIdentifier as createExtId, createMainContextPr
 import * as search from 'vs/workbench/services/search/common/search';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { TunnelOptions, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
+import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
+import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
