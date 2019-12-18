@@ -245,26 +245,25 @@ export class TestTextFileService extends NativeTextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
 
-			return Promise.reject(error);
+			throw error;
 		}
 
-		return this.fileService.readFileStream(resource, options).then(async (content): Promise<ITextFileStreamContent> => {
-			return {
-				resource: content.resource,
-				name: content.name,
-				mtime: content.mtime,
-				ctime: content.ctime,
-				etag: content.etag,
-				encoding: 'utf8',
-				value: await createTextBufferFactoryFromStream(content.value),
-				size: 10
-			};
-		});
+		const content = await this.fileService.readFileStream(resource, options);
+		return {
+			resource: content.resource,
+			name: content.name,
+			mtime: content.mtime,
+			ctime: content.ctime,
+			etag: content.etag,
+			encoding: 'utf8',
+			value: await createTextBufferFactoryFromStream(content.value),
+			size: 10
+		};
 	}
 
 	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
@@ -1021,12 +1020,14 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
+	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
+
+		return stats.map(stat => ({ stat, success: true }));
 	}
 
-	exists(_resource: URI): Promise<boolean> {
-		return Promise.resolve(true);
+	async exists(_resource: URI): Promise<boolean> {
+		return true;
 	}
 
 	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
@@ -1071,11 +1072,12 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		return timeout(0).then(() => ({
+	async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+		await timeout(0);
+
+		return ({
 			resource,
 			etag: 'index.txt',
-			encoding: 'utf8',
 			mtime: Date.now(),
 			ctime: Date.now(),
 			size: 42,
@@ -1083,7 +1085,7 @@ export class TestFileService implements IFileService {
 			isDirectory: false,
 			isSymbolicLink: false,
 			name: resources.basename(resource)
-		}));
+		});
 	}
 
 	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
@@ -1153,14 +1155,13 @@ export class TestBackupFileService implements IBackupFileService {
 		return false;
 	}
 
-	loadBackupResource(resource: URI): Promise<URI | undefined> {
-		return this.hasBackup(resource).then(hasBackup => {
-			if (hasBackup) {
-				return this.toBackupResource(resource);
-			}
+	async loadBackupResource(resource: URI): Promise<URI | undefined> {
+		const hasBackup = await this.hasBackup(resource);
+		if (hasBackup) {
+			return this.toBackupResource(resource);
+		}
 
-			return undefined;
-		});
+		return undefined;
 	}
 
 	registerResourceForBackup(_resource: URI): Promise<void> {

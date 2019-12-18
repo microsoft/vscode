@@ -256,17 +256,17 @@ suite('Workbench base editor', () => {
 		}
 
 		class TestEditorInput extends EditorInput {
-			constructor(private resource: URI, private id = 'testEditorInput') {
+			constructor(private resource: URI, private id = 'testEditorInputForMementoTest') {
 				super();
 			}
-			public getTypeId() { return 'testEditorInput'; }
-			public resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+			getTypeId() { return 'testEditorInputForMementoTest'; }
+			resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
 
-			public matches(other: TestEditorInput): boolean {
+			matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
 			}
 
-			public getResource(): URI {
+			getResource(): URI {
 				return this.resource;
 			}
 		}
