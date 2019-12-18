@@ -17,7 +17,7 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
+import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';

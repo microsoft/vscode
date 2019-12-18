@@ -14,7 +14,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkerChangesEvent } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionViewItem, MarkersFilterAction, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
+import { MarkersFilterActionViewItem, MarkersFilterAction, IMarkersFilterActionChangeEvent, IMarkerFilterController } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -376,7 +376,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		};
 
 		this.tree = this._register(this.instantiationService.createInstance(MarkersTree,
-			'MarkersPanel',
+			'MarkersView',
 			dom.append(parent, dom.$('.tree-container.show-file-icons')),
 			virtualDelegate,
 			renderers,

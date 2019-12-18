@@ -12,11 +12,11 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkersView, getMarkersView } from 'vs/workbench/contrib/markers/browser/markersPanel';
+import { MarkersView, getMarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
 import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction } from 'vs/platform/actions/common/actions';
-import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor, PaneCompositePanel } from 'vs/workbench/browser/panel';
+import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor, PaneCompositePanel, TogglePanelAction } from 'vs/workbench/browser/panel';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/browser/markersPanelActions';
+import { ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -38,6 +38,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -121,6 +122,18 @@ class MarkersPanel extends PaneCompositePanel {
 		@IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(Constants.MARKERS_PANEL_ID, instantiationService.createInstance(ViewPaneContainer, Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { showHeaderInTitleWhenSingleView: true, donotShowViewTitleWhenSingleView: true }),
 			telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+	}
+}
+class ToggleMarkersPanelAction extends TogglePanelAction {
+
+	public static readonly ID = 'workbench.actions.view.problems';
+	public static readonly LABEL = Messages.MARKERS_PANEL_TOGGLE_LABEL;
+
+	constructor(id: string, label: string,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IPanelService panelService: IPanelService
+	) {
+		super(id, label, Constants.MARKERS_PANEL_ID, panelService, layoutService);
 	}
 }
 Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
