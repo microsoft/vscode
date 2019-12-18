@@ -8,7 +8,7 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { Edit, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
+import { Edit, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -76,10 +76,16 @@ export class BulkEditPanel extends Panel {
 		this._discardAction.enabled = true;
 
 		return new Promise(async resolve => {
+
 			this._currentResolve = resolve;
 			await this._tree.setInput(edit);
 			this._tree.domFocus();
 			this._tree.focusFirst();
+
+			const first = this._tree.getFirstElementChild();
+			if (first instanceof FileElement) {
+				this._tree.expand(first);
+			}
 		});
 	}
 
