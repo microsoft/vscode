@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mergeSort } from 'vs/base/common/arrays';
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler } from 'vs/editor/browser/services/bulkEditService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
@@ -381,6 +381,8 @@ export class BulkEditService implements IBulkEditService {
 
 	_serviceBrand: undefined;
 
+	private _previewHandler?: IBulkEditPreviewHandler;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IModelService private readonly _modelService: IModelService,
@@ -393,7 +395,20 @@ export class BulkEditService implements IBulkEditService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
-	apply(edit: WorkspaceEdit, options: IBulkEditOptions = {}): Promise<IBulkEditResult> {
+	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
+		this._previewHandler = handler;
+		return toDisposable(() => {
+			if (this._previewHandler === handler) {
+				this._previewHandler = undefined;
+			}
+		});
+	}
+
+	async apply(edit: WorkspaceEdit, options: IBulkEditOptions = {}): Promise<IBulkEditResult> {
+
+		if (this._previewHandler) {
+			edit = await this._previewHandler(edit, options);
+		}
 
 		let { edits } = edit;
 		let codeEditor = options.editor;
