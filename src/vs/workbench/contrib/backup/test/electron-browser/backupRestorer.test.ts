@@ -93,7 +93,9 @@ suite('BackupModelRestorer', () => {
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
-	test('Restore backups', async () => {
+	test('Restore backups', async function () {
+		this.timeout(20000);
+
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);

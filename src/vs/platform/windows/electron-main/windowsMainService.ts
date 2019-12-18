@@ -13,14 +13,14 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, systemPreferences, MessageBoxOptions, Display } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, systemPreferences, MessageBoxOptions, Display, app } from 'electron';
 import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, IPathsToWaitFor, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri } from 'vs/platform/windows/node/window';
-import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
@@ -160,14 +160,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly windowsState: IWindowsState;
 	private lastClosedWindowState?: IWindowState;
 
+	private shuttingDown = false;
+
 	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
-	readonly onWindowReady: CommonEvent<ICodeWindow> = this._onWindowReady.event;
+	readonly onWindowReady = this._onWindowReady.event;
 
 	private readonly _onWindowClose = this._register(new Emitter<number>());
-	readonly onWindowClose: CommonEvent<number> = this._onWindowClose.event;
+	readonly onWindowClose = this._onWindowClose.event;
 
 	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
-	readonly onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
+	readonly onWindowsCountChanged = this._onWindowsCountChanged.event;
 
 	constructor(
 		private readonly machineId: string,
@@ -236,6 +238,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			systemPreferences.on('high-contrast-color-scheme-changed', () => onHighContrastChange());
 		}
 
+		// When a window looses focus, save all windows state. This allows to
+		// prevent loss of window-state data when OS is restarted without properly
+		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
+		app.on('browser-window-blur', () => {
+			if (!this.shuttingDown) {
+				this.saveWindowsState();
+			}
+		});
+
 		// Handle various lifecycle events around windows
 		this.lifecycleMainService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
 		this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown());
@@ -292,6 +303,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
 	//
 	private onBeforeShutdown(): void {
+		this.shuttingDown = true;
+
+		this.saveWindowsState();
+	}
+
+	private saveWindowsState(): void {
 		const currentWindowsState: IWindowsState = {
 			openedWindows: [],
 			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
@@ -327,8 +344,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Persist
 		const state = getWindowsStateStoreData(currentWindowsState);
-		this.logService.trace('onBeforeShutdown', state);
 		this.stateService.setItem(WindowsMainService.windowsStateStorageKey, state);
+
+		if (this.shuttingDown) {
+			this.logService.trace('onBeforeShutdown', state);
+		}
 	}
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
