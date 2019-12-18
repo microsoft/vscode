@@ -461,7 +461,7 @@ export class ConfigurationEditingService {
 
 			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
 				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-				if (configurationProperties[operation.key].scope !== ConfigurationScope.RESOURCE) {
+				if (!(configurationProperties[operation.key].scope === ConfigurationScope.RESOURCE || configurationProperties[operation.key].scope === ConfigurationScope.RESOURCE_LANGUAGE)) {
 					return this.reject(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION, target, operation);
 				}
 			}

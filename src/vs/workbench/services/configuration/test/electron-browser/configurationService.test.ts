@@ -718,7 +718,7 @@ suite('WorkspaceService - Initialization', () => {
 
 suite('WorkspaceConfigurationService - Folder', () => {
 
-	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string, globalTasksFile: string;
+	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string, globalTasksFile: string, workspaceService: WorkspaceService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
@@ -745,6 +745,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.RESOURCE
+				},
+				'configurationService.folder.languageSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.RESOURCE_LANGUAGE
 				}
 			}
 		});
@@ -767,7 +772,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 				fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
-				const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
+				workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -794,7 +799,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('defaults', () => {
-		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet' } });
+		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet' } });
 	});
 
 	test('globals override defaults', () => {
@@ -1028,6 +1033,16 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.equal(testObject.getValue('tasks.service.testSetting'), 'value'));
 	});
 
+	test('update resource configuration', () => {
+		return testObject.updateValue('configurationService.folder.testSetting', 'value', { resource: workspaceService.getWorkspace().folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'value'));
+	});
+
+	test('update resource language configuration', () => {
+		return testObject.updateValue('configurationService.folder.languageSetting', 'value', { resource: workspaceService.getWorkspace().folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.languageSetting'), 'value'));
+	});
+
 	test('update application setting into workspace configuration in a workspace is not supported', () => {
 		return testObject.updateValue('configurationService.folder.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
 			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
@@ -1122,6 +1137,11 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.RESOURCE
+				},
+				'configurationService.workspace.testLanguageSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.RESOURCE_LANGUAGE
 				}
 			}
 		});
@@ -1296,6 +1316,26 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 					}
 				});
 				assert.equal(testObject.getValue('configurationService.workspace.testNewResourceSetting2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+			});
+	});
+
+	test('resource language setting in folder is read after it is registered later', () => {
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewResourceLanguageSetting2": "workspaceFolderValue" }');
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ key: 'settings', value: { 'configurationService.workspace.testNewResourceLanguageSetting2': 'workspaceValue' } }], true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				configurationRegistry.registerConfiguration({
+					'id': '_test',
+					'type': 'object',
+					'properties': {
+						'configurationService.workspace.testNewResourceLanguageSetting2': {
+							'type': 'string',
+							'default': 'isSet',
+							scope: ConfigurationScope.RESOURCE_LANGUAGE
+						}
+					}
+				});
+				assert.equal(testObject.getValue('configurationService.workspace.testNewResourceLanguageSetting2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
 			});
 	});
 
@@ -1502,6 +1542,12 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testResourceSetting', { resource: workspace.folders[0].uri }), 'workspaceFolderValue'));
+	});
+
+	test('update resource language configuration in workspace folder', () => {
+		const workspace = workspaceContextService.getWorkspace();
+		return testObject.updateValue('configurationService.workspace.testLanguageSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testLanguageSetting', { resource: workspace.folders[0].uri }), 'workspaceFolderValue'));
 	});
 
 	test('update workspace folder configuration should trigger change event before promise is resolve', () => {
