@@ -145,7 +145,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 							if (model) {
 								const word = model.getWordAtPosition(position);
 								const overwriteBefore = word ? word.word.length : 0;
-								const text = model.getLineContent(position.lineNumber);
+								const text = model.getValue();
 								const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 								const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
 								const suggestions = await session.completions(frameId, text, position, overwriteBefore, token);
