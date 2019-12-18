@@ -60,7 +60,6 @@
 		font-weight: var(--vscode-font-weight);
 		font-size: var(--vscode-font-size);
 		margin: 0;
-		padding: 0 20px;
 		height: 100%;
 		width: 100%;
 	}
@@ -271,6 +270,21 @@
 		};
 
 		let isHandlingScroll = false;
+		const handleWheel = (event) => {
+			if (isHandlingScroll) {
+				return;
+			}
+
+			host.postMessage('did-scroll-wheel', {
+				deltaMode: event.deltaMode,
+				deltaX: event.deltaX,
+				deltaY: event.deltaY,
+				deltaZ: event.deltaZ,
+				detail: event.detail,
+				type: event.type
+			});
+		};
+
 		const handleInnerScroll = (event) => {
 			if (!event.target || !event.target.body) {
 				return;
@@ -312,6 +326,7 @@
 			// apply default script
 			if (options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
+				defaultScript.id = '_vscodeApiScript';
 				defaultScript.textContent = getVsCodeApiScript(data.state);
 				newDocument.head.prepend(defaultScript);
 			}
@@ -453,6 +468,23 @@
 					}, 0);
 				});
 
+				const checkScripts = (document) => {
+					let scripts = document.getElementsByTagName('script');
+
+					if (scripts.length > 1) {
+						return true;
+					}
+
+					if (scripts[0].id !== '_vscodeApiScript') {
+						return true;
+					}
+
+					// no scripts
+
+					let iframes = document.getElementsByTagName('iframe');
+					return iframes.length > 0;
+				};
+
 				const onLoad = (contentDocument, contentWindow) => {
 					if (contentDocument && contentDocument.body) {
 						// Workaround for https://github.com/Microsoft/vscode/issues/12865
@@ -475,8 +507,10 @@
 						}
 
 						host.postMessage('did-set-initial-dimension', { width: newFrame.contentWindow.document.body.scrollWidth, height: newFrame.contentWindow.document.body.scrollHeight });
+						host.postMessage('content-contains-scripts', checkScripts(newFrame.contentWindow.document));
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
+						contentWindow.addEventListener('wheel', handleWheel);
 
 						pendingMessages.forEach((data) => {
 							contentWindow.postMessage(data, '*');
@@ -545,6 +579,9 @@
 				initData.initialScrollProgress = progress;
 			});
 
+			host.onMessage('speedTest', (_event, buf) => {
+				host.postMessage('speed-test-ack', buf);
+			});
 
 			trackFocus({
 				onFocus: () => host.postMessage('did-focus'),

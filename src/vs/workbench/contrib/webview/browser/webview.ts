@@ -12,6 +12,7 @@ import * as nls from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 /**
  * Set when the find widget in a webview is visible.
@@ -69,11 +70,13 @@ export interface Webview extends IDisposable {
 	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
+	containsScript: boolean;
 
 	readonly onDidFocus: Event<void>;
 	readonly onDidSetInitialDimension: Event<Dimension>;
 	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
+	readonly onDidWheel: Event<IMouseWheelEvent>;
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onMessage: Event<any>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;

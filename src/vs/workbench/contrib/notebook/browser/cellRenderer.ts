@@ -32,13 +32,13 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 export class ViewCell {
 	private _textModel: ITextModel | null = null;
 	private _mdRenderer: marked.Renderer | null = null;
 	private _html: string | null = null;
 	private _dynamicHeight: number | null = null;
-	private _output: HTMLElement | null = null;
 
 	protected readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose = this._onDidDispose.event;
@@ -171,6 +171,8 @@ export interface NotebookHandler {
 	saveNotebookCell(cell: ViewCell): void;
 	layoutElement(cell: ViewCell, height: number): void;
 	createContentWidget(cell: ViewCell, shadowContent: string, shadowElement: HTMLElement, offset: number): void;
+	disposeViewCell(cell: ViewCell): void;
+	triggerWheel(event: IMouseWheelEvent): void;
 }
 
 export interface CellRenderTemplate {
@@ -618,6 +620,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				this.disposables.delete(templateData.outputContainer!);
 			}
 		}
+
+		this.handler.disposeViewCell(element);
 	}
 
 	getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {

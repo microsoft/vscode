@@ -26,6 +26,7 @@ import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
 import { matchesPrefix } from 'vs/base/common/filters';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -1303,6 +1304,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
+	}
+
+	public triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	updateDynamicHeight(index: number, element: T, size: number): void {

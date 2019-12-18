@@ -97,12 +97,10 @@ class RichDisplayRenderer implements IMimeRenderer {
 			outputNode.appendChild(display);
 			hasDynamicHeight = true;
 		} else if (output.data && output.data['text/html']) {
-
 			let data = output.data['text/html'];
 			let str = isArray(data) ? data.join('') : data;
 			display.style.width = '100%';
 			display.style.height = '100px';
-			// display.style.backgroundColor  = 'gray';
 			hasDynamicHeight = true;
 
 			outputNode.appendChild(display);

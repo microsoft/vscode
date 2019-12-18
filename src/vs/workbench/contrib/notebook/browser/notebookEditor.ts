@@ -20,93 +20,19 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { NotebookHandler, ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
-import * as UUID from 'vs/base/common/uuid';
+import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewContentWidget } from 'vs/workbench/contrib/notebook/browser/contentWidget';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = DOM.$;
 
-export interface IContentWidget {
-	offset: number;
-	cell: ViewCell;
-	element: HTMLElement;
-	webview: WebviewElement;
-}
-
-export class WebviewContentWidget implements IContentWidget {
-	public element: HTMLElement;
-	public webview: WebviewElement;
-
-	private _dimension: DOM.Dimension | null = null;
-
-	constructor(
-		public shadowElement: HTMLElement,
-		public cell: ViewCell,
-		public offset: number,
-		webviewService: IWebviewService,
-		shadowContent: string,
-		public notebookHandler: NotebookHandler
-	) {
-		this.element = document.createElement('div');
-		this.element.style.width = 'calc(100% - 36px)';
-		this.element.style.height = '700px';
-		this.element.style.position = 'absolute';
-		this.element.style.margin = '0px 24px 0px 24px';
-
-		this.webview = this._createInset(webviewService, shadowContent);
-		this.webview.mountTo(this.element);
-
-		this.webview.onDidSetInitialDimension(dimension => {
-			this._dimension = dimension;
-			// this.shadowElement.style.minWidth = `${dimension.width}px`;
-			this.shadowElement.style.height = `${dimension.height}px`;
-			this.shadowElement.style.maxWidth = '100%';
-			this.shadowElement.style.maxHeight = '700px';
-			// this.element.style.minWidth= `${dimension.width}px`;
-			this.element.style.height = `${dimension.height}px`;
-			this.element.style.maxWidth = '100%';
-			this.element.style.maxHeight = '700px';
-			const lineNum = cell.lineCount;
-			const totalHeight = Math.max(lineNum + 1, 5) * 21;
-			cell.setDynamicHeight(totalHeight + 32 + dimension.height);
-			notebookHandler.layoutElement(cell, totalHeight + 32 + dimension.height);
-		});
-	}
-
-	public updateShadowElement(element: HTMLElement) {
-		this.shadowElement = element;
-		if (this._dimension) {
-			this.shadowElement.style.minWidth = `${this._dimension.width}px`;
-			this.shadowElement.style.height = `${this._dimension.height}px`;
-			this.shadowElement.style.maxWidth = '100%';
-			this.shadowElement.style.maxHeight = '700px';
-			const lineNum = this.cell.lineCount;
-			const totalHeight = Math.max(lineNum + 1, 5) * 21;
-			this.cell.setDynamicHeight(totalHeight + 32 + this._dimension.height);
-			this.notebookHandler.layoutElement(this.cell, totalHeight + 32 + this._dimension.height);
-		}
-	}
-
-	private _createInset(webviewService: IWebviewService, content: string) {
-		const webview = webviewService.createWebview('' + UUID.generateUuid(), {
-			enableFindWidget: false,
-		}, {
-			allowScripts: true
-		});
-
-		webview.html = content;
-		return webview;
-	}
-
-	dispose() {
-
-	}
-}
 export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
 	private contentWidgets!: HTMLElement;
 	private contentWidgetsMap: Map<ViewCell, WebviewContentWidget> = new Map();
+	private contentWidgetsPool: WebviewContentWidget[] = [];
 
 	private list: WorkbenchList<ViewCell> | undefined;
 	private model: NotebookEditorModel | undefined;
@@ -189,8 +115,12 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			}
 		);
 
-		this.list.onDidScroll((e) => {
+		this._register(this.list.onDidScroll((e) => {
 			this.contentWidgetsMap.forEach((value, cell) => {
+				if (value.detachedFromViewEvents) {
+					return;
+				}
+
 				let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 				let top = this.list?.getElementTop(index);
 				if (top !== null && top !== undefined) {
@@ -199,13 +129,35 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 					domElement.style.top = `${-scrollTop + top + value.offset}px`;
 				}
 			});
-		});
+		}));
+
+		this._register(this.list);
+	}
+
+	triggerWheel(event: IMouseWheelEvent) {
+		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
 	createContentWidget(cell: ViewCell, shadowContent: string, shadowElement: HTMLElement, offset: number) {
 		let zone = this.contentWidgetsMap.get(cell);
 
 		if (!zone) {
+			let existingContentWidget = this.contentWidgetsPool.pop();
+			if (existingContentWidget) {
+				existingContentWidget.detachedFromViewEvents = false;
+				existingContentWidget.updateInitialization(shadowElement, cell, offset, shadowContent);
+				this.contentWidgetsMap.set(cell, existingContentWidget);
+
+				let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+				let top = this.list?.getElementTop(index);
+				if (top !== null && top !== undefined) {
+					let domElement = existingContentWidget.element;
+					let scrollTop = this.list?.scrollTop || 0;
+					domElement.style.top = `${-scrollTop + top + existingContentWidget.offset}px`;
+				}
+				return;
+			}
+
 			let contentWidget = new WebviewContentWidget(
 				shadowElement,
 				cell,
@@ -219,6 +171,28 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			this.contentWidgetsMap.set(cell, contentWidget);
 		} else {
 			zone.updateShadowElement(shadowElement);
+		}
+	}
+
+	disposeViewCell(cell: ViewCell) {
+		let zone = this.contentWidgetsMap.get(cell);
+
+		if (zone) {
+			// we are going to dispose a view who has a webview
+			if (!zone.webview.containsScript) {
+				// this view can be disposed
+				zone.detachedFromViewEvents = true;
+				zone.element.style.top = '-2400px';
+				zone.element.style.height = '700px';
+
+				if (this.contentWidgetsPool.length < 10) {
+					this.contentWidgetsPool.push(zone);
+					this.contentWidgetsMap.delete(cell);
+				} else {
+					this.contentWidgets.removeChild(zone.element);
+					this.contentWidgetsMap.delete(cell);
+				}
+			}
 		}
 	}
 
@@ -268,6 +242,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			// list.splice -> renderElement -> resize -> layoutElement
 			// above flow will actually break how list view renders it self as it messes up with the internal state
 			// instead we run the layout update in next tick
+			//. @TODO @rebornix, it should be batched.
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			this.list?.updateDynamicHeight(index, cell, height);
 		}, 0);

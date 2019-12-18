@@ -10,11 +10,15 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { Dimension } from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
  */
 export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEditorOverlay {
+	private readonly _onDidWheel= this._register(new Emitter<IMouseWheelEvent>());
+	public readonly onDidWheel = this._onDidWheel.event;
+
 	private readonly _onDidSetInitialDimension = this._register(new Emitter<Dimension>());
 	public readonly onDidSetInitialDimension = this._onDidSetInitialDimension.event;
 
@@ -31,6 +35,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	private _options: WebviewOptions;
 
 	private _owner: any = undefined;
+	containsScript: boolean = false;
 
 	public constructor(
 		private readonly id: string,

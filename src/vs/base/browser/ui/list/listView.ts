@@ -21,6 +21,7 @@ import { equals, distinct } from 'vs/base/common/arrays';
 import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout, Delayer } from 'vs/base/common/async';
 import { isFirefox } from 'vs/base/browser/browser';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 interface IItem<T> {
 	readonly id: string;
@@ -268,6 +269,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.layout();
 	}
 
+	public triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.scrollableElement.triggerScrollFromMouseWheelEvent(browserEvent);
+	}
+
 	updateDynamicHeight(index: number, element: T, size: number): void {
 		this.rangeMap.splice(index, 1, [
 			{
@@ -283,6 +288,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				this.updateItemInDOM(this.items[i], i);
 			}
 		}
+
+		this._onDidChangeContentHeight.fire(this.contentHeight);
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {

@@ -11,7 +11,6 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/noteb
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { endsWith } from 'vs/base/common/strings';
@@ -30,7 +29,6 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 export class NotebookContribution implements IWorkbenchContribution {
-	private editorOpeningListener: IDisposable | undefined;
 	private _resourceMapping: Map<string, NotebookEditorInput> = new Map<string, NotebookEditorInput>();
 
 	constructor(
@@ -38,7 +36,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 
 	) {
-		this.editorOpeningListener = this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
+		this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
 	}
 
 	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
