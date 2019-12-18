@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
@@ -20,7 +20,7 @@ import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } fr
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
@@ -95,6 +95,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private readonly _webviewInputs = new WebviewInputStore();
 	private readonly _revivers = new Map<string, IDisposable>();
 	private readonly _editorProviders = new Map<string, IDisposable>();
+	private readonly _customEditorModels = new Map<ICustomEditorModel, { referenceCount: number }>();
 
 	constructor(
 		context: extHostProtocol.IExtHostContext,
@@ -272,10 +273,9 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				webviewInput.webview.extension = extension;
 				const resource = webviewInput.getResource();
 
-				const model = await this.loadOrCreateModel(webviewInput, resource, viewType, capabilities);
+				const model = await this.retainCustomEditorModel(webviewInput, resource, viewType, capabilities);
 				webviewInput.onDisposeWebview(() => {
-					// TODO: This should be reference counted
-					this._customEditorService.models.disposeModel(model);
+					this.releaseCustomEditorModel(model);
 				});
 
 				try {
@@ -306,36 +306,53 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._editorProviders.delete(viewType);
 	}
 
-	private async loadOrCreateModel(webviewInput: WebviewInput, resource: URI, viewType: string, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]) {
-		const existingModel = this._customEditorService.models.get(webviewInput.getResource(), webviewInput.viewType);
-		if (existingModel) {
-			return existingModel;
+	private async retainCustomEditorModel(webviewInput: WebviewInput, resource: URI, viewType: string, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]) {
+		const model = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
+
+		const existingEntry = this._customEditorModels.get(model);
+		if (existingEntry) {
+			++existingEntry.referenceCount;
+			// no need to hook up listeners again
+			return model;
 		}
 
-		const newModel = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
+		this._customEditorModels.set(model, { referenceCount: 1 });
 
 		const capabilitiesSet = new Set(capabilities);
 		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable)) {
-			newModel.onUndo(edits => {
+			model.onUndo(edits => {
 				this._proxy.$undoEdits(resource, viewType, edits.map(x => x.data));
 			});
 
-			newModel.onApplyEdit(edits => {
-				const editsToApply = edits.filter(x => x.source !== newModel).map(x => x.data);
+			model.onApplyEdit(edits => {
+				const editsToApply = edits.filter(x => x.source !== model).map(x => x.data);
 				if (editsToApply.length) {
 					this._proxy.$applyEdits(resource, viewType, editsToApply);
 				}
 			});
 
-			newModel.onWillSave(e => {
+			model.onWillSave(e => {
 				e.waitUntil(this._proxy.$onSave(resource.toJSON(), viewType));
 			});
 
-			newModel.onWillSaveAs(e => {
+			model.onWillSaveAs(e => {
 				e.waitUntil(this._proxy.$onSaveAs(e.resource.toJSON(), viewType, e.targetResource.toJSON()));
 			});
 		}
-		return newModel;
+		return model;
+	}
+
+	private async releaseCustomEditorModel(model: ICustomEditorModel) {
+		const entry = this._customEditorModels.get(model);
+		if (!entry) {
+			return;
+		}
+
+		--entry.referenceCount;
+		if (entry.referenceCount <= 0) {
+			this._customEditorService.models.disposeModel(model);
+			this._customEditorModels.delete(model);
+		}
 	}
 
 	public $onEdit(resource: UriComponents, viewType: string, editData: any): void {

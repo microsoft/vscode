@@ -26,6 +26,11 @@ export namespace Extensions {
 	export const ViewsRegistry = 'workbench.registry.view';
 }
 
+export enum ViewContainerLocation {
+	Sidebar,
+	Panel
+}
+
 export interface IViewContainersRegistry {
 	/**
 	 * An event that is triggerred when a view container is registered.
@@ -50,7 +55,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
+	registerViewContainer(id: string, location: ViewContainerLocation, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -71,7 +76,7 @@ interface ViewOrderDelegate {
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier, readonly orderDelegate?: ViewOrderDelegate) { }
+	protected constructor(readonly id: string, readonly location: ViewContainerLocation, readonly hideIfEmpty: boolean, readonly extensionId?: ExtensionIdentifier, readonly orderDelegate?: ViewOrderDelegate) { }
 }
 
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
@@ -88,7 +93,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
+	registerViewContainer(id: string, location: ViewContainerLocation, hideIfEmpty?: boolean, extensionId?: ExtensionIdentifier, viewOrderDelegate?: ViewOrderDelegate): ViewContainer {
 		const existing = this.viewContainers.get(id);
 		if (existing) {
 			return existing;
@@ -96,7 +101,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 
 		const viewContainer = new class extends ViewContainer {
 			constructor() {
-				super(id, !!hideIfEmpty, extensionId, viewOrderDelegate);
+				super(id, location, !!hideIfEmpty, extensionId, viewOrderDelegate);
 			}
 		};
 		this.viewContainers.set(id, viewContainer);

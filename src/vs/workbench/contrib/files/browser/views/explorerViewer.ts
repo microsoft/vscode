@@ -160,11 +160,13 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	private updateLabels(templateData: IFileTemplateData): void {
 		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
 
-		for (let i = 0; i < this.items.length; i++) {
+		for (let i = 0; i < this.labels.length; i++) {
 			this.labels[i].setAttribute('aria-label', this.items[i].name);
 		}
 
-		DOM.addClass(this.labels[this._index], 'active');
+		if (this._index < this.labels.length) {
+			DOM.addClass(this.labels[this._index], 'active');
+		}
 	}
 
 	previous(): void {
