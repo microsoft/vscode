@@ -14,7 +14,7 @@ import { pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
-import { Position, Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { Position, Parts, IWorkbenchLayoutService, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -573,7 +573,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const defaultPanelPosition = this.configurationService.getValue<string>(Settings.PANEL_POSITION);
 		const panelPosition = this.storageService.get(Storage.PANEL_POSITION, StorageScope.WORKSPACE, defaultPanelPosition);
 
-		this.state.panel.position = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
+		this.state.panel.position = positionFromString(panelPosition || defaultPanelPosition);
 	}
 
 	registerPart(part: Part): void {
@@ -666,15 +666,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	getMaximumEditorDimensions(): Dimension {
+		const isColumn = this.state.panel.position === Position.RIGHT || this.state.panel.position === Position.LEFT;
 		const takenWidth =
 			(this.isVisible(Parts.ACTIVITYBAR_PART) ? this.activityBarPartView.minimumWidth : 0) +
 			(this.isVisible(Parts.SIDEBAR_PART) ? this.sideBarPartView.minimumWidth : 0) +
-			(this.isVisible(Parts.PANEL_PART) && this.state.panel.position === Position.RIGHT ? this.panelPartView.minimumWidth : 0);
+			(this.isVisible(Parts.PANEL_PART) && isColumn ? this.panelPartView.minimumWidth : 0);
 
 		const takenHeight =
 			(this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0) +
 			(this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0) +
-			(this.isVisible(Parts.PANEL_PART) && this.state.panel.position === Position.BOTTOM ? this.panelPartView.minimumHeight : 0);
+			(this.isVisible(Parts.PANEL_PART) && !isColumn ? this.panelPartView.minimumHeight : 0);
 
 		const availableWidth = this.dimension.width - takenWidth;
 		const availableHeight = this.dimension.height - takenHeight;
@@ -1202,26 +1203,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.state.panel.position;
 	}
 
-	setPanelPosition(position: Position.BOTTOM | Position.RIGHT): void {
+	setPanelPosition(position: Position): void {
 		if (this.state.panel.hidden) {
 			this.setPanelHidden(false);
 		}
 
 		const panelPart = this.getPart(Parts.PANEL_PART);
-		const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
-		const oldPositionValue = (this.state.panel.position === Position.BOTTOM) ? 'bottom' : 'right';
+		const oldPositionValue = positionToString(this.state.panel.position);
+		const newPositionValue = positionToString(position);
 		this.state.panel.position = position;
 
-		function positionToString(position: Position): string {
-			switch (position) {
-				case Position.LEFT: return 'left';
-				case Position.RIGHT: return 'right';
-				case Position.BOTTOM: return 'bottom';
-			}
-		}
-
 		// Save panel position
-		this.storageService.store(Storage.PANEL_POSITION, positionToString(this.state.panel.position), StorageScope.WORKSPACE);
+		this.storageService.store(Storage.PANEL_POSITION, newPositionValue, StorageScope.WORKSPACE);
 
 		// Adjust CSS
 		const panelContainer = assertIsDefined(panelPart.getContainer());
@@ -1250,14 +1243,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		if (position === Position.BOTTOM) {
 			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.height : this.state.panel.lastNonMaximizedHeight, this.editorPartView, Direction.Down);
-		} else {
+		} else if (position === Position.RIGHT) {
 			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.width : this.state.panel.lastNonMaximizedWidth, this.editorPartView, Direction.Right);
+		} else {
+			this.workbenchGrid.moveView(this.panelPartView, this.state.editor.hidden ? size.width : this.state.panel.lastNonMaximizedWidth, this.editorPartView, Direction.Left);
 		}
 
 		// Reset sidebar to original size before shifting the panel
 		this.workbenchGrid.resizeView(this.sideBarPartView, sideBarSize);
 
-		this._onPanelPositionChange.fire(positionToString(this.state.panel.position));
+		this._onPanelPositionChange.fire(newPositionValue);
 	}
 
 	isWindowMaximized() {
@@ -1273,6 +1268,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.updateWindowBorder();
 		this._onMaximizeChange.fire(maximized);
+	}
+
+	private arrangeEditorNodes(editorNode: ISerializedNode, panelNode: ISerializedNode, editorSectionWidth: number): ISerializedNode[] {
+		switch (this.state.panel.position) {
+			case Position.BOTTOM:
+				return [{ type: 'branch', data: [editorNode, panelNode], size: editorSectionWidth }];
+			case Position.RIGHT:
+				return [editorNode, panelNode];
+			case Position.LEFT:
+				return [panelNode, editorNode];
+		}
 	}
 
 	private createGridDescriptor(): ISerializedGrid {
@@ -1321,9 +1327,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			visible: !this.state.panel.hidden
 		};
 
-		const editorSectionNode: ISerializedNode[] = this.state.panel.position === Position.BOTTOM
-			? [{ type: 'branch', data: [editorNode, panelNode], size: editorSectionWidth }]
-			: [editorNode, panelNode];
+		const editorSectionNode = this.arrangeEditorNodes(editorNode, panelNode, editorSectionWidth);
 
 		const middleSection: ISerializedNode[] = this.state.sideBar.position === Position.LEFT
 			? [activityBarNode, sideBarNode, ...editorSectionNode]
