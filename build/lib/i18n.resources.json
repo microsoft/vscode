@@ -59,6 +59,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/experiments",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/extensions",
 			"project": "vscode-workbench"
 		},

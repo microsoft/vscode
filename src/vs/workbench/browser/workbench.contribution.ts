@@ -235,12 +235,6 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
-			},
-			'workbench.enableExperiments': {
-				'type': 'boolean',
-				'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
-				'default': true,
-				'tags': ['usesOnlineServices']
 			}
 		}
 	});
