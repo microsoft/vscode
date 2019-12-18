@@ -12,11 +12,12 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { values, keys } from 'vs/base/common/map';
+import { values, keys, getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IAction } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { flatten } from 'vs/base/common/arrays';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
@@ -47,12 +48,12 @@ export interface IViewContainersRegistry {
 	/**
 	 * An event that is triggerred when a view container is registered.
 	 */
-	readonly onDidRegister: Event<ViewContainer>;
+	readonly onDidRegister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
 
 	/**
 	 * An event that is triggerred when a view container is deregistered.
 	 */
-	readonly onDidDeregister: Event<ViewContainer>;
+	readonly onDidDeregister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
 
 	/**
 	 * All registered view containers
@@ -82,6 +83,11 @@ export interface IViewContainersRegistry {
 	 * @returns the view container with given id.
 	 */
 	get(id: string): ViewContainer | undefined;
+
+	/**
+	 * Returns all view containers in the given location
+	 */
+	getViewContainers(location: ViewContainerLocation): ViewContainer[];
 }
 
 interface ViewOrderDelegate {
@@ -100,20 +106,20 @@ export class ViewContainer {
 
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
 
-	private readonly _onDidRegister = this._register(new Emitter<ViewContainer>());
-	readonly onDidRegister: Event<ViewContainer> = this._onDidRegister.event;
+	private readonly _onDidRegister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
+	readonly onDidRegister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }> = this._onDidRegister.event;
 
-	private readonly _onDidDeregister = this._register(new Emitter<ViewContainer>());
-	readonly onDidDeregister: Event<ViewContainer> = this._onDidDeregister.event;
+	private readonly _onDidDeregister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
+	readonly onDidDeregister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }> = this._onDidDeregister.event;
 
-	private viewContainers: Map<string, ViewContainer> = new Map<string, ViewContainer>();
+	private viewContainers: Map<ViewContainerLocation, ViewContainer[]> = new Map<ViewContainerLocation, ViewContainer[]>();
 
 	get all(): ViewContainer[] {
-		return values(this.viewContainers);
+		return flatten(values(this.viewContainers));
 	}
 
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation): ViewContainer {
-		const existing = this.viewContainers.get(viewContainerDescriptor.id);
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation): ViewContainer {
+		const existing = this.get(viewContainerDescriptor.id);
 		if (existing) {
 			return existing;
 		}
@@ -123,21 +129,33 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 				super(viewContainerDescriptor);
 			}
 		};
-		this.viewContainers.set(viewContainerDescriptor.id, viewContainer);
-		this._onDidRegister.fire(viewContainer);
+		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
+		viewContainers.push(viewContainer);
+		this._onDidRegister.fire({ viewContainer, viewContainerLocation });
 		return viewContainer;
 	}
 
 	deregisterViewContainer(viewContainer: ViewContainer): void {
-		const existing = this.viewContainers.get(viewContainer.id);
-		if (existing) {
-			this.viewContainers.delete(viewContainer.id);
-			this._onDidDeregister.fire(viewContainer);
+		for (const viewContainerLocation of keys(this.viewContainers)) {
+			const viewContainers = this.viewContainers.get(viewContainerLocation)!;
+			const index = viewContainers?.indexOf(viewContainer);
+			if (index !== -1) {
+				viewContainers?.splice(index, 1);
+				if (viewContainers.length === 0) {
+					this.viewContainers.delete(viewContainerLocation);
+				}
+				this._onDidDeregister.fire({ viewContainer, viewContainerLocation });
+				return;
+			}
 		}
 	}
 
 	get(id: string): ViewContainer | undefined {
-		return this.viewContainers.get(id);
+		return this.all.filter(viewContainer => viewContainer.id === id)[0];
+	}
+
+	getViewContainers(location: ViewContainerLocation): ViewContainer[] {
+		return [...(this.viewContainers.get(location) || [])];
 	}
 }
 
