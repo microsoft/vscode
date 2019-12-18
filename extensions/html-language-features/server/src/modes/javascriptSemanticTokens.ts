@@ -30,8 +30,11 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 				if (symbol) {
 					let typeIdx = tokenFromDeclarationMapping[symbol.valueDeclaration.kind];
 					let modifierSet = 0;
-					if (node.parent && (<ts.NamedDeclaration>node.parent).name === node) {
-						modifierSet = TokenModifier.declaration;
+					if (node.parent) {
+						const parentTypeIdx = tokenFromDeclarationMapping[node.parent.kind];
+						if (parentTypeIdx === typeIdx && (<ts.NamedDeclaration>node.parent).name === node) {
+							modifierSet = TokenModifier.declaration;
+						}
 					}
 					if (typeIdx !== undefined) {
 						resultTokens.push({ offset: node.getStart(), length: node.getWidth(), typeIdx, modifierSet });
@@ -130,5 +133,7 @@ const tokenFromDeclarationMapping: { [name: string]: TokenType } = {
 	[ts.SyntaxKind.EnumDeclaration]: TokenType.enum,
 	[ts.SyntaxKind.EnumMember]: TokenType.property,
 	[ts.SyntaxKind.ClassDeclaration]: TokenType.property,
-	[ts.SyntaxKind.MethodDeclaration]: TokenType.function
+	[ts.SyntaxKind.MethodDeclaration]: TokenType.member,
+	[ts.SyntaxKind.FunctionDeclaration]: TokenType.function,
+	[ts.SyntaxKind.MethodSignature]: TokenType.member,
 };

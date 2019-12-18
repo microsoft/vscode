@@ -83,9 +83,34 @@ suite('JavaScript Semantic Tokens', () => {
 		];
 		assertTokens(input, [
 			t(3, 11, 3, 'function.declaration'), t(3, 15, 2, 'parameter.declaration'),
-			t(4, 11, 3, 'function'), t(4, 15, 3, 'namespace'), t(4, 20, 3, 'member'), t(4, 24, 2, 'parameter')
+			t(4, 11, 3, 'function'), t(4, 15, 4, 'variable'), t(4, 20, 3, 'member'), t(4, 24, 2, 'parameter')
 		]);
 	});
+
+	test('members', () => {
+		const input = [
+			/*0*/'<html>',
+			/*1*/'<head>',
+			/*2*/'<script>',
+			/*3*/'  class A {',
+			/*4*/'    static x = 9;',
+			/*5*/'    f = 9;',
+			/*6*/'    m() { return A.x; };',
+			/*7*/'    get s() { return this.f + this.m() }',
+			/*8*/'  }',
+			/*9*/'</script>',
+			/*10*/'</head>',
+			/*11*/'</html>',
+		];
+		assertTokens(input, [
+			t(3, 8, 1, 'class.declaration'),
+			t(4, 11, 1, 'member.declaration'),
+			t(5, 4, 1, 'property.declaration'),
+			t(6, 4, 1, 'member.declaration'), t(6, 17, 1, 'class'), t(6, 19, 1, 'property'),
+			t(7, 8, 1, 'member.declaration'),
+		]);
+	});
+
 
 
 });
