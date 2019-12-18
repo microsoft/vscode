@@ -29,6 +29,11 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
+	 * An even that is fired when a registered file system provider changes it's capabilities.
+	 */
+	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
+
+	/**
 	 * An event that is fired when a file system provider is about to be activated. Listeners
 	 * can join this event with a long running promise to help in the activation process.
 	 */
@@ -407,6 +412,10 @@ export interface IFileSystemProviderRegistrationEvent {
 	added: boolean;
 	scheme: string;
 	provider?: IFileSystemProvider;
+}
+
+export interface IFileSystemProviderCapabilitiesChangeEvent {
+	provider: IFileSystemProvider;
 }
 
 export interface IFileSystemProviderActivationEvent {
