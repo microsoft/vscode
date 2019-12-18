@@ -404,7 +404,30 @@ export class BulkEditService implements IBulkEditService {
 		});
 	}
 
+	private static _mergeSequentialTextEditsOfSameResource(workspaceEdit: WorkspaceEdit): WorkspaceEdit {
+		let newEdit: WorkspaceEdit = { edits: [] };
+		let last: ResourceTextEdit | undefined;
+		for (let edit of workspaceEdit.edits) {
+			if (!isResourceTextEdit(edit)) {
+				last = undefined;
+				newEdit.edits.push(edit);
+
+			} else {
+				if (!last || last.resource.toString() !== edit.resource.toString()) {
+					last = edit;
+					newEdit.edits.push(last);
+				} else {
+					last.edits.push(...edit.edits);
+					last.modelVersionId = last.modelVersionId || edit.modelVersionId;
+				}
+			}
+		}
+		return newEdit;
+	}
+
 	async apply(edit: WorkspaceEdit, options: IBulkEditOptions = {}): Promise<IBulkEditResult> {
+
+		edit = BulkEditService._mergeSequentialTextEditsOfSameResource(edit);
 
 		if (this._previewHandler) {
 			edit = await this._previewHandler(edit, options);
