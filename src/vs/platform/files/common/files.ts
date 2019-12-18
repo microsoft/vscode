@@ -416,6 +416,7 @@ export interface IFileSystemProviderRegistrationEvent {
 
 export interface IFileSystemProviderCapabilitiesChangeEvent {
 	provider: IFileSystemProvider;
+	scheme: string;
 }
 
 export interface IFileSystemProviderActivationEvent {
