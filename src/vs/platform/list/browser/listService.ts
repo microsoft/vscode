@@ -733,7 +733,7 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		}
 	}
 
-	private onSelection(e: ITreeEvent<T | null> | ITreeMouseEvent<T | null>, doubleClick = false): void {
+	private onSelection(e: ITreeEvent<T | null> | ITreeMouseEvent<T | null>): void {
 		if (!e.browserEvent || e.browserEvent.type === 'contextmenu') {
 			return;
 		}
@@ -741,11 +741,13 @@ export class TreeResourceNavigator2<T, TFilterData> extends Disposable {
 		const isKeyboardEvent = e.browserEvent instanceof KeyboardEvent;
 		const isMiddleClick = e.browserEvent instanceof MouseEvent ? e.browserEvent.button === 1 : false;
 		const isDoubleClick = e.browserEvent.detail === 2;
+		const isCtrlDoubleClick = e.browserEvent instanceof MouseEvent && e.browserEvent.ctrlKey && isDoubleClick;
 		const preserveFocus = (e.browserEvent instanceof KeyboardEvent && typeof (<SelectionKeyboardEvent>e.browserEvent).preserveFocus === 'boolean') ?
 			!!(<SelectionKeyboardEvent>e.browserEvent).preserveFocus :
-			!isDoubleClick;
+			isCtrlDoubleClick || !isDoubleClick;
+		const selection = this.tree.getSelection();
 
-		if (this.tree.openOnSingleClick || isDoubleClick || isKeyboardEvent) {
+		if ((selection.length === 1 && (this.tree.openOnSingleClick || isDoubleClick)) || isCtrlDoubleClick || isKeyboardEvent) {
 			const sideBySide = e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey);
 			this.open(preserveFocus, isDoubleClick || isMiddleClick, sideBySide, e.browserEvent);
 		}

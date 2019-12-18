@@ -655,11 +655,20 @@ export class MouseController<T> implements IDisposable {
 		} else if (this.isSelectionSingleChangeEvent(e)) {
 			const selection = this.list.getSelection();
 			const newSelection = selection.filter(i => i !== focus);
+			const isCtrlDoubleClick = selection.indexOf(focus) !== -1 &&
+				e.browserEvent instanceof MouseEvent &&
+				e.browserEvent.ctrlKey &&
+				e.browserEvent.detail === 2;
 
 			this.list.setFocus([focus]);
 
-			if (selection.length === newSelection.length) {
-				this.list.setSelection([...newSelection, focus], e.browserEvent);
+			// On Ctrl + double click, do not modify selection but trigger a side-open
+			if (isCtrlDoubleClick) {
+				this.list.open([focus], e.browserEvent);
+			}
+			else if (selection.length === newSelection.length) {
+				// The open service will take the first selection element, so insert focus at the start.
+				this.list.setSelection([focus, ...newSelection], e.browserEvent);
 			} else {
 				this.list.setSelection(newSelection, e.browserEvent);
 			}
