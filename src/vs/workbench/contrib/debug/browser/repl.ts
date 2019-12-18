@@ -25,9 +25,9 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IExpressionContainer, IExpression, IReplElementSource, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
@@ -105,6 +105,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
 	private completionItemProvider: IDisposable | undefined;
+	private modelChangeListener: IDisposable = Disposable.None;
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
@@ -118,7 +119,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
@@ -179,6 +181,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				dispose(this.model);
 			} else {
 				this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
+				this.setMode();
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
 				this.refreshReplElements(true);
@@ -188,6 +191,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
 				this.onDidFontChange();
 			}
+		}));
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			this.setMode();
 		}));
 	}
 
@@ -211,6 +217,21 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	focusRepl(): void {
 		this.tree.domFocus();
+	}
+
+	private setMode(): void {
+		if (!this.isVisible()) {
+			return;
+		}
+
+		const activeEditor = this.editorService.activeTextEditorWidget;
+		if (isCodeEditor(activeEditor)) {
+			this.modelChangeListener.dispose();
+			this.modelChangeListener = activeEditor.onDidChangeModelLanguage(() => this.setMode());
+			if (activeEditor.hasModel()) {
+				this.model.setMode(activeEditor.getModel().getLanguageIdentifier());
+			}
+		}
 	}
 
 	private onDidFontChange(): void {
