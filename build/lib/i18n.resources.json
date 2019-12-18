@@ -31,6 +31,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/bulkEdit",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/cli",
 			"project": "vscode-workbench"
 		},

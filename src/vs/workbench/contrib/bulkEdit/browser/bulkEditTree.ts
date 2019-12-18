@@ -29,7 +29,7 @@ export class FileElement {
 }
 
 export class TextEditElement {
-	constructor(readonly line: string, readonly highlight: IHighlight, readonly edit: modes.TextEdit) { }
+	constructor(readonly edit: modes.TextEdit, readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string) { }
 }
 
 export type Edit = FileElement | TextEditElement;
@@ -64,17 +64,14 @@ export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit,
 
 			const result = element.edit.edits.map(edit => {
 				const range = Range.lift(edit.range);
-				const start = textModel.getOffsetAt(range.getStartPosition());
-				const end = textModel.getOffsetAt(range.getEndPosition());
-				const len = end - start;
 
-				const previewStart = textModel.getPositionAt(start - 20);
-				const previewEnd = textModel.getPositionAt(end + 30);
-
-				const preview = textModel.getValueInRange(Range.fromPositions(previewStart, previewEnd));
-				const previewOffset = start - textModel.getOffsetAt(previewStart);
-
-				return new TextEditElement(preview, { start: previewOffset, end: previewOffset + len }, edit);
+				return new TextEditElement(
+					edit,
+					textModel.getValueInRange(new Range(range.startLineNumber, 1, range.startLineNumber, range.startColumn)), // line start to edit start,
+					textModel.getValueInRange(range),
+					edit.text,
+					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + 20))
+				);
 			});
 
 			return result;
@@ -148,14 +145,24 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 		return new TextEditElementTemplate(label);
 	}
 
-	renderElement(node: ITreeNode<TextEditElement, FuzzyScore>, _index: number, template: TextEditElementTemplate): void {
-		template.label.set(node.element.line, [node.element.highlight], undefined, true);
+	renderElement({ element }: ITreeNode<TextEditElement, FuzzyScore>, _index: number, template: TextEditElementTemplate): void {
+
+		let value = '';
+		value += element.prefix;
+		value += element.selecting;
+		value += element.inserting;
+		value += element.suffix;
+
+		let selectHighlight: IHighlight = { start: element.prefix.length, end: element.prefix.length + element.selecting.length, extraClasses: 'remove' };
+		let insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: 'insert' };
+
+		template.label.set(value, [selectHighlight, insertHighlight], undefined, true);
 	}
 
 	disposeTemplate(_template: TextEditElementTemplate): void { }
 }
 
-export class Delegate implements IListVirtualDelegate<Edit> {
+export class BulkEditDelegate implements IListVirtualDelegate<Edit> {
 
 	getHeight(): number {
 		return 23;
