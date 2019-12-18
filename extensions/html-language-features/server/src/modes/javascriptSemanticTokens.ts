@@ -28,16 +28,26 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 			if (node.kind === ts.SyntaxKind.Identifier) {
 				const symbol = typeChecker.getSymbolAtLocation(node);
 				if (symbol) {
-					let typeIdx = tokenFromDeclarationMapping[symbol.valueDeclaration.kind];
-					let modifierSet = 0;
-					if (node.parent) {
-						const parentTypeIdx = tokenFromDeclarationMapping[node.parent.kind];
-						if (parentTypeIdx === typeIdx && (<ts.NamedDeclaration>node.parent).name === node) {
-							modifierSet = TokenModifier.declaration;
+					const decl = symbol.valueDeclaration || symbol.declarations[0];
+					if (decl) {
+						let typeIdx = tokenFromDeclarationMapping[decl.kind];
+						let modifierSet = 0;
+						if (node.parent) {
+							const parentTypeIdx = tokenFromDeclarationMapping[node.parent.kind];
+							if (parentTypeIdx === typeIdx && (<ts.NamedDeclaration>node.parent).name === node) {
+								modifierSet = TokenModifier.declaration;
+							}
 						}
-					}
-					if (typeIdx !== undefined) {
-						resultTokens.push({ offset: node.getStart(), length: node.getWidth(), typeIdx, modifierSet });
+						const modifiers = ts.getCombinedModifierFlags(decl);
+						if (modifiers & ts.ModifierFlags.Static) {
+							modifierSet |= TokenModifier.static;
+						}
+						if (modifiers & ts.ModifierFlags.Async) {
+							modifierSet |= TokenModifier.async;
+						}
+						if (typeIdx !== undefined) {
+							resultTokens.push({ offset: node.getStart(), length: node.getWidth(), typeIdx, modifierSet });
+						}
 					}
 				}
 			}
@@ -94,7 +104,7 @@ export function getSemanticTokenLegend() {
 
 
 const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'parameterType', 'type', 'parameter', 'variable', 'property', 'constant', 'function', 'member'];
-const tokenModifiers: string[] = ['declaration',];
+const tokenModifiers: string[] = ['declaration', 'static', 'async'];
 
 enum TokenType {
 	'class' = 0,
@@ -112,7 +122,9 @@ enum TokenType {
 }
 
 enum TokenModifier {
-	'declaration' = 0x01
+	'declaration' = 0x01,
+	'static' = 0x02,
+	'async' = 0x04,
 }
 
 // const tokenFromClassificationMapping: { [name: string]: TokenType } = {
@@ -132,8 +144,10 @@ const tokenFromDeclarationMapping: { [name: string]: TokenType } = {
 	[ts.SyntaxKind.ModuleDeclaration]: TokenType.namespace,
 	[ts.SyntaxKind.EnumDeclaration]: TokenType.enum,
 	[ts.SyntaxKind.EnumMember]: TokenType.property,
-	[ts.SyntaxKind.ClassDeclaration]: TokenType.property,
+	[ts.SyntaxKind.ClassDeclaration]: TokenType.class,
 	[ts.SyntaxKind.MethodDeclaration]: TokenType.member,
 	[ts.SyntaxKind.FunctionDeclaration]: TokenType.function,
 	[ts.SyntaxKind.MethodSignature]: TokenType.member,
+	[ts.SyntaxKind.GetAccessor]: TokenType.property,
+	[ts.SyntaxKind.PropertySignature]: TokenType.property,
 };

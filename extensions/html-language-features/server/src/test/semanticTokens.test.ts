@@ -57,15 +57,21 @@ suite('JavaScript Semantic Tokens', () => {
 			/*0*/'<html>',
 			/*1*/'<head>',
 			/*2*/'<script>',
-			/*3*/'  var x = 9, y1 = x;',
-			/*4*/'  throw y1;',
-			/*5*/'</script>',
-			/*6*/'</head>',
-			/*7*/'</html>',
+			/*3*/'  var x = 9, y1 = [x];',
+			/*4*/'  try {',
+			/*5*/'    for (const s of y1) { }',
+			/*6*/'  } catch (e) {',
+			/*7*/'    throw y1;',
+			/*8*/'  }',
+			/*9*/'</script>',
+			/*10*/'</head>',
+			/*11*/'</html>',
 		];
 		assertTokens(input, [
-			t(3, 6, 1, 'variable.declaration'), t(3, 13, 2, 'variable.declaration'), t(3, 18, 1, 'variable'),
-			t(4, 8, 2, 'variable')
+			t(3, 6, 1, 'variable.declaration'), t(3, 13, 2, 'variable.declaration'), t(3, 19, 1, 'variable'),
+			t(5, 15, 1, 'variable.declaration'), t(5, 20, 2, 'variable'),
+			t(6, 11, 1, 'variable.declaration'),
+			t(7, 10, 2, 'variable')
 		]);
 	});
 
@@ -77,13 +83,15 @@ suite('JavaScript Semantic Tokens', () => {
 			/*3*/'  function foo(p1) {',
 			/*4*/'    return foo(Math.abs(p1))',
 			/*5*/'  }',
-			/*6*/'</script>',
-			/*7*/'</head>',
-			/*8*/'</html>',
+			/*6*/'  `/${window.location}`.split("/").forEach(s => foo(s));',
+			/*7*/'</script>',
+			/*8*/'</head>',
+			/*9*/'</html>',
 		];
 		assertTokens(input, [
 			t(3, 11, 3, 'function.declaration'), t(3, 15, 2, 'parameter.declaration'),
-			t(4, 11, 3, 'function'), t(4, 15, 4, 'variable'), t(4, 20, 3, 'member'), t(4, 24, 2, 'parameter')
+			t(4, 11, 3, 'function'), t(4, 15, 4, 'variable'), t(4, 20, 3, 'member'), t(4, 24, 2, 'parameter'),
+			t(6, 6, 6, 'variable'), t(6, 13, 8, 'property'), t(6, 24, 5, 'member'), t(6, 35, 7, 'member'), t(6, 43, 1, 'parameter.declaration'), t(6, 48, 3, 'function'), t(6, 52, 1, 'parameter')
 		]);
 	});
 
@@ -95,19 +103,24 @@ suite('JavaScript Semantic Tokens', () => {
 			/*3*/'  class A {',
 			/*4*/'    static x = 9;',
 			/*5*/'    f = 9;',
-			/*6*/'    m() { return A.x; };',
-			/*7*/'    get s() { return this.f + this.m() }',
-			/*8*/'  }',
-			/*9*/'</script>',
-			/*10*/'</head>',
-			/*11*/'</html>',
+			/*6*/'    async m() { return A.x + await this.m(); };',
+			/*7*/'    get s() { return this.f; ',
+			/*8*/'    static t() { return new A().f; };',
+			/*9*/'    constructor() {}',
+			/*10*/'  }',
+			/*11*/'</script>',
+			/*12*/'</head>',
+			/*13*/'</html>',
 		];
+
+
 		assertTokens(input, [
 			t(3, 8, 1, 'class.declaration'),
-			t(4, 11, 1, 'member.declaration'),
+			t(4, 11, 1, 'property.declaration.static'),
 			t(5, 4, 1, 'property.declaration'),
-			t(6, 4, 1, 'member.declaration'), t(6, 17, 1, 'class'), t(6, 19, 1, 'property'),
-			t(7, 8, 1, 'member.declaration'),
+			t(6, 10, 1, 'member.declaration.async'), t(6, 23, 1, 'class'), t(6, 25, 1, 'property.static'), t(6, 40, 1, 'member.async'),
+			t(7, 8, 1, 'property.declaration'), t(7, 26, 1, 'property'),
+			t(8, 11, 1, 'member.declaration.static'), t(8, 28, 1, 'class'), t(8, 32, 1, 'property'),
 		]);
 	});
 
