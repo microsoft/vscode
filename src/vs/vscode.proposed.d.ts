@@ -1411,31 +1411,6 @@ declare module 'vscode' {
 	export interface WorkspaceConfiguration {
 
 		/**
-		 * Return a value from this configuration.
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @return The value `section` denotes or `undefined`.
-		 */
-		get<T>(section: string): T | undefined;
-
-		/**
-		 * Return a value from this configuration.
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param defaultValue A value should be returned when no value could be found, is `undefined`.
-		 * @return The value `section` denotes or the default.
-		 */
-		get<T>(section: string, defaultValue: T): T;
-
-		/**
-		 * Check if this configuration has a certain value.
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @return `true` if the section doesn't resolve to `undefined`.
-		 */
-		has(section: string): boolean;
-
-		/**
 		 * Retrieve all information about a configuration setting. A configuration value
 		 * often consists of a *default* value, a global or installation-wide value,
 		 * a workspace-specific value, folder-specific value
@@ -1492,11 +1467,6 @@ declare module 'vscode' {
 		 *	- configuration to workspace folder when [WorkspaceConfiguration](#WorkspaceConfiguration) is not scoped to a resource.
 		 */
 		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, scopeToLanguage?: boolean): Thenable<void>;
-
-		/**
-		 * Readable dictionary that backs this configuration.
-		 */
-		readonly [key: string]: any;
 	}
 
 	//#endregion
