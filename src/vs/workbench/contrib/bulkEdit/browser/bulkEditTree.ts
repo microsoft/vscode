@@ -65,12 +65,18 @@ export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit,
 			const result = element.edit.edits.map(edit => {
 				const range = Range.lift(edit.range);
 
+				const tokens = textModel.getLineTokens(range.endLineNumber);
+				let suffixLen = 0;
+				for (let idx = tokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < tokens.getCount(); idx++) {
+					suffixLen += tokens.getEndOffset(idx) - tokens.getStartOffset(idx);
+				}
+
 				return new TextEditElement(
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, 1, range.startLineNumber, range.startColumn)), // line start to edit start,
 					textModel.getValueInRange(range),
 					edit.text,
-					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + 20))
+					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
 				);
 			});
 
