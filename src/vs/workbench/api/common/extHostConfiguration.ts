@@ -13,13 +13,14 @@ import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigu
 import { Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Barrier } from 'vs/base/common/async';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -149,14 +150,17 @@ export class ExtHostConfigProvider {
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(change, previous));
 	}
 
-	getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null, extensionId?: ExtensionIdentifier): vscode.WorkspaceConfiguration {
+	getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null, extensionDescription?: IExtensionDescription): vscode.WorkspaceConfiguration {
 		const overrides = scopeToOverrides(scope) || {};
+		if (overrides.overrideIdentifier && extensionDescription) {
+			checkProposedApiEnabled(extensionDescription);
+		}
 		const config = this._toReadonlyValue(section
 			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
 			: this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace));
 
 		if (section) {
-			this._validateConfigurationAccess(section, overrides, extensionId);
+			this._validateConfigurationAccess(section, overrides, extensionDescription?.identifier);
 		}
 
 		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget | null {
@@ -179,7 +183,7 @@ export class ExtHostConfigProvider {
 				return typeof lookUp(config, key) !== 'undefined';
 			},
 			get: <T>(key: string, defaultValue?: T) => {
-				this._validateConfigurationAccess(section ? `${section}.${key}` : key, overrides, extensionId);
+				this._validateConfigurationAccess(section ? `${section}.${key}` : key, overrides, extensionDescription?.identifier);
 				let result = lookUp(config, key);
 				if (typeof result === 'undefined') {
 					result = defaultValue;
