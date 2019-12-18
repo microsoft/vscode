@@ -709,7 +709,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
 
 		if (this.extension) {
-			const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(ExtensionInfoAction)];
+			const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(ExtensionInfoAction), this.instantiationService.createInstance(CopyExtensionIdAction)];
 			if (this.extension.local && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.configuration) {
 				extensionActions.push(this.instantiationService.createInstance(ExtensionSettingsAction));
 			}
@@ -794,8 +794,8 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 
 export class ExtensionInfoAction extends ExtensionAction {
 
-	static readonly ID = 'extensions.extensionInfo';
-	static readonly LABEL = localize('extensionInfoAction', "Copy Extension Information");
+	static readonly ID = 'workbench.extensions.action.copyExtension';
+	static readonly LABEL = localize('workbench.extensions.action.copyExtension', "Copy");
 
 	constructor(
 		@IClipboardService private readonly clipboardService: IClipboardService
@@ -823,6 +823,30 @@ export class ExtensionInfoAction extends ExtensionAction {
 		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 
 		return this.clipboardService.writeText(clipboardStr);
+	}
+}
+
+export class CopyExtensionIdAction extends ExtensionAction {
+
+	static readonly ID = 'workbench.extensions.action.copyExtensionId';
+	static readonly LABEL = localize('workbench.extensions.action.copyExtensionId', "Copy Extension Id");
+
+	constructor(
+		@IClipboardService private readonly clipboardService: IClipboardService
+	) {
+		super(CopyExtensionIdAction.ID, CopyExtensionIdAction.LABEL);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = !!this.extension;
+	}
+
+	async run(): Promise<any> {
+		if (!this.extension) {
+			return;
+		}
+		return this.clipboardService.writeText(this.extension.identifier.id);
 	}
 }
 
