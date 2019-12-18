@@ -19,9 +19,9 @@ export interface RemoteTunnel {
 }
 
 export interface TunnelOptions {
-	remote: { port: number, host: string };
+	remoteAddress: { port: number, host: string };
 	localPort?: number;
-	name?: string;
+	label?: string;
 }
 
 export interface ITunnelProvider {
@@ -33,10 +33,10 @@ export interface ITunnelService {
 
 	readonly tunnels: Promise<readonly RemoteTunnel[]>;
 	readonly onTunnelOpened: Event<RemoteTunnel>;
-	readonly onTunnelClosed: Event<number>;
+	readonly onTunnelClosed: Event<{ host: string, port: number }>;
 
-	openTunnel(remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
-	closeTunnel(remotePort: number): Promise<void>;
+	openTunnel(remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
+	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable;
 }
 

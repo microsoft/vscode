@@ -143,7 +143,9 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 	public async resolve(): Promise<IEditorModel> {
 		this._model = await this.customEditorService.models.loadOrCreate(this.getResource(), this.viewType);
 		this._register(this._model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._onDidChangeDirty.fire();
+		if (this.isDirty()) {
+			this._onDidChangeDirty.fire();
+		}
 		return await super.resolve();
 	}
 

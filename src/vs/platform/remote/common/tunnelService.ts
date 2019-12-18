@@ -13,12 +13,12 @@ export class NoOpTunnelService implements ITunnelService {
 	public readonly tunnels: Promise<readonly RemoteTunnel[]> = Promise.resolve([]);
 	private _onTunnelOpened: Emitter<RemoteTunnel> = new Emitter();
 	public onTunnelOpened: Event<RemoteTunnel> = this._onTunnelOpened.event;
-	private _onTunnelClosed: Emitter<number> = new Emitter();
-	public onTunnelClosed: Event<number> = this._onTunnelClosed.event;
-	openTunnel(_remotePort: number): Promise<RemoteTunnel> | undefined {
+	private _onTunnelClosed: Emitter<{ host: string, port: number }> = new Emitter();
+	public onTunnelClosed: Event<{ host: string, port: number }> = this._onTunnelClosed.event;
+	openTunnel(_remoteHost: string, _remotePort: number): Promise<RemoteTunnel> | undefined {
 		return undefined;
 	}
-	async closeTunnel(_remotePort: number): Promise<void> {
+	async closeTunnel(_remoteHost: string, _remotePort: number): Promise<void> {
 	}
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable {
 		throw new Error('Method not implemented.');

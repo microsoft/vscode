@@ -27,6 +27,10 @@ export class LazyPromise implements Promise<any> {
 		this._err = null;
 	}
 
+	get [Symbol.toStringTag](): string {
+		return this.toString();
+	}
+
 	private _ensureActual(): Promise<any> {
 		if (!this._actual) {
 			this._actual = new Promise<any>((c, e) => {

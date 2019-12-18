@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/2e0fded599d7b85b78692dee3d96e8a4710a5c57",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/c9c955af17ed0c86ebce32e0f26c72f0a2925937",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -3160,6 +3160,17 @@
 				{
 					"name": "keyword.operator.relational.js",
 					"match": "<=|>=|<>|<|>"
+				},
+				{
+					"match": "(\\!)\\s*(/)(?![/*])",
+					"captures": {
+						"1": {
+							"name": "keyword.operator.logical.js"
+						},
+						"2": {
+							"name": "keyword.operator.arithmetic.js"
+						}
+					}
 				},
 				{
 					"name": "keyword.operator.logical.js",

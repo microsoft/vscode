@@ -33,7 +33,7 @@ import { ITextFileStreamContent, ITextFileService, IResourceEncoding, IReadTextF
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { MenuBarVisibility, IWindowConfiguration, IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -94,6 +94,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { find } from 'vs/base/common/arrays';
 import { WorkingCopyService, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -244,26 +245,25 @@ export class TestTextFileService extends NativeTextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
 
-			return Promise.reject(error);
+			throw error;
 		}
 
-		return this.fileService.readFileStream(resource, options).then(async (content): Promise<ITextFileStreamContent> => {
-			return {
-				resource: content.resource,
-				name: content.name,
-				mtime: content.mtime,
-				ctime: content.ctime,
-				etag: content.etag,
-				encoding: 'utf8',
-				value: await createTextBufferFactoryFromStream(content.value),
-				size: 10
-			};
-		});
+		const content = await this.fileService.readFileStream(resource, options);
+		return {
+			resource: content.resource,
+			name: content.name,
+			mtime: content.mtime,
+			ctime: content.ctime,
+			etag: content.etag,
+			encoding: 'utf8',
+			value: await createTextBufferFactoryFromStream(content.value),
+			size: 10
+		};
 	}
 
 	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
@@ -276,7 +276,11 @@ export class TestTextFileService extends NativeTextFileService {
 	}
 }
 
-export function workbenchInstantiationService(): IInstantiationService {
+export interface ITestInstantiationService extends IInstantiationService {
+	stub<T>(service: ServiceIdentifier<T>, ctor: any): T;
+}
+
+export function workbenchInstantiationService(): ITestInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	const contextKeyService = <IContextKeyService>instantiationService.createInstance(MockContextKeyService);
@@ -291,6 +295,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkbenchLayoutService, new TestLayoutService());
 	instantiationService.stub(IDialogService, new TestDialogService());
+	instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 	instantiationService.stub(IFileDialogService, new TestFileDialogService());
 	instantiationService.stub(IElectronService, new TestElectronService());
 	instantiationService.stub(IModeService, instantiationService.createInstance(ModeServiceImpl));
@@ -320,6 +325,17 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
 
 	return instantiationService;
+}
+
+export class TestAccessibilityService implements IAccessibilityService {
+
+	_serviceBrand: undefined;
+
+	onDidChangeAccessibilitySupport = Event.None;
+
+	alwaysUnderlineAccessKeys(): Promise<boolean> { return Promise.resolve(false); }
+	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
+	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
 }
 
 export class TestDecorationsService implements IDecorationsService {
@@ -673,6 +689,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 	onDidGroupIndexChange: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
+	onDidEditorPartOptionsChange = Event.None;
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
@@ -950,6 +967,7 @@ export class TestFileService implements IFileService {
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
 	readonly onWillActivateFileSystemProvider = Event.None;
+	readonly onDidChangeFileSystemProviderCapabilities = Event.None;
 	readonly onError: Event<Error> = Event.None;
 
 	private content = 'Hello Html';
@@ -1004,12 +1022,14 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
+	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
+
+		return stats.map(stat => ({ stat, success: true }));
 	}
 
-	exists(_resource: URI): Promise<boolean> {
-		return Promise.resolve(true);
+	async exists(_resource: URI): Promise<boolean> {
+		return true;
 	}
 
 	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
@@ -1054,11 +1074,12 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		return timeout(0).then(() => ({
+	async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+		await timeout(0);
+
+		return ({
 			resource,
 			etag: 'index.txt',
-			encoding: 'utf8',
 			mtime: Date.now(),
 			ctime: Date.now(),
 			size: 42,
@@ -1066,7 +1087,7 @@ export class TestFileService implements IFileService {
 			isDirectory: false,
 			isSymbolicLink: false,
 			name: resources.basename(resource)
-		}));
+		});
 	}
 
 	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
@@ -1103,7 +1124,13 @@ export class TestFileService implements IFileService {
 		return resource.scheme === 'file' || this.providers.has(resource.scheme);
 	}
 
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean { return false; }
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+		if (capability === FileSystemProviderCapabilities.PathCaseSensitive && isLinux) {
+			return true;
+		}
+
+		return false;
+	}
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 		return Promise.resolve();
@@ -1136,14 +1163,13 @@ export class TestBackupFileService implements IBackupFileService {
 		return false;
 	}
 
-	loadBackupResource(resource: URI): Promise<URI | undefined> {
-		return this.hasBackup(resource).then(hasBackup => {
-			if (hasBackup) {
-				return this.toBackupResource(resource);
-			}
+	async loadBackupResource(resource: URI): Promise<URI | undefined> {
+		const hasBackup = await this.hasBackup(resource);
+		if (hasBackup) {
+			return this.toBackupResource(resource);
+		}
 
-			return undefined;
-		});
+		return undefined;
 	}
 
 	registerResourceForBackup(_resource: URI): Promise<void> {

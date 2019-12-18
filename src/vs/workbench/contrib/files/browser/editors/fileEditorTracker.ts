@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration, SideBySideEditor as SideBySideEditorChoice } from 'vs/workbench/common/editor';
 import { ITextFileService, TextFileModelChangeEvent, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -25,7 +25,6 @@ import { timeout } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -44,7 +43,6 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IHostService private readonly hostService: IHostService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IExplorerService private readonly explorerService: IExplorerService
 	) {
 		super();
 
@@ -108,7 +106,8 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
-							const index = this.getIndexOfPath(resource.path, oldResource.path, this.explorerService.shouldIgnoreCase(resource));
+							const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
+							const index = this.getIndexOfPath(resource.path, oldResource.path, ignoreCase);
 							reopenFileResource = joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 

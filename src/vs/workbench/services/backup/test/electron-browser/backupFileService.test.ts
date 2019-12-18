@@ -51,14 +51,13 @@ class TestBackupEnvironmentService extends NativeWorkbenchEnvironmentService {
 	constructor(backupPath: string) {
 		super({ ...parseArgs(process.argv, OPTIONS), ...{ backupPath, 'user-data-dir': userdataDir } } as IWindowConfiguration, process.execPath, 0);
 	}
-
 }
 
-class TestBackupFileService extends BackupFileService {
+export class NodeTestBackupFileService extends BackupFileService {
 
 	readonly fileService: IFileService;
 
-	constructor(workspace: URI, backupHome: string, workspacesJsonPath: string) {
+	constructor(workspaceBackupPath: string) {
 		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
 		const fileService = new FileService(new NullLogService());
 		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
@@ -76,10 +75,10 @@ class TestBackupFileService extends BackupFileService {
 }
 
 suite('BackupFileService', () => {
-	let service: TestBackupFileService;
+	let service: NodeTestBackupFileService;
 
 	setup(async () => {
-		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
@@ -141,7 +140,7 @@ suite('BackupFileService', () => {
 		test('should return whether a backup resource exists', async () => {
 			await pfs.mkdirp(path.dirname(fooBackupPath));
 			fs.writeFileSync(fooBackupPath, 'foo');
-			service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+			service = new NodeTestBackupFileService(workspaceBackupPath);
 			const resource = await service.loadBackupResource(fooFile);
 			assert.ok(resource);
 			assert.equal(path.basename(resource!.fsPath), path.basename(fooBackupPath));
@@ -528,10 +527,10 @@ suite('BackupFileService', () => {
 
 suite('BackupFilesModel', () => {
 
-	let service: TestBackupFileService;
+	let service: NodeTestBackupFileService;
 
 	setup(async () => {
-		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+		service = new NodeTestBackupFileService(workspaceBackupPath);
 
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
