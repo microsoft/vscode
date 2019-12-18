@@ -52,7 +52,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	//#region IView
 
-	readonly minimumWidth: number = 300;
+	readonly minimumWidth: number = 420;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 77;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
