@@ -13,6 +13,7 @@ import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { equals } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false);
 
@@ -53,6 +54,8 @@ export interface IFilesConfigurationService {
 	readonly isHotExitEnabled: boolean;
 
 	readonly hotExitConfiguration: string | undefined;
+
+	preventSaveConflicts(resource: URI): boolean;
 }
 
 export class FilesConfigurationService extends Disposable implements IFilesConfigurationService {
@@ -181,9 +184,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	async toggleAutoSave(): Promise<void> {
 		const setting = this.configurationService.inspect('files.autoSave');
-		let userAutoSaveConfig = setting.user;
+		let userAutoSaveConfig = setting.userValue;
 		if (isUndefinedOrNull(userAutoSaveConfig)) {
-			userAutoSaveConfig = setting.default; // use default if setting not defined
+			userAutoSaveConfig = setting.defaultValue; // use default if setting not defined
 		}
 
 		let newAutoSaveValue: string;
@@ -202,6 +205,10 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	get hotExitConfiguration(): string {
 		return this.currentHotExitConfig;
+	}
+
+	preventSaveConflicts(resource: URI): boolean {
+		return this.configurationService.getValue('files.preventSaveConflicts', { resource });
 	}
 }
 

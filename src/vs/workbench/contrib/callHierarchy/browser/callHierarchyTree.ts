@@ -43,7 +43,7 @@ export class DataSource implements IAsyncDataSource<CallHierarchyModel, Call> {
 
 	async getChildren(element: CallHierarchyModel | Call): Promise<Call[]> {
 		if (element instanceof CallHierarchyModel) {
-			return [new Call(element.root, undefined, element, undefined)];
+			return element.roots.map(root => new Call(root, undefined, element, undefined));
 		}
 
 		const { model, item } = element;

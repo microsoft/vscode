@@ -514,15 +514,19 @@ export class MainThreadTask implements MainThreadTaskShape {
 			if (TaskHandleDTO.is(value)) {
 				const workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
 				if (workspaceFolder) {
-					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
-						this._taskService.run(task).then(undefined, reason => {
-							// eat the error, it has already been surfaced to the user and we don't care about it here
-						});
-						const result: TaskExecutionDTO = {
-							id: value.id,
-							task: TaskDTO.from(task)
-						};
-						resolve(result);
+					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task | undefined) => {
+						if (!task) {
+							reject(new Error('Task not found'));
+						} else {
+							this._taskService.run(task).then(undefined, reason => {
+								// eat the error, it has already been surfaced to the user and we don't care about it here
+							});
+							const result: TaskExecutionDTO = {
+								id: value.id,
+								task: TaskDTO.from(task)
+							};
+							resolve(result);
+						}
 					}, (_error) => {
 						reject(new Error('Task not found'));
 					});

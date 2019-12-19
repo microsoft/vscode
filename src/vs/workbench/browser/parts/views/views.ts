@@ -655,8 +655,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.viewDisposable.forEach(disposable => disposable.dispose());
 			this.viewDisposable.clear();
 		}));
-		this._register(viewContainersRegistry.onDidRegister(viewContainer => this.onDidRegisterViewContainer(viewContainer)));
-		this._register(viewContainersRegistry.onDidDeregister(viewContainer => this.onDidDeregisterViewContainer(viewContainer)));
+		this._register(viewContainersRegistry.onDidRegister(({ viewContainer }) => this.onDidRegisterViewContainer(viewContainer)));
+		this._register(viewContainersRegistry.onDidDeregister(({ viewContainer }) => this.onDidDeregisterViewContainer(viewContainer)));
 		this._register(toDisposable(() => {
 			this.viewDescriptorCollections.forEach(({ disposable }) => disposable.dispose());
 			this.viewDescriptorCollections.clear();

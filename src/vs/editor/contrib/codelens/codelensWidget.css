@@ -27,6 +27,16 @@
 	cursor: pointer;
 }
 
+.monaco-editor .codelens-decoration .codicon {
+	line-height: inherit;
+	font-size: inherit;
+}
+
+.monaco-editor .codelens-decoration > a:hover .codicon::before {
+	text-decoration: underline;
+	cursor: pointer;
+}
+
 @keyframes fadein {
 	0% { opacity: 0; visibility: visible;}
 	100% { opacity: 1; }

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
@@ -125,7 +125,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('substitute one configuration variable', () => {
-		let configurationService: IConfigurationService = new MockConfigurationService({
+		let configurationService: IConfigurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -142,7 +142,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute many configuration variables', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -159,7 +159,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute one env variable and a configuration variable', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -180,7 +180,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute many env variable and a configuration variable', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -201,7 +201,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('mixed types of configuration variables', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo',
 				lineNumbers: 123,
@@ -231,7 +231,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('uses original variable as fallback', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {}
 		});
 
@@ -242,7 +242,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('configuration variables with invalid accessor', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			}
@@ -502,32 +502,6 @@ suite('Configuration Resolver Service', () => {
 	});
 });
 
-
-class MockConfigurationService implements IConfigurationService {
-	public _serviceBrand: undefined;
-	public serviceId = IConfigurationService;
-	public constructor(private configuration: any = {}) { }
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: undefined, folder: undefined }; }
-	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }
-	public getValue(): any;
-	public getValue(value: string): any;
-	public getValue(value?: any): any {
-		if (!value) {
-			return this.configuration;
-		}
-		const valuePath = (<string>value).split('.');
-		let object = this.configuration;
-		while (valuePath.length && object) {
-			object = object[valuePath.shift()!];
-		}
-
-		return object;
-	}
-	public updateValue(): Promise<void> { return Promise.resolve(); }
-	public getConfigurationData(): any { return null; }
-	public onDidChangeConfiguration() { return { dispose() { } }; }
-	public reloadConfiguration() { return Promise.resolve(); }
-}
 
 class MockCommandService implements ICommandService {
 

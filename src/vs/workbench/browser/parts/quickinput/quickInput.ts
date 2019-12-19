@@ -16,7 +16,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList } from './quickInputList';
 import { QuickInputBox } from './quickInputBox';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -1396,7 +1396,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.setComboboxAccessibility(false);
 		ui.inputBox.removeAttribute('aria-label');
 
-		const keybinding = this.keybindingService.lookupKeybinding(BackAction.ID);
+		const keybinding = this.keybindingService.lookupKeybinding(QuickPickBack.id);
 		backButton.tooltip = keybinding ? localize('quickInput.backWithKeybinding', "Back ({0})", keybinding.getLabel()) : localize('quickInput.back', "Back");
 
 		this.inQuickOpen('quickInput', true);
@@ -1566,19 +1566,18 @@ export const QuickPickManyToggle: ICommandAndKeybindingRule = {
 	}
 };
 
-export class BackAction extends Action {
-
-	public static readonly ID = 'workbench.action.quickInputBack';
-	public static readonly LABEL = localize('back', "Back");
-
-	constructor(id: string, label: string, @IQuickInputService private readonly quickInputService: IQuickInputService) {
-		super(id, label);
+export const QuickPickBack: ICommandAndKeybindingRule = {
+	id: 'workbench.action.quickInputBack',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	when: inQuickOpenContext,
+	primary: 0,
+	win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+	mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS },
+	handler: accessor => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.back();
 	}
-
-	public run(): Promise<any> {
-		this.quickInputService.back();
-		return Promise.resolve();
-	}
-}
+};
 
 registerSingleton(IQuickInputService, QuickInputService, true);
