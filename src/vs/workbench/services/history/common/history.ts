@@ -57,7 +57,7 @@ export interface IHistoryService {
 	/**
 	 * Get the entire history of editors that were opened.
 	 */
-	getHistory(): Array<IEditorInput | IResourceInput>;
+	getHistory(): ReadonlyArray<IEditorInput | IResourceInput>;
 
 	/**
 	 * Looking at the editor history, returns the workspace root of the last file that was
@@ -91,5 +91,5 @@ export interface IHistoryService {
 	/**
 	 * Get a list of most recently used editors that are open.
 	 */
-	getMostRecentlyUsedOpenEditors(): Array<IEditorIdentifier>;
+	getMostRecentlyUsedOpenEditors(): ReadonlyArray<IEditorIdentifier>;
 }

@@ -44,6 +44,7 @@
 	line-height: 22px;
 	height: 100%;
 	vertical-align: top;
+	max-width: 40vw;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
@@ -94,7 +95,9 @@
 	height: 100%;
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
-	align-items: center
+	align-items: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover {

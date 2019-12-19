@@ -708,13 +708,11 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
 
-		if (this.extension) {
-			const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(ExtensionInfoAction), this.instantiationService.createInstance(CopyExtensionIdAction)];
-			if (this.extension.local && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.configuration) {
-				extensionActions.push(this.instantiationService.createInstance(ExtensionSettingsAction));
-			}
-			groups.push(extensionActions);
+		const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(CopyExtensionInfoAction), this.instantiationService.createInstance(CopyExtensionIdAction)];
+		if (this.extension && this.extension.local && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.configuration) {
+			extensionActions.push(this.instantiationService.createInstance(ExtensionSettingsAction));
 		}
+		groups.push(extensionActions);
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
@@ -792,7 +790,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 }
 
-export class ExtensionInfoAction extends ExtensionAction {
+export class CopyExtensionInfoAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.copyExtension';
 	static readonly LABEL = localize('workbench.extensions.action.copyExtension', "Copy");
@@ -800,7 +798,7 @@ export class ExtensionInfoAction extends ExtensionAction {
 	constructor(
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
-		super(ExtensionInfoAction.ID, ExtensionInfoAction.LABEL);
+		super(CopyExtensionInfoAction.ID, CopyExtensionInfoAction.LABEL);
 		this.update();
 	}
 

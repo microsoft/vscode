@@ -4,15 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!vs/workbench/contrib/debug/browser/media/repl';
-import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
 import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import severity from 'vs/base/common/severity';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
@@ -30,7 +27,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IExpressionContainer, IExpression, IReplElementSource, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/browser/contextScopedHistoryWidget';
@@ -43,27 +40,21 @@ import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/d
 import { CompletionContext, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
-import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { renderExpressionValue, AbstractExpressionsRenderer, IExpressionTemplateData, renderVariable, IInputBoxOptions } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { ReplDelegate, ReplVariablesRenderer, ReplSimpleElementsRenderer, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplRawObjectsRenderer, ReplDataSource, ReplAccessibilityProvider } from 'vs/workbench/contrib/debug/browser/replViewer';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -401,17 +392,17 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	@memoize
 	private get refreshScheduler(): RunOnceScheduler {
-		return new RunOnceScheduler(() => {
+		return new RunOnceScheduler(async () => {
 			if (!this.tree.getInput()) {
 				return;
 			}
+
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			this.tree.updateChildren().then(() => {
-				if (lastElementVisible) {
-					// Only scroll if we were scrolled all the way down before tree refreshed #10486
-					revealLastElement(this.tree);
-				}
-			}, errors.onUnexpectedError);
+			await this.tree.updateChildren();
+			if (lastElementVisible) {
+				// Only scroll if we were scrolled all the way down before tree refreshed #10486
+				revealLastElement(this.tree);
+			}
 		}, Repl.REFRESH_DELAY);
 	}
 
@@ -442,7 +433,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			// https://github.com/microsoft/TypeScript/issues/32526
 			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
 			{
-				ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
+				ariaLabel: localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
@@ -482,7 +473,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		const options = getSimpleEditorOptions();
 		options.readOnly = true;
-		options.ariaLabel = nls.localize('debugConsole', "Debug Console");
+		options.ariaLabel = localize('debugConsole', "Debug Console");
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
@@ -505,18 +496,18 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
 		const actions: IAction[] = [];
-		actions.push(new Action('debug.replCopy', nls.localize('copy', "Copy"), undefined, true, async () => {
+		actions.push(new Action('debug.replCopy', localize('copy', "Copy"), undefined, true, async () => {
 			const nativeSelection = window.getSelection();
 			if (nativeSelection) {
 				await this.clipboardService.writeText(nativeSelection.toString());
 			}
 			return Promise.resolve();
 		}));
-		actions.push(new Action('workbench.debug.action.copyAll', nls.localize('copyAll', "Copy All"), undefined, true, async () => {
+		actions.push(new Action('workbench.debug.action.copyAll', localize('copyAll', "Copy All"), undefined, true, async () => {
 			await this.clipboardService.writeText(this.getVisibleContent());
 			return Promise.resolve();
 		}));
-		actions.push(new Action('debug.collapseRepl', nls.localize('collapse', "Collapse All"), undefined, true, () => {
+		actions.push(new Action('debug.collapseRepl', localize('collapse', "Collapse All"), undefined, true, () => {
 			this.tree.collapseAll();
 			this.replInput.focus();
 			return Promise.resolve();
@@ -561,7 +552,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				},
 				renderOptions: {
 					after: {
-						contentText: nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions"),
+						contentText: localize('startDebugFirst', "Please start a debug session to evaluate expressions"),
 						color: transparentForeground ? transparentForeground.toString() : undefined
 					}
 				}
@@ -588,337 +579,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.replElementsChangeListener.dispose();
 		}
 		this.refreshScheduler.dispose();
+		this.modelChangeListener.dispose();
 		super.dispose();
 	}
 }
-
-// Repl tree
-
-interface IReplEvaluationInputTemplateData {
-	label: HighlightedLabel;
-}
-
-interface IReplEvaluationResultTemplateData {
-	value: HTMLElement;
-	annotation: HTMLElement;
-}
-
-interface ISimpleReplElementTemplateData {
-	container: HTMLElement;
-	value: HTMLElement;
-	source: HTMLElement;
-	getReplElementSource(): IReplElementSource | undefined;
-	toDispose: IDisposable[];
-}
-
-interface IRawObjectReplTemplateData {
-	container: HTMLElement;
-	expression: HTMLElement;
-	name: HTMLElement;
-	value: HTMLElement;
-	annotation: HTMLElement;
-	label: HighlightedLabel;
-}
-
-class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluationInput, FuzzyScore, IReplEvaluationInputTemplateData> {
-	static readonly ID = 'replEvaluationInput';
-
-	get templateId(): string {
-		return ReplEvaluationInputsRenderer.ID;
-	}
-
-	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
-		dom.append(container, $('span.arrow.codicon.codicon-chevron-right'));
-		const input = dom.append(container, $('.expression'));
-		const label = new HighlightedLabel(input, false);
-		return { label };
-	}
-
-	renderElement(element: ITreeNode<ReplEvaluationInput, FuzzyScore>, index: number, templateData: IReplEvaluationInputTemplateData): void {
-		const evaluation = element.element;
-		templateData.label.set(evaluation.value, createMatches(element.filterData));
-	}
-
-	disposeTemplate(templateData: IReplEvaluationInputTemplateData): void {
-		// noop
-	}
-}
-
-class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResult, FuzzyScore, IReplEvaluationResultTemplateData> {
-	static readonly ID = 'replEvaluationResult';
-
-	get templateId(): string {
-		return ReplEvaluationResultsRenderer.ID;
-	}
-
-	constructor(private readonly linkDetector: LinkDetector) { }
-
-	renderTemplate(container: HTMLElement): IReplEvaluationResultTemplateData {
-		dom.append(container, $('span.arrow.codicon.codicon-chevron-left'));
-		const output = dom.append(container, $('.evaluation-result.expression'));
-		const value = dom.append(output, $('span.value'));
-		const annotation = dom.append(output, $('span'));
-
-		return { value, annotation };
-	}
-
-	renderElement(element: ITreeNode<ReplEvaluationResult, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
-		const expression = element.element;
-		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: !expression.hasChildren,
-			showHover: false,
-			colorize: true,
-			linkDetector: this.linkDetector
-		});
-		if (expression.hasChildren) {
-			templateData.annotation.className = 'annotation codicon codicon-info';
-			templateData.annotation.title = nls.localize('stateCapture', "Object state is captured from first evaluation");
-		}
-	}
-
-	disposeTemplate(templateData: IReplEvaluationResultTemplateData): void {
-		// noop
-	}
-}
-
-class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, FuzzyScore, ISimpleReplElementTemplateData> {
-	static readonly ID = 'simpleReplElement';
-
-	constructor(
-		private readonly linkDetector: LinkDetector,
-		@IEditorService private readonly editorService: IEditorService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService
-	) { }
-
-	get templateId(): string {
-		return ReplSimpleElementsRenderer.ID;
-	}
-
-	renderTemplate(container: HTMLElement): ISimpleReplElementTemplateData {
-		const data: ISimpleReplElementTemplateData = Object.create(null);
-		dom.addClass(container, 'output');
-		const expression = dom.append(container, $('.output.expression.value-and-source'));
-
-		data.container = container;
-		data.value = dom.append(expression, $('span.value'));
-		data.source = dom.append(expression, $('.source'));
-		data.toDispose = [];
-		data.toDispose.push(dom.addDisposableListener(data.source, 'click', e => {
-			e.preventDefault();
-			e.stopPropagation();
-			const source = data.getReplElementSource();
-			if (source) {
-				source.source.openInEditor(this.editorService, {
-					startLineNumber: source.lineNumber,
-					startColumn: source.column,
-					endLineNumber: source.lineNumber,
-					endColumn: source.column
-				});
-			}
-		}));
-
-		return data;
-	}
-
-	renderElement({ element }: ITreeNode<SimpleReplElement, FuzzyScore>, index: number, templateData: ISimpleReplElementTemplateData): void {
-		// value
-		dom.clearNode(templateData.value);
-		// Reset classes to clear ansi decorations since templates are reused
-		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session);
-		templateData.value.appendChild(result);
-
-		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
-		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
-		templateData.source.title = element.sourceData ? this.labelService.getUriLabel(element.sourceData.source.uri) : '';
-		templateData.getReplElementSource = () => element.sourceData;
-	}
-
-	disposeTemplate(templateData: ISimpleReplElementTemplateData): void {
-		dispose(templateData.toDispose);
-	}
-}
-
-export class ReplVariablesRenderer extends AbstractExpressionsRenderer {
-
-	static readonly ID = 'replVariable';
-
-	get templateId(): string {
-		return ReplVariablesRenderer.ID;
-	}
-
-	constructor(
-		private readonly linkDetector: LinkDetector,
-		@IDebugService debugService: IDebugService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
-	) {
-		super(debugService, contextViewService, themeService);
-	}
-
-	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
-	}
-
-	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined {
-		return undefined;
-	}
-}
-
-class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElement, FuzzyScore, IRawObjectReplTemplateData> {
-	static readonly ID = 'rawObject';
-
-	constructor(private readonly linkDetector: LinkDetector) { }
-
-	get templateId(): string {
-		return ReplRawObjectsRenderer.ID;
-	}
-
-	renderTemplate(container: HTMLElement): IRawObjectReplTemplateData {
-		dom.addClass(container, 'output');
-
-		const expression = dom.append(container, $('.output.expression'));
-		const name = dom.append(expression, $('span.name'));
-		const label = new HighlightedLabel(name, false);
-		const value = dom.append(expression, $('span.value'));
-		const annotation = dom.append(expression, $('span'));
-
-		return { container, expression, name, label, value, annotation };
-	}
-
-	renderElement(node: ITreeNode<RawObjectReplElement, FuzzyScore>, index: number, templateData: IRawObjectReplTemplateData): void {
-		// key
-		const element = node.element;
-		templateData.label.set(element.name ? `${element.name}:` : '', createMatches(node.filterData));
-		if (element.name) {
-			templateData.name.textContent = `${element.name}:`;
-		} else {
-			templateData.name.textContent = '';
-		}
-
-		// value
-		renderExpressionValue(element.value, templateData.value, {
-			preserveWhitespace: true,
-			showHover: false,
-			linkDetector: this.linkDetector
-		});
-
-		// annotation if any
-		if (element.annotation) {
-			templateData.annotation.className = 'annotation codicon codicon-info';
-			templateData.annotation.title = element.annotation;
-		} else {
-			templateData.annotation.className = '';
-			templateData.annotation.title = '';
-		}
-	}
-
-	disposeTemplate(templateData: IRawObjectReplTemplateData): void {
-		// noop
-	}
-}
-
-class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
-
-	constructor(private configurationService: IConfigurationService) {
-		super();
-	}
-
-	getHeight(element: IReplElement): number {
-		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-
-		if (!config.console.wordWrap) {
-			return this.estimateHeight(element, true);
-		}
-
-		return super.getHeight(element);
-	}
-
-	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {
-		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const rowHeight = Math.ceil(1.4 * config.console.fontSize);
-		const countNumberOfLines = (str: string) => Math.max(1, (str && str.match(/\r\n|\n/g) || []).length);
-		const hasValue = (e: any): e is { value: string } => typeof e.value === 'string';
-
-		// Calculate a rough overestimation for the height
-		// For every 30 characters increase the number of lines needed
-		if (hasValue(element)) {
-			let value = element.value;
-			let valueRows = countNumberOfLines(value) + (ignoreValueLength ? 0 : Math.floor(value.length / 30));
-
-			return valueRows * rowHeight;
-		}
-
-		return rowHeight;
-	}
-
-	getTemplateId(element: IReplElement): string {
-		if (element instanceof Variable && element.name) {
-			return ReplVariablesRenderer.ID;
-		}
-		if (element instanceof ReplEvaluationResult) {
-			return ReplEvaluationResultsRenderer.ID;
-		}
-		if (element instanceof ReplEvaluationInput) {
-			return ReplEvaluationInputsRenderer.ID;
-		}
-		if (element instanceof SimpleReplElement || (element instanceof Variable && !element.name)) {
-			// Variable with no name is a top level variable which should be rendered like a repl element #17404
-			return ReplSimpleElementsRenderer.ID;
-		}
-
-		return ReplRawObjectsRenderer.ID;
-	}
-
-	hasDynamicHeight(element: IReplElement): boolean {
-		// Empty elements should not have dynamic height since they will be invisible
-		return element.toString().length > 0;
-	}
-}
-
-function isDebugSession(obj: any): obj is IDebugSession {
-	return typeof obj.getReplElements === 'function';
-}
-
-class ReplDataSource implements IAsyncDataSource<IDebugSession, IReplElement> {
-
-	hasChildren(element: IReplElement | IDebugSession): boolean {
-		if (isDebugSession(element)) {
-			return true;
-		}
-
-		return !!(<IExpressionContainer>element).hasChildren;
-	}
-
-	getChildren(element: IReplElement | IDebugSession): Promise<IReplElement[]> {
-		if (isDebugSession(element)) {
-			return Promise.resolve(element.getReplElements());
-		}
-		if (element instanceof RawObjectReplElement) {
-			return element.getChildren();
-		}
-
-		return (<IExpression>element).getChildren();
-	}
-}
-
-class ReplAccessibilityProvider implements IAccessibilityProvider<IReplElement> {
-	getAriaLabel(element: IReplElement): string {
-		if (element instanceof Variable) {
-			return nls.localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", element.name, element.value);
-		}
-		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
-			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", element.value);
-		}
-		if (element instanceof RawObjectReplElement) {
-			return nls.localize('replRawObjectAriaLabel', "Repl variable {0} has value {1}, read eval print loop, debug", element.name, element.value);
-		}
-
-		return '';
-	}
-}
-
 
 // Repl actions and commands
 
@@ -927,7 +591,7 @@ class AcceptReplInputAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'repl.action.acceptInput',
-			label: nls.localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
+			label: localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
 			alias: 'REPL Accept Input',
 			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
@@ -949,7 +613,7 @@ class FilterReplAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'repl.action.filter',
-			label: nls.localize('repl.action.filter', "REPL Focus Content to Filter"),
+			label: localize('repl.action.filter', "REPL Focus Content to Filter"),
 			alias: 'REPL Filter',
 			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
@@ -971,7 +635,7 @@ class ReplCopyAllAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'repl.action.copyAll',
-			label: nls.localize('actions.repl.copyAll', "Debug: Console Copy All"),
+			label: localize('actions.repl.copyAll', "Debug: Console Copy All"),
 			alias: 'Debug Console Copy All',
 			precondition: CONTEXT_IN_DEBUG_REPL,
 		});
@@ -1004,7 +668,7 @@ class SelectReplActionViewItem extends FocusSessionActionViewItem {
 class SelectReplAction extends Action {
 
 	static readonly ID = 'workbench.action.debug.selectRepl';
-	static readonly LABEL = nls.localize('selectRepl', "Select Debug Console");
+	static readonly LABEL = localize('selectRepl', "Select Debug Console");
 
 	constructor(id: string, label: string,
 		@IDebugService private readonly debugService: IDebugService,
@@ -1027,7 +691,7 @@ class SelectReplAction extends Action {
 
 export class ClearReplAction extends Action {
 	static readonly ID = 'workbench.debug.panel.action.clearReplAction';
-	static readonly LABEL = nls.localize('clearRepl', "Clear Console");
+	static readonly LABEL = localize('clearRepl', "Clear Console");
 
 	constructor(id: string, label: string,
 		@IPanelService private readonly panelService: IPanelService
@@ -1038,6 +702,6 @@ export class ClearReplAction extends Action {
 	async run(): Promise<any> {
 		const repl = <Repl>this.panelService.openPanel(REPL_ID);
 		await repl.clearRepl();
-		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
+		aria.status(localize('debugConsoleCleared', "Debug console was cleared"));
 	}
 }

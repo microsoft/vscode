@@ -1019,10 +1019,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			restoreWindows = windowConfig?.restoreWindows || 'one';
+			restoreWindows = windowConfig?.restoreWindows || 'all'; // by default restore all windows
 
 			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
-				restoreWindows = 'one';
+				restoreWindows = 'all'; // by default restore all windows
 			}
 		}
 
