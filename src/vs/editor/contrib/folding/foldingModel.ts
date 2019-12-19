@@ -87,7 +87,7 @@ export class FoldingModel {
 			let maxColumn = this._textModel.getLineMaxColumn(startLineNumber);
 			let decorationRange = {
 				startLineNumber: startLineNumber,
-				startColumn: 0,
+				startColumn: maxColumn,
 				endLineNumber: startLineNumber,
 				endColumn: maxColumn
 			};
