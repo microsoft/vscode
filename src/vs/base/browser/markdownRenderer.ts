@@ -15,7 +15,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { renderCodicons, markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
+import { renderCodicons, markdownEscapeEscapedCodicons } from 'vs/base/parts/codicon/common/codicons';
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
