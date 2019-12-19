@@ -268,7 +268,7 @@ class State {
 	}
 }
 
-const nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
+const nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} (Selected {2} | {3})");
 const nlsSingleSelection = nls.localize('singleSelection', "Ln {0}, Col {1}");
 const nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selections ({1} characters selected)");
 const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
@@ -556,7 +556,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				// Compute number of lines selected.
 				let selectedNumberOfLines = (info.selections[0].endLineNumber - info.selections[0].startLineNumber + 1);
 
-				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected, selectedNumberOfLines);
 			}
 
 			return format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
