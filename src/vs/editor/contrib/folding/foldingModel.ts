@@ -7,7 +7,8 @@ import { ITextModel, IModelDecorationOptions, IModelDeltaDecoration, IModelDecor
 import { Event, Emitter } from 'vs/base/common/event';
 import { FoldingRegions, ILineRange, FoldingRegion } from './foldingRanges';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionBackground, darken, lighten } from 'vs/platform/theme/common/colorRegistry';
+import * as nls from 'vs/nls';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean): IModelDecorationOptions;
@@ -91,12 +92,6 @@ export class FoldingModel {
 				endColumn: maxColumn
 			};
 			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed) });
-		};
-		registerThemingParticipant((theme, collector) => {
-			const highlightCollapsedBackground = theme.getColor(editorSelectionBackground);
-			if (highlightCollapsedBackground) {
-				collector.addRule(`.monaco-editor .folded-background { background-color: ${highlightCollapsedBackground}; }`);
-			}
 		});
 		let i = 0;
 		let nextCollapsed = () => {
@@ -362,3 +357,12 @@ export function setCollapseStateForType(foldingModel: FoldingModel, type: string
 	}
 	foldingModel.toggleCollapseState(toToggle);
 }
+
+export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: darken(editorSelectionBackground, 0.6), dark: lighten(editorSelectionBackground, 0.6), hc: null }, nls.localize('editorSelectionBackground', "Color of the editor selection."));
+
+registerThemingParticipant((theme, collector) => {
+	const foldBackground = theme.getColor(foldBackgroundBackground);
+	if (foldBackground) {
+		collector.addRule(`.monaco-editor .folded-background { background-color: ${foldBackground}; }`);
+	}
+});
