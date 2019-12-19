@@ -708,13 +708,11 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
 
-		if (this.extension) {
-			const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(ExtensionInfoAction), this.instantiationService.createInstance(CopyExtensionIdAction)];
-			if (this.extension.local && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.configuration) {
-				extensionActions.push(this.instantiationService.createInstance(ExtensionSettingsAction));
-			}
-			groups.push(extensionActions);
+		const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(ExtensionInfoAction), this.instantiationService.createInstance(CopyExtensionIdAction)];
+		if (this.extension && this.extension.local && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.configuration) {
+			extensionActions.push(this.instantiationService.createInstance(ExtensionSettingsAction));
 		}
+		groups.push(extensionActions);
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
