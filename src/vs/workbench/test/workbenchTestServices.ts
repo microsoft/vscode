@@ -911,7 +911,7 @@ export class TestEditorService implements EditorServiceImpl {
 	visibleTextEditorWidgets = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
 
-	constructor(private editorGroupService: IEditorGroupsService) { }
+	constructor(private editorGroupService?: IEditorGroupsService) { }
 
 	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable {
 		return toDisposable(() => undefined);
@@ -922,6 +922,10 @@ export class TestEditorService implements EditorServiceImpl {
 	}
 
 	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditor): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
+		if (!this.editorGroupService) {
+			return undefined;
+		}
+
 		return [this.editorGroupService.activeGroup, editor as EditorInput, undefined];
 	}
 
