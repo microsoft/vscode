@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -23,6 +23,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { timeout } from 'vs/base/common/async';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
@@ -175,6 +176,83 @@ suite('HistoryService', function () {
 		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
 
 		assert.equal(historyService.getLastActiveFile('foo')?.toString(), input1.getResource().toString());
+
+		part.dispose();
+	});
+
+	test('open next/previous recently used editor (single group)', async () => {
+		const [part, historyService] = await createServices();
+
+		const input1 = new TestEditorInput(URI.parse('foo://bar1'));
+		const input2 = new TestEditorInput(URI.parse('foo://bar2'));
+
+		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+		assert.equal(part.activeGroup.activeEditor, input1);
+
+		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+		assert.equal(part.activeGroup.activeEditor, input2);
+
+		historyService.openPreviouslyUsedEditor();
+		assert.equal(part.activeGroup.activeEditor, input1);
+
+		historyService.openNextRecentlyUsedEditor();
+		assert.equal(part.activeGroup.activeEditor, input2);
+
+		historyService.openPreviouslyUsedEditor(part.activeGroup.id);
+		assert.equal(part.activeGroup.activeEditor, input1);
+
+		historyService.openNextRecentlyUsedEditor(part.activeGroup.id);
+		assert.equal(part.activeGroup.activeEditor, input2);
+
+		part.dispose();
+	});
+
+	test('open next/previous recently used editor (multi group)', async () => {
+		const [part, historyService] = await createServices();
+		const rootGroup = part.activeGroup;
+
+		const input1 = new TestEditorInput(URI.parse('foo://bar1'));
+		const input2 = new TestEditorInput(URI.parse('foo://bar2'));
+
+		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+		await sideGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+
+		historyService.openPreviouslyUsedEditor();
+		assert.equal(part.activeGroup, rootGroup);
+		assert.equal(rootGroup.activeEditor, input1);
+
+		historyService.openNextRecentlyUsedEditor();
+		assert.equal(part.activeGroup, sideGroup);
+		assert.equal(sideGroup.activeEditor, input2);
+
+		part.dispose();
+	});
+
+	test('open next/previous recently is reset when other input opens', async () => {
+		const [part, historyService] = await createServices();
+
+		const input1 = new TestEditorInput(URI.parse('foo://bar1'));
+		const input2 = new TestEditorInput(URI.parse('foo://bar2'));
+		const input3 = new TestEditorInput(URI.parse('foo://bar3'));
+		const input4 = new TestEditorInput(URI.parse('foo://bar4'));
+
+		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+
+		historyService.openPreviouslyUsedEditor();
+		assert.equal(part.activeGroup.activeEditor, input2);
+
+		await timeout(0);
+		await part.activeGroup.openEditor(input4, EditorOptions.create({ pinned: true }));
+
+		historyService.openPreviouslyUsedEditor();
+		assert.equal(part.activeGroup.activeEditor, input2);
+
+		historyService.openNextRecentlyUsedEditor();
+		assert.equal(part.activeGroup.activeEditor, input4);
 
 		part.dispose();
 	});

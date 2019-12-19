@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorInput, IEditorInputFactoryRegistry, IEditorIdentifier, GroupIdentifier, Extensions } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorInputFactoryRegistry, IEditorIdentifier, GroupIdentifier, Extensions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -11,6 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { coalesce } from 'vs/base/common/arrays';
 import { LinkedMap, Touch } from 'vs/base/common/map';
+import { equals } from 'vs/base/common/objects';
 
 interface ISerializedEditorsList {
 	entries: ISerializedEditorIdentifier[];
@@ -27,6 +28,8 @@ interface ISerializedEditorIdentifier {
  * - the last editor in the list is the one most recently activated
  * - the first editor in the list is the one that was activated the longest time ago
  * - an editor that opens inactive will be placed behind the currently active editor
+ *
+ * The observer may start to close editors based on the workbench.editor.limit setting.
  */
 export class EditorsObserver extends Disposable {
 
@@ -54,6 +57,7 @@ export class EditorsObserver extends Disposable {
 	private registerListeners(): void {
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 		this._register(this.editorGroupsService.onDidAddGroup(group => this.onGroupAdded(group)));
+		this._register(this.editorGroupsService.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
 
 		this.editorGroupsService.whenRestored.then(() => this.loadState());
 	}
@@ -101,9 +105,13 @@ export class EditorsObserver extends Disposable {
 				}
 
 				// Editor opens: put it as second most recent
+				//
+				// Also check for maximum allowed number of editors and
+				// start to close oldest ones if needed.
 				case GroupChangeKind.EDITOR_OPEN: {
 					if (e.editor) {
 						this.addMostRecentEditor(group, e.editor, false /* is not active */);
+						this.ensureOpenedEditorsLimit({ groupId: group.id, editor: e.editor }, group.id);
 					}
 
 					break;
@@ -122,6 +130,18 @@ export class EditorsObserver extends Disposable {
 
 		// Make sure to cleanup on dispose
 		Event.once(group.onWillDispose)(() => dispose(groupDisposables));
+	}
+
+	private onDidEditorPartOptionsChange(event: IEditorPartOptionsChangeEvent): void {
+		if (!equals(event.newPartOptions.limit, event.oldPartOptions.limit)) {
+			const activeGroup = this.editorGroupsService.activeGroup;
+			let exclude: IEditorIdentifier | undefined = undefined;
+			if (activeGroup.activeEditor) {
+				exclude = { editor: activeGroup.activeEditor, groupId: activeGroup.id };
+			}
+
+			this.ensureOpenedEditorsLimit(exclude);
+		}
 	}
 
 	private addMostRecentEditor(group: IEditorGroup, editor: IEditorInput, isActive: boolean): void {
@@ -191,6 +211,85 @@ export class EditorsObserver extends Disposable {
 		}
 
 		return key;
+	}
+
+	private async ensureOpenedEditorsLimit(exclude: IEditorIdentifier | undefined, groupId?: GroupIdentifier): Promise<void> {
+
+		// In editor group
+		if (this.editorGroupsService.partOptions.limit?.perEditorGroup) {
+
+			// For specific editor groups
+			if (typeof groupId === 'number') {
+				const group = this.editorGroupsService.getGroup(groupId);
+				if (group) {
+					this.doEnsureOpenedEditorsLimit(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
+				}
+			}
+
+			// For all editor groups
+			else {
+				for (const group of this.editorGroupsService.groups) {
+					await this.ensureOpenedEditorsLimit(exclude, group.id);
+				}
+			}
+		}
+
+		// Across all editor groups
+		else {
+			this.doEnsureOpenedEditorsLimit(this.mostRecentEditorsMap.values(), exclude);
+		}
+	}
+
+	private async doEnsureOpenedEditorsLimit(mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
+		if (!this.editorGroupsService.partOptions.limit?.enabled) {
+			return; // only if enabled
+		}
+
+		if (
+			typeof this.editorGroupsService.partOptions.limit.value !== 'number' ||
+			this.editorGroupsService.partOptions.limit.value <= 0 ||
+			this.editorGroupsService.partOptions.limit.value >= mostRecentEditors.length
+		) {
+			return; // only if opened editors exceed setting and is valid
+		}
+
+		// Extract least recently used editors that can be closed
+		const leastRecentlyClosableEditors = mostRecentEditors.reverse().filter(({ editor, groupId }) => {
+			if (editor.isDirty()) {
+				return false; // not dirty editors
+			}
+
+			if (exclude && editor === exclude.editor && groupId === exclude.groupId) {
+				return false; // never the editor that should be excluded
+			}
+
+			return true;
+		});
+
+		// Close editors until we reached the limit again
+		let editorsToCloseCount = mostRecentEditors.length - this.editorGroupsService.partOptions.limit.value;
+		const mapGroupToEditorsToClose = new Map<GroupIdentifier, IEditorInput[]>();
+		for (const { groupId, editor } of leastRecentlyClosableEditors) {
+			let editorsInGroupToClose = mapGroupToEditorsToClose.get(groupId);
+			if (!editorsInGroupToClose) {
+				editorsInGroupToClose = [];
+				mapGroupToEditorsToClose.set(groupId, editorsInGroupToClose);
+			}
+
+			editorsInGroupToClose.push(editor);
+			editorsToCloseCount--;
+
+			if (editorsToCloseCount === 0) {
+				break; // limit reached
+			}
+		}
+
+		for (const [groupId, editors] of mapGroupToEditorsToClose) {
+			const group = this.editorGroupsService.getGroup(groupId);
+			if (group) {
+				await group.closeEditors(editors, { preserveFocus: true });
+			}
+		}
 	}
 
 	private saveState(): void {
