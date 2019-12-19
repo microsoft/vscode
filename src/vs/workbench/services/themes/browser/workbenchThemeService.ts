@@ -53,6 +53,7 @@ const DEFAULT_THEME_HC_SETTING_VALUE = 'Default High Contrast';
 
 const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
 const PERSISTED_ICON_THEME_STORAGE_KEY = 'iconThemeData';
+const PERSISTED_OS_COLOR_SCHEME = 'osColorScheme';
 
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
@@ -273,16 +274,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				}
 			}
 			let theme = await this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, DEFAULT_THEME_ID);
-			const preferredType = this.getPreferredColorScheme();
-			let settingsTarget: undefined | 'auto' = undefined;
-			if (preferredType && theme && theme.type !== preferredType) {
-				const preferedTheme = await this.getPreferredColorTheme(preferredType);
-				if (preferedTheme) {
-					theme = preferedTheme;
-					settingsTarget = 'auto';
-				}
+
+			const persistedColorScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
+			const preferredColorScheme = this.getPreferredColorScheme();
+			if (persistedColorScheme && preferredColorScheme && persistedColorScheme !== preferredColorScheme) {
+				return this.applyPreferredColorTheme(preferredColorScheme);
 			}
-			return this.setColorTheme(theme && theme.id, settingsTarget);
+			return this.setColorTheme(theme && theme.id, undefined);
 		};
 
 		const initializeIconTheme = async () => {
@@ -312,10 +310,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				}
 			}
 			if (e.affectsConfiguration(DETECT_COLOR_SCHEME_SETTING)) {
-				let autoSwitchColorTheme = this.configurationService.getValue<boolean>(DETECT_COLOR_SCHEME_SETTING);
-				if (autoSwitchColorTheme) {
-					this.preferredSchemeUpdated();
-				}
+				this.preferredSchemeUpdated();
+			}
+			if (e.affectsConfiguration(PREFERRED_DARK_THEME_SETTING) && this.getPreferredColorScheme() === DARK) {
+				this.applyPreferredColorTheme(DARK);
+			}
+			if (e.affectsConfiguration(PREFERRED_LIGHT_THEME_SETTING) && this.getPreferredColorScheme() === LIGHT) {
+				this.applyPreferredColorTheme(LIGHT);
+			}
+			if (e.affectsConfiguration(PREFERRED_HC_THEME_SETTING) && this.getPreferredColorScheme() === HIGH_CONTRAST) {
+				this.applyPreferredColorTheme(HIGH_CONTRAST);
 			}
 			if (e.affectsConfiguration(ICON_THEME_SETTING)) {
 				let iconThemeSetting = this.configurationService.getValue<string | null>(ICON_THEME_SETTING);
@@ -355,11 +359,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private async preferredSchemeUpdated() {
 		const scheme = this.getPreferredColorScheme();
-		if (scheme && this.currentColorTheme.type !== scheme) {
-			const preferedTheme = await this.getPreferredColorTheme(scheme);
-			if (preferedTheme) {
-				return this.setColorTheme(preferedTheme.id, 'auto');
-			}
+		this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL);
+		if (scheme) {
+			return this.applyPreferredColorTheme(scheme);
 		}
 		return undefined;
 	}
@@ -379,13 +381,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return undefined;
 	}
 
-	private getPreferredColorTheme(type: ThemeType): Promise<ColorThemeData | undefined> {
+	private async applyPreferredColorTheme(type: ThemeType): Promise<IColorTheme | null> {
 		const settingId = type === DARK ? PREFERRED_DARK_THEME_SETTING : type === LIGHT ? PREFERRED_LIGHT_THEME_SETTING : PREFERRED_HC_THEME_SETTING;
 		const themeSettingId = this.configurationService.getValue<string>(settingId);
 		if (themeSettingId) {
-			return this.colorThemeStore.findThemeDataBySettingsId(themeSettingId, undefined);
+			const theme = await this.colorThemeStore.findThemeDataBySettingsId(themeSettingId, undefined);
+			if (theme) {
+				return this.setColorTheme(theme.id, 'auto');
+			}
 		}
-		return Promise.resolve(undefined);
+		return Promise.resolve(null);
 	}
 
 	public getColorTheme(): IColorTheme {
@@ -736,7 +741,7 @@ const preferredHCThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
-	description: nls.localize('detectColorScheme', 'If set, use the prefered color theme based on the OS appearance.'),
+	description: nls.localize('detectColorScheme', 'If set, automatically switch to the preferred color theme based on the OS appearance.'),
 	default: true
 };
 
