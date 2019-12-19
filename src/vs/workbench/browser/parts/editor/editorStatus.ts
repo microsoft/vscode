@@ -552,6 +552,10 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
+
+				// Compute number of lines selected.
+				let selectedNumberOfLines = (info.selections[0].endLineNumber - info.selections[0].startLineNumber + 1);
+
 				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
 			}
 
