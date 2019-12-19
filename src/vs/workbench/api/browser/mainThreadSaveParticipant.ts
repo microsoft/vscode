@@ -31,7 +31,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ISaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../common/extHost.protocol';
 
 export interface ICodeActionsOnSaveOptions {
@@ -307,7 +307,7 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		for (const codeActionKind of codeActionsOnSave) {
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, token);
 			try {
-				await this.applyCodeActions(actionsToRun.actions);
+				await this.applyCodeActions(actionsToRun.validActions);
 			} catch {
 				// Failure to apply a code action should not block other on save actions
 			} finally {

@@ -8,12 +8,14 @@ import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { DebugModel, Expression, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import * as sinon from 'sinon';
-import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { MockRawSession, MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
+import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel, ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 import { IBreakpointUpdateData, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
+import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
+import { timeout } from 'vs/base/common/async';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
@@ -547,5 +549,27 @@ suite('Debug - Model', () => {
 		assert.equal(child2.getReplElements().length, 2);
 		assert.equal(grandChild.getReplElements().length, 2);
 		assert.equal(child3.getReplElements().length, 1);
+	});
+
+	test('repl ordering', async () => {
+		const session = createMockSession(model);
+		model.addSession(session);
+
+		const adapter = new MockDebugAdapter();
+		const raw = new RawDebugSession(adapter, undefined!, undefined!, undefined!, undefined!, undefined!);
+		session.initializeForTest(raw);
+
+		await session.addReplExpression(undefined, 'before.1');
+		assert.equal(session.getReplElements().length, 3);
+		assert.equal((<ReplEvaluationInput>session.getReplElements()[0]).value, 'before.1');
+		assert.equal((<SimpleReplElement>session.getReplElements()[1]).value, 'before.1');
+		assert.equal((<ReplEvaluationResult>session.getReplElements()[2]).value, '=before.1');
+
+		await session.addReplExpression(undefined, 'after.2');
+		await timeout(0);
+		assert.equal(session.getReplElements().length, 6);
+		assert.equal((<ReplEvaluationInput>session.getReplElements()[3]).value, 'after.2');
+		assert.equal((<ReplEvaluationResult>session.getReplElements()[4]).value, '=after.2');
+		assert.equal((<SimpleReplElement>session.getReplElements()[5]).value, 'after.2');
 	});
 });

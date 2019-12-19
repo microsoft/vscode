@@ -232,9 +232,9 @@ class DomListener implements IDisposable {
 
 export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture: AddEventListenerOptions): IDisposable;
-export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean | AddEventListenerOptions): IDisposable {
-	return new DomListener(node, type, handler, useCapture);
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, options: AddEventListenerOptions): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCaptureOrOptions?: boolean | AddEventListenerOptions): IDisposable {
+	return new DomListener(node, type, handler, useCaptureOrOptions);
 }
 
 export interface IAddStandardDisposableListenerSignature {
@@ -267,8 +267,18 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
+export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+};
+
 export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
+}
+
+export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_MOVE : EventType.MOUSE_MOVE, handler, useCapture);
 }
 
 export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
@@ -502,7 +512,16 @@ export function getClientArea(element: HTMLElement): Dimension {
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
 	if (platform.isIOS && (<any>window).visualViewport) {
-		return new Dimension((<any>window).visualViewport.width, (<any>window).visualViewport.height);
+		const width = (<any>window).visualViewport.width;
+		const height = (<any>window).visualViewport.height - (
+			browser.isStandalone
+				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
+				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
+				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
+				? (20 + 4) // + 4px for body margin
+				: 0
+		);
+		return new Dimension(width, height);
 	}
 
 	// Try innerWidth / innerHeight
@@ -882,6 +901,7 @@ export const EventType = {
 	MOUSE_LEAVE: 'mouseleave',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
+	POINTER_MOVE: 'pointermove',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
@@ -952,6 +972,7 @@ export const EventHelper = {
 export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
+	refreshState?(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
@@ -980,6 +1001,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
+	private _refreshStateHandler: () => void;
+
 	constructor(element: HTMLElement | Window) {
 		super();
 		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
@@ -1006,8 +1029,23 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
+		this._refreshStateHandler = () => {
+			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			if (currentNodeHasFocus !== hasFocus) {
+				if (hasFocus) {
+					onBlur();
+				} else {
+					onFocus();
+				}
+			}
+		};
+
 		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
 		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
+	}
+
+	refreshState() {
+		this._refreshStateHandler();
 	}
 }
 
@@ -1059,6 +1097,11 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	Object.keys(attrs).forEach(name => {
 		const value = attrs![name];
+
+		if (typeof value === 'undefined') {
+			return;
+		}
+
 		if (/^on\w+$/.test(name)) {
 			(<any>result)[name] = value;
 		} else if (name === 'selected') {

@@ -216,14 +216,13 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
-	opacity: 0.9;
 	flex-shrink: 1;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
 	display: none;
 	line-height: 22px;
-	opacity: 0.7;
+	opacity: 0.8;
 	margin-left: 3px;
 }
 
@@ -231,17 +230,8 @@
 	display: block;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-list-row .monaco-tl-twistie {
-	opacity: 0.9;
-}
-
-.settings-editor > .settings-body .settings-toc-container .monaco-list-row.selected .monaco-tl-twistie {
-	opacity: 1;
-}
-
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row.selected .settings-toc-entry {
 	font-weight: bold;
-	opacity: 1;
 }
 
 .settings-editor > .settings-body .settings-tree-container {
@@ -356,16 +346,17 @@
 	margin-top: 3px;
 	user-select: text;
 	-webkit-user-select: text;
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message {
+	display: block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description {
 	margin-top: -1px;
 	user-select: text;
 	-webkit-user-select: text;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message {
-	position: absolute;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message {

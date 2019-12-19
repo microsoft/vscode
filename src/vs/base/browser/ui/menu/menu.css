@@ -51,8 +51,17 @@
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
-	mask: url('submenu.svg') no-repeat 90% 50%/13px 13px;
-	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/13px 13px;
+}
+
+.monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon {
+	font-size: 16px !important;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-menu .monaco-action-bar.vertical .submenu-indicator.codicon::before {
+	margin-left: auto;
+	margin-right: -20px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
@@ -94,14 +103,15 @@
 .monaco-menu .monaco-action-bar.vertical .menu-item-check {
 	position: absolute;
 	visibility: hidden;
-	mask: url('check.svg') no-repeat 50% 56%/15px 15px;
-	-webkit-mask: url('check.svg') no-repeat 50% 56%/15px 15px;
 	width: 1em;
 	height: 100%;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-check {
 	visibility: visible;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 /* Context Menu */
@@ -186,9 +196,6 @@
 }
 
 .menubar .toolbar-toggle-more {
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 14px;
 	width: 20px;
 	height: 100%;
 }
@@ -197,21 +204,18 @@
 	position: absolute;
 	left: 0px;
 	top: 0px;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 16px;
 	cursor: pointer;
 	width: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .menubar .toolbar-toggle-more {
-	display: inline-block;
 	padding: 0;
-	mask: url('ellipsis.svg') no-repeat 50% 55%/14px 14px;
-	-webkit-mask: url('ellipsis.svg') no-repeat 50% 55%/14px 14px;
+	vertical-align: sub;
 }
 
-.menubar.compact .toolbar-toggle-more {
-	mask: url('menu.svg') no-repeat 50% 55%/16px 16px;
-	-webkit-mask: url('menu.svg') no-repeat 50% 55%/16px 16px;
+.menubar.compact .toolbar-toggle-more::before {
+	content: "\eb94" !important;
 }

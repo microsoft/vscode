@@ -169,7 +169,8 @@
 		},
 		{
 			"scope": [
-				"meta.preprocessor"
+				"meta.preprocessor",
+				"entity.name.function.preprocessor"
 			],
 			"settings": {
 				"foreground": "#0000ff"
@@ -218,6 +219,7 @@
 			"scope": [
 				"string",
 				"entity.name.operator.custom-literal.string",
+				"meta.embedded.assembly"
 			],
 			"settings": {
 				"foreground": "#a31515"

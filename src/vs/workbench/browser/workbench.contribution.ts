@@ -131,6 +131,22 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'default': true,
 				'description': nls.localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
 			},
+			'workbench.editor.limit.enabled': {
+				'type': 'boolean',
+				'default': false,
+				'description': nls.localize('limitEditorsEnablement', "Controls if the number of opened editors should be limited or not. When enabled, less recently used editors that are not dirty will close to make space for newly opening editors.")
+			},
+			'workbench.editor.limit.value': {
+				'type': 'number',
+				'default': 10,
+				'exclusiveMinimum': 0,
+				'description': nls.localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `workbench.editor.limit.perEditorGroup` setting to control this limit per editor group or across all groups.")
+			},
+			'workbench.editor.limit.perEditorGroup': {
+				'type': 'boolean',
+				'default': false,
+				'description': nls.localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
+			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
@@ -174,7 +190,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
-				'enum': ['bottom', 'right'],
+				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
 				'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom or on the right of the workbench.")
 			},
@@ -207,24 +223,6 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				],
 				'included': isMacintosh
 			},
-			'workbench.settings.enableNaturalLanguageSearch': {
-				'type': 'boolean',
-				'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by a Microsoft online service."),
-				'default': true,
-				'scope': ConfigurationScope.WINDOW,
-				'tags': ['usesOnlineServices']
-			},
-			'workbench.settings.settingsSearchTocBehavior': {
-				'type': 'string',
-				'enum': ['hide', 'filter'],
-				'enumDescriptions': [
-					nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
-					nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
-				],
-				'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
-				'default': 'filter',
-				'scope': ConfigurationScope.WINDOW
-			},
 			'workbench.settings.editor': {
 				'type': 'string',
 				'enum': ['ui', 'json'],
@@ -235,12 +233,6 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
-			},
-			'workbench.enableExperiments': {
-				'type': 'boolean',
-				'description': nls.localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
-				'default': true,
-				'tags': ['usesOnlineServices']
 			}
 		}
 	});

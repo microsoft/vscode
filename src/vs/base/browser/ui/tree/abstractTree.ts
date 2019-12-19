@@ -161,12 +161,16 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			}
 		},
 		accessibilityProvider: options.accessibilityProvider && {
+			...options.accessibilityProvider,
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			},
 			getAriaLevel(node) {
 				return node.depth;
-			}
+			},
+			getActiveDescendantId: options.accessibilityProvider.getActiveDescendantId && (node => {
+				return options.accessibilityProvider!.getActiveDescendantId!(node.element);
+			})
 		},
 		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
 			...options.keyboardNavigationLabelProvider,
@@ -336,7 +340,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		}
 
 		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
-		templateData.twistie.style.marginLeft = `${indent}px`;
+		templateData.twistie.style.paddingLeft = `${indent}px`;
 		templateData.indent.style.width = `${indent + this.indent - 16}px`;
 
 		this.renderTwistie(node, templateData);
@@ -634,14 +638,14 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const controls = append(this.domNode, $('.controls'));
 
 		this._filterOnType = !!tree.options.filterOnType;
-		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter'));
+		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter.codicon.codicon-list-selection'));
 		this.filterOnTypeDomNode.type = 'checkbox';
 		this.filterOnTypeDomNode.checked = this._filterOnType;
 		this.filterOnTypeDomNode.tabIndex = -1;
 		this.updateFilterOnTypeTitle();
 		domEvent(this.filterOnTypeDomNode, 'input')(this.onDidChangeFilterOnType, this, this.disposables);
 
-		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear'));
+		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear.codicon.codicon-close'));
 		this.clearDomNode.tabIndex = -1;
 		this.clearDomNode.title = localize('clear', "Clear");
 
@@ -1294,7 +1298,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		onDidModelSplice(() => null, null, this.disposables);
 
 		// Active nodes can change when the model changes or when focus or selection change.
-		// We debouce it with 0 delay since these events may fire in the same stack and we only
+		// We debounce it with 0 delay since these events may fire in the same stack and we only
 		// want to run this once. It also doesn't matter if it runs on the next tick since it's only
 		// a nice to have UI feature.
 		onDidChangeActiveNodes.input = Event.chain(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange))
@@ -1417,8 +1421,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.renderHeight;
 	}
 
-	get firstVisibleElement(): T {
+	get firstVisibleElement(): T | undefined {
 		const index = this.view.firstVisibleIndex;
+
+		if (index < 0 || index >= this.view.length) {
+			return undefined;
+		}
+
 		const node = this.view.element(index);
 		return node.element;
 	}

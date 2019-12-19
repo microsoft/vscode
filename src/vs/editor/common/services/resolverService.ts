@@ -52,6 +52,9 @@ export interface ITextEditorModel extends IEditorModel {
 	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
 	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
 
+	/**
+	 * Signals if this model is readonly or not. 
+	 */
 	isReadonly(): boolean;
 }
 

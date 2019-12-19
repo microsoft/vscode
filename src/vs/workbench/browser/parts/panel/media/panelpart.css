@@ -12,21 +12,6 @@
 	z-index: initial;
 }
 
-.monaco-workbench.windows .part.panel,
-.monaco-workbench.linux .part.panel,
-.monaco-workbench.web .part.panel {
-	/*
-	 * Explicitly put the part onto its own layer to help Chrome to
-	 * render the content with LCD-anti-aliasing. By partioning the
-	 * workbench into multiple layers, we can ensure that a bad
-	 * behaving part is not making another part fallback to greyscale
-	 * rendering.
-	 *
-	 * macOS: does not render LCD-anti-aliased.
-	 */
-	transform: translate3d(0px, 0px, 0px);
-}
-
 .monaco-workbench .part.panel .title {
 	height: 35px;
 	display: flex;
@@ -50,6 +35,15 @@
 
 .monaco-workbench.noeditorarea .part.panel.right {
 	border-left-width: 0; /* no border when editor area is hiden */
+}
+
+.monaco-workbench .part.panel.left {
+	border-right-width: 1px;
+	border-right-style: solid;
+}
+
+.monaco-workbench.noeditorarea .part.panel.left {
+	border-right-width: 0; /* no border when editor area is hiden */
 }
 
 .monaco-workbench .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
@@ -115,7 +109,7 @@
 	text-align: center;
 	display: inline-block;
 	box-sizing: border-box;
-}
+	}
 
 /** Actions */
 
@@ -135,4 +129,11 @@
 .monaco-workbench .part.panel.right .title-actions .codicon-chevron-up,
 .monaco-workbench .part.panel.right .title-actions .codicon-chevron-down {
 	transform: rotate(-90deg);
+}
+
+/* Rotate icons when panel is on left */
+.monaco-workbench .part.panel.left .title-actions .codicon-split-horizontal,
+.monaco-workbench .part.panel.left .title-actions .codicon-chevron-up,
+.monaco-workbench .part.panel.left .title-actions .codicon-chevron-down {
+	transform: rotate(90deg);
 }

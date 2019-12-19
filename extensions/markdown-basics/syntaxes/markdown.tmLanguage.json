@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/e3091a421bdcad527018c897652ded47585cbd12",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/8fbbc11a6bb917f287bbe21d0573454020599547",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -957,7 +957,7 @@
 			]
 		},
 		"fenced_code_block_js": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|\\{\\.js.+?\\})((\\s+|:|\\{)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|cjs|\\{\\.js.+?\\})((\\s+|:|\\{)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {

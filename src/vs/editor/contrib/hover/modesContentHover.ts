@@ -13,7 +13,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
+import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor, TokenizationRegistry } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
@@ -237,6 +237,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
+		}));
+		this._register(TokenizationRegistry.onDidChange((e) => {
+			if (this.isVisible && this._lastRange && this._messages.length > 0) {
+				this._domNode.textContent = '';
+				this._renderMessages(this._lastRange, this._messages);
+			}
 		}));
 	}
 
@@ -548,7 +554,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			quickfixPlaceholderElement.style.transition = '';
 			quickfixPlaceholderElement.style.opacity = '1';
 
-			if (!actions.actions.length) {
+			if (!actions.validActions.length) {
 				actions.dispose();
 				quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
 				return;

@@ -17,7 +17,7 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';

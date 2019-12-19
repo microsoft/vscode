@@ -54,11 +54,20 @@ suite('Workbench untitled text editors', () => {
 
 		assert.equal(service.getAll().length, 0);
 
+		let createdResources: URI[] = [];
+		const createListener = service.onDidCreate(resource => {
+			createdResources.push(resource);
+		});
+
 		const input1 = service.createOrGet();
 		assert.equal(input1, service.createOrGet(input1.getResource()));
 
 		assert.ok(service.exists(input1.getResource()));
 		assert.ok(!service.exists(URI.file('testing')));
+		assert.equal(createdResources.length, 1);
+		assert.equal(createdResources[0].toString(), input1.getResource());
+
+		createListener.dispose();
 
 		const input2 = service.createOrGet();
 
@@ -98,9 +107,13 @@ suite('Workbench untitled text editors', () => {
 			assert.ok(!workingCopyService.isDirty(input2.getResource()));
 			assert.equal(workingCopyService.dirtyCount, 0);
 
-			input2.dispose();
+			assert.ok(input1.revert());
+			assert.ok(input1.isDisposed());
+			assert.ok(!service.exists(input1.getResource()));
 
+			input2.dispose();
 			assert.ok(!service.exists(input2.getResource()));
+
 			done();
 		});
 

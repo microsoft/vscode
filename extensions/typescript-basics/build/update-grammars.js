@@ -33,7 +33,7 @@ function patchGrammar(grammar) {
 
 function adaptToJavaScript(grammar, replacementScope) {
 	grammar.name = 'JavaScript (with React support)';
-	grammar.fileTypes = ['.js', '.jsx', '.es6', '.mjs'];
+	grammar.fileTypes = ['.js', '.jsx', '.es6', '.mjs', '.cjs'];
 	grammar.scopeName = `source${replacementScope}`;
 
 	var fixScopeNames = function (rule) {

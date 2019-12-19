@@ -131,6 +131,7 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
+			"port": 9222,
 			"timeout": 20000,
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
@@ -296,6 +297,17 @@
 			"configurations": [
 				"Attach to VS Code",
 				"Run Unit Tests"
+			]
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "HTML Unit Tests",
+			"program": "${workspaceFolder}/extensions/html-language-features/server/node_modules/mocha/bin/_mocha",
+			"stopOnEntry": false,
+			"cwd": "${workspaceFolder}/extensions/html-language-features/server",
+			"outFiles": [
+				"${workspaceFolder}/extensions/html-language-features/server/out/**/*.js"
 			]
 		},
 	]

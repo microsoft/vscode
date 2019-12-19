@@ -7,7 +7,6 @@ import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuBorder, menuSeparatorBackground, darken, listFilterWidgetOutline, listFilterWidgetNoMatchesOutline, listFilterWidgetBackground, editorWidgetBackground, treeIndentGuidesStroke, editorWidgetForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, ColorValue, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
-import { mixin } from 'vs/base/common/objects';
 import { IThemable, styleFn } from 'vs/base/common/styler';
 
 export interface IStyleOverrides {
@@ -204,6 +203,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 }
 
 export interface IListStyleOverrides extends IStyleOverrides {
+	listBackground?: ColorIdentifier;
 	listFocusBackground?: ColorIdentifier;
 	listFocusForeground?: ColorIdentifier;
 	listActiveSelectionBackground?: ColorIdentifier;
@@ -227,8 +227,8 @@ export interface IListStyleOverrides extends IStyleOverrides {
 	treeIndentGuidesStroke?: ColorIdentifier;
 }
 
-export function attachListStyler(widget: IThemable, themeService: IThemeService, overrides?: IListStyleOverrides): IDisposable {
-	return attachStyler(themeService, mixin(overrides || Object.create(null), defaultListStyles, false) as IListStyleOverrides, widget);
+export function attachListStyler(widget: IThemable, themeService: IThemeService, overrides?: IColorMapping): IDisposable {
+	return attachStyler(themeService, { ...defaultListStyles, ...(overrides || {}) }, widget);
 }
 
 export const defaultListStyles: IColorMapping = {

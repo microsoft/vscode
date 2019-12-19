@@ -9,7 +9,7 @@ import severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor, ITextEditor } from 'vs/workbench/common/editor';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -20,15 +20,15 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEWLET_ID = 'workbench.view.debug';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID, name: nls.localize('debugAndRun', "Debug and Run") }, ViewContainerLocation.Sidebar);
 
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
 export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
@@ -40,6 +40,8 @@ export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
 export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debugConfigurationType', undefined);
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', 'inactive');
+export const CONTEXT_DEBUG_UX_KEY = 'debugUx';
+export const CONTEXT_DEBUG_UX = new RawContextKey<string>(CONTEXT_DEBUG_UX_KEY, 'default');
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
@@ -213,7 +215,7 @@ export interface IDebugSession extends ITreeElement {
 
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean }>;
+	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean, accessTypes?: DebugProtocol.DataBreakpointAccessType[] }>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
@@ -375,7 +377,7 @@ export interface IExceptionBreakpoint extends IEnablement {
 }
 
 export interface IDataBreakpoint extends IBaseBreakpoint {
-	readonly label: string;
+	readonly description: string;
 	readonly dataId: string;
 	readonly canPersist: boolean;
 }
@@ -468,6 +470,7 @@ export interface IDebugConfiguration {
 	focusWindowOnBreak: boolean;
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
 	showBreakpointsInOverviewRuler: boolean;
+	showInlineBreakpointCandidates: boolean;
 }
 
 export interface IGlobalConfig {
@@ -544,12 +547,17 @@ export interface IDebugAdapterServer {
 	readonly host?: string;
 }
 
-export interface IDebugAdapterImplementation {
-	readonly type: 'implementation';
-	readonly implementation: any;
+export interface IDebugAdapterInlineImpl extends IDisposable {
+	readonly onDidSendMessage: Event<DebugProtocol.Message>;
+	handleMessage(message: DebugProtocol.Message): void;
 }
 
-export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImplementation;
+export interface IDebugAdapterImpl {
+	readonly type: 'implementation';
+	readonly implementation: IDebugAdapterInlineImpl;
+}
+
+export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImpl;
 
 export interface IPlatformSpecificAdapterContribution {
 	program?: string;
@@ -628,8 +636,11 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
+	onDidRegisterDebugger: Event<void>;
+
 	activateDebuggers(activationEvent: string, debugType?: string): Promise<void>;
 
+	getDebuggerLabelsForEditor(editor: editorCommon.IEditor | undefined): string[];
 	hasDebugConfigurationProvider(debugType: string): boolean;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
@@ -784,7 +795,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new data breakpoint.
 	 */
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean): Promise<void>;
+	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined): Promise<void>;
 
 	/**
 	 * Removes all data breakpoints. If id is passed only removes the data breakpoint with the passed id.
@@ -861,12 +872,12 @@ export const enum BreakpointWidgetContext {
 	LOG_MESSAGE = 2
 }
 
-export interface IDebugEditorContribution extends IEditorContribution {
+export interface IDebugEditorContribution extends editorCommon.IEditorContribution {
 	showHover(range: Range, focus: boolean): Promise<void>;
 	addLaunchConfiguration(): Promise<any>;
 }
 
-export interface IBreakpointEditorContribution extends IEditorContribution {
+export interface IBreakpointEditorContribution extends editorCommon.IEditorContribution {
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 }

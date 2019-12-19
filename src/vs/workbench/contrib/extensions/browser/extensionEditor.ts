@@ -23,14 +23,14 @@ import { IExtensionTipsService } from 'vs/workbench/services/extensionManagement
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -59,6 +59,7 @@ import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/mar
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
@@ -364,7 +365,7 @@ export class ExtensionEditor extends BaseEditor {
 			this.transientDisposables.add(this.onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}#review-details`))));
 			this.transientDisposables.add(this.onClick(template.publisher, () => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
-					.then(viewlet => viewlet as IExtensionsViewlet)
+					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
 			}));
 
@@ -607,9 +608,10 @@ export class ExtensionEditor extends BaseEditor {
 				if (!link) {
 					return;
 				}
-
 				// Whitelist supported schemes for links
-				if ([Schemas.http, Schemas.https, Schemas.mailto].indexOf(link.scheme) >= 0 || (link.scheme === 'command' && link.path === ShowCurrentReleaseNotesActionId)) {
+				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
+					|| (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId)
+				) {
 					this.openerService.open(link);
 				}
 			}, null, this.contentDisposables));
@@ -888,7 +890,11 @@ export class ExtensionEditor extends BaseEditor {
 		append(template.content, scrollableContent.getDomNode());
 		this.contentDisposables.add(scrollableContent);
 
-		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.dependencies || [], this.extensionsWorkbenchService), content);
+		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree,
+			new ExtensionData(extension, null, extension => extension.dependencies || [], this.extensionsWorkbenchService), content,
+			{
+				listBackground: editorBackground
+			});
 		const layout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();
@@ -908,7 +914,11 @@ export class ExtensionEditor extends BaseEditor {
 		append(template.content, scrollableContent.getDomNode());
 		this.contentDisposables.add(scrollableContent);
 
-		const extensionsPackTree = this.instantiationService.createInstance(ExtensionsTree, new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content);
+		const extensionsPackTree = this.instantiationService.createInstance(ExtensionsTree,
+			new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content,
+			{
+				listBackground: editorBackground
+			});
 		const layout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();

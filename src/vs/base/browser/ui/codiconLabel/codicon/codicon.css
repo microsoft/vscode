@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?b035097bd976825411d2c57142be0530") format("truetype");
+	src: url("./codicon.ttf?072cd8445a025297c265f9d008123381") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -69,6 +69,7 @@
 .codicon-eye-watch:before { content: "\ea70" }
 .codicon-circle-filled:before { content: "\ea71" }
 .codicon-primitive-dot:before { content: "\ea71" }
+.codicon-close-dirty:before { content: "\ea71" }
 .codicon-debug-breakpoint:before { content: "\ea71" }
 .codicon-debug-breakpoint-disabled:before { content: "\ea71" }
 .codicon-debug-hint:before { content: "\ea71" }
@@ -142,7 +143,6 @@
 .codicon-symbol-parameter:before { content: "\ea92" }
 .codicon-symbol-type-parameter:before { content: "\ea92" }
 .codicon-symbol-key:before { content: "\ea93" }
-.codicon-symbol-string:before { content: "\ea93" }
 .codicon-symbol-text:before { content: "\ea93" }
 .codicon-symbol-reference:before { content: "\ea94" }
 .codicon-go-to-file:before { content: "\ea94" }
@@ -395,9 +395,18 @@
 .codicon-debug-breakpoint-function-unverified:before { content: "\eb87" }
 .codicon-debug-breakpoint-function:before { content: "\eb88" }
 .codicon-debug-breakpoint-function-disabled:before { content: "\eb88" }
-.codicon-debug-breakpoint-stackframe-active:before { content: "\eb89" }
-.codicon-debug-breakpoint-stackframe-dot:before { content: "\eb8a" }
-.codicon-debug-breakpoint-stackframe:before { content: "\eb8b" }
-.codicon-debug-breakpoint-stackframe-focused:before { content: "\eb8b" }
+.codicon-debug-stackframe-active:before { content: "\eb89" }
+.codicon-debug-stackframe-dot:before { content: "\eb8a" }
+.codicon-debug-stackframe:before { content: "\eb8b" }
+.codicon-debug-stackframe-focused:before { content: "\eb8b" }
 .codicon-debug-breakpoint-unsupported:before { content: "\eb8c" }
-.codicon-debug-step-back:before { content: "\f101" }
+.codicon-symbol-string:before { content: "\eb8d" }
+.codicon-debug-reverse-continue:before { content: "\eb8e" }
+.codicon-debug-step-back:before { content: "\eb8f" }
+.codicon-debug-restart-frame:before { content: "\eb90" }
+.codicon-debug-alternate:before { content: "\eb91" }
+.codicon-call-incoming:before { content: "\eb92" }
+.codicon-call-outgoing:before { content: "\eb93" }
+.codicon-menu:before { content: "\eb94" }
+.codicon-expand-all:before { content: "\eb95" }
+.codicon-debug-alt:before { content: "\f101" }

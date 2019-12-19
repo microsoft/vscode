@@ -21,6 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
+import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -324,6 +325,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- semantic tokens
+
+	$registerSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void {
+		this._registrations.set(handle, modes.SemanticTokensProviderRegistry.register(selector, new MainThreadSemanticTokensProvider(this._proxy, handle, legend)));
+	}
+
 	// --- suggest
 
 	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
@@ -498,13 +505,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
 
 			prepareCallHierarchy: async (document, position, token) => {
-				const item = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
-				if (!item) {
+				const items = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
+				if (!items) {
 					return undefined;
 				}
 				return {
-					dispose: () => this._proxy.$releaseCallHierarchy(handle, item._sessionId),
-					root: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item)
+					dispose: () => {
+						for (const item of items) {
+							this._proxy.$releaseCallHierarchy(handle, item._sessionId);
+						}
+					},
+					roots: items.map(MainThreadLanguageFeatures._reviveCallHierarchyItemDto)
 				};
 			},
 
@@ -593,4 +604,46 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
+}
+
+export class MainThreadSemanticTokensProvider implements modes.SemanticTokensProvider {
+
+	constructor(
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		private readonly _handle: number,
+		private readonly _legend: modes.SemanticTokensLegend,
+	) {
+	}
+
+	public releaseSemanticTokens(resultId: string | undefined): void {
+		if (resultId) {
+			this._proxy.$releaseSemanticTokens(this._handle, parseInt(resultId, 10));
+		}
+	}
+
+	public getLegend(): modes.SemanticTokensLegend {
+		return this._legend;
+	}
+
+	async provideSemanticTokens(model: ITextModel, lastResultId: string | null, ranges: EditorRange[] | null, token: CancellationToken): Promise<modes.SemanticTokens | modes.SemanticTokensEdits | null> {
+		const nLastResultId = lastResultId ? parseInt(lastResultId, 10) : 0;
+		const encodedDto = await this._proxy.$provideSemanticTokens(this._handle, model.uri, ranges, nLastResultId, token);
+		if (!encodedDto) {
+			return null;
+		}
+		if (token.isCancellationRequested) {
+			return null;
+		}
+		const dto = decodeSemanticTokensDto(encodedDto);
+		if (dto.type === 'full') {
+			return {
+				resultId: String(dto.id),
+				data: dto.data
+			};
+		}
+		return {
+			resultId: String(dto.id),
+			edits: dto.deltas
+		};
+	}
 }

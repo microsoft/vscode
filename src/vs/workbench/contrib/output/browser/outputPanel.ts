@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,14 +19,11 @@ import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/te
 import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/contrib/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionViewItem, ClearOutputAction, ToggleOrSetOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/contrib/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[] | undefined;
@@ -43,12 +40,9 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@IOutputService private readonly outputService: IOutputService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IHostService hostService: IHostService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IEditorService editorService: IEditorService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, hostService, filesConfigurationService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 
 		this.scopedInstantiationService = instantiationService;
 	}

@@ -184,14 +184,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 
-	async showSaveConfirm(fileNameOrResources: string | URI[]): Promise<ConfirmResult> {
+	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
 			if (!this.environmentService.args['extension-development-confirm-save']) {
 				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
 			}
 		}
 
-		return super.showSaveConfirm(fileNameOrResources);
+		return super.showSaveConfirm(fileNamesOrResources);
 	}
 }
 

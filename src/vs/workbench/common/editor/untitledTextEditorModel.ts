@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEncodingSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport, ISaveOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
 import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
@@ -12,11 +12,11 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService, IWorkingCopy, ISaveOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IEncodingSupport, IWorkingCopy {

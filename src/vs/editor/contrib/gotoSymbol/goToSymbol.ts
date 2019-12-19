@@ -6,7 +6,7 @@
 import { flatten, coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { LocationLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, DeclarationProviderRegistry, ProviderResult, ReferenceProviderRegistry } from 'vs/editor/common/modes';
@@ -58,10 +58,10 @@ export function getTypeDefinitionsAtPosition(model: ITextModel, position: Positi
 	});
 }
 
-export function getReferencesAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
+export function getReferencesAtPosition(model: ITextModel, position: Position, compact: boolean, token: CancellationToken): Promise<LocationLink[]> {
 	return getLocationLinks(model, position, ReferenceProviderRegistry, async (provider, model, position) => {
 		const result = await provider.provideReferences(model, position, { includeDeclaration: true }, token);
-		if (!result || result.length !== 2) {
+		if (!compact || !result || result.length !== 2) {
 			return result;
 		}
 		const resultWithoutDeclaration = await provider.provideReferences(model, position, { includeDeclaration: false }, token);
@@ -72,8 +72,8 @@ export function getReferencesAtPosition(model: ITextModel, position: Position, t
 	});
 }
 
-registerDefaultLanguageCommand('_executeDefinitionProvider', (model, position) => getDefinitionsAtPosition(model, position, CancellationToken.None));
-registerDefaultLanguageCommand('_executeDeclarationProvider', (model, position) => getDeclarationsAtPosition(model, position, CancellationToken.None));
-registerDefaultLanguageCommand('_executeImplementationProvider', (model, position) => getImplementationsAtPosition(model, position, CancellationToken.None));
-registerDefaultLanguageCommand('_executeTypeDefinitionProvider', (model, position) => getTypeDefinitionsAtPosition(model, position, CancellationToken.None));
-registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => getReferencesAtPosition(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeDefinitionProvider', (model, position) => getDefinitionsAtPosition(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeDeclarationProvider', (model, position) => getDeclarationsAtPosition(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeImplementationProvider', (model, position) => getImplementationsAtPosition(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeTypeDefinitionProvider', (model, position) => getTypeDefinitionsAtPosition(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeReferenceProvider', (model, position) => getReferencesAtPosition(model, position, false, CancellationToken.None));

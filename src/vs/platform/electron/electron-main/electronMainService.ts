@@ -99,6 +99,7 @@ export class ElectronMainService implements IElectronMainService {
 				cli: this.environmentService.args,
 				forceNewWindow: options.forceNewWindow,
 				forceReuseWindow: options.forceReuseWindow,
+				preferNewWindow: options.preferNewWindow,
 				diffMode: options.diffMode,
 				addMode: options.addMode,
 				gotoLineMode: options.gotoLineMode,

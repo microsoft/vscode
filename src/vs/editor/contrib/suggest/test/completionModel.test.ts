@@ -8,7 +8,7 @@ import * as modes from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
 import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
-import { EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 
 export function createSuggestItem(label: string, overwriteBefore: number, kind = modes.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
 	const suggestion: modes.CompletionItem = {
@@ -33,8 +33,8 @@ export function createSuggestItem(label: string, overwriteBefore: number, kind =
 }
 suite('CompletionModel', function () {
 
-	let defaultOptions = {
-		overwriteOnAccept: false,
+	let defaultOptions = <InternalSuggestOptions>{
+		insertMode: 'insert',
 		snippetsPreventQuickSuggestions: true,
 		filterGraceful: true,
 		localityBonus: false,

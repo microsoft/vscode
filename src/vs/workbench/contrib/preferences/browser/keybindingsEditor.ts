@@ -34,7 +34,7 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground } from 'vs/platform/theme/common/colorRegistry';
+import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -457,7 +457,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			identityProvider: { getId: (e: IListEntry) => e.id },
 			ariaLabel: localize('keybindingsLabel', "Keybindings"),
 			setRowLineHeight: false,
-			horizontalScrolling: false
+			horizontalScrolling: false,
+			overrideStyles: {
+				listBackground: editorBackground
+			}
 		}));
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));

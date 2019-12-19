@@ -6,6 +6,7 @@
 import 'vs/css!./referencesWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { GestureEvent } from 'vs/base/browser/touch';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -25,12 +26,11 @@ import { AriaProvider, DataSource, Delegate, FileReferencesRenderer, OneReferenc
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as peekView from 'vs/editor/contrib/peekView/peekView';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
-import { IAsyncDataTreeOptions } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { SplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 
@@ -227,7 +227,6 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		this.setModel(undefined);
 		this._callOnDispose.dispose();
 		this._disposeOnNewModel.dispose();
-		this._preview.setModel(null); // drop all view-zones, workaround for https://github.com/microsoft/vscode/issues/84726
 		dispose(this._preview);
 		dispose(this._previewNotAvailableMessage);
 		dispose(this._tree);
@@ -252,8 +251,16 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
 
-	focus(): void {
+	focusOnReferenceTree(): void {
 		this._tree.domFocus();
+	}
+
+	focusOnPreviewEditor(): void {
+		this._preview.focus();
+	}
+
+	isPreviewEditorFocused(): boolean {
+		return this._preview.hasTextFocus();
 	}
 
 	protected _onTitleClick(e: IMouseEvent): void {
@@ -284,7 +291,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
-				horizontalHasArrows: false
+				horizontalHasArrows: false,
+				alwaysConsumeMouseWheel: false
 			},
 			overviewRulerLanes: 2,
 			fixedOverflowWidgets: true,
@@ -298,12 +306,15 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 		// tree
 		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
-		const treeOptions: IAsyncDataTreeOptions<TreeElement, FuzzyScore> = {
+		const treeOptions: IWorkbenchAsyncDataTreeOptions<TreeElement, FuzzyScore> = {
 			ariaLabel: nls.localize('treeAriaLabel', "References"),
 			keyboardSupport: this._defaultTreeKeyboardSupport,
 			accessibilityProvider: new AriaProvider(),
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
-			identityProvider: new IdentityProvider()
+			identityProvider: new IdentityProvider(),
+			overrideStyles: {
+				listBackground: peekView.peekViewResultsBackground
+			}
 		};
 		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore>>(
 			WorkbenchAsyncDataTree,
@@ -315,7 +326,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				this._instantiationService.createInstance(OneReferenceRenderer),
 			],
 			this._instantiationService.createInstance(DataSource),
-			treeOptions
+			treeOptions,
 		);
 
 		// split stuff
@@ -363,8 +374,11 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			if (e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey)) {
 				// modifier-click -> open to the side
 				onEvent(e.elements[0], 'side');
-			} else if (e.browserEvent instanceof KeyboardEvent || (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2)) {
-				// keybinding (list service command) OR double click -> close widget and goto target
+			} else if (e.browserEvent instanceof KeyboardEvent || (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2) || (<GestureEvent>e.browserEvent).tapCount === 2) {
+				// keybinding (list service command)
+				// OR double click
+				// OR double tap
+				// -> close widget and goto target
 				onEvent(e.elements[0], 'goto');
 			} else {
 				// preview location
@@ -452,7 +466,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		dom.show(this._treeContainer);
 		dom.show(this._previewContainer);
 		this._splitView.layout(this._dim.width);
-		this.focus();
+		this.focusOnReferenceTree();
 
 		// pick input and a reference to begin with
 		return this._tree.setInput(this._model.groups.length === 1 ? this._model.groups[0] : this._model);

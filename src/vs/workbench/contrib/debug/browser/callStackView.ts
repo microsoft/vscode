@@ -18,7 +18,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewletPanelOptions, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -34,13 +34,26 @@ import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { STOP_ID, STOP_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, RESTART_SESSION_ID, RESTART_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STEP_INTO_LABEL, STEP_INTO_ID, STEP_OUT_LABEL, STEP_OUT_ID, PAUSE_ID, PAUSE_LABEL, CONTINUE_ID, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
 type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndSessionIds | IStackFrame[];
 
-export class CallStackView extends ViewletPanel {
+function getContext(element: CallStackItem | null): any {
+	return element instanceof StackFrame ? {
+		sessionId: element.thread.session.getId(),
+		threadId: element.thread.getId(),
+		frameId: element.getId()
+	} : element instanceof Thread ? {
+		sessionId: element.session.getId(),
+		threadId: element.getId()
+	} : isDebugSession(element) ? {
+		sessionId: element.getId()
+	} : undefined;
+}
 
+export class CallStackView extends ViewPane {
 	private pauseMessage!: HTMLSpanElement;
 	private pauseMessageLabel!: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
@@ -65,7 +78,7 @@ export class CallStackView extends ViewletPanel {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
@@ -122,7 +135,7 @@ export class CallStackView extends ViewletPanel {
 
 		this.dataSource = new CallStackDataSource(this.debugService);
 		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>>(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
-			new SessionsRenderer(this.instantiationService),
+			new SessionsRenderer(this.instantiationService, this.debugService),
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
@@ -161,7 +174,10 @@ export class CallStackView extends ViewletPanel {
 					return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
 				}
 			},
-			expandOnlyOnTwistieClick: true
+			expandOnlyOnTwistieClick: true,
+			overrideStyles: {
+				listBackground: SIDE_BAR_BACKGROUND
+			}
 		});
 
 		this.tree.setInput(this.debugService.getModel());
@@ -325,7 +341,7 @@ export class CallStackView extends ViewletPanel {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => element && element instanceof StackFrame ? element.getId() : undefined,
+			getActionsContext: () => getContext(element),
 			onHide: () => dispose(actionsDisposable)
 		});
 	}
@@ -381,13 +397,15 @@ interface IStackFrameTemplateData {
 	fileName: HTMLElement;
 	lineNumber: HTMLElement;
 	label: HighlightedLabel;
+	actionBar: ActionBar;
 }
 
 class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISessionTemplateData> {
 	static readonly ID = 'session';
 
 	constructor(
-		private readonly instantiationService: IInstantiationService
+		private readonly instantiationService: IInstantiationService,
+		private readonly debugService: IDebugService
 	) { }
 
 	get templateId(): string {
@@ -409,14 +427,23 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		const session = element.element;
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
 		data.label.set(session.getLabel(), createMatches(element.filterData));
-		const stoppedThread = session.getAllThreads().filter(t => t.stopped).pop();
+		const thread = session.getAllThreads().filter(t => t.stopped).pop();
 
 		data.actionBar.clear();
 		const actions = getActions(this.instantiationService, element.element);
 		data.actionBar.push(actions, { icon: true, label: false });
+		data.stateLabel.hidden = false;
 
-		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
-			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		if (thread && thread.stoppedDetails) {
+			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
+		} else {
+			const hasChildSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === session).length > 0;
+			if (!hasChildSessions) {
+				data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+			} else {
+				data.stateLabel.hidden = true;
+			}
+		}
 	}
 
 	disposeTemplate(templateData: ISessionTemplateData): void {
@@ -477,8 +504,9 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 		const wrapper = dom.append(file, $('span.line-number-wrapper'));
 		const lineNumber = dom.append(wrapper, $('span.line-number'));
 		const label = new HighlightedLabel(labelDiv, false);
+		const actionBar = new ActionBar(stackFrame);
 
-		return { file, fileName, label, lineNumber, stackFrame };
+		return { file, fileName, label, lineNumber, stackFrame, actionBar };
 	}
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
@@ -486,6 +514,8 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
+		const hasActions = stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle';
+		dom.toggleClass(data.stackFrame, 'has-actions', hasActions);
 
 		data.file.title = stackFrame.source.inMemory ? stackFrame.source.uri.path : this.labelService.getUriLabel(stackFrame.source.uri);
 		if (stackFrame.source.raw.origin) {
@@ -502,10 +532,18 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 		} else {
 			dom.addClass(data.lineNumber, 'unavailable');
 		}
+
+		data.actionBar.clear();
+		if (hasActions) {
+			const action = new Action('debug.callStack.restartFrame', nls.localize('restartFrame', "Restart Frame"), 'codicon-debug-restart-frame', true, () => {
+				return stackFrame.restart();
+			});
+			data.actionBar.push(action, { icon: true, label: false });
+		}
 	}
 
 	disposeTemplate(templateData: IStackFrameTemplateData): void {
-		// noop
+		templateData.actionBar.dispose();
 	}
 }
 
@@ -789,7 +827,7 @@ class StopAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(STOP_ID, this.session.getId(), this.session);
+		return this.commandService.executeCommand(STOP_ID, undefined, getContext(this.session));
 	}
 }
 
@@ -803,7 +841,7 @@ class DisconnectAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(DISCONNECT_ID, this.session.getId(), this.session);
+		return this.commandService.executeCommand(DISCONNECT_ID, undefined, getContext(this.session));
 	}
 }
 
@@ -817,7 +855,7 @@ class RestartAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(RESTART_SESSION_ID, this.session.getId(), this.session);
+		return this.commandService.executeCommand(RESTART_SESSION_ID, undefined, getContext(this.session));
 	}
 }
 
@@ -831,7 +869,7 @@ class StepOverAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(STEP_OVER_ID, this.thread.threadId, this.thread);
+		return this.commandService.executeCommand(STEP_OVER_ID, undefined, getContext(this.thread));
 	}
 }
 
@@ -845,7 +883,7 @@ class StepIntoAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(STEP_INTO_ID, this.thread.threadId, this.thread);
+		return this.commandService.executeCommand(STEP_INTO_ID, undefined, getContext(this.thread));
 	}
 }
 
@@ -859,7 +897,7 @@ class StepOutAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(STEP_OUT_ID, this.thread.threadId, this.thread);
+		return this.commandService.executeCommand(STEP_OUT_ID, undefined, getContext(this.thread));
 	}
 }
 
@@ -873,7 +911,7 @@ class PauseAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(PAUSE_ID, this.thread.threadId, this.thread);
+		return this.commandService.executeCommand(PAUSE_ID, undefined, getContext(this.thread));
 	}
 }
 
@@ -887,6 +925,6 @@ class ContinueAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		return this.commandService.executeCommand(CONTINUE_ID, this.thread.threadId, this.thread);
+		return this.commandService.executeCommand(CONTINUE_ID, undefined, getContext(this.thread));
 	}
 }

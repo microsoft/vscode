@@ -31,6 +31,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -113,6 +114,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// Load window state
 			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
 			this.windowState = state;
+			this.logService.trace('window#ctor: using window state', state);
 
 			// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
@@ -128,19 +130,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
-					// By default if Code is in the background, intervals and timeouts get throttled, so we
-					// want to enforce that Code stays in the foreground. This triggers a disable_hidden_
-					// flag that Electron provides via patch:
-					// https://github.com/electron/libchromiumcontent/blob/master/patches/common/chromium/disable_hidden.patch
-					backgroundThrottling: false,
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
 					webviewTag: true
 				}
 			};
 
+			// Apply icon to window
+			// Linux: always
+			// Windows: only when running out of sources, otherwise an icon is set by us on the executable
 			if (isLinux) {
-				options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+				options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png');
+			} else if (isWindows && !this.environmentService.isBuilt) {
+				options.icon = path.join(this.environmentService.appRoot, 'resources/win32/code_150x150.png');
 			}
 
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
@@ -771,45 +773,79 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private validateWindowState(state: IWindowState, displays: Display[]): IWindowState | undefined {
+		this.logService.trace(`window#validateWindowState: validating window state on ${displays.length} display(s)`, state);
+
 		if (typeof state.x !== 'number'
 			|| typeof state.y !== 'number'
 			|| typeof state.width !== 'number'
 			|| typeof state.height !== 'number'
 		) {
+			this.logService.trace('window#validateWindowState: unexpected type of state values');
 			return undefined;
 		}
 
 		if (state.width <= 0 || state.height <= 0) {
+			this.logService.trace('window#validateWindowState: unexpected negative values');
 			return undefined;
 		}
 
 		// Single Monitor: be strict about x/y positioning
+		// macOS & Linux: these OS seem to be pretty good in ensuring that a window is never outside of it's bounds.
+		// Windows: it is possible to have a window with a size that makes it fall out of the window. our strategy
+		//          is to try as much as possible to keep the window in the monitor bounds. we are not as strict as
+		//          macOS and Linux and allow the window to exceed the monitor bounds as long as the window is still
+		//          some pixels (128) visible on the screen for the user to drag it back.
 		if (displays.length === 1) {
 			const displayWorkingArea = this.getWorkingArea(displays[0]);
 			if (displayWorkingArea) {
-				if (state.x < displayWorkingArea.x) {
-					state.x = displayWorkingArea.x; // prevent window from falling out of the screen to the left
+				this.logService.trace('window#validateWindowState: 1 monitor working area', displayWorkingArea);
+
+				function ensureStateInDisplayWorkingArea(): void {
+					if (!state || typeof state.x !== 'number' || typeof state.y !== 'number' || !displayWorkingArea) {
+						return;
+					}
+
+					if (state.x < displayWorkingArea.x) {
+						// prevent window from falling out of the screen to the left
+						state.x = displayWorkingArea.x;
+					}
+
+					if (state.y < displayWorkingArea.y) {
+						// prevent window from falling out of the screen to the top
+						state.y = displayWorkingArea.y;
+					}
 				}
 
-				if (state.y < displayWorkingArea.y) {
-					state.y = displayWorkingArea.y; // prevent window from falling out of the screen to the top
-				}
-
-				if (state.x > (displayWorkingArea.x + displayWorkingArea.width)) {
-					state.x = displayWorkingArea.x; // prevent window from falling out of the screen to the right
-				}
-
-				if (state.y > (displayWorkingArea.y + displayWorkingArea.height)) {
-					state.y = displayWorkingArea.y; // prevent window from falling out of the screen to the bottom
-				}
+				// ensure state is not outside display working area (top, left)
+				ensureStateInDisplayWorkingArea();
 
 				if (state.width > displayWorkingArea.width) {
-					state.width = displayWorkingArea.width; // prevent window from exceeding display bounds width
+					// prevent window from exceeding display bounds width
+					state.width = displayWorkingArea.width;
 				}
 
 				if (state.height > displayWorkingArea.height) {
-					state.height = displayWorkingArea.height; // prevent window from exceeding display bounds height
+					// prevent window from exceeding display bounds height
+					state.height = displayWorkingArea.height;
 				}
+
+				if (state.x > (displayWorkingArea.x + displayWorkingArea.width - 128)) {
+					// prevent window from falling out of the screen to the right with
+					// 128px margin by positioning the window to the far right edge of
+					// the screen
+					state.x = displayWorkingArea.x + displayWorkingArea.width - state.width;
+				}
+
+				if (state.y > (displayWorkingArea.y + displayWorkingArea.height - 128)) {
+					// prevent window from falling out of the screen to the bottom with
+					// 128px margin by positioning the window to the far bottom edge of
+					// the screen
+					state.y = displayWorkingArea.y + displayWorkingArea.height - state.height;
+				}
+
+				// again ensure state is not outside display working area
+				// (it may have changed from the previous validation step)
+				ensureStateInDisplayWorkingArea();
 			}
 
 			return state;
@@ -819,6 +855,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (state.display && state.mode === WindowMode.Fullscreen) {
 			const display = displays.filter(d => d.id === state.display)[0];
 			if (display && typeof display.bounds?.x === 'number' && typeof display.bounds?.y === 'number') {
+				this.logService.trace('window#validateWindowState: restoring fullscreen to previous display');
+
 				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
 				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
 				defaults.y = display.bounds.y;
@@ -827,18 +865,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 		}
 
-		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
-		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
-		const display = screen.getDisplayMatching(bounds);
+		// Multi Monitor (non-fullscreen): ensure window is within display bounds
+		const display = screen.getDisplayMatching({ x: state.x, y: state.y, width: state.width, height: state.height });
 		const displayWorkingArea = this.getWorkingArea(display);
 		if (
 			display &&														// we have a display matching the desired bounds
 			displayWorkingArea &&											// we have valid working area bounds
-			bounds.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			bounds.y < displayWorkingArea.y + displayWorkingArea.height &&	// prevent window from falling out of the screen to the bottom
-			bounds.x + bounds.width > displayWorkingArea.x &&				// prevent window from falling out of the screen to the left
-			bounds.y + bounds.height > displayWorkingArea.y					// prevent window from falling out of the scree nto the top
+			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
+			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
+			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
 		) {
+			this.logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
+
 			return state;
 		}
 
@@ -1089,8 +1128,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: NativeImage | undefined;
-			if (item.iconLocation && item.iconLocation?.dark?.scheme === 'file') {
-				icon = nativeImage.createFromPath(URI.revive(item.iconLocation.dark).fsPath);
+			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === 'file') {
+				icon = nativeImage.createFromPath(URI.revive(item.icon.dark).fsPath);
 				if (icon.isEmpty()) {
 					icon = undefined;
 				}

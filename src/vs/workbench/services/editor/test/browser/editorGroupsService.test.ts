@@ -19,10 +19,14 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
-export class TestEditorControl extends BaseEditor {
+const TEST_EDITOR_ID = 'MyFileEditorForEditorGroupService';
+const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorGroupService';
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
+class TestEditorControl extends BaseEditor {
+
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super(TEST_EDITOR_ID, NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, token);
@@ -30,16 +34,16 @@ export class TestEditorControl extends BaseEditor {
 		await input.resolve();
 	}
 
-	getId(): string { return 'MyFileEditorForEditorGroupService'; }
+	getId(): string { return TEST_EDITOR_ID; }
 	layout(): void { }
 	createEditor(): any { }
 }
 
-export class TestEditorInput extends EditorInput implements IFileEditorInput {
+class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 	constructor(private resource: URI) { super(); }
 
-	getTypeId() { return 'testEditorInputForEditorGroupService'; }
+	getTypeId() { return TEST_EDITOR_INPUT_ID; }
 	resolve(): Promise<IEditorModel | null> { return Promise.resolve(null); }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
@@ -53,13 +57,18 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 suite('EditorGroupsService', () => {
 
-	function registerTestEditorInput(): void {
+	let disposables: IDisposable[] = [];
 
+	setup(() => {
 		interface ISerializedTestEditorInput {
 			resource: string;
 		}
 
 		class TestEditorInputFactory implements IEditorInputFactory {
+
+			canSerialize(editorInput: EditorInput): boolean {
+				return true;
+			}
 
 			serialize(editorInput: EditorInput): string {
 				const testEditorInput = <TestEditorInput>editorInput;
@@ -77,11 +86,14 @@ suite('EditorGroupsService', () => {
 			}
 		}
 
-		(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).registerEditorInputFactory('testEditorInputForGroupsService', TestEditorInputFactory);
-		(Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(EditorDescriptor.create(TestEditorControl, 'MyTestEditorForGroupsService', 'My Test File Editor'), [new SyncDescriptor(TestEditorInput)]);
-	}
+		disposables.push((Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)).registerEditorInputFactory(TEST_EDITOR_INPUT_ID, TestEditorInputFactory));
+		disposables.push((Registry.as<IEditorRegistry>(Extensions.Editors)).registerEditor(EditorDescriptor.create(TestEditorControl, TEST_EDITOR_ID, 'My Test File Editor'), [new SyncDescriptor(TestEditorInput)]));
+	});
 
-	registerTestEditorInput();
+	teardown(() => {
+		dispose(disposables);
+		disposables = [];
+	});
 
 	function createPart(): EditorPart {
 		const instantiationService = workbenchInstantiationService();
@@ -435,6 +447,8 @@ suite('EditorGroupsService', () => {
 		assert.equal(group.isActive(inputInactive), false);
 		assert.equal(group.isOpened(input), true);
 		assert.equal(group.isOpened(inputInactive), true);
+		assert.equal(group.isOpened({ resource: input.getResource() }), true);
+		assert.equal(group.isOpened({ resource: inputInactive.getResource() }), true);
 		assert.equal(group.isEmpty, false);
 		assert.equal(group.count, 2);
 		assert.equal(editorWillOpenCounter, 2);

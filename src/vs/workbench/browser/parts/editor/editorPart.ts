@@ -12,11 +12,11 @@ import { contrastBorder, editorBackground } from 'vs/platform/theme/common/color
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce } from 'vs/base/common/arrays';
-import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -89,30 +89,33 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	//#region Events
 
-	private readonly _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
-	readonly onDidLayout: Event<Dimension> = this._onDidLayout.event;
+	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
+	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onDidActiveGroupChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidActiveGroupChange: Event<IEditorGroupView> = this._onDidActiveGroupChange.event;
+	private readonly _onDidActiveGroupChange = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidActiveGroupChange = this._onDidActiveGroupChange.event;
 
-	private readonly _onDidGroupIndexChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidGroupIndexChange: Event<IEditorGroupView> = this._onDidGroupIndexChange.event;
+	private readonly _onDidGroupIndexChange = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidGroupIndexChange = this._onDidGroupIndexChange.event;
 
-	private readonly _onDidActivateGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidActivateGroup: Event<IEditorGroupView> = this._onDidActivateGroup.event;
+	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
-	private readonly _onDidAddGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidAddGroup: Event<IEditorGroupView> = this._onDidAddGroup.event;
+	private readonly _onDidAddGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidAddGroup = this._onDidAddGroup.event;
 
-	private readonly _onDidRemoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidRemoveGroup: Event<IEditorGroupView> = this._onDidRemoveGroup.event;
+	private readonly _onDidRemoveGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidRemoveGroup = this._onDidRemoveGroup.event;
 
-	private readonly _onDidMoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidMoveGroup: Event<IEditorGroupView> = this._onDidMoveGroup.event;
+	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidMoveGroup = this._onDidMoveGroup.event;
 
-	private onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
-	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event); }
+	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	private readonly _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	readonly onDidSizeConstraintsChange = Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event);
+
+	private readonly _onDidEditorPartOptionsChange = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
+	readonly onDidEditorPartOptionsChange = this._onDidEditorPartOptionsChange.event;
 
 	//#endregion
 
@@ -121,7 +124,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private _partOptions: IEditorPartOptions;
 
-	private groupViews: Map<GroupIdentifier, IEditorGroupView> = new Map<GroupIdentifier, IEditorGroupView>();
+	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	private container: HTMLElement | undefined;
@@ -155,13 +158,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.registerListeners();
 	}
 
-	//#region IEditorGroupsAccessor
-
-	private enforcedPartOptions: IEditorPartOptions[] = [];
-
-	private readonly _onDidEditorPartOptionsChange: Emitter<IEditorPartOptionsChangeEvent> = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
-	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent> = this._onDidEditorPartOptionsChange.event;
-
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 	}
@@ -185,6 +181,10 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this._onDidEditorPartOptionsChange.fire({ oldPartOptions, newPartOptions });
 	}
 
+	//#region IEditorGroupsService
+
+	private enforcedPartOptions: IEditorPartOptions[] = [];
+
 	get partOptions(): IEditorPartOptions {
 		return this._partOptions;
 	}
@@ -198,10 +198,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this.handleChangedPartOptions();
 		});
 	}
-
-	//#endregion
-
-	//#region IEditorGroupsService
 
 	private _contentDimension!: Dimension;
 	get contentDimension(): Dimension { return this._contentDimension; }
@@ -240,7 +236,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				const mostRecentActive = coalesce(this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId)));
 
 				// there can be groups that got never active, even though they exist. in this case
-				// make sure to ust append them at the end so that all groups are returned properly
+				// make sure to just append them at the end so that all groups are returned properly
 				return distinct([...mostRecentActive, ...this.groups]);
 
 			case GroupsOrder.GRID_APPEARANCE:
@@ -544,7 +540,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.groupViews.set(groupView.id, groupView);
 
 		// Track focus
-		let groupDisposables = new DisposableStore();
+		const groupDisposables = new DisposableStore();
 		groupDisposables.add(groupView.onDidFocus(() => {
 			this.doSetGroupActive(groupView);
 		}));

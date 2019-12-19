@@ -32,6 +32,7 @@ import { InitializingRangeProvider, ID_INIT_PROVIDER } from 'vs/editor/contrib/f
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
@@ -421,8 +422,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 				if (region && region.startLineNumber === lineNumber) {
 					let isCollapsed = region.isCollapsed;
 					if (iconClicked || isCollapsed) {
-						let toToggle = [region];
-						if (e.event.middleButton || e.event.shiftKey) {
+						let toToggle = [];
+						let considerRegionsInside = this.shouldConsiderRegionsInside(e.event);
+						if (isCollapsed || (!isCollapsed && !considerRegionsInside)) {
+							toToggle.push(region);
+						}
+						if (considerRegionsInside) {
 							toToggle.push(...foldingModel.getRegionsInside(region, (r: FoldingRegion) => r.isCollapsed === isCollapsed));
 						}
 						foldingModel.toggleCollapseState(toToggle);
@@ -431,6 +436,10 @@ export class FoldingController extends Disposable implements IEditorContribution
 				}
 			}
 		}).then(undefined, onUnexpectedError);
+	}
+
+	private shouldConsiderRegionsInside(event: IMouseEvent): boolean {
+		return event.middleButton || event.shiftKey;
 	}
 
 	public reveal(position: IPosition): void {

@@ -7,44 +7,55 @@ import { URI } from 'vs/base/common/uri';
 import { suggestFilename } from 'vs/base/common/mime';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { EditorInput, IEncodingSupport, EncodingMode, Verbosity, IModeSupport } from 'vs/workbench/common/editor';
+import { basenameOrAuthority, dirname, toLocalResource } from 'vs/base/common/resources';
+import { IEncodingSupport, EncodingMode, Verbosity, IModeSupport, TextEditorInput, GroupIdentifier, IRevertOptions } from 'vs/workbench/common/editor';
 import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { Emitter } from 'vs/base/common/event';
+import { ITextFileService, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledTextEditorInput extends EditorInput implements IEncodingSupport, IModeSupport {
+export class UntitledTextEditorInput extends TextEditorInput implements IEncodingSupport, IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
+
 	private static readonly MEMOIZER = createMemoizer();
 
 	private cachedModel: UntitledTextEditorModel | null = null;
 	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | null = null;
 
-	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidModelChangeContent: Event<void> = this._onDidModelChangeContent.event;
+	private readonly _onDidModelChangeContent = this._register(new Emitter<void>());
+	readonly onDidModelChangeContent = this._onDidModelChangeContent.event;
 
-	private readonly _onDidModelChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidModelChangeEncoding: Event<void> = this._onDidModelChangeEncoding.event;
+	private readonly _onDidModelChangeEncoding = this._register(new Emitter<void>());
+	readonly onDidModelChangeEncoding = this._onDidModelChangeEncoding.event;
 
 	constructor(
-		private readonly resource: URI,
+		resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
 		private preferredMode: string | undefined,
 		private readonly initialValue: string | undefined,
 		private preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ITextFileService textFileService: ITextFileService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
-		super();
+		super(resource, editorService, editorGroupService, textFileService);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
 		this._register(this.labelService.onDidChangeFormatters(() => UntitledTextEditorInput.MEMOIZER.clear()));
 	}
 
@@ -54,10 +65,6 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 
 	getTypeId(): string {
 		return UntitledTextEditorInput.ID;
-	}
-
-	getResource(): URI {
-		return this.resource;
 	}
 
 	getName(): string {
@@ -125,6 +132,14 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 		}
 	}
 
+	isReadonly(): boolean {
+		return false;
+	}
+
+	isUntitled(): boolean {
+		return true;
+	}
+
 	isDirty(): boolean {
 		if (this.cachedModel) {
 			return this.cachedModel.isDirty();
@@ -147,18 +162,37 @@ export class UntitledTextEditorInput extends EditorInput implements IEncodingSup
 		return false;
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
-		return this.textFileService.save(this.resource, options);
+	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+		return this.doSaveAs(group, options, async () => {
+
+			// With associated file path, save to the path that is
+			// associated. Make sure to convert the result using
+			// remote authority properly.
+			if (this.hasAssociatedFilePath) {
+				if (await this.textFileService.save(this.resource, options)) {
+					return toLocalResource(this.resource, this.environmentService.configuration.remoteAuthority);
+				}
+
+				return;
+			}
+
+			// Without associated file path, do a normal "Save As"
+			return this.textFileService.saveAs(this.resource, undefined, options);
+		}, true /* replace editor across all groups */);
 	}
 
-	revert(options?: IRevertOptions): Promise<boolean> {
+	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
+		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options), true /* replace editor across all groups */);
+	}
+
+	async revert(options?: IRevertOptions): Promise<boolean> {
 		if (this.cachedModel) {
 			this.cachedModel.revert();
 		}
 
 		this.dispose(); // a reverted untitled text editor is no longer valid, so we dispose it
 
-		return Promise.resolve(true);
+		return true;
 	}
 
 	suggestFileName(): string {

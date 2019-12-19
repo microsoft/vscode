@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, IModeSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult, FileOperation } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -14,7 +14,7 @@ import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isNative } from 'vs/base/common/platform';
-import { IWorkingCopy, ISaveOptions, SaveReason, IRevertOptions } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -129,23 +129,17 @@ export interface ITextFileService extends IDisposable {
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
 	 */
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * Copy a file. If the file is dirty, its contents will be preserved and restored.
+	 */
+	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 }
 
-export class FileOperationWillRunEvent implements IWaitUntil {
-
-	constructor(
-		private _thenables: Promise<any>[],
-		readonly operation: FileOperation,
-		readonly target: URI,
-		readonly source?: URI | undefined
-	) { }
-
-	waitUntil(thenable: Promise<any>): void {
-		if (Object.isFrozen(this._thenables)) {
-			throw new Error('waitUntil cannot be used aync');
-		}
-		this._thenables.push(thenable);
-	}
+export interface FileOperationWillRunEvent extends IWaitUntil {
+	operation: FileOperation;
+	target: URI;
+	source?: URI;
 }
 
 export class FileOperationDidRunEvent {
@@ -320,7 +314,7 @@ export interface ITextFileOperationResult {
 export interface IResult {
 	source: URI;
 	target?: URI;
-	success?: boolean;
+	error?: boolean;
 }
 
 export const enum LoadReason {
@@ -418,7 +412,7 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
 	writeElevated?: boolean;
-	availableFileSystems?: readonly string[];
+	ignoreModifiedSince?: boolean;
 }
 
 export interface ILoadOptions {
@@ -462,6 +456,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	makeDirty(): void;
 
+	getMode(): string | undefined;
+
 	isResolved(): this is IResolvedTextFileEditorModel;
 
 	isDisposed(): boolean;
@@ -474,9 +470,6 @@ export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 	createSnapshot(): ITextSnapshot;
 }
 
-/**
- * Helper method to convert a snapshot into its full string form.
- */
 export function snapshotToString(snapshot: ITextSnapshot): string {
 	const chunks: string[] = [];
 

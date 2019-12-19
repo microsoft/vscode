@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -19,8 +19,8 @@ import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSou
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService, IEditableData } from 'vs/workbench/contrib/files/common/files';
-import { dirname, joinPath, isEqualOrParent, basename, hasToIgnoreCase, distinctParents } from 'vs/base/common/resources';
+import { IFilesConfiguration, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { dirname, joinPath, isEqualOrParent, basename, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -46,7 +46,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
 import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -54,6 +54,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
+import { IEditableData } from 'vs/workbench/common/views';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -89,12 +90,13 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return Promise.resolve(element);
 		}
 
-		const promise = element.fetchChildren(this.fileService, this.explorerService).then(undefined, e => {
+		const sortOrder = this.explorerService.sortOrder;
+		const promise = element.fetchChildren(sortOrder).then(undefined, e => {
 
 			if (element instanceof ExplorerItem && element.isRoot) {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					// Single folder create a dummy explorer item to show error
-					const placeholder = new ExplorerItem(element.resource, undefined, false);
+					const placeholder = new ExplorerItem(element.resource, this.fileService, undefined, false);
 					placeholder.isError = true;
 					return [placeholder];
 				} else {
@@ -119,10 +121,12 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 
 export interface ICompressedNavigationController {
 	readonly current: ExplorerItem;
+	readonly currentId: string;
 	readonly items: ExplorerItem[];
 	readonly labels: HTMLElement[];
 	readonly index: number;
 	readonly count: number;
+	readonly onDidChange: Event<void>;
 	previous(): void;
 	next(): void;
 	first(): void;
@@ -130,19 +134,40 @@ export interface ICompressedNavigationController {
 	setIndex(index: number): void;
 }
 
-export class CompressedNavigationController implements ICompressedNavigationController {
+export class CompressedNavigationController implements ICompressedNavigationController, IDisposable {
+
+	static ID = 0;
 
 	private _index: number;
-	readonly labels: HTMLElement[];
+	private _labels!: HTMLElement[];
+	private _updateLabelDisposable: IDisposable;
 
 	get index(): number { return this._index; }
 	get count(): number { return this.items.length; }
 	get current(): ExplorerItem { return this.items[this._index]!; }
+	get currentId(): string { return `${this.id}_${this.index}`; }
+	get labels(): HTMLElement[] { return this._labels; }
 
-	constructor(readonly items: ExplorerItem[], templateData: IFileTemplateData) {
+	private _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData) {
 		this._index = items.length - 1;
-		this.labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
-		DOM.addClass(this.labels[this._index], 'active');
+
+		this.updateLabels(templateData);
+		this._updateLabelDisposable = templateData.label.onDidRender(() => this.updateLabels(templateData));
+	}
+
+	private updateLabels(templateData: IFileTemplateData): void {
+		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
+
+		for (let i = 0; i < this.labels.length; i++) {
+			this.labels[i].setAttribute('aria-label', this.items[i].name);
+		}
+
+		if (this._index < this.labels.length) {
+			DOM.addClass(this.labels[this._index], 'active');
+		}
 	}
 
 	previous(): void {
@@ -185,6 +210,13 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 		DOM.removeClass(this.labels[this._index], 'active');
 		this._index = index;
 		DOM.addClass(this.labels[this._index], 'active');
+
+		this._onDidChange.fire();
+	}
+
+	dispose(): void {
+		this._onDidChange.dispose();
+		this._updateLabelDisposable.dispose();
 	}
 }
 
@@ -194,12 +226,15 @@ export interface IFileTemplateData {
 	container: HTMLElement;
 }
 
-export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IDisposable {
+export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
+
+	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
+	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
 
 	constructor(
 		private labels: ResourceLabels,
@@ -239,7 +274,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			templateData.elementDisposable = this.renderStat(stat, stat.name, node.filterData, templateData);
+			templateData.elementDisposable = this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
 		}
 
 		// Input Box
@@ -253,8 +288,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		templateData.elementDisposable.dispose();
 
 		const stat = node.element.elements[node.element.elements.length - 1];
-		const label = node.element.elements.map(e => e.name);
-		const editableData = this.explorerService.getEditableData(stat);
+		const editable = node.element.elements.filter(e => this.explorerService.isEditable(e));
+		const editableData = editable.length === 0 ? undefined : this.explorerService.getEditableData(editable[0]);
 
 		// File Label
 		if (!editableData) {
@@ -262,10 +297,17 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			templateData.label.element.style.display = 'flex';
 
 			const disposables = new DisposableStore();
-			disposables.add(this.renderStat(stat, label, node.filterData, templateData));
+			const id = `compressed-explorer_${CompressedNavigationController.ID++}`;
 
-			const compressedNavigationController = new CompressedNavigationController(node.element.elements, templateData);
+			const label = node.element.elements.map(e => e.name);
+			disposables.add(this.renderStat(stat, label, id, node.filterData, templateData));
+
+			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData);
+			disposables.add(compressedNavigationController);
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
+
+			// accessibility
+			disposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
 
 			domEvent(templateData.container, 'mousedown')(e => {
 				const result = getIconLabelNameFromHTMLElement(e.target);
@@ -275,9 +317,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			}, undefined, disposables);
 
-			disposables.add(toDisposable(() => {
-				this.compressedNavigationControllers.delete(stat);
-			}));
+			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
 
 			templateData.elementDisposable = disposables;
 		}
@@ -286,11 +326,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		else {
 			DOM.removeClass(templateData.label.element, 'compressed');
 			templateData.label.element.style.display = 'none';
-			templateData.elementDisposable = this.renderInputBox(templateData.container, stat, editableData);
+			templateData.elementDisposable = this.renderInputBox(templateData.container, editable[0], editableData);
 		}
 	}
 
-	private renderStat(stat: ExplorerItem, label: string | string[], filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
+	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
 		if (this.explorerService.isCut(stat)) {
@@ -302,7 +342,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			extraClasses,
 			fileDecorations: this.config.explorer.decorations,
 			matches: createMatches(filterData),
-			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority)
+			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
+			domId
 		});
 
 		return templateData.label.onDidRender(() => {
@@ -410,14 +451,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		return this.compressedNavigationControllers.get(stat);
 	}
 
-	dispose(): void {
-		this.configListener.dispose();
-	}
-}
+	// IAccessibilityProvider
 
-export class ExplorerAccessibilityProvider implements IAccessibilityProvider<ExplorerItem> {
 	getAriaLabel(element: ExplorerItem): string {
 		return element.name;
+	}
+
+	getActiveDescendantId(stat: ExplorerItem): string | undefined {
+		const compressedNavigationController = this.compressedNavigationControllers.get(stat);
+		return compressedNavigationController?.currentId;
+	}
+
+	dispose(): void {
+		this.configListener.dispose();
 	}
 }
 
@@ -567,7 +613,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 	}
 }
 
-const fileOverwriteConfirm = (name: string) => {
+const getFileOverwriteConfirm = (name: string) => {
 	return <IConfirmation>{
 		message: localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name),
 		detail: localize('irreversible', "This action is irreversible!"),
@@ -810,14 +856,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const name = file.name;
 				if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
 					if (target.getChild(name)) {
-						const { confirmed } = await this.dialogService.confirm(fileOverwriteConfirm(name));
+						const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(name));
 						if (!confirmed) {
 							return;
 						}
 					}
 
 					const resource = joinPath(target.resource, name);
-					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target?.result)));
+					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
 					if (data.files.length === 1) {
 						await this.editorService.openEditor({ resource, options: { pinned: true } });
 					}
@@ -876,25 +922,23 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Check for name collisions
 			const targetNames = new Set<string>();
+			const caseSensitive = this.fileService.hasCapability(target.resource, FileSystemProviderCapabilities.PathCaseSensitive);
 			if (targetStat.children) {
-				const ignoreCase = hasToIgnoreCase(target.resource);
 				targetStat.children.forEach(child => {
-					targetNames.add(ignoreCase ? child.name.toLowerCase() : child.name);
+					targetNames.add(caseSensitive ? child.name : child.name.toLowerCase());
 				});
-			}
-
-			const filtered = resources.filter(resource => targetNames.has(!hasToIgnoreCase(resource) ? basename(resource) : basename(resource).toLowerCase()));
-			const resourceExists = filtered.length >= 1;
-			if (resourceExists) {
-				const confirmationResult = await this.dialogService.confirm(fileOverwriteConfirm(basename(filtered[0])));
-				if (!confirmationResult.confirmed) {
-					return;
-				}
 			}
 
 			// Run add in sequence
 			const addPromisesFactory: ITask<Promise<void>>[] = [];
-			resources.forEach(resource => {
+			await Promise.all(resources.map(async resource => {
+				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
+					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
+					if (!confirmationResult.confirmed) {
+						return;
+					}
+				}
+
 				addPromisesFactory.push(async () => {
 					const sourceFile = resource;
 					const targetFile = joinPath(target.resource, basename(sourceFile));
@@ -907,13 +951,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					}
 
 					const copyTarget = joinPath(target.resource, basename(sourceFile));
-					const stat = await this.fileService.copy(sourceFile, copyTarget, true);
+					const stat = await this.textFileService.copy(sourceFile, copyTarget, true);
 					// if we only add one file, just open it directly
 					if (resources.length === 1 && !stat.isDirectory) {
 						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 					}
 				});
-			});
+			}));
 
 			await sequence(addPromisesFactory);
 		}
@@ -990,7 +1034,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const stat = await this.fileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
+			const stat = await this.textFileService.copy(source.resource, findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
 			if (!stat.isDirectory) {
 				await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
@@ -1010,13 +1054,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-				const confirm: IConfirmation = {
-					message: localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
-					detail: localize('irreversible', "This action is irreversible!"),
-					primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-					type: 'warning'
-				};
-
+				const confirm = getFileOverwriteConfirm(source.name);
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
@@ -1093,6 +1131,10 @@ function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Ele
 	}
 
 	return null;
+}
+
+export function isCompressedFolderName(target: HTMLElement | EventTarget | Element | null): boolean {
+	return !!getIconLabelNameFromHTMLElement(target);
 }
 
 export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {

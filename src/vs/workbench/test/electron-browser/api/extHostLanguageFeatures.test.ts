@@ -84,7 +84,7 @@ suite('ExtHostLanguageFeatures', function () {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol);
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -534,7 +534,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
+		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.equal(value.length, 2);
 		let [first, second] = value;
 		assert.equal(first.uri.path, '/second');
@@ -550,7 +550,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
+		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.equal(value.length, 1);
 		let [item] = value;
 		assert.deepEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
@@ -571,7 +571,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getReferencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
+		const value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.equal(value.length, 1);
 	});
 
@@ -589,7 +589,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
 		assert.equal(actions.length, 2);
 		const [first, second] = actions;
 		assert.equal(first.title, 'Testing1');
@@ -613,7 +613,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
 		assert.equal(actions.length, 1);
 		const [first] = actions;
 		assert.equal(first.title, 'Testing1');
@@ -636,7 +636,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
 		assert.equal(actions.length, 1);
 	});
 
@@ -654,7 +654,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
 		assert.equal(actions.length, 1);
 	});
 

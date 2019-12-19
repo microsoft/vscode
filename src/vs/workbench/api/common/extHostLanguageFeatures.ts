@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -26,6 +26,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 
 // --- adapter
@@ -387,6 +389,7 @@ class CodeActionAdapter {
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
 						isPreferred: candidate.isPreferred,
+						disabled: candidate.disabled?.reason
 					});
 				}
 			}
@@ -613,6 +616,121 @@ class RenameAdapter {
 	}
 }
 
+class SemanticTokensPreviousResult {
+	constructor(
+		public readonly resultId: string | undefined,
+		public readonly tokens?: Uint32Array,
+	) { }
+}
+
+export class SemanticTokensAdapter {
+
+	private readonly _previousResults: Map<number, SemanticTokensPreviousResult>;
+	private _nextResultId = 1;
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.SemanticTokensProvider,
+	) {
+		this._previousResults = new Map<number, SemanticTokensPreviousResult>();
+	}
+
+	provideSemanticTokens(resource: URI, ranges: IRange[] | null, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+		const doc = this._documents.getDocument(resource);
+		const previousResult = (previousResultId !== 0 ? this._previousResults.get(previousResultId) : null);
+		const opts: vscode.SemanticTokensRequestOptions = {
+			ranges: (Array.isArray(ranges) && ranges.length > 0 ? ranges.map<Range>(typeConvert.Range.to) : undefined),
+			previousResultId: (previousResult ? previousResult.resultId : undefined)
+		};
+		return asPromise(() => this._provider.provideSemanticTokens(doc, opts, token)).then(value => {
+			if (!value) {
+				return null;
+			}
+			if (previousResult) {
+				this._previousResults.delete(previousResultId);
+			}
+			return this._send(SemanticTokensAdapter._convertToEdits(previousResult, value), value);
+		});
+	}
+
+	async releaseSemanticColoring(semanticColoringResultId: number): Promise<void> {
+		this._previousResults.delete(semanticColoringResultId);
+	}
+
+	private static _isSemanticTokens(v: vscode.SemanticTokens | vscode.SemanticTokensEdits): v is vscode.SemanticTokens {
+		return v && !!((v as vscode.SemanticTokens).data);
+	}
+
+	private static _isSemanticTokensEdits(v: vscode.SemanticTokens | vscode.SemanticTokensEdits): v is vscode.SemanticTokensEdits {
+		return v && Array.isArray((v as vscode.SemanticTokensEdits).edits);
+	}
+
+	private static _convertToEdits(previousResult: SemanticTokensPreviousResult | null | undefined, newResult: vscode.SemanticTokens | vscode.SemanticTokensEdits): vscode.SemanticTokens | vscode.SemanticTokensEdits {
+		if (!SemanticTokensAdapter._isSemanticTokens(newResult)) {
+			return newResult;
+		}
+		if (!previousResult || !previousResult.tokens) {
+			return newResult;
+		}
+		const oldData = previousResult.tokens;
+		const oldLength = oldData.length;
+		const newData = newResult.data;
+		const newLength = newData.length;
+
+		let commonPrefixLength = 0;
+		const maxCommonPrefixLength = Math.min(oldLength, newLength);
+		while (commonPrefixLength < maxCommonPrefixLength && oldData[commonPrefixLength] === newData[commonPrefixLength]) {
+			commonPrefixLength++;
+		}
+
+		if (commonPrefixLength === oldLength && commonPrefixLength === newLength) {
+			// complete overlap!
+			return new SemanticTokensEdits([], newResult.resultId);
+		}
+
+		let commonSuffixLength = 0;
+		const maxCommonSuffixLength = maxCommonPrefixLength - commonPrefixLength;
+		while (commonSuffixLength < maxCommonSuffixLength && oldData[oldLength - commonSuffixLength - 1] === newData[newLength - commonSuffixLength - 1]) {
+			commonSuffixLength++;
+		}
+
+		return new SemanticTokensEdits([{
+			start: commonPrefixLength,
+			deleteCount: (oldLength - commonPrefixLength - commonSuffixLength),
+			data: newData.subarray(commonPrefixLength, newLength - commonSuffixLength)
+		}], newResult.resultId);
+	}
+
+	private _send(value: vscode.SemanticTokens | vscode.SemanticTokensEdits, original: vscode.SemanticTokens | vscode.SemanticTokensEdits): VSBuffer | null {
+		if (SemanticTokensAdapter._isSemanticTokens(value)) {
+			const myId = this._nextResultId++;
+			this._previousResults.set(myId, new SemanticTokensPreviousResult(value.resultId, value.data));
+			return encodeSemanticTokensDto({
+				id: myId,
+				type: 'full',
+				data: value.data
+			});
+		}
+
+		if (SemanticTokensAdapter._isSemanticTokensEdits(value)) {
+			const myId = this._nextResultId++;
+			if (SemanticTokensAdapter._isSemanticTokens(original)) {
+				// store the original
+				this._previousResults.set(myId, new SemanticTokensPreviousResult(original.resultId, original.data));
+			} else {
+				this._previousResults.set(myId, new SemanticTokensPreviousResult(value.resultId));
+			}
+			return encodeSemanticTokensDto({
+				id: myId,
+				type: 'delta',
+				deltas: (value.edits || []).map(edit => ({ start: edit.start, deleteCount: edit.deleteCount, data: edit.data }))
+			});
+		}
+
+		return null;
+	}
+}
+
 class SuggestAdapter {
 
 	static supportsResolving(provider: vscode.CompletionItemProvider): boolean {
@@ -622,11 +740,16 @@ class SuggestAdapter {
 	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
 	private _disposables = new Map<number, DisposableStore>();
 
+	private _didWarnMust: boolean = false;
+	private _didWarnShould: boolean = false;
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
 		private readonly _provider: vscode.CompletionItemProvider,
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		private readonly _telemetry: extHostProtocol.MainThreadTelemetryShape,
+		private readonly _extensionId: ExtensionIdentifier
 	) { }
 
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
@@ -691,10 +814,35 @@ class SuggestAdapter {
 			return Promise.resolve(undefined);
 		}
 
+		const _mustNotChange = SuggestAdapter._mustNotChangeHash(item);
+		const _mayNotChange = SuggestAdapter._mayNotChangeHash(item);
+
 		return asPromise(() => this._provider.resolveCompletionItem!(item, token)).then(resolvedItem => {
 
 			if (!resolvedItem) {
 				return undefined;
+			}
+
+			type BlameExtension = {
+				extensionId: string;
+				kind: string
+			};
+
+			type BlameExtensionMeta = {
+				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			};
+
+			if (!this._didWarnMust && _mustNotChange !== SuggestAdapter._mustNotChangeHash(resolvedItem)) {
+				this._logService.warn(`[${this._extensionId.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'must' });
+				this._didWarnMust = true;
+			}
+
+			if (!this._didWarnShould && _mayNotChange !== SuggestAdapter._mayNotChangeHash(resolvedItem)) {
+				this._logService.info(`[${this._extensionId.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'should' });
+				this._didWarnShould = true;
 			}
 
 			const pos = typeConvert.Position.to(position);
@@ -789,6 +937,16 @@ class SuggestAdapter {
 
 	private static _isValidRangeForCompletion(range: vscode.Range, position: vscode.Position): boolean {
 		return range.isSingleLine || range.start.line === position.line;
+	}
+
+	private static _mustNotChangeHash(item: vscode.CompletionItem) {
+		const args = [item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2];
+		const res = JSON.stringify(args);
+		return res;
+	}
+
+	private static _mayNotChangeHash(item: vscode.CompletionItem) {
+		return JSON.stringify([item.additionalTextEdits, item.command]);
 	}
 }
 
@@ -1042,18 +1200,23 @@ class CallHierarchyAdapter {
 		private readonly _provider: vscode.CallHierarchyProvider
 	) { }
 
-	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
+	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto[] | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
 
-		const item = await this._provider.prepareCallHierarchy(doc, pos, token);
-		if (!item) {
+		const items = await this._provider.prepareCallHierarchy(doc, pos, token);
+		if (!items) {
 			return undefined;
 		}
-		const sessionId = this._idPool.nextId();
 
+		const sessionId = this._idPool.nextId();
 		this._cache.set(sessionId, new Map());
-		return this._cacheAndConvertItem(sessionId, item);
+
+		if (Array.isArray(items)) {
+			return items.map(item => this._cacheAndConvertItem(sessionId, item));
+		} else {
+			return [this._cacheAndConvertItem(sessionId, items)];
+		}
 	}
 
 	async provideCallsTo(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IIncomingCallDto[] | undefined> {
@@ -1091,11 +1254,10 @@ class CallHierarchyAdapter {
 	}
 
 	releaseSession(sessionId: string): void {
-		this._cache.delete(sessionId.charAt(0));
+		this._cache.delete(sessionId);
 	}
 
-	private _cacheAndConvertItem(itemOrSessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
-		const sessionId = itemOrSessionId.charAt(0);
+	private _cacheAndConvertItem(sessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
 		const map = this._cache.get(sessionId)!;
 		const dto: extHostProtocol.ICallHierarchyItemDto = {
 			_sessionId: sessionId,
@@ -1113,15 +1275,16 @@ class CallHierarchyAdapter {
 
 	private _itemFromCache(sessionId: string, itemId: string): vscode.CallHierarchyItem | undefined {
 		const map = this._cache.get(sessionId);
-		return map && map.get(itemId);
+		return map?.get(itemId);
 	}
 }
 
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
-	| ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter | SelectionRangeAdapter | CallHierarchyAdapter;
+	| SemanticTokensAdapter | SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter
+	| ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter
+	| DeclarationAdapter | SelectionRangeAdapter | CallHierarchyAdapter;
 
 class AdapterData {
 	constructor(
@@ -1135,7 +1298,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	private static _handlePool: number = 0;
 
 	private readonly _uriTransformer: IURITransformer | null;
-	private _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
+	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
+	private readonly _telemetryShape: extHostProtocol.MainThreadTelemetryShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
 	private _diagnostics: ExtHostDiagnostics;
@@ -1152,6 +1316,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	) {
 		this._uriTransformer = uriTransformer;
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
+		this._telemetryShape = mainContext.getProxy(extHostProtocol.MainContext.MainThreadTelemetry);
 		this._documents = documents;
 		this._commands = commands;
 		this._diagnostics = diagnostics;
@@ -1445,10 +1610,28 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position, token), undefined);
 	}
 
+	//#region semantic coloring
+
+	registerSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+		const handle = this._addNewAdapter(new SemanticTokensAdapter(this._documents, provider), extension);
+		this._proxy.$registerSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
+		return this._createDisposable(handle);
+	}
+
+	$provideSemanticTokens(handle: number, resource: UriComponents, ranges: IRange[] | null, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+		return this._withAdapter(handle, SemanticTokensAdapter, adapter => adapter.provideSemanticTokens(URI.revive(resource), ranges, previousResultId, token), null);
+	}
+
+	$releaseSemanticTokens(handle: number, semanticColoringResultId: number): void {
+		this._withAdapter(handle, SemanticTokensAdapter, adapter => adapter.releaseSemanticColoring(semanticColoringResultId), undefined);
+	}
+
+	//#endregion
+
 	// --- suggestion
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService), extension);
+		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService, this._telemetryShape, extension.identifier), extension);
 		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
@@ -1549,7 +1732,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
+	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto[] | undefined> {
 		return this._withAdapter(handle, CallHierarchyAdapter, adapter => Promise.resolve(adapter.prepareSession(URI.revive(resource), position, token)), undefined);
 	}
 

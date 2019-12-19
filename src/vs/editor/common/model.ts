@@ -14,7 +14,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { MultilineTokens } from 'vs/editor/common/model/tokensStore';
+import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -386,7 +386,7 @@ export class TextModelResolvedOptions {
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
 	}) {
-		this.tabSize = src.tabSize | 0;
+		this.tabSize = Math.max(1, src.tabSize | 0);
 		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
@@ -793,6 +793,11 @@ export interface ITextModel {
 	setTokens(tokens: MultilineTokens[]): void;
 
 	/**
+	 * @internal
+	 */
+	setSemanticTokens(tokens: MultilineTokens2[] | null): void;
+
+	/**
 	 * Flush all tokenization state.
 	 * @internal
 	 */
@@ -893,7 +898,7 @@ export interface ITextModel {
 	 * @param position The position at which to start the search.
 	 * @internal
 	 */
-	findEnclosingBrackets(position: IPosition): [Range, Range] | null;
+	findEnclosingBrackets(position: IPosition, maxDuration?: number): [Range, Range] | null;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,

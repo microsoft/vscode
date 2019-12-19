@@ -13,7 +13,7 @@ import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/mode
 import * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -289,20 +289,27 @@ export namespace MarkdownString {
 		if (!data) {
 			return part;
 		}
+		let changed = false;
 		data = cloneAndChange(data, value => {
 			if (URI.isUri(value)) {
 				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
 				bucket[key] = value;
+				changed = true;
 				return key;
 			} else {
 				return undefined;
 			}
 		});
-		return encodeURIComponent(JSON.stringify(data));
+
+		if (!changed) {
+			return part;
+		}
+
+		return JSON.stringify(data);
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		return new htmlContent.MarkdownString(value.value, value.isTrusted);
+		return new htmlContent.MarkdownString(value.value, { isTrusted: value.isTrusted, supportThemeIcons: value.supportThemeIcons });
 	}
 
 	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {

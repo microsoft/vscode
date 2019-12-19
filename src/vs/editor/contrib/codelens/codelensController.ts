@@ -223,9 +223,16 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}));
 		this._localToDispose.add(this._editor.onMouseUp(e => {
-			if (e.target.type === editorBrowser.MouseTargetType.CONTENT_WIDGET && e.target.element && e.target.element.tagName === 'A') {
+			if (e.target.type !== editorBrowser.MouseTargetType.CONTENT_WIDGET) {
+				return;
+			}
+			let target = e.target.element;
+			if (target?.tagName === 'SPAN') {
+				target = target.parentElement;
+			}
+			if (target?.tagName === 'A') {
 				for (const lens of this._lenses) {
-					let command = lens.getCommand(e.target.element as HTMLLinkElement);
+					let command = lens.getCommand(target as HTMLLinkElement);
 					if (command) {
 						this._commandService.executeCommand(command.id, ...(command.arguments || [])).catch(err => this._notificationService.error(err));
 						break;
@@ -293,7 +300,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
+						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], <editorBrowser.IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -307,7 +314,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLensWidget(groups[groupsIndex], this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
+					this._lenses.push(new CodeLensWidget(groups[groupsIndex], <editorBrowser.IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
 					groupsIndex++;
 				}
 
@@ -360,7 +367,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				});
 
 				return Promise.all(promises).then(() => {
-					if (!token.isCancellationRequested) {
+					if (!token.isCancellationRequested && !lenses[i].isDisposed()) {
 						lenses[i].updateCommands(resolvedSymbols);
 					}
 				});

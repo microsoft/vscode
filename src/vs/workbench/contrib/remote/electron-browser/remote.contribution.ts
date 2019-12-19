@@ -390,16 +390,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
 						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
-						default: 'ui',
+						default: ['ui'],
 					},
 				},
 				default: {
-					'pub.name': 'ui'
+					'pub.name': ['ui']
 				}
 			},
 			'remote.downloadExtensionsLocally': {
 				type: 'boolean',
 				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),
+				default: false
+			},
+			'remote.restoreForwardedPorts': {
+				type: 'boolean',
+				markdownDescription: nls.localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
 				default: false
 			}
 		}

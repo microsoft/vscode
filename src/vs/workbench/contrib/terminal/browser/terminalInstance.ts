@@ -138,8 +138,18 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.debug.stepInto',
 	'workbench.action.debug.stepOut',
 	'workbench.action.debug.stepOver',
+	'workbench.action.nextEditor',
+	'workbench.action.previousEditor',
+	'workbench.action.nextEditorInGroup',
+	'workbench.action.previousEditorInGroup',
+	'workbench.action.openNextRecentlyUsedEditor',
+	'workbench.action.openPreviousRecentlyUsedEditor',
 	'workbench.action.openNextRecentlyUsedEditorInGroup',
 	'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+	'workbench.action.quickOpenNextRecentlyUsedEditor',
+	'workbench.action.quickOpenPreviousRecentlyUsedEditor',
+	'workbench.action.quickOpenNextRecentlyUsedEditorInGroup',
+	'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
 	'workbench.action.focusActiveEditorGroup',
 	'workbench.action.focusFirstEditorGroup',
 	'workbench.action.focusLastEditorGroup',
@@ -369,12 +379,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// when window.devicePixelRatio changes.
 		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
 
-		let scaledCharWidth: number;
-		if (this._configHelper.config.rendererType === 'dom') {
-			scaledCharWidth = font.charWidth * window.devicePixelRatio;
-		} else {
-			scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
-		}
+		const scaledCharWidth = font.charWidth * window.devicePixelRatio + font.letterSpacing;
 		const newCols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
@@ -464,6 +469,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fontSize: font.fontSize,
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
+			minimumContrastRatio: config.minimumContrastRatio,
 			bellStyle: config.enableBell ? 'sound' : 'none',
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
@@ -471,7 +477,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType
+			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType,
+			wordSeparator: ' ()[]{}\',:;"`'
 		});
 		this._xterm = xterm;
 		this._xtermCore = (xterm as any)._core as XTermCore;
@@ -589,7 +596,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// within commandsToSkipShell
 				const standardKeyboardEvent = new StandardKeyboardEvent(event);
 				const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
-				const allowChords = resolveResult && resolveResult.enterChord && this._configHelper.config.allowChords;
+				// Respect chords if the allowChords setting is set and it's not Escape. Escape is
+				// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
+				// terminals generally
+				const allowChords = resolveResult && resolveResult.enterChord && this._configHelper.config.allowChords && event.key !== 'Escape';
 				if (allowChords || resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 					event.preventDefault();
 					return false;
@@ -599,6 +609,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 					return false;
 				}
+
 				// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
 				// system
 				if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
@@ -1219,6 +1230,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
 		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
+		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');

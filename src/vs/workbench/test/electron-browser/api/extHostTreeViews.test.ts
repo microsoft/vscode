@@ -75,7 +75,7 @@ suite('ExtHostTreeView', function () {
 			rpcProtocol,
 			new NullLogService()
 		), new NullLogService());
-		onDidChangeTreeNode = new Emitter<{ key: string }>();
+		onDidChangeTreeNode = new Emitter<{ key: string } | undefined>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
 		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
 		testObject.createTreeView('testNodeWithIdTreeProvider', { treeDataProvider: aNodeWithIdTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
