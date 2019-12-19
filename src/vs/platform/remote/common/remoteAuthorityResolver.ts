@@ -18,7 +18,7 @@ export interface ResolvedOptions {
 }
 
 export interface TunnelInformation {
-	detectedTunnels?: { remote: { port: number, host: string }, localAddress: string }[];
+	environmentTunnels?: { remoteAddress: { port: number, host: string }, localAddress: string }[];
 }
 
 export interface ResolverResult {

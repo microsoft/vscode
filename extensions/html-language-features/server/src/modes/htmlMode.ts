@@ -7,9 +7,9 @@ import { getLanguageModelCache } from '../languageModelCache';
 import {
 	LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions,
 	HTMLFormatConfiguration, SelectionRange,
-	TextDocument, Position, Range, CompletionItem, FoldingRange
-} from 'vscode-html-languageservice';
-import { LanguageMode, Workspace } from './languageModes';
+	TextDocument, Position, Range, CompletionItem, FoldingRange,
+	LanguageMode, Workspace
+} from './languageModes';
 import { getPathCompletionParticipant } from './pathCompletion';
 
 export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {

@@ -508,7 +508,7 @@ class ShowAllSymbolsAction extends Action {
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
 	SearchViewlet,
 	VIEWLET_ID,
-	nls.localize('name', "Search"),
+	VIEW_CONTAINER.name,
 	'codicon-search',
 	1
 ));

@@ -381,12 +381,13 @@ function registerDefaultClassifications(): void {
 	registerTokenType('parameterType', nls.localize('parameterType', "Style for parameter types."), undefined, 'type');
 
 	registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
+	registerTokenType('member', nls.localize('member', "Style for member"), [['entity.name.function'], ['support.function']]);
 	registerTokenType('macro', nls.localize('macro', "Style for macros."), undefined, 'function');
 
 	registerTokenType('variable', nls.localize('variable', "Style for variables."), [['variable'], ['entity.name.variable']]);
 	registerTokenType('constant', nls.localize('constant', "Style for constants."), undefined, 'variable');
 	registerTokenType('parameter', nls.localize('parameter', "Style for parameters."), undefined, 'variable');
-	registerTokenType('property', nls.localize('propertie', "Style for properties."), undefined, 'variable');
+	registerTokenType('property', nls.localize('property', "Style for properties."), undefined, 'variable');
 
 	registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
 
@@ -394,7 +395,7 @@ function registerDefaultClassifications(): void {
 
 	tokenClassificationRegistry.registerTokenModifier('declaration', nls.localize('declaration', "Style for all symbol declarations."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('documentation', nls.localize('documentation', "Style to use for references in documentation."), undefined);
-	tokenClassificationRegistry.registerTokenModifier('member', nls.localize('member', "Style to use for member functions, variables (fields) and types."), undefined);
+	//tokenClassificationRegistry.registerTokenModifier('member', nls.localize('member', "Style to use for member functions, variables (fields) and types."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('static', nls.localize('static', "Style to use for symbols that are static."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('abstract', nls.localize('abstract', "Style to use for symbols that are abstract."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);

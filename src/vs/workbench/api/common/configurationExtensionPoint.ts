@@ -218,6 +218,8 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 					propertyConfiguration.scope = ConfigurationScope.RESOURCE;
 				} else if (propertyConfiguration.scope.toString() === 'machine-overridable') {
 					propertyConfiguration.scope = ConfigurationScope.MACHINE_OVERRIDABLE;
+				} else if (propertyConfiguration.scope.toString() === 'resource-language') {
+					propertyConfiguration.scope = ConfigurationScope.RESOURCE_LANGUAGE;
 				} else {
 					propertyConfiguration.scope = ConfigurationScope.WINDOW;
 				}

@@ -299,5 +299,16 @@
 				"Run Unit Tests"
 			]
 		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "HTML Unit Tests",
+			"program": "${workspaceFolder}/extensions/html-language-features/server/node_modules/mocha/bin/_mocha",
+			"stopOnEntry": false,
+			"cwd": "${workspaceFolder}/extensions/html-language-features/server",
+			"outFiles": [
+				"${workspaceFolder}/extensions/html-language-features/server/out/**/*.js"
+			]
+		},
 	]
 }
