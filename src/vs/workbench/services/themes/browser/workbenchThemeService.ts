@@ -302,7 +302,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (e.affectsConfiguration(COLOR_THEME_SETTING)) {
 				let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
 				if (colorThemeSetting !== this.currentColorTheme.settingsId) {
-					this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, DEFAULT_THEME_ID).then(theme => {
+					this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, undefined).then(theme => {
 						if (theme) {
 							this.setColorTheme(theme.id, undefined);
 						}
@@ -310,7 +310,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				}
 			}
 			if (e.affectsConfiguration(DETECT_COLOR_SCHEME_SETTING)) {
-				this.preferredSchemeUpdated();
+				this.handlePreferredSchemeUpdated();
 			}
 			if (e.affectsConfiguration(PREFERRED_DARK_THEME_SETTING) && this.getPreferredColorScheme() === DARK) {
 				this.applyPreferredColorTheme(DARK);
@@ -354,10 +354,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	// preferred scheme handling
 
 	private installPreferredSchemeListener() {
-		window.matchMedia('(prefers-color-scheme: dark)').addListener(async () => this.preferredSchemeUpdated());
+		window.matchMedia('(prefers-color-scheme: dark)').addListener(async () => this.handlePreferredSchemeUpdated());
 	}
 
-	private async preferredSchemeUpdated() {
+	private async handlePreferredSchemeUpdated() {
 		const scheme = this.getPreferredColorScheme();
 		this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL);
 		if (scheme) {
@@ -390,7 +390,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				return this.setColorTheme(theme.id, 'auto');
 			}
 		}
-		return Promise.resolve(null);
+		return null;
 	}
 
 	public getColorTheme(): IColorTheme {
@@ -419,7 +419,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (!themeData) {
 				return null;
 			}
-			this.configurationService.updateValue(COLOR_THEME_SETTING, themeData.settingsId);
 			return themeData.ensureLoaded(this.extensionResourceLoaderService).then(_ => {
 				if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 					this.currentColorTheme.clearCaches();
@@ -453,7 +452,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	public restoreColorTheme() {
 		let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
 		if (colorThemeSetting !== this.currentColorTheme.settingsId) {
-			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, DEFAULT_THEME_ID).then(theme => {
+			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, undefined).then(theme => {
 				if (theme) {
 					this.setColorTheme(theme.id, undefined);
 				}
