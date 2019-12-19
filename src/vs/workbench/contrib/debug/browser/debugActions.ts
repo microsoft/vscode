@@ -79,8 +79,7 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	private updateClass(): void {
 		const configurationManager = this.debugService.getConfigurationManager();
-		const configurationCount = configurationManager.getLaunches().map(l => l.getConfigurationNames().length).reduce((sum, current) => sum + current);
-		this.class = configurationCount > 0 ? 'debug-action codicon codicon-gear' : 'debug-action codicon codicon-gear notification';
+		this.class = configurationManager.selectedConfiguration.name ? 'debug-action codicon codicon-gear' : 'debug-action codicon codicon-gear notification';
 	}
 
 	async run(event?: any): Promise<any> {
@@ -145,7 +144,7 @@ export class StartAction extends AbstractDebugAction {
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if ((sessions.length > 0) && debugService.getConfigurationManager().getLaunches().every(l => l.getConfigurationNames().length === 0)) {
+		if ((sessions.length > 0) && !debugService.getConfigurationManager().selectedConfiguration.name) {
 			// There is already a debug session running and we do not have any launch configuration selected
 			return false;
 		}
