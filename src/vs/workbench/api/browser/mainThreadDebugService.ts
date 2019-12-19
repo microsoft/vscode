@@ -141,7 +141,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist);
+				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes);
 			}
 		}
 		return Promise.resolve();
@@ -336,7 +336,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					condition: dbp.condition,
 					hitCondition: dbp.hitCondition,
 					logMessage: dbp.logMessage,
-					label: dbp.label,
+					label: dbp.description,
 					canPersist: dbp.canPersist
 				};
 			} else {

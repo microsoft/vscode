@@ -108,7 +108,7 @@
 }
 
 .debug-viewlet .disabled {
-	opacity: 0.35;
+	opacity: 0.65;
 }
 
 /* Call stack */
@@ -372,10 +372,6 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-}
-
-.debug-viewlet .debug-breakpoints .breakpoint > .codicon-debug-breakpoint-stackframe-dot::before {
-	content: "\ea71";
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

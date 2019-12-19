@@ -87,6 +87,20 @@ interface ISerializedPreferencesEditorInput {
 // Register Preferences Editor Input Factory
 class PreferencesEditorInputFactory implements IEditorInputFactory {
 
+	canSerialize(editorInput: EditorInput): boolean {
+		const input = <PreferencesEditorInput>editorInput;
+
+		if (input.details && input.master) {
+			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
+			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
+			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
+
+			return !!(detailsInputFactory?.canSerialize(input.details) && masterInputFactory?.canSerialize(input.master));
+		}
+
+		return false;
+	}
+
 	serialize(editorInput: EditorInput): string | undefined {
 		const input = <PreferencesEditorInput>editorInput;
 
@@ -137,6 +151,10 @@ class PreferencesEditorInputFactory implements IEditorInputFactory {
 
 class KeybindingsEditorInputFactory implements IEditorInputFactory {
 
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
+
 	serialize(editorInput: EditorInput): string {
 		const input = <KeybindingsEditorInput>editorInput;
 		return JSON.stringify({
@@ -150,21 +168,18 @@ class KeybindingsEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-interface ISerializedSettingsEditor2EditorInput {
-}
-
 class SettingsEditor2InputFactory implements IEditorInputFactory {
 
-	serialize(input: SettingsEditor2Input): string {
-		const serialized: ISerializedSettingsEditor2EditorInput = {
-		};
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
 
-		return JSON.stringify(serialized);
+	serialize(input: SettingsEditor2Input): string {
+		return '{}';
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
-		return instantiationService.createInstance(
-			SettingsEditor2Input);
+		return instantiationService.createInstance(SettingsEditor2Input);
 	}
 }
 
@@ -174,6 +189,10 @@ interface ISerializedDefaultPreferencesEditorInput {
 
 // Register Default Preferences Editor Input Factory
 class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
+
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
 
 	serialize(editorInput: EditorInput): string {
 		const input = <DefaultPreferencesEditorInput>editorInput;

@@ -17,7 +17,8 @@ import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getHTMLMode } from './htmlMode';
 import { getJavaScriptMode } from './javascriptMode';
 
-export { ColorInformation, ColorPresentation, Color };
+export * from 'vscode-html-languageservice';
+export { WorkspaceFolder } from 'vscode-languageserver';
 
 export interface Settings {
 	css?: any;
@@ -51,6 +52,8 @@ export interface LanguageMode {
 	findMatchingTagPosition?: (document: TextDocument, position: Position) => Position | null;
 	getFoldingRanges?: (document: TextDocument) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
+	getSemanticTokens?(document: TextDocument, ranges: Range[] | undefined): number[];
+	getSemanticTokenLegend?(): { types: string[], modifiers: string[] };
 	dispose(): void;
 }
 

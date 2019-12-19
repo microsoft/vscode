@@ -48,6 +48,7 @@ import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 
 
 export interface IContentWidgetData {
@@ -244,8 +245,10 @@ export class View extends ViewEventHandler {
 				this.focus();
 			},
 
-			getLastViewCursorsRenderData: () => {
-				return this.viewCursors.getLastRenderData() || [];
+			getLastRenderData: (): PointerHandlerLastRenderData => {
+				const lastViewCursorsRenderData = this.viewCursors.getLastRenderData() || [];
+				const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
+				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
 			},
 			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
 				return this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
@@ -457,7 +460,11 @@ export class View extends ViewEventHandler {
 	}
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
-		return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+		const mouseTarget = this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+		if (!mouseTarget) {
+			return null;
+		}
+		return ViewOutgoingEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
 	}
 
 	public createOverviewRuler(cssClassName: string): OverviewRuler {

@@ -60,6 +60,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalHasArrows: input.verticalScrollbarHasArrows,
 			horizontalHasArrows: false,
 			handleMouseWheel: EditorOptions.scrollbar.defaultValue.handleMouseWheel,
+			alwaysConsumeMouseWheel: true,
 			horizontalScrollbarSize: input.horizontalScrollbarHeight,
 			horizontalSliderSize: EditorOptions.scrollbar.defaultValue.horizontalSliderSize,
 			verticalScrollbarSize: input.verticalScrollbarWidth,

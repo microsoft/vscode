@@ -11,7 +11,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelDescriptor, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, LOG_SCHEME, CONTEXT_ACTIVE_LOG_OUTPUT, LOG_MIME, OUTPUT_MIME } from 'vs/workbench/contrib/output/common/output';
+import { IOutputChannel, IOutputService, OUTPUT_PANEL_ID, OUTPUT_SCHEME, LOG_SCHEME, CONTEXT_ACTIVE_LOG_OUTPUT, LOG_MIME, OUTPUT_MIME } from 'vs/workbench/contrib/output/common/output';
+import { IOutputChannelDescriptor, Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
 import { OutputPanel } from 'vs/workbench/contrib/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/common/outputLinkProvider';

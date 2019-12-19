@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { isUndefinedOrNull, withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -181,7 +181,7 @@ export interface IEditorInputFactoryRegistry {
 	 * @param editorInputId the identifier of the editor input
 	 * @param factory the editor input factory for serialization/deserialization
 	 */
-	registerEditorInputFactory<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputFactory }): void;
+	registerEditorInputFactory<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputFactory }): IDisposable;
 
 	/**
 	 * Returns the editor input factory for the given editor input.
@@ -197,6 +197,11 @@ export interface IEditorInputFactoryRegistry {
 }
 
 export interface IEditorInputFactory {
+
+	/**
+	 * Determines wether the given editor input can be serialized by the factory.
+	 */
+	canSerialize(editorInput: IEditorInput): boolean;
 
 	/**
 	 * Returns a string representation of the provided editor input that contains enough information
@@ -290,12 +295,26 @@ export const enum SaveReason {
 	WINDOW_CHANGE = 4
 }
 
+export const enum SaveContext {
+
+	/**
+	 * Indicates that the editor is saved because it
+	 * is being closed by the user.
+	 */
+	EDITOR_CLOSE = 1,
+}
+
 export interface ISaveOptions {
 
 	/**
 	 * An indicator how the save operation was triggered.
 	 */
 	reason?: SaveReason;
+
+	/**
+	 * Additional information about the context of the save.
+	 */
+	context?: SaveContext;
 
 	/**
 	 * Forces to load the contents of the working copy
@@ -397,11 +416,6 @@ export interface IEditorInput extends IDisposable {
 	 * and re-open it in the correct group after saving.
 	 */
 	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean>;
-
-	/**
-	 * Handles when the input is replaced, such as by renaming its backing resource.
-	 */
-	handleMove?(groupId: GroupIdentifier, uri: URI, options?: ITextEditorOptions): IEditorInput | undefined;
 
 	/**
 	 * Reverts this input.
@@ -553,10 +567,10 @@ export abstract class TextEditorInput extends EditorInput {
 	}
 
 	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, () => this.textFileService.saveAs(this.resource, undefined, options));
+		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options));
 	}
 
-	protected async doSaveAs(group: GroupIdentifier, saveRunnable: () => Promise<URI | undefined>, replaceAllEditors?: boolean): Promise<boolean> {
+	protected async doSaveAs(group: GroupIdentifier, options: ISaveOptions | undefined, saveRunnable: () => Promise<URI | undefined>, replaceAllEditors?: boolean): Promise<boolean> {
 
 		// Preserve view state by opening the editor first. In addition
 		// this allows the user to review the contents of the editor.
@@ -574,7 +588,9 @@ export abstract class TextEditorInput extends EditorInput {
 
 		// Replace editor preserving viewstate (either across all groups or
 		// only selected group) if the target is different from the current resource
-		if (!isEqual(target, this.resource)) {
+		// and if the editor is not being saved because it is being closed
+		// (because in that case we do not want to open a different editor anyway)
+		if (options?.context !== SaveContext.EDITOR_CLOSE && !isEqual(target, this.resource)) {
 			const replacement = this.editorService.createInput({ resource: target });
 			const targetGroups = replaceAllEditors ? this.editorGroupService.groups.map(group => group.id) : [group];
 			for (const group of targetGroups) {
@@ -602,12 +618,12 @@ export const enum EncodingMode {
 export interface IEncodingSupport {
 
 	/**
-	 * Gets the encoding of the input if known.
+	 * Gets the encoding of the type if known.
 	 */
 	getEncoding(): string | undefined;
 
 	/**
-	 * Sets the encoding for the input for saving.
+	 * Sets the encoding for the type for saving.
 	 */
 	setEncoding(encoding: string, mode: EncodingMode): void;
 }
@@ -615,7 +631,7 @@ export interface IEncodingSupport {
 export interface IModeSupport {
 
 	/**
-	 * Sets the language mode of the input.
+	 * Sets the language mode of the type.
 	 */
 	setMode(mode: string): void;
 }
@@ -1155,10 +1171,20 @@ interface IEditorPartConfiguration {
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 	splitSizing?: 'split' | 'distribute';
+	limit?: {
+		enabled?: boolean;
+		value?: number;
+		perEditorGroup?: boolean;
+	};
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
 	iconTheme?: string;
+}
+
+export interface IEditorPartOptionsChangeEvent {
+	oldPartOptions: IEditorPartOptions;
+	newPartOptions: IEditorPartOptions;
 }
 
 export enum SideBySideEditor {
@@ -1216,6 +1242,7 @@ export interface IEditorMemento<T> {
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 	private fileInputFactory: IFileInputFactory | undefined;
+
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
 
@@ -1242,12 +1269,18 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		return assertIsDefined(this.fileInputFactory);
 	}
 
-	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
+	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {
 		if (!this.instantiationService) {
 			this.editorInputFactoryConstructors.set(editorInputId, ctor);
 		} else {
 			this.createEditorInputFactory(editorInputId, ctor, this.instantiationService);
+
 		}
+
+		return toDisposable(() => {
+			this.editorInputFactoryConstructors.delete(editorInputId);
+			this.editorInputFactoryInstances.delete(editorInputId);
+		});
 	}
 
 	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined {

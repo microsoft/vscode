@@ -10,6 +10,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextResourcePropertiesService, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 
 class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
@@ -18,6 +19,8 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 	constructor(
 		@IKeybindingService private readonly keybindingsService: IKeybindingService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 	) { }
 
 	public async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
@@ -29,11 +32,19 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 	}
 
 	async resolveFormattingOptions(resource: URI): Promise<FormattingOptions> {
-		const modelReference = await this.textModelService.createModelReference(resource);
-		const { insertSpaces, tabSize } = modelReference.object.textEditorModel.getOptions();
-		const eol = modelReference.object.textEditorModel.getEOL();
-		modelReference.dispose();
-		return { eol, insertSpaces, tabSize };
+		try {
+			const modelReference = await this.textModelService.createModelReference(resource);
+			const { insertSpaces, tabSize } = modelReference.object.textEditorModel.getOptions();
+			const eol = modelReference.object.textEditorModel.getEOL();
+			modelReference.dispose();
+			return { eol, insertSpaces, tabSize };
+		} catch (e) {
+		}
+		return {
+			eol: this.textResourcePropertiesService.getEOL(resource),
+			insertSpaces: this.textResourceConfigurationService.getValue<boolean>(resource, 'editor.insertSpaces'),
+			tabSize: this.textResourceConfigurationService.getValue(resource, 'editor.tabSize')
+		};
 	}
 }
 

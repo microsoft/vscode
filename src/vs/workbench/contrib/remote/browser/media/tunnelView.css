@@ -6,7 +6,3 @@
 .customview-tree .tunnel-view-label {
 	flex: 1;
 }
-
-.customview-tree .tunnel-view-label .action-label.codicon {
-	margin-top: 4px;
-}

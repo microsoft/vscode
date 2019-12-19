@@ -44,6 +44,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(runtimeExtensionsEditorDescriptor, [new SyncDescriptor(RuntimeExtensionsInput)]);
 
 class RuntimeExtensionsInputFactory implements IEditorInputFactory {
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
 	serialize(editorInput: EditorInput): string {
 		return '';
 	}

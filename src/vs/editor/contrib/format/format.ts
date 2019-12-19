@@ -10,7 +10,7 @@ import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/error
 import { URI } from 'vs/base/common/uri';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerLanguageCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -25,6 +25,8 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { assertType } from 'vs/base/common/types';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -354,11 +356,11 @@ export function getOnTypeFormattingEdits(
 	});
 }
 
-registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args) {
-	const { resource, range, options } = args;
-	if (!(resource instanceof URI) || !Range.isIRange(range)) {
-		throw illegalArgument();
-	}
+CommandsRegistry.registerCommand('_executeFormatRangeProvider', function (accessor, ...args) {
+	const [resource, range, options] = args;
+	assertType(URI.isUri(resource));
+	assertType(Range.isIRange(range));
+
 	const model = accessor.get(IModelService).getModel(resource);
 	if (!model) {
 		throw illegalArgument('resource');
@@ -366,11 +368,10 @@ registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args)
 	return getDocumentRangeFormattingEditsUntilResult(accessor.get(IEditorWorkerService), model, Range.lift(range), options, CancellationToken.None);
 });
 
-registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, args) {
-	const { resource, options } = args;
-	if (!(resource instanceof URI)) {
-		throw illegalArgument('resource');
-	}
+CommandsRegistry.registerCommand('_executeFormatDocumentProvider', function (accessor, ...args) {
+	const [resource, options] = args;
+	assertType(URI.isUri(resource));
+
 	const model = accessor.get(IModelService).getModel(resource);
 	if (!model) {
 		throw illegalArgument('resource');
@@ -379,11 +380,12 @@ registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, ar
 	return getDocumentFormattingEditsUntilResult(accessor.get(IEditorWorkerService), model, options, CancellationToken.None);
 });
 
-registerLanguageCommand('_executeFormatOnTypeProvider', function (accessor, args) {
-	const { resource, position, ch, options } = args;
-	if (!(resource instanceof URI) || !Position.isIPosition(position) || typeof ch !== 'string') {
-		throw illegalArgument();
-	}
+CommandsRegistry.registerCommand('_executeFormatOnTypeProvider', function (accessor, ...args) {
+	const [resource, position, ch, options] = args;
+	assertType(URI.isUri(resource));
+	assertType(Position.isIPosition(position));
+	assertType(typeof ch === 'string');
+
 	const model = accessor.get(IModelService).getModel(resource);
 	if (!model) {
 		throw illegalArgument('resource');

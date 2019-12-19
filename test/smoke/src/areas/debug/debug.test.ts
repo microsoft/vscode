@@ -17,7 +17,7 @@ export function setup() {
 
 			await app.workbench.debug.openDebugViewlet();
 			await app.workbench.quickopen.openFile('app.js');
-			await app.workbench.debug.configure();
+			await app.workbench.quickopen.runCommand('Debug: Open launch.json');
 
 			const launchJsonPath = path.join(app.workspacePathOrFolder, '.vscode', 'launch.json');
 			const content = fs.readFileSync(launchJsonPath, 'utf8');

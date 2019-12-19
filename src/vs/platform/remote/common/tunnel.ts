@@ -6,14 +6,26 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ITunnelService = createDecorator<ITunnelService>('tunnelService');
 
 export interface RemoteTunnel {
 	readonly tunnelRemotePort: number;
-	readonly tunnelLocalPort: number;
-	readonly localAddress?: string;
+	readonly tunnelRemoteHost: string;
+	readonly tunnelLocalPort?: number;
+	readonly localAddress: string;
 	dispose(): void;
+}
+
+export interface TunnelOptions {
+	remoteAddress: { port: number, host: string };
+	localPort?: number;
+	label?: string;
+}
+
+export interface ITunnelProvider {
+	forwardPort(tunnelOptions: TunnelOptions): Promise<RemoteTunnel> | undefined;
 }
 
 export interface ITunnelService {
@@ -21,10 +33,11 @@ export interface ITunnelService {
 
 	readonly tunnels: Promise<readonly RemoteTunnel[]>;
 	readonly onTunnelOpened: Event<RemoteTunnel>;
-	readonly onTunnelClosed: Event<number>;
+	readonly onTunnelClosed: Event<{ host: string, port: number }>;
 
-	openTunnel(remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
-	closeTunnel(remotePort: number): Promise<void>;
+	openTunnel(remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined;
+	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
+	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable;
 }
 
 export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string, port: number } | undefined {

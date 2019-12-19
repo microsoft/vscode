@@ -7,13 +7,14 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostDocumentsAndEditors', () => {
 
 	let editors: ExtHostDocumentsAndEditors;
 
 	setup(function () {
-		editors = new ExtHostDocumentsAndEditors(new TestRPCProtocol());
+		editors = new ExtHostDocumentsAndEditors(new TestRPCProtocol(), new NullLogService());
 	});
 
 	test('The value of TextDocument.isClosed is incorrect when a text document is closed, #27949', () => {

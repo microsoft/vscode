@@ -59,7 +59,7 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
 		const localResults = this.getLocalResults(query);
 
@@ -83,7 +83,11 @@ export class SearchService extends Disposable implements ISearchService {
 			}
 		};
 
-		return this.doSearch(query, token, onProviderProgress);
+		const otherResults = await this.doSearch(query, token, onProviderProgress);
+		return {
+			...otherResults,
+			results: [...otherResults.results, ...arrays.coalesce(localResults.values())]
+		};
 	}
 
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
@@ -406,6 +410,11 @@ export class SearchService extends Disposable implements ISearchService {
 
 				// Block walkthrough, webview, etc.
 				else if (!this.fileService.canHandleResource(resource)) {
+					return;
+				}
+
+				// Exclude files from the git FileSystemProvider, e.g. to prevent open staged files from showing in search results
+				if (resource.scheme === 'gitfs') {
 					return;
 				}
 

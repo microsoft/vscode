@@ -11,35 +11,39 @@ import { ITextFileEditorModel, ITextFileEditorModelManager, TextFileModelChangeE
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
+import { IFileService, FileChangesEvent } from 'vs/platform/files/common/files';
+import { distinct, coalesce } from 'vs/base/common/arrays';
+import { ResourceQueue } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
-	private readonly _onModelDisposed: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onModelDisposed: Event<URI> = this._onModelDisposed.event;
+	private readonly _onModelDisposed = this._register(new Emitter<URI>());
+	readonly onModelDisposed = this._onModelDisposed.event;
 
-	private readonly _onModelContentChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	readonly onModelContentChanged: Event<TextFileModelChangeEvent> = this._onModelContentChanged.event;
+	private readonly _onModelContentChanged = this._register(new Emitter<TextFileModelChangeEvent>());
+	readonly onModelContentChanged = this._onModelContentChanged.event;
 
-	private readonly _onModelDirty: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	readonly onModelDirty: Event<TextFileModelChangeEvent> = this._onModelDirty.event;
+	private readonly _onModelDirty = this._register(new Emitter<TextFileModelChangeEvent>());
+	readonly onModelDirty = this._onModelDirty.event;
 
-	private readonly _onModelSaveError: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	readonly onModelSaveError: Event<TextFileModelChangeEvent> = this._onModelSaveError.event;
+	private readonly _onModelSaveError = this._register(new Emitter<TextFileModelChangeEvent>());
+	readonly onModelSaveError = this._onModelSaveError.event;
 
-	private readonly _onModelSaved: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	readonly onModelSaved: Event<TextFileModelChangeEvent> = this._onModelSaved.event;
+	private readonly _onModelSaved = this._register(new Emitter<TextFileModelChangeEvent>());
+	readonly onModelSaved = this._onModelSaved.event;
 
-	private readonly _onModelReverted: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	readonly onModelReverted: Event<TextFileModelChangeEvent> = this._onModelReverted.event;
+	private readonly _onModelReverted = this._register(new Emitter<TextFileModelChangeEvent>());
+	readonly onModelReverted = this._onModelReverted.event;
 
-	private readonly _onModelEncodingChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	readonly onModelEncodingChanged: Event<TextFileModelChangeEvent> = this._onModelEncodingChanged.event;
+	private readonly _onModelEncodingChanged = this._register(new Emitter<TextFileModelChangeEvent>());
+	readonly onModelEncodingChanged = this._onModelEncodingChanged.event;
 
-	private readonly _onModelOrphanedChanged: Emitter<TextFileModelChangeEvent> = this._register(new Emitter<TextFileModelChangeEvent>());
-	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent> = this._onModelOrphanedChanged.event;
+	private readonly _onModelOrphanedChanged = this._register(new Emitter<TextFileModelChangeEvent>());
+	readonly onModelOrphanedChanged = this._onModelOrphanedChanged.event;
 
-	private _onModelsDirty: Event<readonly TextFileModelChangeEvent[]> | undefined;
-	get onModelsDirty(): Event<readonly TextFileModelChangeEvent[]> {
+	private _onModelsDirty: Event<ReadonlyArray<TextFileModelChangeEvent>> | undefined;
+	get onModelsDirty(): Event<ReadonlyArray<TextFileModelChangeEvent>> {
 		if (!this._onModelsDirty) {
 			this._onModelsDirty = this.debounce(this.onModelDirty);
 		}
@@ -47,8 +51,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this._onModelsDirty;
 	}
 
-	private _onModelsSaveError: Event<readonly TextFileModelChangeEvent[]> | undefined;
-	get onModelsSaveError(): Event<readonly TextFileModelChangeEvent[]> {
+	private _onModelsSaveError: Event<ReadonlyArray<TextFileModelChangeEvent>> | undefined;
+	get onModelsSaveError(): Event<ReadonlyArray<TextFileModelChangeEvent>> {
 		if (!this._onModelsSaveError) {
 			this._onModelsSaveError = this.debounce(this.onModelSaveError);
 		}
@@ -56,8 +60,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this._onModelsSaveError;
 	}
 
-	private _onModelsSaved: Event<readonly TextFileModelChangeEvent[]> | undefined;
-	get onModelsSaved(): Event<readonly TextFileModelChangeEvent[]> {
+	private _onModelsSaved: Event<ReadonlyArray<TextFileModelChangeEvent>> | undefined;
+	get onModelsSaved(): Event<ReadonlyArray<TextFileModelChangeEvent>> {
 		if (!this._onModelsSaved) {
 			this._onModelsSaved = this.debounce(this.onModelSaved);
 		}
@@ -65,8 +69,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this._onModelsSaved;
 	}
 
-	private _onModelsReverted: Event<readonly TextFileModelChangeEvent[]> | undefined;
-	get onModelsReverted(): Event<readonly TextFileModelChangeEvent[]> {
+	private _onModelsReverted: Event<ReadonlyArray<TextFileModelChangeEvent>> | undefined;
+	get onModelsReverted(): Event<ReadonlyArray<TextFileModelChangeEvent>> {
 		if (!this._onModelsReverted) {
 			this._onModelsReverted = this.debounce(this.onModelReverted);
 		}
@@ -74,15 +78,18 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this._onModelsReverted;
 	}
 
-	private mapResourceToDisposeListener = new ResourceMap<IDisposable>();
-	private mapResourceToStateChangeListener = new ResourceMap<IDisposable>();
-	private mapResourceToModelContentChangeListener = new ResourceMap<IDisposable>();
-	private mapResourceToModel = new ResourceMap<ITextFileEditorModel>();
-	private mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
+	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
+	private readonly mapResourceToStateChangeListener = new ResourceMap<IDisposable>();
+	private readonly mapResourceToModelContentChangeListener = new ResourceMap<IDisposable>();
+	private readonly mapResourceToModel = new ResourceMap<ITextFileEditorModel>();
+	private readonly mapResourceToPendingModelLoaders = new ResourceMap<Promise<ITextFileEditorModel>>();
+
+	private readonly modelLoadQueue = new ResourceQueue();
 
 	constructor(
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -91,12 +98,38 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	private registerListeners(): void {
 
+		// Update models from file change events
+		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private debounce(event: Event<TextFileModelChangeEvent>): Event<readonly TextFileModelChangeEvent[]> {
-		return Event.debounce(event, (prev: TextFileModelChangeEvent[], cur: TextFileModelChangeEvent) => {
+	private onFileChanges(e: FileChangesEvent): void {
+
+		// Collect distinct (saved) models to update.
+		//
+		// Note: we also consider the added event because it could be that a file was added
+		// and updated right after.
+		distinct(coalesce([...e.getUpdated(), ...e.getAdded()]
+			.map(({ resource }) => this.get(resource)))
+			.filter(model => model && !model.isDirty()), model => model.resource.toString())
+			.forEach(model => this.queueModelLoad(model));
+	}
+
+	private queueModelLoad(model: ITextFileEditorModel): void {
+
+		// Load model to update (use a queue to prevent accumulation of loads
+		// when the load actually takes long. At most we only want the queue
+		// to have a size of 2 (1 running load and 1 queued load).
+		const queue = this.modelLoadQueue.queueFor(model.resource);
+		if (queue.size <= 1) {
+			queue.queue(() => model.load().then(undefined, onUnexpectedError));
+		}
+	}
+
+	private debounce(event: Event<TextFileModelChangeEvent>): Event<TextFileModelChangeEvent[]> {
+		return Event.debounce<TextFileModelChangeEvent, TextFileModelChangeEvent[]>(event, (prev, cur) => {
 			if (!prev) {
 				prev = [cur];
 			} else {

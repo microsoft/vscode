@@ -161,11 +161,11 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
-        "html.autoSelectingMatchingTags": {
+        "html.mirrorCursorOnMatchingTag": {
           "type": "boolean",
           "scope": "resource",
           "default": true,
-          "description": "%html.autoSelectingMatchingTags%"
+          "description": "%html.mirrorCursorOnMatchingTag%"
         },
         "html.trace.server": {
           "type": "string",
@@ -178,6 +178,14 @@
           "default": "off",
           "description": "%html.trace.server.desc%"
         }
+      }
+    },
+    "configurationDefaults": {
+      "[html]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[handlebars]": {
+        "editor.suggest.insertMode": "replace"
       }
     },
     "jsonValidation": [
