@@ -97,7 +97,6 @@
 	white-space: pre; /* gives some degree of styling */
 	align-items: center;
 	text-overflow: ellipsis;
-	white-space: nowrap;
 	overflow: hidden;
 }
 
