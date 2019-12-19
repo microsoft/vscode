@@ -33,7 +33,7 @@ interface ISerializedEditorIdentifier {
  */
 export class EditorsObserver extends Disposable {
 
-	private static readonly STORAGE_KEY = 'editorsObserver.state';
+	private static readonly STORAGE_KEY = 'editors.mru';
 
 	private readonly keyMap = new Map<GroupIdentifier, Map<IEditorInput, IEditorIdentifier>>();
 	private readonly mostRecentEditorsMap = new LinkedMap<IEditorIdentifier, IEditorIdentifier>();
@@ -214,6 +214,15 @@ export class EditorsObserver extends Disposable {
 	}
 
 	private async ensureOpenedEditorsLimit(exclude: IEditorIdentifier | undefined, groupId?: GroupIdentifier): Promise<void> {
+		if (
+			!this.editorGroupsService.partOptions.limit?.enabled ||
+			typeof this.editorGroupsService.partOptions.limit.value !== 'number' ||
+			this.editorGroupsService.partOptions.limit.value <= 0
+		) {
+			return; // return early if not enabled or invalid
+		}
+
+		const limit = this.editorGroupsService.partOptions.limit.value;
 
 		// In editor group
 		if (this.editorGroupsService.partOptions.limit?.perEditorGroup) {
@@ -222,7 +231,7 @@ export class EditorsObserver extends Disposable {
 			if (typeof groupId === 'number') {
 				const group = this.editorGroupsService.getGroup(groupId);
 				if (group) {
-					this.doEnsureOpenedEditorsLimit(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
+					this.doEnsureOpenedEditorsLimit(limit, group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
 				}
 			}
 
@@ -236,21 +245,13 @@ export class EditorsObserver extends Disposable {
 
 		// Across all editor groups
 		else {
-			this.doEnsureOpenedEditorsLimit(this.mostRecentEditorsMap.values(), exclude);
+			this.doEnsureOpenedEditorsLimit(limit, this.mostRecentEditorsMap.values(), exclude);
 		}
 	}
 
-	private async doEnsureOpenedEditorsLimit(mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
-		if (!this.editorGroupsService.partOptions.limit?.enabled) {
-			return; // only if enabled
-		}
-
-		if (
-			typeof this.editorGroupsService.partOptions.limit.value !== 'number' ||
-			this.editorGroupsService.partOptions.limit.value <= 0 ||
-			this.editorGroupsService.partOptions.limit.value >= mostRecentEditors.length
-		) {
-			return; // only if opened editors exceed setting and is valid
+	private async doEnsureOpenedEditorsLimit(limit: number, mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
+		if (limit >= mostRecentEditors.length) {
+			return; // only if opened editors exceed setting and is valid and enabled
 		}
 
 		// Extract least recently used editors that can be closed
@@ -267,7 +268,7 @@ export class EditorsObserver extends Disposable {
 		});
 
 		// Close editors until we reached the limit again
-		let editorsToCloseCount = mostRecentEditors.length - this.editorGroupsService.partOptions.limit.value;
+		let editorsToCloseCount = mostRecentEditors.length - limit;
 		const mapGroupToEditorsToClose = new Map<GroupIdentifier, IEditorInput[]>();
 		for (const { groupId, editor } of leastRecentlyClosableEditors) {
 			let editorsInGroupToClose = mapGroupToEditorsToClose.get(groupId);
