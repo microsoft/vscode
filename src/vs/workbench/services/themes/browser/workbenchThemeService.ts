@@ -167,8 +167,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// update settings schema setting for theme specific settings
 		this.colorThemeStore.onDidChange(async event => {
 			// updates enum for the 'workbench.colorTheme` setting
-			colorThemeSettingSchema.enum = event.themes.map(t => t.settingsId);
-			colorThemeSettingSchema.enumDescriptions = event.themes.map(t => t.description || '');
+			colorThemeSettingEnum.splice(0, colorThemeSettingEnum.length, ...event.themes.map(t => t.settingsId));
+			colorThemeSettingEnumDescriptions.splice(0, colorThemeSettingEnumDescriptions.length, ...event.themes.map(t => t.description || ''));
 
 			const themeSpecificWorkbenchColors: IJSONSchema = { properties: {} };
 			const themeSpecificTokenColors: IJSONSchema = { properties: {} };
@@ -699,28 +699,40 @@ registerFileIconThemeSchemas();
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
+const colorThemeSettingEnum: string[] = [];
+const colorThemeSettingEnumDescriptions: string[] = [];
+
 const colorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	description: nls.localize('colorTheme', "Specifies the color theme used in the workbench."),
 	default: DEFAULT_THEME_SETTING_VALUE,
-	enum: [],
-	enumDescriptions: [],
+	enum: colorThemeSettingEnum,
+	enumDescriptions: colorThemeSettingEnumDescriptions,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	description: nls.localize('preferredDarkColorTheme', 'Specifies the preferred color theme for dark OS appearance when \'{0}\' is enabled.', DETECT_COLOR_SCHEME_SETTING),
 	default: DEFAULT_THEME_DARK_SETTING_VALUE,
+	enum: colorThemeSettingEnum,
+	enumDescriptions: colorThemeSettingEnumDescriptions,
+	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	description: nls.localize('preferredLightColorTheme', 'Specifies the preferred color theme for light OS appearance when \'{0}\' is enabled.', DETECT_COLOR_SCHEME_SETTING),
 	default: DEFAULT_THEME_LIGHT_SETTING_VALUE,
+	enum: colorThemeSettingEnum,
+	enumDescriptions: colorThemeSettingEnumDescriptions,
+	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const preferredHCThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
 	description: nls.localize('preferredHCColorTheme', 'Specifies the preferred color theme used in high contrast mode when \'{0}\' is enabled.', DETECT_HC_SETTING),
 	default: DEFAULT_THEME_HC_SETTING_VALUE,
+	enum: colorThemeSettingEnum,
+	enumDescriptions: colorThemeSettingEnumDescriptions,
+	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
