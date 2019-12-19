@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { isUndefinedOrNull, withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, IResourceInput, EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -181,7 +181,7 @@ export interface IEditorInputFactoryRegistry {
 	 * @param editorInputId the identifier of the editor input
 	 * @param factory the editor input factory for serialization/deserialization
 	 */
-	registerEditorInputFactory<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputFactory }): void;
+	registerEditorInputFactory<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputFactory }): IDisposable;
 
 	/**
 	 * Returns the editor input factory for the given editor input.
@@ -1177,6 +1177,11 @@ export interface IEditorPartOptions extends IEditorPartConfiguration {
 	iconTheme?: string;
 }
 
+export interface IEditorPartOptionsChangeEvent {
+	oldPartOptions: IEditorPartOptions;
+	newPartOptions: IEditorPartOptions;
+}
+
 export enum SideBySideEditor {
 	MASTER = 1,
 	DETAILS = 2
@@ -1232,6 +1237,7 @@ export interface IEditorMemento<T> {
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 	private fileInputFactory: IFileInputFactory | undefined;
+
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
 
@@ -1258,12 +1264,18 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		return assertIsDefined(this.fileInputFactory);
 	}
 
-	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
+	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {
 		if (!this.instantiationService) {
 			this.editorInputFactoryConstructors.set(editorInputId, ctor);
 		} else {
 			this.createEditorInputFactory(editorInputId, ctor, this.instantiationService);
+
 		}
+
+		return toDisposable(() => {
+			this.editorInputFactoryConstructors.delete(editorInputId);
+			this.editorInputFactoryInstances.delete(editorInputId);
+		});
 	}
 
 	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined {

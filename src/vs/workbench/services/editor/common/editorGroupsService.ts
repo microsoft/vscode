@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
@@ -343,6 +343,11 @@ export interface IEditorGroupsService {
 	 * Access the options of the editor part.
 	 */
 	readonly partOptions: IEditorPartOptions;
+
+	/**
+	 * An event that notifies when editor part options change.
+	 */
+	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
 	 * Enforce editor part options temporarily.

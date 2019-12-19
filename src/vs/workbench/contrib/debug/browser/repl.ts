@@ -25,9 +25,9 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IExpressionContainer, IExpression, IReplElementSource, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
@@ -89,8 +89,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	_serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
-	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
-	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
+	private static readonly REPL_INPUT_LINE_HEIGHT = 19;
 
 	private history: HistoryNavigator<string>;
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
@@ -99,13 +98,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private replInput!: CodeEditorWidget;
 	private replInputContainer!: HTMLElement;
 	private dimension!: dom.Dimension;
-	private replInputHeight: number;
+	private replInputLineCount = 1;
 	private model!: ITextModel;
 	private historyNavigationEnablement!: IContextKey<boolean>;
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
 	private completionItemProvider: IDisposable | undefined;
+	private modelChangeListener: IDisposable = Disposable.None;
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
@@ -119,11 +119,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(REPL_ID, telemetryService, themeService, storageService);
 
-		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 		this.registerListeners();
@@ -147,7 +147,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 							if (model) {
 								const word = model.getWordAtPosition(position);
 								const overwriteBefore = word ? word.word.length : 0;
-								const text = model.getLineContent(position.lineNumber);
+								const text = model.getValue();
 								const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 								const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
 								const suggestions = await session.completions(frameId, text, position, overwriteBefore, token);
@@ -181,6 +181,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				dispose(this.model);
 			} else {
 				this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
+				this.setMode();
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
 				this.refreshReplElements(true);
@@ -190,6 +191,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
 				this.onDidFontChange();
 			}
+		}));
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			this.setMode();
 		}));
 	}
 
@@ -213,6 +217,21 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	focusRepl(): void {
 		this.tree.domFocus();
+	}
+
+	private setMode(): void {
+		if (!this.isVisible()) {
+			return;
+		}
+
+		const activeEditor = this.editorService.activeTextEditorWidget;
+		if (isCodeEditor(activeEditor)) {
+			this.modelChangeListener.dispose();
+			this.modelChangeListener = activeEditor.onDidChangeModelLanguage(() => this.setMode());
+			if (activeEditor.hasModel()) {
+				this.model.setMode(activeEditor.getModel().getLanguageIdentifier());
+			}
+		}
 	}
 
 	private onDidFontChange(): void {
@@ -303,8 +322,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
-			const shouldRelayout = this.replInputHeight > Repl.REPL_INPUT_INITIAL_HEIGHT;
-			this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
+			const shouldRelayout = this.replInputLineCount > 1;
+			this.replInputLineCount = 1;
 			if (shouldRelayout) {
 				// Trigger a layout to shrink a potential multi line input
 				this.layout(this.dimension);
@@ -330,18 +349,19 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	layout(dimension: dom.Dimension): void {
 		this.dimension = dimension;
+		const replInputHeight = Repl.REPL_INPUT_LINE_HEIGHT * this.replInputLineCount;
 		if (this.tree) {
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			const treeHeight = dimension.height - this.replInputHeight;
+			const treeHeight = dimension.height - replInputHeight;
 			this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight, dimension.width);
 			if (lastElementVisible) {
 				revealLastElement(this.tree);
 			}
 		}
-		this.replInputContainer.style.height = `${this.replInputHeight}px`;
+		this.replInputContainer.style.height = `${replInputHeight}px`;
 
-		this.replInput.layout({ width: dimension.width - 20, height: this.replInputHeight });
+		this.replInput.layout({ width: dimension.width - 20, height: replInputHeight });
 	}
 
 	focus(): void {
@@ -466,16 +486,14 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
-		this._register(this.replInput.onDidScrollChange(e => {
-			if (!e.scrollHeightChanged) {
-				return;
-			}
-			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
-			this.layout(this.dimension);
-		}));
 		this._register(this.replInput.onDidChangeModelContent(() => {
 			const model = this.replInput.getModel();
 			this.historyNavigationEnablement.set(!!model && model.getValue() === '');
+			const lineCount = model ? Math.min(10, model.getLineCount()) : 1;
+			if (lineCount !== this.replInputLineCount) {
+				this.replInputLineCount = lineCount;
+				this.layout(this.dimension);
+			}
 		}));
 		// We add the input decoration only when the focus is in the input #61126
 		this._register(this.replInput.onDidFocusEditorText(() => this.updateInputDecoration()));

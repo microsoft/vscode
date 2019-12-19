@@ -20,6 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 function inst(): IInstantiationService {
 	let inst = new TestInstantiationService();
@@ -160,13 +161,16 @@ class TestEditorInputFactory implements IEditorInputFactory {
 
 suite('Workbench editor groups', () => {
 
-	function registerEditorInputFactory() {
-		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('testEditorInputForGroups', TestEditorInputFactory);
-	}
+	let disposables: IDisposable[] = [];
 
-	registerEditorInputFactory();
+	setup(() => {
+		disposables.push(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('testEditorInputForGroups', TestEditorInputFactory));
+	});
 
 	teardown(() => {
+		dispose(disposables);
+		disposables = [];
+
 		index = 1;
 	});
 

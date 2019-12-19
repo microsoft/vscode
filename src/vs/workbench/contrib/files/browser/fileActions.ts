@@ -870,8 +870,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		throw new Error('Parent folder is readonly.');
 	}
 
-	const newStat = new NewExplorerItem(explorerService, folder, isFolder);
-	await folder.fetchChildren(fileService, explorerService);
+	const newStat = new NewExplorerItem(fileService, folder, isFolder);
+	const sortOrder = explorerService.sortOrder;
+	await folder.fetchChildren(sortOrder);
 
 	folder.addChild(newStat);
 

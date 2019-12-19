@@ -25,7 +25,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
@@ -33,9 +33,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CancellationToken } from 'vscode';
 
+const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
+const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
+
 class TestEditorControl extends BaseEditor {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForEditorService', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super(TEST_EDITOR_ID, NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, token);
@@ -43,7 +46,7 @@ class TestEditorControl extends BaseEditor {
 		await input.resolve();
 	}
 
-	getId(): string { return 'MyTestEditorForEditorService'; }
+	getId(): string { return TEST_EDITOR_ID; }
 	layout(): void { }
 	createEditor(): any { }
 }
@@ -57,7 +60,7 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	private fails = false;
 	constructor(public resource: URI) { super(); }
 
-	getTypeId() { return 'testEditorInputForEditorService'; }
+	getTypeId() { return TEST_EDITOR_INPUT_ID; }
 	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
@@ -106,11 +109,16 @@ class FileServiceProvider extends Disposable {
 
 suite('EditorService', () => {
 
-	function registerTestEditorInput(): void {
-		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditorControl, 'MyTestEditorForEditorService', 'My Test Editor For Next Editor Service'), [new SyncDescriptor(TestEditorInput)]);
-	}
+	let disposables: IDisposable[] = [];
 
-	registerTestEditorInput();
+	setup(() => {
+		disposables.push(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditorControl, TEST_EDITOR_ID, 'My Test Editor For Next Editor Service'), [new SyncDescriptor(TestEditorInput)]));
+	});
+
+	teardown(() => {
+		dispose(disposables);
+		disposables = [];
+	});
 
 	test('basics', async () => {
 		const partInstantiator = workbenchInstantiationService();

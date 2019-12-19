@@ -20,14 +20,19 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorsHistory, HistoryService } from 'vs/workbench/services/history/browser/history';
 import { WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { timeout } from 'vs/base/common/async';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+
+const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
+const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
+const TEST_SERIALIZABLE_EDITOR_INPUT_ID = 'testSerializableEditorInputForHistoyService';
 
 class TestEditorControl extends BaseEditor {
 
-	constructor() { super('MyTestEditorForEditorHistory', NullTelemetryService, new TestThemeService(), new TestStorageService()); }
+	constructor() { super(TEST_EDITOR_ID, NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, token);
@@ -35,7 +40,7 @@ class TestEditorControl extends BaseEditor {
 		await input.resolve();
 	}
 
-	getId(): string { return 'MyTestEditorForEditorHistory'; }
+	getId(): string { return TEST_EDITOR_ID; }
 	layout(): void { }
 	createEditor(): any { }
 }
@@ -44,7 +49,7 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 	constructor(public resource: URI) { super(); }
 
-	getTypeId() { return 'testEditorInputForEditorGroupService'; }
+	getTypeId() { return TEST_EDITOR_INPUT_ID; }
 	resolve(): Promise<IEditorModel | null> { return Promise.resolve(null); }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
@@ -57,7 +62,7 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 }
 
 class HistoryTestEditorInput extends TestEditorInput {
-	getTypeId() { return 'testEditorInputForEditorsHistory'; }
+	getTypeId() { return TEST_SERIALIZABLE_EDITOR_INPUT_ID; }
 }
 
 interface ISerializedTestInput {
@@ -95,30 +100,41 @@ async function createServices(): Promise<[EditorPart, HistoryService, EditorServ
 
 	await part.whenRestored;
 
-	const collection = new ServiceCollection();
-	collection.set(IEditorGroupsService, part);
+	instantiationService.stub(IEditorGroupsService, part);
 
-	const childInstantiator = instantiationService.createChild(collection);
+	const editorService = instantiationService.createInstance(EditorService);
+	instantiationService.stub(IEditorService, editorService);
 
-	const childCollection = new ServiceCollection();
-	const editorService = childInstantiator.createInstance(EditorService);
-	collection.set(IEditorService, editorService);
-
-	const historyService = childInstantiator.createChild(childCollection).createInstance(HistoryService);
+	const historyService = instantiationService.createInstance(HistoryService);
+	instantiationService.stub(IHistoryService, historyService);
 
 	return [part, historyService, editorService];
 }
 
 suite('HistoryService', function () {
 
+	let disposables: IDisposable[] = [];
+
+	setup(() => {
+		disposables.push(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory(TEST_SERIALIZABLE_EDITOR_INPUT_ID, HistoryTestEditorInputFactory));
+		disposables.push(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditorControl, TEST_EDITOR_ID, 'My Test Editor For History Editor Service'), [new SyncDescriptor(TestEditorInput), new SyncDescriptor(HistoryTestEditorInput)]));
+	});
+
+	teardown(() => {
+		dispose(disposables);
+		disposables = [];
+	});
+
 	test('back / forward', async () => {
 		const [part, historyService] = await createServices();
 
 		const input1 = new TestEditorInput(URI.parse('foo://bar1'));
 		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+		assert.equal(part.activeGroup.activeEditor, input1);
 
 		const input2 = new TestEditorInput(URI.parse('foo://bar2'));
 		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+		assert.equal(part.activeGroup.activeEditor, input2);
 
 		historyService.back();
 		assert.equal(part.activeGroup.activeEditor, input1);
@@ -164,429 +180,418 @@ suite('HistoryService', function () {
 
 		part.dispose();
 	});
-});
 
+	suite('EditorHistory', function () {
 
-suite('EditorHistory', function () {
+		test('basics (single group)', async () => {
+			const instantiationService = workbenchInstantiationService();
 
-	function registerTestEditorInput(): void {
-		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditorControl, 'MyTestEditorForEditorHistory', 'My Test Editor For History Editor Service'), [new SyncDescriptor(TestEditorInput)]);
-	}
+			const part = instantiationService.createInstance(EditorPart);
+			part.create(document.createElement('div'));
+			part.layout(400, 300);
 
-	function registerEditorInputFactory() {
-		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('testEditorInputForEditorsHistory', HistoryTestEditorInputFactory);
-	}
+			await part.whenRestored;
 
-	registerEditorInputFactory();
-	registerTestEditorInput();
+			const history = new EditorsHistory(part, new TestStorageService());
 
-	test('basics (single group)', async () => {
-		const instantiationService = workbenchInstantiationService();
+			let historyChangeListenerCalled = false;
+			const listener = history.onDidChange(() => {
+				historyChangeListenerCalled = true;
+			});
 
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+			let currentHistory = history.editors;
+			assert.equal(currentHistory.length, 0);
+			assert.equal(historyChangeListenerCalled, false);
 
-		await part.whenRestored;
+			const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
 
-		const history = new EditorsHistory(part, new TestStorageService());
+			await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
 
-		let historyChangeListenerCalled = false;
-		const listener = history.onDidChange(() => {
-			historyChangeListenerCalled = true;
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 1);
+			assert.equal(currentHistory[0].groupId, part.activeGroup.id);
+			assert.equal(currentHistory[0].editor, input1);
+			assert.equal(historyChangeListenerCalled, true);
+
+			const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
+			const input3 = new HistoryTestEditorInput(URI.parse('foo://bar3'));
+
+			await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+			await part.activeGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 3);
+			assert.equal(currentHistory[0].groupId, part.activeGroup.id);
+			assert.equal(currentHistory[0].editor, input3);
+			assert.equal(currentHistory[1].groupId, part.activeGroup.id);
+			assert.equal(currentHistory[1].editor, input2);
+			assert.equal(currentHistory[2].groupId, part.activeGroup.id);
+			assert.equal(currentHistory[2].editor, input1);
+
+			await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 3);
+			assert.equal(currentHistory[0].groupId, part.activeGroup.id);
+			assert.equal(currentHistory[0].editor, input2);
+			assert.equal(currentHistory[1].groupId, part.activeGroup.id);
+			assert.equal(currentHistory[1].editor, input3);
+			assert.equal(currentHistory[2].groupId, part.activeGroup.id);
+			assert.equal(currentHistory[2].editor, input1);
+
+			historyChangeListenerCalled = false;
+			await part.activeGroup.closeEditor(input1);
+
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 2);
+			assert.equal(currentHistory[0].groupId, part.activeGroup.id);
+			assert.equal(currentHistory[0].editor, input2);
+			assert.equal(currentHistory[1].groupId, part.activeGroup.id);
+			assert.equal(currentHistory[1].editor, input3);
+			assert.equal(historyChangeListenerCalled, true);
+
+			await part.activeGroup.closeAllEditors();
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 0);
+
+			part.dispose();
+			listener.dispose();
 		});
 
-		let currentHistory = history.editors;
-		assert.equal(currentHistory.length, 0);
-		assert.equal(historyChangeListenerCalled, false);
+		test('basics (multi group)', async () => {
+			const instantiationService = workbenchInstantiationService();
 
-		const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
+			const part = instantiationService.createInstance(EditorPart);
+			part.create(document.createElement('div'));
+			part.layout(400, 300);
 
-		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+			await part.whenRestored;
 
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 1);
-		assert.equal(currentHistory[0].groupId, part.activeGroup.id);
-		assert.equal(currentHistory[0].editor, input1);
-		assert.equal(historyChangeListenerCalled, true);
-
-		const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
-		const input3 = new HistoryTestEditorInput(URI.parse('foo://bar3'));
+			const rootGroup = part.activeGroup;
 
-		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
-		await part.activeGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
-
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 3);
-		assert.equal(currentHistory[0].groupId, part.activeGroup.id);
-		assert.equal(currentHistory[0].editor, input3);
-		assert.equal(currentHistory[1].groupId, part.activeGroup.id);
-		assert.equal(currentHistory[1].editor, input2);
-		assert.equal(currentHistory[2].groupId, part.activeGroup.id);
-		assert.equal(currentHistory[2].editor, input1);
+			const history = new EditorsHistory(part, new TestStorageService());
 
-		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+			let currentHistory = history.editors;
+			assert.equal(currentHistory.length, 0);
 
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 3);
-		assert.equal(currentHistory[0].groupId, part.activeGroup.id);
-		assert.equal(currentHistory[0].editor, input2);
-		assert.equal(currentHistory[1].groupId, part.activeGroup.id);
-		assert.equal(currentHistory[1].editor, input3);
-		assert.equal(currentHistory[2].groupId, part.activeGroup.id);
-		assert.equal(currentHistory[2].editor, input1);
+			const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 
-		historyChangeListenerCalled = false;
-		await part.activeGroup.closeEditor(input1);
+			const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
 
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 2);
-		assert.equal(currentHistory[0].groupId, part.activeGroup.id);
-		assert.equal(currentHistory[0].editor, input2);
-		assert.equal(currentHistory[1].groupId, part.activeGroup.id);
-		assert.equal(currentHistory[1].editor, input3);
-		assert.equal(historyChangeListenerCalled, true);
+			await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true, activation: EditorActivation.ACTIVATE }));
+			await sideGroup.openEditor(input1, EditorOptions.create({ pinned: true, activation: EditorActivation.ACTIVATE }));
 
-		await part.activeGroup.closeAllEditors();
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 0);
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 2);
+			assert.equal(currentHistory[0].groupId, sideGroup.id);
+			assert.equal(currentHistory[0].editor, input1);
+			assert.equal(currentHistory[1].groupId, rootGroup.id);
+			assert.equal(currentHistory[1].editor, input1);
 
-		part.dispose();
-		listener.dispose();
-	});
+			await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true, activation: EditorActivation.ACTIVATE }));
 
-	test('basics (multi group)', async () => {
-		const instantiationService = workbenchInstantiationService();
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 2);
+			assert.equal(currentHistory[0].groupId, rootGroup.id);
+			assert.equal(currentHistory[0].editor, input1);
+			assert.equal(currentHistory[1].groupId, sideGroup.id);
+			assert.equal(currentHistory[1].editor, input1);
 
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+			// Opening an editor inactive should not change
+			// the most recent editor, but rather put it behind
+			const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
 
-		await part.whenRestored;
+			await rootGroup.openEditor(input2, EditorOptions.create({ inactive: true }));
 
-		const rootGroup = part.activeGroup;
-
-		const history = new EditorsHistory(part, new TestStorageService());
-
-		let currentHistory = history.editors;
-		assert.equal(currentHistory.length, 0);
-
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
-
-		const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
-
-		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true, activation: EditorActivation.ACTIVATE }));
-		await sideGroup.openEditor(input1, EditorOptions.create({ pinned: true, activation: EditorActivation.ACTIVATE }));
-
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 2);
-		assert.equal(currentHistory[0].groupId, sideGroup.id);
-		assert.equal(currentHistory[0].editor, input1);
-		assert.equal(currentHistory[1].groupId, rootGroup.id);
-		assert.equal(currentHistory[1].editor, input1);
-
-		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true, activation: EditorActivation.ACTIVATE }));
-
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 2);
-		assert.equal(currentHistory[0].groupId, rootGroup.id);
-		assert.equal(currentHistory[0].editor, input1);
-		assert.equal(currentHistory[1].groupId, sideGroup.id);
-		assert.equal(currentHistory[1].editor, input1);
-
-		// Opening an editor inactive should not change
-		// the most recent editor, but rather put it behind
-		const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
-
-		await rootGroup.openEditor(input2, EditorOptions.create({ inactive: true }));
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 3);
+			assert.equal(currentHistory[0].groupId, rootGroup.id);
+			assert.equal(currentHistory[0].editor, input1);
+			assert.equal(currentHistory[1].groupId, rootGroup.id);
+			assert.equal(currentHistory[1].editor, input2);
+			assert.equal(currentHistory[2].groupId, sideGroup.id);
+			assert.equal(currentHistory[2].editor, input1);
 
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 3);
-		assert.equal(currentHistory[0].groupId, rootGroup.id);
-		assert.equal(currentHistory[0].editor, input1);
-		assert.equal(currentHistory[1].groupId, rootGroup.id);
-		assert.equal(currentHistory[1].editor, input2);
-		assert.equal(currentHistory[2].groupId, sideGroup.id);
-		assert.equal(currentHistory[2].editor, input1);
-
-		await rootGroup.closeAllEditors();
-
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 1);
-		assert.equal(currentHistory[0].groupId, sideGroup.id);
-		assert.equal(currentHistory[0].editor, input1);
-
-		await sideGroup.closeAllEditors();
-
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 0);
-
-		part.dispose();
-	});
-
-	test('copy group', async () => {
-		const instantiationService = workbenchInstantiationService();
-
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		await part.whenRestored;
-
-		const history = new EditorsHistory(part, new TestStorageService());
-
-		const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
-		const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
-		const input3 = new HistoryTestEditorInput(URI.parse('foo://bar3'));
-
-		const rootGroup = part.activeGroup;
+			await rootGroup.closeAllEditors();
 
-		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
-		await rootGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
-		await rootGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 1);
+			assert.equal(currentHistory[0].groupId, sideGroup.id);
+			assert.equal(currentHistory[0].editor, input1);
 
-		let currentHistory = history.editors;
-		assert.equal(currentHistory.length, 3);
-		assert.equal(currentHistory[0].groupId, rootGroup.id);
-		assert.equal(currentHistory[0].editor, input3);
-		assert.equal(currentHistory[1].groupId, rootGroup.id);
-		assert.equal(currentHistory[1].editor, input2);
-		assert.equal(currentHistory[2].groupId, rootGroup.id);
-		assert.equal(currentHistory[2].editor, input1);
-
-		const copiedGroup = part.copyGroup(rootGroup, rootGroup, GroupDirection.RIGHT);
-		copiedGroup.setActive(true);
-
-		currentHistory = history.editors;
-		assert.equal(currentHistory.length, 6);
-		assert.equal(currentHistory[0].groupId, copiedGroup.id);
-		assert.equal(currentHistory[0].editor, input3);
-		assert.equal(currentHistory[1].groupId, rootGroup.id);
-		assert.equal(currentHistory[1].editor, input3);
-		assert.equal(currentHistory[2].groupId, copiedGroup.id);
-		assert.equal(currentHistory[2].editor, input2);
-		assert.equal(currentHistory[3].groupId, copiedGroup.id);
-		assert.equal(currentHistory[3].editor, input1);
-		assert.equal(currentHistory[4].groupId, rootGroup.id);
-		assert.equal(currentHistory[4].editor, input2);
-		assert.equal(currentHistory[5].groupId, rootGroup.id);
-		assert.equal(currentHistory[5].editor, input1);
-
-		part.dispose();
-	});
-
-	test('initial editors are part of history and state is persisted & restored (single group)', async () => {
-		const instantiationService = workbenchInstantiationService();
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
-
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		await part.whenRestored;
-
-		const rootGroup = part.activeGroup;
-
-		const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
-		const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
-		const input3 = new HistoryTestEditorInput(URI.parse('foo://bar3'));
+			await sideGroup.closeAllEditors();
 
-		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
-		await rootGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
-		await rootGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 0);
+
+			part.dispose();
+		});
 
-		const storage = new TestStorageService();
-		const history = new EditorsHistory(part, storage);
-		await part.whenRestored;
+		test('copy group', async () => {
+			const instantiationService = workbenchInstantiationService();
 
-		let currentHistory = history.editors;
-		assert.equal(currentHistory.length, 3);
-		assert.equal(currentHistory[0].groupId, rootGroup.id);
-		assert.equal(currentHistory[0].editor, input3);
-		assert.equal(currentHistory[1].groupId, rootGroup.id);
-		assert.equal(currentHistory[1].editor, input2);
-		assert.equal(currentHistory[2].groupId, rootGroup.id);
-		assert.equal(currentHistory[2].editor, input1);
+			const part = instantiationService.createInstance(EditorPart);
+			part.create(document.createElement('div'));
+			part.layout(400, 300);
 
-		storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+			await part.whenRestored;
 
-		const restoredHistory = new EditorsHistory(part, storage);
-		await part.whenRestored;
+			const history = new EditorsHistory(part, new TestStorageService());
 
-		currentHistory = restoredHistory.editors;
-		assert.equal(currentHistory.length, 3);
-		assert.equal(currentHistory[0].groupId, rootGroup.id);
-		assert.equal(currentHistory[0].editor, input3);
-		assert.equal(currentHistory[1].groupId, rootGroup.id);
-		assert.equal(currentHistory[1].editor, input2);
-		assert.equal(currentHistory[2].groupId, rootGroup.id);
-		assert.equal(currentHistory[2].editor, input1);
+			const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
+			const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
+			const input3 = new HistoryTestEditorInput(URI.parse('foo://bar3'));
 
-		part.dispose();
-	});
+			const rootGroup = part.activeGroup;
 
-	test('initial editors are part of history (multi group)', async () => {
-		const instantiationService = workbenchInstantiationService();
+			await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+			await rootGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+			await rootGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
 
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+			let currentHistory = history.editors;
+			assert.equal(currentHistory.length, 3);
+			assert.equal(currentHistory[0].groupId, rootGroup.id);
+			assert.equal(currentHistory[0].editor, input3);
+			assert.equal(currentHistory[1].groupId, rootGroup.id);
+			assert.equal(currentHistory[1].editor, input2);
+			assert.equal(currentHistory[2].groupId, rootGroup.id);
+			assert.equal(currentHistory[2].editor, input1);
 
-		await part.whenRestored;
+			const copiedGroup = part.copyGroup(rootGroup, rootGroup, GroupDirection.RIGHT);
+			copiedGroup.setActive(true);
+
+			currentHistory = history.editors;
+			assert.equal(currentHistory.length, 6);
+			assert.equal(currentHistory[0].groupId, copiedGroup.id);
+			assert.equal(currentHistory[0].editor, input3);
+			assert.equal(currentHistory[1].groupId, rootGroup.id);
+			assert.equal(currentHistory[1].editor, input3);
+			assert.equal(currentHistory[2].groupId, copiedGroup.id);
+			assert.equal(currentHistory[2].editor, input2);
+			assert.equal(currentHistory[3].groupId, copiedGroup.id);
+			assert.equal(currentHistory[3].editor, input1);
+			assert.equal(currentHistory[4].groupId, rootGroup.id);
+			assert.equal(currentHistory[4].editor, input2);
+			assert.equal(currentHistory[5].groupId, rootGroup.id);
+			assert.equal(currentHistory[5].editor, input1);
+
+			part.dispose();
+		});
+
+		test('initial editors are part of history and state is persisted & restored (single group)', async () => {
+			const instantiationService = workbenchInstantiationService();
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+
+			const part = instantiationService.createInstance(EditorPart);
+			part.create(document.createElement('div'));
+			part.layout(400, 300);
+
+			await part.whenRestored;
+
+			const rootGroup = part.activeGroup;
+
+			const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
+			const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
+			const input3 = new HistoryTestEditorInput(URI.parse('foo://bar3'));
+
+			await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+			await rootGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+			await rootGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+
+			const storage = new TestStorageService();
+			const history = new EditorsHistory(part, storage);
+			await part.whenRestored;
+
+			let currentHistory = history.editors;
+			assert.equal(currentHistory.length, 3);
+			assert.equal(currentHistory[0].groupId, rootGroup.id);
+			assert.equal(currentHistory[0].editor, input3);
+			assert.equal(currentHistory[1].groupId, rootGroup.id);
+			assert.equal(currentHistory[1].editor, input2);
+			assert.equal(currentHistory[2].groupId, rootGroup.id);
+			assert.equal(currentHistory[2].editor, input1);
 
-		const rootGroup = part.activeGroup;
+			storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
 
-		const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
-		const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
-		const input3 = new HistoryTestEditorInput(URI.parse('foo://bar3'));
+			const restoredHistory = new EditorsHistory(part, storage);
+			await part.whenRestored;
 
-		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
-		await rootGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+			currentHistory = restoredHistory.editors;
+			assert.equal(currentHistory.length, 3);
+			assert.equal(currentHistory[0].groupId, rootGroup.id);
+			assert.equal(currentHistory[0].editor, input3);
+			assert.equal(currentHistory[1].groupId, rootGroup.id);
+			assert.equal(currentHistory[1].editor, input2);
+			assert.equal(currentHistory[2].groupId, rootGroup.id);
+			assert.equal(currentHistory[2].editor, input1);
 
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
-		await sideGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+			part.dispose();
+		});
 
-		const storage = new TestStorageService();
-		const history = new EditorsHistory(part, storage);
-		await part.whenRestored;
+		test('initial editors are part of history (multi group)', async () => {
+			const instantiationService = workbenchInstantiationService();
 
-		let currentHistory = history.editors;
-		assert.equal(currentHistory.length, 3);
-		assert.equal(currentHistory[0].groupId, sideGroup.id);
-		assert.equal(currentHistory[0].editor, input3);
-		assert.equal(currentHistory[1].groupId, rootGroup.id);
-		assert.equal(currentHistory[1].editor, input2);
-		assert.equal(currentHistory[2].groupId, rootGroup.id);
-		assert.equal(currentHistory[2].editor, input1);
+			const part = instantiationService.createInstance(EditorPart);
+			part.create(document.createElement('div'));
+			part.layout(400, 300);
 
-		storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+			await part.whenRestored;
 
-		const restoredHistory = new EditorsHistory(part, storage);
-		await part.whenRestored;
+			const rootGroup = part.activeGroup;
 
-		currentHistory = restoredHistory.editors;
-		assert.equal(currentHistory.length, 3);
-		assert.equal(currentHistory[0].groupId, sideGroup.id);
-		assert.equal(currentHistory[0].editor, input3);
-		assert.equal(currentHistory[1].groupId, rootGroup.id);
-		assert.equal(currentHistory[1].editor, input2);
-		assert.equal(currentHistory[2].groupId, rootGroup.id);
-		assert.equal(currentHistory[2].editor, input1);
+			const input1 = new HistoryTestEditorInput(URI.parse('foo://bar1'));
+			const input2 = new HistoryTestEditorInput(URI.parse('foo://bar2'));
+			const input3 = new HistoryTestEditorInput(URI.parse('foo://bar3'));
 
-		part.dispose();
-	});
+			await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+			await rootGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
 
-	test('history does not restore editors that cannot be serialized', async () => {
-		const instantiationService = workbenchInstantiationService();
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+			const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+			await sideGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
 
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+			const storage = new TestStorageService();
+			const history = new EditorsHistory(part, storage);
+			await part.whenRestored;
 
-		await part.whenRestored;
+			let currentHistory = history.editors;
+			assert.equal(currentHistory.length, 3);
+			assert.equal(currentHistory[0].groupId, sideGroup.id);
+			assert.equal(currentHistory[0].editor, input3);
+			assert.equal(currentHistory[1].groupId, rootGroup.id);
+			assert.equal(currentHistory[1].editor, input2);
+			assert.equal(currentHistory[2].groupId, rootGroup.id);
+			assert.equal(currentHistory[2].editor, input1);
 
-		const rootGroup = part.activeGroup;
+			storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
 
-		const input1 = new TestEditorInput(URI.parse('foo://bar1'));
+			const restoredHistory = new EditorsHistory(part, storage);
+			await part.whenRestored;
 
-		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+			currentHistory = restoredHistory.editors;
+			assert.equal(currentHistory.length, 3);
+			assert.equal(currentHistory[0].groupId, sideGroup.id);
+			assert.equal(currentHistory[0].editor, input3);
+			assert.equal(currentHistory[1].groupId, rootGroup.id);
+			assert.equal(currentHistory[1].editor, input2);
+			assert.equal(currentHistory[2].groupId, rootGroup.id);
+			assert.equal(currentHistory[2].editor, input1);
 
-		const storage = new TestStorageService();
-		const history = new EditorsHistory(part, storage);
-		await part.whenRestored;
+			part.dispose();
+		});
 
-		let currentHistory = history.editors;
-		assert.equal(currentHistory.length, 1);
-		assert.equal(currentHistory[0].groupId, rootGroup.id);
-		assert.equal(currentHistory[0].editor, input1);
+		test('history does not restore editors that cannot be serialized', async () => {
+			const instantiationService = workbenchInstantiationService();
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
-		storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+			const part = instantiationService.createInstance(EditorPart);
+			part.create(document.createElement('div'));
+			part.layout(400, 300);
 
-		const restoredHistory = new EditorsHistory(part, storage);
-		await part.whenRestored;
+			await part.whenRestored;
 
-		currentHistory = restoredHistory.editors;
-		assert.equal(currentHistory.length, 0);
+			const rootGroup = part.activeGroup;
 
-		part.dispose();
-	});
+			const input1 = new TestEditorInput(URI.parse('foo://bar1'));
 
-	test('open next/previous recently used editor (single group)', async () => {
-		const [part, historyService] = await createServices();
+			await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
 
-		const input1 = new TestEditorInput(URI.parse('foo://bar1'));
-		const input2 = new TestEditorInput(URI.parse('foo://bar2'));
+			const storage = new TestStorageService();
+			const history = new EditorsHistory(part, storage);
+			await part.whenRestored;
 
-		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
-		assert.equal(part.activeGroup.activeEditor, input1);
+			let currentHistory = history.editors;
+			assert.equal(currentHistory.length, 1);
+			assert.equal(currentHistory[0].groupId, rootGroup.id);
+			assert.equal(currentHistory[0].editor, input1);
 
-		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
-		assert.equal(part.activeGroup.activeEditor, input2);
+			storage._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
 
-		historyService.openPreviouslyUsedEditor();
-		assert.equal(part.activeGroup.activeEditor, input1);
+			const restoredHistory = new EditorsHistory(part, storage);
+			await part.whenRestored;
 
-		historyService.openNextRecentlyUsedEditor();
-		assert.equal(part.activeGroup.activeEditor, input2);
+			currentHistory = restoredHistory.editors;
+			assert.equal(currentHistory.length, 0);
 
-		historyService.openPreviouslyUsedEditor(part.activeGroup.id);
-		assert.equal(part.activeGroup.activeEditor, input1);
+			part.dispose();
+		});
 
-		historyService.openNextRecentlyUsedEditor(part.activeGroup.id);
-		assert.equal(part.activeGroup.activeEditor, input2);
+		test('open next/previous recently used editor (single group)', async () => {
+			const [part, historyService] = await createServices();
 
-		part.dispose();
-	});
+			const input1 = new TestEditorInput(URI.parse('foo://bar1'));
+			const input2 = new TestEditorInput(URI.parse('foo://bar2'));
 
-	test('open next/previous recently used editor (multi group)', async () => {
-		const [part, historyService] = await createServices();
-		const rootGroup = part.activeGroup;
+			await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+			assert.equal(part.activeGroup.activeEditor, input1);
 
-		const input1 = new TestEditorInput(URI.parse('foo://bar1'));
-		const input2 = new TestEditorInput(URI.parse('foo://bar2'));
+			await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+			assert.equal(part.activeGroup.activeEditor, input2);
 
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+			historyService.openPreviouslyUsedEditor();
+			assert.equal(part.activeGroup.activeEditor, input1);
 
-		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
-		await sideGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+			historyService.openNextRecentlyUsedEditor();
+			assert.equal(part.activeGroup.activeEditor, input2);
 
-		historyService.openPreviouslyUsedEditor();
-		assert.equal(part.activeGroup, rootGroup);
-		assert.equal(rootGroup.activeEditor, input1);
+			historyService.openPreviouslyUsedEditor(part.activeGroup.id);
+			assert.equal(part.activeGroup.activeEditor, input1);
 
-		historyService.openNextRecentlyUsedEditor();
-		assert.equal(part.activeGroup, sideGroup);
-		assert.equal(sideGroup.activeEditor, input2);
+			historyService.openNextRecentlyUsedEditor(part.activeGroup.id);
+			assert.equal(part.activeGroup.activeEditor, input2);
 
-		part.dispose();
-	});
+			part.dispose();
+		});
 
-	test('open next/previous recently is reset when other input opens', async () => {
-		const [part, historyService] = await createServices();
+		test('open next/previous recently used editor (multi group)', async () => {
+			const [part, historyService] = await createServices();
+			const rootGroup = part.activeGroup;
 
-		const input1 = new TestEditorInput(URI.parse('foo://bar1'));
-		const input2 = new TestEditorInput(URI.parse('foo://bar2'));
-		const input3 = new TestEditorInput(URI.parse('foo://bar3'));
-		const input4 = new TestEditorInput(URI.parse('foo://bar4'));
+			const input1 = new TestEditorInput(URI.parse('foo://bar1'));
+			const input2 = new TestEditorInput(URI.parse('foo://bar2'));
 
-		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
-		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
-		await part.activeGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+			const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 
-		historyService.openPreviouslyUsedEditor();
-		assert.equal(part.activeGroup.activeEditor, input2);
+			await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+			await sideGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
 
-		await timeout(0);
-		await part.activeGroup.openEditor(input4, EditorOptions.create({ pinned: true }));
+			historyService.openPreviouslyUsedEditor();
+			assert.equal(part.activeGroup, rootGroup);
+			assert.equal(rootGroup.activeEditor, input1);
 
-		historyService.openPreviouslyUsedEditor();
-		assert.equal(part.activeGroup.activeEditor, input2);
+			historyService.openNextRecentlyUsedEditor();
+			assert.equal(part.activeGroup, sideGroup);
+			assert.equal(sideGroup.activeEditor, input2);
 
-		historyService.openNextRecentlyUsedEditor();
-		assert.equal(part.activeGroup.activeEditor, input4);
+			part.dispose();
+		});
 
-		part.dispose();
+		test('open next/previous recently is reset when other input opens', async () => {
+			const [part, historyService] = await createServices();
+
+			const input1 = new TestEditorInput(URI.parse('foo://bar1'));
+			const input2 = new TestEditorInput(URI.parse('foo://bar2'));
+			const input3 = new TestEditorInput(URI.parse('foo://bar3'));
+			const input4 = new TestEditorInput(URI.parse('foo://bar4'));
+
+			await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+			await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+			await part.activeGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+
+			historyService.openPreviouslyUsedEditor();
+			assert.equal(part.activeGroup.activeEditor, input2);
+
+			await timeout(0);
+			await part.activeGroup.openEditor(input4, EditorOptions.create({ pinned: true }));
+
+			historyService.openPreviouslyUsedEditor();
+			assert.equal(part.activeGroup.activeEditor, input2);
+
+			historyService.openNextRecentlyUsedEditor();
+			assert.equal(part.activeGroup.activeEditor, input4);
+
+			part.dispose();
+		});
 	});
 });
+
 
