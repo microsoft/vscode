@@ -6,7 +6,6 @@
 import 'vs/css!vs/workbench/contrib/debug/browser/media/repl';
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
 import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -401,17 +400,17 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 	@memoize
 	private get refreshScheduler(): RunOnceScheduler {
-		return new RunOnceScheduler(() => {
+		return new RunOnceScheduler(async () => {
 			if (!this.tree.getInput()) {
 				return;
 			}
+
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			this.tree.updateChildren().then(() => {
-				if (lastElementVisible) {
-					// Only scroll if we were scrolled all the way down before tree refreshed #10486
-					revealLastElement(this.tree);
-				}
-			}, errors.onUnexpectedError);
+			await this.tree.updateChildren();
+			if (lastElementVisible) {
+				// Only scroll if we were scrolled all the way down before tree refreshed #10486
+				revealLastElement(this.tree);
+			}
 		}, Repl.REFRESH_DELAY);
 	}
 
@@ -588,6 +587,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.replElementsChangeListener.dispose();
 		}
 		this.refreshScheduler.dispose();
+		this.modelChangeListener.dispose();
 		super.dispose();
 	}
 }
