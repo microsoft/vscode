@@ -68,8 +68,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@ICommandService private readonly commandService: ICommandService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IHistoryService historyService: IHistoryService
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
 		this.adapterDescriptorFactories = [];
@@ -83,13 +83,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
 			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 		} else if (this.launches.length > 0) {
-			const rootUri = historyService.getLastActiveWorkspaceRoot();
-			let launch = this.getLaunch(rootUri);
-			if (!launch || launch.getConfigurationNames().length === 0) {
-				launch = first(this.launches, l => !!(l && l.getConfigurationNames().length), launch) || this.launches[0];
-			}
-
-			this.selectConfiguration(launch);
+			this.selectConfiguration(undefined);
 		}
 	}
 
@@ -286,13 +280,13 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		this.toDispose.push(Event.any<IWorkspaceFoldersChangeEvent | WorkbenchState>(this.contextService.onDidChangeWorkspaceFolders, this.contextService.onDidChangeWorkbenchState)(() => {
 			this.initLaunches();
-			const toSelect = this.selectedLaunch || (this.launches.length > 0 ? this.launches[0] : undefined);
-			this.selectConfiguration(toSelect);
+			this.selectConfiguration(undefined);
 			this.setCompoundSchemaValues();
 		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('launch')) {
-				this.selectConfiguration(this.selectedLaunch);
+				// A change happen in the launch.json. If there is already a launch configuration selected, do not change the selection.
+				this.selectConfiguration(undefined);
 				this.setCompoundSchemaValues();
 			}
 		}));
@@ -306,7 +300,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.launches.push(this.instantiationService.createInstance(UserLaunch));
 
 		if (this.selectedLaunch && this.launches.indexOf(this.selectedLaunch) === -1) {
-			this.setSelectedLaunch(undefined);
+			this.selectConfiguration(undefined);
 		}
 	}
 
@@ -355,10 +349,23 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	selectConfiguration(launch: ILaunch | undefined, name?: string): void {
+		if (typeof launch === 'undefined') {
+			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
+			launch = this.getLaunch(rootUri);
+			if (!launch || launch.getConfigurationNames().length === 0) {
+				launch = first(this.launches, l => !!(l && l.getConfigurationNames().length), launch) || this.launches[0];
+			}
+		}
+
 		const previousLaunch = this.selectedLaunch;
 		const previousName = this.selectedName;
+		this.selectedLaunch = launch;
 
-		this.setSelectedLaunch(launch);
+		if (this.selectedLaunch) {
+			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
+		}
 		const names = launch ? launch.getConfigurationNames() : [];
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
@@ -464,16 +471,6 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		} else {
 			this.storageService.remove(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE);
-		}
-	}
-
-	private setSelectedLaunch(selectedLaunch: ILaunch | undefined): void {
-		this.selectedLaunch = selectedLaunch;
-
-		if (this.selectedLaunch) {
-			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
-		} else {
-			this.storageService.remove(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		}
 	}
 
