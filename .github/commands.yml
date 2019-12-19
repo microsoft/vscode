@@ -131,5 +131,11 @@
             action: 'updateLabels',
             addLabel: 'a11ymas'
         },
+        {
+            type: 'label',
+            name: '*off-topic',
+            action: 'close',
+            comment: "Thanks for creating this issue. We think this issue is unactionable or unrelated to the goals of this project. Please follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+        }
     ]
 }
