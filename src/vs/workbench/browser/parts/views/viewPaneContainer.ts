@@ -348,7 +348,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	getTitle(): string {
 		if (this.isViewMergedWithContainer()) {
 			const paneItemTitle = this.paneItems[0].pane.title;
-			if (this.options.donotShowContainerTitleWhenMergedWithContainer) {
+			if (this.options.donotShowContainerTitleWhenMergedWithContainer || this.viewContainer.name === paneItemTitle) {
 				return this.paneItems[0].pane.title;
 			}
 			return paneItemTitle ? `${this.viewContainer.name}: ${paneItemTitle}` : this.viewContainer.name;
