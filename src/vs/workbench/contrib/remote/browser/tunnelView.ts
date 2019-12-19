@@ -425,12 +425,11 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
-		dom.addClass(container, '.tree-explorer-viewlet-tree-view');
-		const treeContainer = document.createElement('div');
-		dom.addClass(treeContainer, 'customview-tree');
+		const panelContainer = dom.append(container, dom.$('.tree-explorer-viewlet-tree-view'));
+		const treeContainer = dom.append(panelContainer, dom.$('.customview-tree'));
 		dom.addClass(treeContainer, 'file-icon-themable-tree');
 		dom.addClass(treeContainer, 'show-file-icons');
-		container.appendChild(treeContainer);
+
 		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
 		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,
 			'RemoteTunnels',
@@ -732,7 +731,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelTitle, ({
 	group: 'navigation',
 	order: 0,
 	command: {
-		id: ForwardPortAction.COMMANDPALETTE_ID,
+		id: ForwardPortAction.INLINE_ID,
 		title: ForwardPortAction.LABEL,
 		icon: { id: 'codicon/plus' }
 	}
