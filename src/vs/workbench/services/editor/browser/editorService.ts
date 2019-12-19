@@ -27,6 +27,7 @@ import { IEditorGroupView, IEditorOpeningEvent, EditorServiceImpl } from 'vs/wor
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -51,13 +52,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly _onDidOpenEditorFail = this._register(new Emitter<IEditorIdentifier>());
 	readonly onDidOpenEditorFail = this._onDidOpenEditorFail.event;
 
+	private readonly _onDidMostRecentlyActiveEditorsChange = this._register(new Emitter<void>());
+	readonly onDidMostRecentlyActiveEditorsChange = this._onDidMostRecentlyActiveEditorsChange.event;
+
 	//#endregion
 
 	private fileInputFactory: IFileInputFactory;
-	private openEditorHandlers: IOpenEditorOverrideHandler[] = [];
+	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
 	private lastActiveEditor: IEditorInput | undefined = undefined;
 	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
+
+	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -80,6 +86,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this.editorGroupService.whenRestored.then(() => this.onEditorsRestored());
 		this.editorGroupService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
+		this.editorsObserver.onDidChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
 	}
 
 	private onEditorsRestored(): void {
@@ -186,6 +193,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		});
 
 		return editors;
+	}
+
+	get mostRecentlyActiveEditors(): IEditorIdentifier[] {
+		return this.editorsObserver.editors;
 	}
 
 	get activeEditor(): IEditorInput | undefined {

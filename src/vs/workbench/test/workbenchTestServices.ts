@@ -374,7 +374,7 @@ export class TestHistoryService implements IHistoryService {
 	remove(_input: IEditorInput | IResourceInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
-	getHistory(): Array<IEditorInput | IResourceInput> { return []; }
+	getHistory(): ReadonlyArray<IEditorInput | IResourceInput> { return []; }
 	openNextRecentlyUsedEditor(group?: GroupIdentifier): void { }
 	openPreviouslyUsedEditor(group?: GroupIdentifier): void { }
 	getMostRecentlyUsedOpenEditors(): Array<IEditorIdentifier> { return []; }
@@ -902,11 +902,13 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidVisibleEditorsChange: Event<void> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
+	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
 
 	activeControl!: IVisibleEditor;
 	activeTextEditorWidget: any;
 	activeEditor!: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
+	mostRecentlyActiveEditors: ReadonlyArray<IEditorIdentifier> = [];
 	visibleControls: ReadonlyArray<IVisibleEditor> = [];
 	visibleTextEditorWidgets = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
