@@ -92,7 +92,7 @@ export class FoldingModel {
 				endColumn: maxColumn
 			};
 			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed) });
-		});
+		};
 		let i = 0;
 		let nextCollapsed = () => {
 			while (i < this._regions.length) {
@@ -358,7 +358,7 @@ export function setCollapseStateForType(foldingModel: FoldingModel, type: string
 	foldingModel.toggleCollapseState(toToggle);
 }
 
-export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: darken(editorSelectionBackground, 0.6), dark: lighten(editorSelectionBackground, 0.6), hc: null }, nls.localize('editorSelectionBackground', "Color of the editor selection."));
+export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: lighten(editorSelectionBackground, 0.5), dark: darken(editorSelectionBackground, 0.5), hc: null }, nls.localize('editorSelectionBackground', "Color of the editor selection."));
 
 registerThemingParticipant((theme, collector) => {
 	const foldBackground = theme.getColor(foldBackgroundBackground);
