@@ -33,7 +33,6 @@ import { ViewPane, ViewPaneContainer } from 'vs/workbench/browser/parts/views/vi
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
@@ -202,8 +201,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 			// without causing the animation in the opened editors view to kick in and change scroll position.
 			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
 			// a new entry in the opened editors view.
-			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService);
-			delegatingEditorService.setEditorOpenHandler(async (delegate, group, editor, options): Promise<IEditor | null> => {
+			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService, async (delegate, group, editor, options): Promise<IEditor | null> => {
 				let openEditorsView = this.getOpenEditorsView();
 				if (openEditorsView) {
 					let delay = 0;
@@ -219,19 +217,16 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 					openEditorsView.setStructuralRefreshDelay(delay);
 				}
 
-				let openedEditor: IEditor | undefined;
 				try {
-					openedEditor = await delegate(group, editor, options);
+					return await delegate(group, editor, options);
 				} catch (error) {
-					// ignore
+					return null; // ignore
 				} finally {
 					const openEditorsView = this.getOpenEditorsView();
 					if (openEditorsView) {
 						openEditorsView.setStructuralRefreshDelay(0);
 					}
 				}
-
-				return withUndefinedAsNull(openedEditor);
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
