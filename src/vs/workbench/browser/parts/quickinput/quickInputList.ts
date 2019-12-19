@@ -11,7 +11,7 @@ import { WorkbenchList, IWorkbenchListOptions } from 'vs/platform/list/browser/l
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
-import { matchesFuzzyCodiconAware, parseCodicons } from 'vs/base/parts/codicon/common/codicon';
+import { matchesFuzzyCodiconAware, parseCodicons } from 'vs/base/common/codicon';
 import { compareAnything } from 'vs/base/common/comparers';
 import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';

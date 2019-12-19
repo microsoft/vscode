@@ -5,7 +5,7 @@
 
 import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
-import { renderCodicons } from 'vs/base/parts/codicon/common/codicons';
+import { renderCodicons } from 'vs/base/common/codicons';
 import { escape } from 'vs/base/common/strings';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';

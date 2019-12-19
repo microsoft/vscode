@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./codicon';
-import 'vs/css!./codicon-animations';
+import 'vs/css!./codicon/codicon';
+import 'vs/css!./codicon/codicon-animations';
 import { escape } from 'vs/base/common/strings';
-import { renderCodicons } from 'vs/base/parts/codicon/common/codicons';
+import { renderCodicons } from 'vs/base/common/codicons';
 
 export class CodiconLabel {
 

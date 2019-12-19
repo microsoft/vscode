@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IMatch } from 'vs/base/common/filters';
-import { matchesFuzzyCodiconAware, parseCodicons, IParsedCodicons } from 'vs/base/parts/codicon/common/codicon';
+import { matchesFuzzyCodiconAware, parseCodicons, IParsedCodicons } from 'vs/base/common/codicon';
 
 export interface ICodiconFilter {
 	// Returns null if word doesn't match.

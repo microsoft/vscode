@@ -41,7 +41,7 @@ var editorEntryPoints = [
 ];
 
 var editorResources = [
-	'out-editor-build/vs/base/parts/codicon/browser/codiconLabel/**/*.ttf'
+	'out-editor-build/vs/base/browser/ui/codiconLabel/**/*.ttf'
 ];
 
 var BUNDLED_FILE_HEADER = [

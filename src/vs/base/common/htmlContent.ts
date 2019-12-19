@@ -5,7 +5,7 @@
 
 import { equals } from 'vs/base/common/arrays';
 import { UriComponents } from 'vs/base/common/uri';
-import { escapeCodicons } from 'vs/base/parts/codicon/common/codicons';
+import { escapeCodicons } from 'vs/base/common/codicons';
 
 export interface IMarkdownString {
 	readonly value: string;
