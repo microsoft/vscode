@@ -171,7 +171,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	public layoutBody(height: number, width: number): void {
 		const wasSmallLayout = this.isSmallLayout;
-		this.isSmallLayout = width < 600;
+		this.isSmallLayout = width < 600 && height > 100;
 		if (this.isSmallLayout !== wasSmallLayout) {
 			this.updateActions();
 			if (this.filterActionBar) {
