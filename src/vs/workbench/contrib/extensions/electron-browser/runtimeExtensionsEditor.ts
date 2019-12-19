@@ -38,7 +38,7 @@ import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { renderCodicons } from 'vs/base/common/codicons';
+import { renderCodicons } from 'vs/base/parts/codicon/common/codicons';
 import { escape } from 'vs/base/common/strings';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
