@@ -464,9 +464,9 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (this.helpInformation.length) {
-				viewsRegistry.registerViews([this.helpPanelDescriptor], VIEW_CONTAINER);
+				viewsRegistry.registerViews([this.helpPanelDescriptor], this.viewContainer);
 			} else {
-				viewsRegistry.deregisterViews([this.helpPanelDescriptor], VIEW_CONTAINER);
+				viewsRegistry.deregisterViews([this.helpPanelDescriptor], this.viewContainer);
 			}
 		});
 	}
