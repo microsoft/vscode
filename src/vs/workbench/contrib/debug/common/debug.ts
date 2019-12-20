@@ -487,13 +487,19 @@ export interface IEnvConfig {
 	noDebug?: boolean;
 }
 
+export interface IConfigPresentation {
+	hidden?: boolean;
+	group?: string;
+	order?: number;
+}
+
 export interface IConfig extends IEnvConfig {
 
 	// fundamental attributes
 	type: string;
 	request: string;
 	name: string;
-
+	presentation?: IConfigPresentation;
 	// platform specifics
 	windows?: IEnvConfig;
 	osx?: IEnvConfig;
@@ -510,6 +516,7 @@ export interface ICompound {
 	name: string;
 	preLaunchTask?: string | TaskIdentifier;
 	configurations: (string | { name: string, folder: string })[];
+	presentation?: IConfigPresentation;
 }
 
 export interface IDebugAdapter extends IDisposable {
@@ -630,6 +637,8 @@ export interface IConfigurationManager {
 	getLaunches(): ReadonlyArray<ILaunch>;
 
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
+
+	getAllConfigurations(): { launch: ILaunch, name: string }[];
 
 	/**
 	 * Allows to register on change of selected debug configuration.
