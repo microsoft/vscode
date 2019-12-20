@@ -31,7 +31,6 @@ import { nextTick } from 'vs/base/common/process';
 import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPane';
 import { MainPaneDescriptor, MainPane } from 'vs/workbench/contrib/scm/browser/mainPane';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Viewlet } from 'vs/workbench/browser/viewlet';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -49,22 +48,6 @@ export interface IViewModel {
 
 	isVisible(): boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
-}
-
-export class SCMViewlet extends Viewlet {
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService protected storageService: IStorageService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IExtensionService protected extensionService: IExtensionService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
-		@IConfigurationService protected configurationService: IConfigurationService
-	) {
-		super(VIEWLET_ID, instantiationService.createInstance(SCMViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
-	}
 }
 
 export class SCMViewPaneContainer extends ViewPaneContainer implements IViewModel {

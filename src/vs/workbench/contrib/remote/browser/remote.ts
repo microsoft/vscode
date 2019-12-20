@@ -25,7 +25,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ShowViewletAction, Viewlet } from 'vs/workbench/browser/viewlet';
+import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
@@ -413,22 +413,6 @@ class HelpPanelDescriptor implements IViewDescriptor {
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = { ctor: HelpPanel, arguments: [viewModel] };
-	}
-}
-
-export class RemoteViewlet extends Viewlet {
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService protected storageService: IStorageService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IExtensionService protected extensionService: IExtensionService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
-		@IConfigurationService protected configurationService: IConfigurationService
-	) {
-		super(VIEWLET_ID, instantiationService.createInstance(RemoteViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
 	}
 }
 
