@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation, IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IFileEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IFileEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -156,6 +156,9 @@ suite('EditorService', () => {
 
 		assert.ok(editor instanceof TestEditorControl);
 		assert.equal(editor, service.activeControl);
+		assert.equal(1, service.count);
+		assert.equal(input, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].editor);
+		assert.equal(input, service.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
 		assert.equal(input, service.activeEditor);
 		assert.equal(service.visibleControls.length, 1);
 		assert.equal(service.visibleControls[0], editor);
@@ -169,6 +172,9 @@ suite('EditorService', () => {
 		// Close input
 		await editor!.group!.closeEditor(input);
 
+		assert.equal(0, service.count);
+		assert.equal(0, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length);
+		assert.equal(0, service.getEditors(EditorsOrder.SEQUENTIAL).length);
 		assert.equal(didCloseEditorListenerCounter, 1);
 		assert.equal(activeEditorChangeEventCounter, 2);
 		assert.equal(visibleEditorChangeEventCounter, 2);
@@ -178,6 +184,11 @@ suite('EditorService', () => {
 		await service.openEditor(input, { pinned: true });
 		editor = await service.openEditor(otherInput, { pinned: true });
 
+		assert.equal(2, service.count);
+		assert.equal(otherInput, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].editor);
+		assert.equal(input, service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1].editor);
+		assert.equal(input, service.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
+		assert.equal(otherInput, service.getEditors(EditorsOrder.SEQUENTIAL)[1].editor);
 		assert.equal(service.visibleControls.length, 1);
 		assert.equal(service.isOpen(input), true);
 		assert.equal(service.isOpen(otherInput), true);

@@ -156,9 +156,4 @@ export interface EditorServiceImpl extends IEditorService {
 	 * Emitted when the list of most recently active editors change.
 	 */
 	readonly onDidMostRecentlyActiveEditorsChange: Event<void>;
-
-	/**
-	 * Access to the list of most recently active editors.
-	 */
-	readonly mostRecentlyActiveEditors: ReadonlyArray<IEditorIdentifier>;
 }

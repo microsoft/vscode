@@ -1327,3 +1327,16 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 
 	return coalesce(editors);
 }
+
+export const enum EditorsOrder {
+
+	/**
+	 * Editors sorted by most recent activity (most recent active first)
+	 */
+	MOST_RECENTLY_ACTIVE,
+
+	/**
+	 * Editors sorted by sequential order
+	 */
+	SEQUENTIAL
+}

@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
@@ -87,9 +87,4 @@ export interface IHistoryService {
 	 * @param group optional indicator to scope to a specific group.
 	 */
 	openPreviouslyUsedEditor(group?: GroupIdentifier): void;
-
-	/**
-	 * Get a list of most recently used editors that are open.
-	 */
-	getMostRecentlyUsedOpenEditors(): ReadonlyArray<IEditorIdentifier>;
 }
