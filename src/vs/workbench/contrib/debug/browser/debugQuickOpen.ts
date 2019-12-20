@@ -97,13 +97,19 @@ export class DebugQuickOpenHandler extends QuickOpenHandler {
 
 		const configManager = this.debugService.getConfigurationManager();
 		const allConfigurations = configManager.getAllConfigurations();
+		let lastGroup: string | undefined;
 		for (let config of allConfigurations) {
 			const highlights = matchesFuzzy(input, config.name, true);
 			if (highlights) {
 				if (config.launch === configManager.selectedConfiguration.launch && config.name === configManager.selectedConfiguration.name) {
 					this.autoFocusIndex = configurations.length;
 				}
-				configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.notificationService, config.launch, config.name, highlights));
+				let entry: QuickOpenEntry = new StartDebugEntry(this.debugService, this.contextService, this.notificationService, config.launch, config.name, highlights);
+				if (lastGroup !== config.presentation?.group) {
+					entry = new QuickOpenEntryGroup(entry, undefined, true);
+					lastGroup = config.presentation?.group;
+				}
+				configurations.push(entry);
 			}
 		}
 

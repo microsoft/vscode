@@ -214,7 +214,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return results.reduce((first, second) => first.concat(second), []);
 	}
 
-	getAllConfigurations(): { launch: ILaunch; name: string; }[] {
+	getAllConfigurations(): { launch: ILaunch; name: string; presentation?: IConfigPresentation }[] {
 		const all: { launch: ILaunch, name: string, presentation?: IConfigPresentation }[] = [];
 		for (let l of this.launches) {
 			for (let name of l.getConfigurationNames()) {

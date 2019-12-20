@@ -638,7 +638,7 @@ export interface IConfigurationManager {
 
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
 
-	getAllConfigurations(): { launch: ILaunch, name: string }[];
+	getAllConfigurations(): { launch: ILaunch, name: string, presentation?: IConfigPresentation }[];
 
 	/**
 	 * Allows to register on change of selected debug configuration.
