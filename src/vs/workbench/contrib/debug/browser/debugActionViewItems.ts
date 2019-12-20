@@ -159,6 +159,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		const manager = this.debugService.getConfigurationManager();
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let lastGroup: string | undefined;
+		const disabledIdxs: number[] = [];
 		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
 			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
 				this.selected = this.options.length;
@@ -167,6 +168,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 				lastGroup = presentation?.group;
 				if (this.options.length) {
 					this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
+					disabledIdxs.push(this.options.length - 1);
 				}
 			}
 
@@ -178,9 +180,9 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: () => false });
 		} else {
 			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
+			disabledIdxs.push(this.options.length - 1);
 		}
 
-		const disabledIdx = this.options.length - 1;
 		manager.getLaunches().filter(l => !l.hidden).forEach(l => {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
@@ -191,7 +193,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: (index === disabledIdx ? true : undefined) }), this.selected);
+		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 }), this.selected);
 	}
 }
 
