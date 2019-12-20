@@ -235,7 +235,7 @@ export class EditorsObserver extends Disposable {
 			if (typeof groupId === 'number') {
 				const group = this.editorGroupsService.getGroup(groupId);
 				if (group) {
-					this.doEnsureOpenedEditorsLimit(limit, group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
+					await this.doEnsureOpenedEditorsLimit(limit, group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
 				}
 			}
 
@@ -249,7 +249,7 @@ export class EditorsObserver extends Disposable {
 
 		// Across all editor groups
 		else {
-			this.doEnsureOpenedEditorsLimit(limit, this.mostRecentEditorsMap.values(), exclude);
+			await this.doEnsureOpenedEditorsLimit(limit, this.mostRecentEditorsMap.values(), exclude);
 		}
 	}
 

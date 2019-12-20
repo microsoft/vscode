@@ -1015,7 +1015,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Use the first editor as active editor
 		const { editor, options } = editors.shift()!;
-		let firstOpenedEditor = await this.openEditor(editor, options);
+		await this.openEditor(editor, options);
 
 		// Open the other ones inactive
 		const startingIndex = this.getIndexOfEditor(editor) + 1;
@@ -1025,13 +1025,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			adjustedEditorOptions.pinned = true;
 			adjustedEditorOptions.index = startingIndex + index;
 
-			const openedEditor = await this.openEditor(editor, adjustedEditorOptions);
-			if (!firstOpenedEditor) {
-				firstOpenedEditor = openedEditor; // only take if the first editor opening failed
-			}
+			await this.openEditor(editor, adjustedEditorOptions);
 		}));
 
-		return firstOpenedEditor;
+		// Opening many editors at once can put any editor to be
+		// the active one depending on options. As such, we simply
+		// return the active control after this operation.
+		return this.editorControl.activeControl;
 	}
 
 	//#endregion
@@ -1519,8 +1519,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			await openEditorResult;
 		}
 	}
-
-	//#endregion
 
 	//#endregion
 
