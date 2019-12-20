@@ -17,15 +17,15 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/contrib/remote/common/remote.contribution';
+import { VIEWLET_ID } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptor, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction, Viewlet } from 'vs/workbench/browser/viewlet';
+import { ShowViewletAction, Viewlet } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
@@ -496,7 +496,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchRemoteAction.ID) {
-			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(VIEW_CONTAINER), this.contextKeyService));
+			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService));
 		}
 
 		return super.getActionViewItem(action);
@@ -527,19 +527,41 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {
 			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-			viewsRegistry.registerViews([this.tunnelPanelDescriptor!], VIEW_CONTAINER);
+			viewsRegistry.registerViews([this.tunnelPanelDescriptor!], this.viewContainer);
 		}
 		return panels;
 	}
 }
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
-	RemoteViewlet,
-	VIEWLET_ID,
-	VIEW_CONTAINER.name,
-	'codicon-remote-explorer',
-	4
-));
+Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+	{
+		id: VIEWLET_ID,
+		name: nls.localize('remote.explorer', "Remote Explorer"),
+		ctorDescriptor: { ctor: RemoteViewPaneContainer },
+		hideIfEmpty: true,
+		viewOrderDelegate: {
+			getOrder: (group?: string) => {
+				if (!group) {
+					return;
+				}
+
+				let matches = /^targets@(\d+)$/.exec(group);
+				if (matches) {
+					return -1000;
+				}
+
+				matches = /^details(@(\d+))?$/.exec(group);
+
+				if (matches) {
+					return -500;
+				}
+
+				return;
+			}
+		},
+		icon: 'codicon-remote-explorer',
+		order: 4
+	}, ViewContainerLocation.Sidebar);
 
 class OpenRemoteViewletAction extends ShowViewletAction {
 

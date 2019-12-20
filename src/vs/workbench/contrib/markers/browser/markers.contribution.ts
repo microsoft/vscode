@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkersView, getMarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
 import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction } from 'vs/platform/actions/common/actions';
-import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor, PaneCompositePanel, TogglePanelAction } from 'vs/workbench/browser/panel';
+import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ShowProblemsPanelAction } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
@@ -30,13 +30,6 @@ import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatus
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
@@ -100,30 +93,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	}
 });
 
-
-// markers view container
-const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: Constants.MARKERS_PANEL_ID, name: Messages.MARKERS_PANEL_TITLE_PROBLEMS }, ViewContainerLocation.Panel);
-Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
-	id: Constants.MARKERS_VIEW_ID,
-	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	canToggleVisibility: false,
-	ctorDescriptor: { ctor: MarkersView },
-}], VIEW_CONTAINER);
-
-// markers panel
-class MarkersPanel extends PaneCompositePanel {
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService) {
-		super(Constants.MARKERS_PANEL_ID, instantiationService.createInstance(ViewPaneContainer, Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }),
-			telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-	}
-}
 class ToggleMarkersPanelAction extends TogglePanelAction {
 
 	public static readonly ID = 'workbench.actions.view.problems';
@@ -136,14 +105,25 @@ class ToggleMarkersPanelAction extends TogglePanelAction {
 		super(id, label, Constants.MARKERS_PANEL_ID, panelService, layoutService);
 	}
 }
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
-	MarkersPanel,
-	Constants.MARKERS_PANEL_ID,
-	VIEW_CONTAINER.name,
-	'markersPanel',
-	10,
-	ToggleMarkersPanelAction.ID
-));
+
+// markers view container
+const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+	id: Constants.MARKERS_PANEL_ID,
+	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+	ctorDescriptor: { ctor: ViewPaneContainer, arguments: [Constants.MARKERS_PANEL_ID, Constants.MARKERS_PANEL_STORAGE_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }] },
+	focusCommand: {
+		id: ToggleMarkersPanelAction.ID, keybindings: {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
+		}
+	}
+}, ViewContainerLocation.Panel);
+
+Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
+	id: Constants.MARKERS_VIEW_ID,
+	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+	canToggleVisibility: false,
+	ctorDescriptor: { ctor: MarkersView },
+}], VIEW_CONTAINER);
 
 // workbench
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

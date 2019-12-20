@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { append, $, toggleClass, addClasses } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { VIEWLET_ID, ISCMService, ISCMRepository, VIEW_CONTAINER } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -124,7 +124,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		this.message = $('.empty-message', { tabIndex: 0 }, localize('no open repo', "No source control providers registered."));
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([new MainPaneDescriptor(this)], VIEW_CONTAINER);
+		viewsRegistry.registerViews([new MainPaneDescriptor(this)], this.viewContainer);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.alwaysShowProviders') && configurationService.getValue<boolean>('scm.alwaysShowProviders')) {
@@ -153,7 +153,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		this._repositories.push(repository);
 
 		const viewDescriptor = new RepositoryViewDescriptor(repository, false);
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews([viewDescriptor], VIEW_CONTAINER);
+		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews([viewDescriptor], this.viewContainer);
 		this.viewDescriptors.push(viewDescriptor);
 
 		this._onDidSplice.fire({ index, deleteCount: 0, elements: [repository] });
@@ -169,7 +169,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 			return;
 		}
 
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews([this.viewDescriptors[index]], VIEW_CONTAINER);
+		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews([this.viewDescriptors[index]], this.viewContainer);
 
 		this._repositories.splice(index, 1);
 		this.viewDescriptors.splice(index, 1);

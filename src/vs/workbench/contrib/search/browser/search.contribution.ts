@@ -31,10 +31,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { Extensions as QuickOpenExtensions, IQuickOpenRegistry, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { Extensions as ViewletExtensions, ViewletDescriptor, ViewletRegistry } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewExtensions, IViewsRegistry } from 'vs/workbench/common/views';
+import { Extensions as ViewExtensions, IViewsRegistry, IViewContainersRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, IExplorerService, VIEWLET_ID as VIEWLET_ID_FILES } from 'vs/workbench/contrib/files/common/files';
 import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
@@ -43,7 +42,6 @@ import { registerContributions as replaceContributions } from 'vs/workbench/cont
 import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, OpenResultsInEditorAction, RerunEditorSearchAction, RerunEditorSearchWithContextAction, ExpandAllAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { SearchView, SearchViewPosition } from 'vs/workbench/contrib/search/browser/searchView';
-import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
@@ -51,12 +49,13 @@ import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contri
 import { FileMatchOrMatch, ISearchWorkbenchService, RenderableMatch, SearchWorkbenchService, FileMatch, Match, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_ID, VIEW_CONTAINER, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, ISearchConfigurationProperties, PANEL_ID, VIEWLET_ID, VIEW_ID, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { assertType } from 'vs/base/common/types';
+import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -505,13 +504,14 @@ class ShowAllSymbolsAction extends Action {
 	}
 }
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
-	SearchViewlet,
-	VIEWLET_ID,
-	VIEW_CONTAINER.name,
-	'codicon-search',
-	1
-));
+const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+	id: VIEWLET_ID,
+	name: nls.localize('name', "Search"),
+	ctorDescriptor: { ctor: SearchViewPaneContainer },
+	hideIfEmpty: true,
+	icon: 'codicon-search',
+	order: 1
+}, ViewContainerLocation.Sidebar);
 
 Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 	SearchPanel,
@@ -532,7 +532,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 		const updateSearchViewLocation = (open: boolean) => {
 			const config = configurationService.getValue<ISearchConfiguration>();
 			if (config.search.location === 'panel') {
-				viewsRegistry.deregisterViews(viewsRegistry.getViews(VIEW_CONTAINER), VIEW_CONTAINER);
+				viewsRegistry.deregisterViews(viewsRegistry.getViews(viewContainer), viewContainer);
 				Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 					SearchPanel,
 					PANEL_ID,
@@ -545,7 +545,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 				}
 			} else {
 				Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(PANEL_ID);
-				viewsRegistry.registerViews([{ id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: { ctor: SearchView, arguments: [SearchViewPosition.SideBar] }, canToggleVisibility: false }], VIEW_CONTAINER);
+				viewsRegistry.registerViews([{ id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: { ctor: SearchView, arguments: [SearchViewPosition.SideBar] }, canToggleVisibility: false }], viewContainer);
 				if (open) {
 					viewletService.openViewlet(VIEWLET_ID);
 				}

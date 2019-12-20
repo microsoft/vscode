@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command } from 'vs/editor/common/modes';
-import { UriComponents } from 'vs/base/common/uri';
+import { UriComponents, URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -18,6 +18,7 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { IAction } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten } from 'vs/base/common/arrays';
+import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
@@ -37,6 +38,14 @@ export interface IViewContainerDescriptor {
 	readonly id: string;
 
 	readonly name: string;
+
+	readonly ctorDescriptor: { ctor: new (...args: any[]) => IViewPaneContainer, arguments?: any[] };
+
+	readonly icon?: string | URI;
+
+	readonly order?: number;
+
+	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
 
 	readonly viewOrderDelegate?: ViewOrderDelegate;
 
@@ -96,16 +105,7 @@ interface ViewOrderDelegate {
 	getOrder(group?: string): number | undefined;
 }
 
-export class ViewContainer {
-
-	protected constructor(private readonly descriptor: IViewContainerDescriptor) { }
-
-	readonly id: string = this.descriptor.id;
-	readonly name: string = this.descriptor.name;
-	readonly hideIfEmpty: boolean = !!this.descriptor.hideIfEmpty;
-	readonly extensionId: ExtensionIdentifier | undefined = this.descriptor.extensionId;
-	readonly orderDelegate: ViewOrderDelegate | undefined = this.descriptor.viewOrderDelegate;
-}
+export interface ViewContainer extends IViewContainerDescriptor { }
 
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
 
@@ -127,11 +127,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 			return existing;
 		}
 
-		const viewContainer = new class extends ViewContainer {
-			constructor() {
-				super(viewContainerDescriptor);
-			}
-		};
+		const viewContainer: ViewContainer = { ...viewContainerDescriptor };
 		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
 		viewContainers.push(viewContainer);
 		this._onDidRegister.fire({ viewContainer, viewContainerLocation });
