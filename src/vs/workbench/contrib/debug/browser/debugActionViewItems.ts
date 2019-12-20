@@ -158,10 +158,18 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.options = [];
 		const manager = this.debugService.getConfigurationManager();
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		manager.getAllConfigurations().forEach(({ launch, name }) => {
+		let lastGroup: string | undefined;
+		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
 			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
 				this.selected = this.options.length;
 			}
+			if (lastGroup !== presentation?.group) {
+				lastGroup = presentation?.group;
+				if (this.options.length) {
+					this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
+				}
+			}
+
 			const label = inWorkspace ? `${name} (${launch.name})` : name;
 			this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
 		});
