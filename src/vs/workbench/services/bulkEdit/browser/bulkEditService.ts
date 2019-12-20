@@ -429,7 +429,7 @@ export class BulkEditService implements IBulkEditService {
 
 		edit = BulkEditService._mergeSequentialTextEditsOfSameResource(edit);
 
-		if (this._previewHandler) {
+		if (this._previewHandler && !options.noPreview) {
 			edit = await this._previewHandler(edit, options);
 		}
 

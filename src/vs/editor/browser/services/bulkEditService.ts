@@ -14,6 +14,7 @@ export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEdi
 export interface IBulkEditOptions {
 	editor?: ICodeEditor;
 	progress?: IProgress<IProgressStep>;
+	noPreview?: boolean;
 }
 
 export interface IBulkEditResult {
