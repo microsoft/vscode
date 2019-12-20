@@ -65,7 +65,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 		let allEdits = flatten(textEdits).map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text));
 		allEdits = mergeSort(allEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 		previewModel.applyEdits(allEdits);
-
+		ref.dispose();
 		return previewModel;
 	}
 }

@@ -85,7 +85,7 @@ export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit,
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
 				);
 			});
-
+			ref.dispose();
 			return result;
 		}
 
