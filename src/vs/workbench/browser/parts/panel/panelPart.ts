@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor, PaneCompositePanel } from 'vs/workbench/browser/panel';
+import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
@@ -33,7 +33,7 @@ import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/con
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, IViewDescriptorCollection, TEST_VIEW_CONTAINER_ID } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, IViewDescriptorCollection } from 'vs/workbench/common/views';
 
 interface ICachedPanel {
 	id: string;
@@ -230,7 +230,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		return cachedPanel?.views && cachedPanel.views.length
 			? cachedPanel.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))
-			: panelId === TEST_VIEW_CONTAINER_ID /* Hide Test Panel for the first time or it had no views registered before */;
+			: false;
 	}
 
 	private registerListeners(): void {
@@ -283,27 +283,21 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private onPanelOpen(panel: IPanel): void {
 		this.activePanelContextKey.set(panel.getId());
 
-		// This panel supports view containers
-		if (panel instanceof PaneCompositePanel) {
-			const foundPanel = this.panelRegistry.getPanel(panel.getId());
-			if (foundPanel) {
-				this.compositeBar.addComposite(foundPanel);
-			}
+		const foundPanel = this.panelRegistry.getPanel(panel.getId());
+		if (foundPanel) {
+			this.compositeBar.addComposite(foundPanel);
 		}
 
 		// Activate composite when opened
 		this.compositeBar.activateComposite(panel.getId());
 
-		// This panel supports view containers
-		if (panel instanceof PaneCompositePanel) {
-			const panelDescriptor = this.panelRegistry.getPanel(panel.getId());
-			if (panelDescriptor) {
-				const viewContainer = this.getViewContainer(panelDescriptor.id);
-				if (viewContainer?.hideIfEmpty) {
-					const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
-					if (viewDescriptors?.activeViewDescriptors.length === 0) {
-						this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
-					}
+		const panelDescriptor = this.panelRegistry.getPanel(panel.getId());
+		if (panelDescriptor) {
+			const viewContainer = this.getViewContainer(panelDescriptor.id);
+			if (viewContainer?.hideIfEmpty) {
+				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+				if (viewDescriptors?.activeViewDescriptors.length === 0) {
+					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
 				}
 			}
 		}
