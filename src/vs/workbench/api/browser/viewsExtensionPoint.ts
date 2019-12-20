@@ -313,7 +313,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 		if (!viewContainer) {
 
-			viewContainer = this.viewContainersRegistry.registerViewContainer(id, ViewContainerLocation.Sidebar, true, extensionId);
+			viewContainer = this.viewContainersRegistry.registerViewContainer({ id, hideIfEmpty: true, name: title, extensionId }, ViewContainerLocation.Sidebar);
 
 			class CustomViewPaneContainer extends ViewPaneContainer {
 				constructor(
@@ -327,7 +327,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					@IContextMenuService contextMenuService: IContextMenuService,
 					@IExtensionService extensionService: IExtensionService,
 				) {
-					super(id, `${id}.state`, { showHeaderInTitleWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
+					super(id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 				}
 			}
 

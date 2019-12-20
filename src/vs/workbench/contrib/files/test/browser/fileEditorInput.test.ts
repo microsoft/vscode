@@ -28,7 +28,6 @@ class ServiceAccessor {
 }
 
 suite('Files - FileEditorInput', () => {
-
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 

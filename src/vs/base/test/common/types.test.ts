@@ -2,10 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import * as types from 'vs/base/common/types';
 
 suite('Types', () => {
+
 	test('isFunction', () => {
 		assert(!types.isFunction(undefined));
 		assert(!types.isFunction(null));

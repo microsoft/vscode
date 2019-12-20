@@ -34,15 +34,18 @@ declare module 'vscode' {
 	}
 
 	export interface TunnelOptions {
-		remote: { port: number, host: string };
-		localPort?: number;
-		name?: string;
+		remoteAddress: { port: number, host: string };
+		// The desired local port. If this port can't be used, then another will be chosen.
+		localAddressPort?: number;
+		label?: string;
 	}
 
 	export interface Tunnel {
-		remote: { port: number, host: string };
+		remoteAddress: { port: number, host: string };
+		//The complete local address(ex. localhost:1234)
 		localAddress: string;
-		onDispose: Event<void>;
+		// Implementers of Tunnel should fire onDidDispose when dispose is called.
+		onDidDispose: Event<void>;
 		dispose(): void;
 	}
 
@@ -52,10 +55,10 @@ declare module 'vscode' {
 	export interface TunnelInformation {
 		/**
 		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
-		 * The localAddress should be the complete local address(ex. localhost:1234) for connecting to the port. Tunnels provided through
+		 * The localAddress should be the complete local address (ex. localhost:1234) for connecting to the port. Tunnels provided through
 		 * detected are read-only from the forwarded ports UI.
 		 */
-		detectedTunnels?: { remote: { port: number, host: string }, localAddress: string }[];
+		environmentTunnels?: { remoteAddress: { port: number, host: string }, localAddress: string }[];
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -74,15 +77,16 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		forwardPort?(tunnelOptions: TunnelOptions): Thenable<Tunnel> | undefined;
+		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
 	}
 
 	export namespace workspace {
 		/**
-		 * Forwards a port. Currently only works for a remote host of localhost.
-		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
-		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;
+		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -1470,4 +1474,40 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region color theme access
+
+	/**
+	 * Represents a color theme kind.
+	 */
+	export enum ColorThemeKind {
+		Light = 1,
+		Dark = 2,
+		HighContrast = 3
+	}
+
+	/**
+	 * Represents a color theme.
+	 */
+	export interface ColorTheme {
+
+		/**
+		 * The kind of this color theme: light, dark or high contrast.
+		 */
+		readonly kind: ColorThemeKind;
+	}
+
+	export namespace window {
+		/**
+		 * The currently active color theme as configured in the settings. The active
+		 * theme can be changed via the `workbench.colorTheme` setting.
+		 */
+		export let activeColorTheme: ColorTheme;
+
+		/**
+		 * An [event](#Event) which fires when the active theme changes or one of it's colors chnage.
+		 */
+		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
+	}
+
 }

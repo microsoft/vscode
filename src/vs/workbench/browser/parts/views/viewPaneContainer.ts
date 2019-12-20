@@ -25,7 +25,7 @@ import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndControlle
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -36,8 +36,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 import { Component } from 'vs/workbench/common/component';
-import { Extensions as ViewletExtensions, ViewletRegistry } from 'vs/workbench/browser/viewlet';
-import { Extensions as PanelExtensions, PanelRegistry } from 'vs/workbench/browser/panel';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -234,7 +232,8 @@ export abstract class ViewPane extends Pane implements IView {
 }
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
-	showHeaderInTitleWhenSingleView: boolean;
+	mergeViewWithContainerWhenSingleView: boolean;
+	donotShowContainerTitleWhenMergedWithContainer?: boolean;
 }
 
 interface IViewPaneItem {
@@ -244,6 +243,7 @@ interface IViewPaneItem {
 
 export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
+	private readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
@@ -308,6 +308,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.options.dnd = new DefaultPaneDndController();
 		}
 
+		this.viewContainer = container;
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
 		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
@@ -345,15 +346,15 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getTitle(): string {
-		const composite = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getViewlet(this.getId()) || Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanel(this.getId());
-		let title = composite.name;
-
-		if (this.isSingleView()) {
+		if (this.isViewMergedWithContainer()) {
 			const paneItemTitle = this.paneItems[0].pane.title;
-			title = paneItemTitle ? `${title}: ${paneItemTitle}` : title;
+			if (this.options.donotShowContainerTitleWhenMergedWithContainer || this.viewContainer.name === paneItemTitle) {
+				return this.paneItems[0].pane.title;
+			}
+			return paneItemTitle ? `${this.viewContainer.name}: ${paneItemTitle}` : this.viewContainer.name;
 		}
 
-		return title;
+		return this.viewContainer.name;
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
@@ -402,7 +403,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getActions(): IAction[] {
-		if (this.isSingleView()) {
+		if (this.isViewMergedWithContainer()) {
 			return this.paneItems[0].pane.getActions();
 		}
 
@@ -410,7 +411,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getSecondaryActions(): IAction[] {
-		if (this.isSingleView()) {
+		if (this.isViewMergedWithContainer()) {
 			return this.paneItems[0].pane.getSecondaryActions();
 		}
 
@@ -418,7 +419,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (this.isSingleView()) {
+		if (this.isViewMergedWithContainer()) {
 			return this.paneItems[0].pane.getActionViewItem(action);
 		}
 
@@ -459,14 +460,14 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	addPanes(panes: { pane: ViewPane, size: number, index?: number; }[]): void {
-		const wasSingleView = this.isSingleView();
+		const wasMerged = this.isViewMergedWithContainer();
 
 		for (const { pane: pane, size, index } of panes) {
 			this.addPane(pane, size, index);
 		}
 
 		this.updateViewHeaders();
-		if (this.isSingleView() !== wasSingleView) {
+		if (this.isViewMergedWithContainer() !== wasMerged) {
 			this.updateTitleArea();
 		}
 	}
@@ -643,7 +644,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {
 		const onDidFocus = pane.onDidFocus(() => this.lastFocusedPane = pane);
 		const onDidChangeTitleArea = pane.onDidChangeTitleArea(() => {
-			if (this.isSingleView()) {
+			if (this.isViewMergedWithContainer()) {
 				this.updateTitleArea();
 			}
 		});
@@ -668,12 +669,12 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	removePanes(panes: ViewPane[]): void {
-		const wasSingleView = this.isSingleView();
+		const wasMerged = this.isViewMergedWithContainer();
 
 		panes.forEach(pane => this.removePane(pane));
 
 		this.updateViewHeaders();
-		if (wasSingleView !== this.isSingleView()) {
+		if (wasMerged !== this.isViewMergedWithContainer()) {
 			this.updateTitleArea();
 		}
 	}
@@ -726,8 +727,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return assertIsDefined(this.paneview).getPaneSize(pane);
 	}
 
-	protected updateViewHeaders(): void {
-		if (this.isSingleView()) {
+	private updateViewHeaders(): void {
+		if (this.isViewMergedWithContainer()) {
 			this.paneItems[0].pane.setExpanded(true);
 			this.paneItems[0].pane.headerVisible = false;
 		} else {
@@ -735,8 +736,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 
-	protected isSingleView(): boolean {
-		if (!(this.options.showHeaderInTitleWhenSingleView && this.paneItems.length === 1)) {
+	private isViewMergedWithContainer(): boolean {
+		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
 			return false;
 		}
 		if (!this.areExtensionsReady) {

@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { workbenchInstantiationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, EditorsOrder, GroupLocation } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection, IEditorPartOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -468,7 +468,7 @@ suite('EditorGroupsService', () => {
 
 		assert.equal(group.activeEditor, input);
 		assert.ok(group.activeControl instanceof TestEditorControl);
-		assert.equal(group.editors.length, 2);
+		assert.equal(group.count, 2);
 
 		const mru = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
 		assert.equal(mru[0], input);

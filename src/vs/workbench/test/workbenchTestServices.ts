@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorInput, EditorOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
@@ -56,8 +56,8 @@ import { IExtensionService, NullExtensionService } from 'vs/workbench/services/e
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverrideHandler, IVisibleEditor, ISaveEditorsOptions, IRevertAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService, IOpenEditorOverrideHandler, IVisibleEditor, ISaveEditorsOptions, IRevertAllEditorsOptions, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
@@ -245,26 +245,25 @@ export class TestTextFileService extends NativeTextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
 
-			return Promise.reject(error);
+			throw error;
 		}
 
-		return this.fileService.readFileStream(resource, options).then(async (content): Promise<ITextFileStreamContent> => {
-			return {
-				resource: content.resource,
-				name: content.name,
-				mtime: content.mtime,
-				ctime: content.ctime,
-				etag: content.etag,
-				encoding: 'utf8',
-				value: await createTextBufferFactoryFromStream(content.value),
-				size: 10
-			};
-		});
+		const content = await this.fileService.readFileStream(resource, options);
+		return {
+			resource: content.resource,
+			name: content.name,
+			mtime: content.mtime,
+			ctime: content.ctime,
+			etag: content.etag,
+			encoding: 'utf8',
+			value: await createTextBufferFactoryFromStream(content.value),
+			size: 10
+		};
 	}
 
 	promptForPath(_resource: URI, _defaultPath: URI): Promise<URI> {
@@ -317,9 +316,10 @@ export function workbenchInstantiationService(): ITestInstantiationService {
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(ILogService, new NullLogService());
-	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroupView(0)]));
+	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
+	instantiationService.stub(IEditorGroupsService, editorGroupService);
 	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
-	const editorService = new TestEditorService();
+	const editorService = new TestEditorService(editorGroupService);
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 	instantiationService.stub(IViewletService, new TestViewletService());
@@ -374,10 +374,9 @@ export class TestHistoryService implements IHistoryService {
 	remove(_input: IEditorInput | IResourceInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
-	getHistory(): Array<IEditorInput | IResourceInput> { return []; }
+	getHistory(): ReadonlyArray<IEditorInput | IResourceInput> { return []; }
 	openNextRecentlyUsedEditor(group?: GroupIdentifier): void { }
 	openPreviouslyUsedEditor(group?: GroupIdentifier): void { }
-	getMostRecentlyUsedOpenEditors(): Array<IEditorIdentifier> { return []; }
 	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
 	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
 	openLastEditLocation(): void { }
@@ -690,6 +689,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 	onDidGroupIndexChange: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
+	onDidEditorPartOptionsChange = Event.None;
 
 	orientation: any;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
@@ -901,14 +901,21 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidVisibleEditorsChange: Event<void> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
+	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
 
 	activeControl!: IVisibleEditor;
 	activeTextEditorWidget: any;
 	activeEditor!: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
+	mostRecentlyActiveEditors: ReadonlyArray<IEditorIdentifier> = [];
 	visibleControls: ReadonlyArray<IVisibleEditor> = [];
 	visibleTextEditorWidgets = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
+	count = this.editors.length;
+
+	constructor(private editorGroupService?: IEditorGroupsService) { }
+
+	getEditors() { return []; }
 
 	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable {
 		return toDisposable(() => undefined);
@@ -916,6 +923,14 @@ export class TestEditorService implements EditorServiceImpl {
 
 	openEditor(_editor: any, _options?: any, _group?: any): Promise<any> {
 		throw new Error('not implemented');
+	}
+
+	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditor): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
+		if (!this.editorGroupService) {
+			return undefined;
+		}
+
+		return [this.editorGroupService.activeGroup, editor as EditorInput, undefined];
 	}
 
 	openEditors(_editors: any, _group?: any): Promise<IEditor[]> {
@@ -967,6 +982,7 @@ export class TestFileService implements IFileService {
 	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
 	readonly onWillActivateFileSystemProvider = Event.None;
+	readonly onDidChangeFileSystemProviderCapabilities = Event.None;
 	readonly onError: Event<Error> = Event.None;
 
 	private content = 'Hello Html';
@@ -1021,12 +1037,14 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options))).then(stats => stats.map(stat => ({ stat, success: true })));
+	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
+
+		return stats.map(stat => ({ stat, success: true }));
 	}
 
-	exists(_resource: URI): Promise<boolean> {
-		return Promise.resolve(true);
+	async exists(_resource: URI): Promise<boolean> {
+		return true;
 	}
 
 	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
@@ -1071,11 +1089,12 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		return timeout(0).then(() => ({
+	async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+		await timeout(0);
+
+		return ({
 			resource,
 			etag: 'index.txt',
-			encoding: 'utf8',
 			mtime: Date.now(),
 			ctime: Date.now(),
 			size: 42,
@@ -1083,7 +1102,7 @@ export class TestFileService implements IFileService {
 			isDirectory: false,
 			isSymbolicLink: false,
 			name: resources.basename(resource)
-		}));
+		});
 	}
 
 	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> {
@@ -1120,7 +1139,13 @@ export class TestFileService implements IFileService {
 		return resource.scheme === 'file' || this.providers.has(resource.scheme);
 	}
 
-	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean { return false; }
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+		if (capability === FileSystemProviderCapabilities.PathCaseSensitive && isLinux) {
+			return true;
+		}
+
+		return false;
+	}
 
 	del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 		return Promise.resolve();
@@ -1153,14 +1178,13 @@ export class TestBackupFileService implements IBackupFileService {
 		return false;
 	}
 
-	loadBackupResource(resource: URI): Promise<URI | undefined> {
-		return this.hasBackup(resource).then(hasBackup => {
-			if (hasBackup) {
-				return this.toBackupResource(resource);
-			}
+	async loadBackupResource(resource: URI): Promise<URI | undefined> {
+		const hasBackup = await this.hasBackup(resource);
+		if (hasBackup) {
+			return this.toBackupResource(resource);
+		}
 
-			return undefined;
-		});
+		return undefined;
 	}
 
 	registerResourceForBackup(_resource: URI): Promise<void> {

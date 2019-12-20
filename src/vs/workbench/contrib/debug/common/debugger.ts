@@ -22,6 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
 
 export class Debugger implements IDebugger {
 
@@ -222,7 +223,7 @@ export class Debugger implements IDebugger {
 			};
 			properties['name'] = {
 				type: 'string',
-				description: nls.localize('debugName', "Name of configuration; appears in the launch configuration drop down menu."),
+				description: nls.localize('debugName', "Name of configuration; appears in the launch configuration dropdown menu."),
 				default: 'Launch'
 			};
 			properties['request'] = {
@@ -250,6 +251,7 @@ export class Debugger implements IDebugger {
 				defaultSnippets: [{ body: { task: '', type: '' } }],
 				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
 			};
+			properties['presentation'] = presentationSchema;
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 			// Clear out windows, linux and osx fields to not have cycles inside the properties object
 			delete properties['windows'];

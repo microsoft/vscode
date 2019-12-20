@@ -24,6 +24,7 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { localize } from 'vs/nls';
 
 /**
  * Explorer viewlet id.
@@ -33,7 +34,7 @@ export const VIEWLET_ID = 'workbench.view.explorer';
 /**
  * Explorer viewlet container.
  */
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID, ViewContainerLocation.Sidebar);
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID, name: localize('explore', "Explorer") }, ViewContainerLocation.Sidebar);
 
 export interface IExplorerService {
 	_serviceBrand: undefined;
@@ -55,7 +56,6 @@ export interface IExplorerService {
 	refresh(): void;
 	setToCopy(stats: ExplorerItem[], cut: boolean): void;
 	isCut(stat: ExplorerItem): boolean;
-	shouldIgnoreCase(resource: URI): boolean;
 
 	/**
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
@@ -133,15 +133,13 @@ export interface IFileResource {
 	isDirectory?: boolean;
 }
 
-export const SortOrderConfiguration = {
-	DEFAULT: 'default',
-	MIXED: 'mixed',
-	FILES_FIRST: 'filesFirst',
-	TYPE: 'type',
-	MODIFIED: 'modified'
-};
-
-export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
+export const enum SortOrder {
+	Default = 'default',
+	Mixed = 'mixed',
+	FilesFirst = 'filesFirst',
+	Type = 'type',
+	Modified = 'modified'
+}
 
 export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {
 	private readonly fileWatcherDisposable = this._register(new MutableDisposable());

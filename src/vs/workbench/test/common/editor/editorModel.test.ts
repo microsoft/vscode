@@ -21,7 +21,7 @@ import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTe
 
 class MyEditorModel extends EditorModel { }
 class MyTextEditorModel extends BaseTextEditorModel {
-	public createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
+	createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
 		return super.createTextEditorModel(value, resource, preferredMode);
 	}
 

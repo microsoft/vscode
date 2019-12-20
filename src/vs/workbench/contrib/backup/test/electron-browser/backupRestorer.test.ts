@@ -93,7 +93,9 @@ suite('BackupModelRestorer', () => {
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
-	test('Restore backups', async () => {
+	test('Restore backups', async function () {
+		this.timeout(20000);
+
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
@@ -120,7 +122,7 @@ suite('BackupModelRestorer', () => {
 
 		// Verify backups restored and opened as dirty
 		await restorer.doRestoreBackups();
-		assert.equal(editorService.editors.length, 4);
+		assert.equal(editorService.count, 4);
 		assert.ok(editorService.editors.every(editor => editor.isDirty()));
 
 		let counter = 0;
