@@ -21,7 +21,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { NotebookHandler, ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewContentWidget, BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
+import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = DOM.$;
@@ -31,8 +31,6 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private rootElement!: HTMLElement;
 	private body!: HTMLElement;
 	private contentWidgets!: HTMLElement;
-	private contentWidgetsMap: Map<ViewCell, WebviewContentWidget> = new Map();
-	private contentWidgetsPool: WebviewContentWidget[] = [];
 	private webview: BackLayerWebView | null = null;
 
 	private list: WorkbenchList<ViewCell> | undefined;
@@ -126,20 +124,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				let index = this.model!.getNotebook().cells.indexOf(item.cell.cell);
 				let top = this.list?.getElementTop(index);
 				if (top !== null && top !== undefined) {
-					this.webview!.updateTop(item.cell.id, -scrollTop + top);
-				}
-			});
-			this.contentWidgetsMap.forEach((value, cell) => {
-				if (value.detachedFromViewEvents) {
-					return;
-				}
-
-				let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-				let top = this.list?.getElementTop(index);
-				if (top !== null && top !== undefined) {
-					let domElement = value.element;
-					let scrollTop = this.list?.scrollTop || 0;
-					domElement.style.top = `${-scrollTop + top + value.offset}px`;
+					this.webview!.updateContentWidgetTop(item.cell.id, -scrollTop + top);
 				}
 			});
 		};
@@ -154,73 +139,25 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createContentWidget(cell: ViewCell, shadowContent: string, shadowElement: HTMLElement, offset: number) {
-		if (this.webview!.mapping.has(cell.id)) {
+	createContentWidget(cell: ViewCell, shadowContent: string, offset: number) {
+		if (!this.webview!.mapping.has(cell.id)) {
+			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+			let top = this.list?.getElementTop(index) || 0;
+			let scrollTop = this.list?.scrollTop || 0;
+			this.webview!.createContentWidget(cell, offset, shadowContent, -scrollTop + top + offset);
 		} else {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			let top = this.list?.getElementTop(index) || 0;
 			let scrollTop = this.list?.scrollTop || 0;
-			this.webview!.createContentWidget(shadowElement, cell, offset, shadowContent, -scrollTop + top + offset);
+
+			this.webview!.updateContentWidgetTop(cell.id, -scrollTop + top + offset);
 		}
-		// let zone = this.contentWidgetsMap.get(cell);
-
-		// if (!zone) {
-		// 	let existingContentWidget = this.contentWidgetsPool.pop();
-		// 	if (existingContentWidget) {
-		// 		existingContentWidget.detachedFromViewEvents = false;
-		// 		existingContentWidget.updateInitialization(shadowElement, cell, offset, shadowContent);
-		// 		this.contentWidgetsMap.set(cell, existingContentWidget);
-
-		// 		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-		// 		let top = this.list?.getElementTop(index);
-		// 		if (top !== null && top !== undefined) {
-		// 			let domElement = existingContentWidget.element;
-		// 			let scrollTop = this.list?.scrollTop || 0;
-		// 			domElement.style.top = `${-scrollTop + top + existingContentWidget.offset}px`;
-		// 		}
-		// 		return;
-		// 	}
-
-		// 	let contentWidget = new WebviewContentWidget(
-		// 		shadowElement,
-		// 		cell,
-		// 		offset,
-		// 		this.webviewService,
-		// 		shadowContent,
-		// 		this
-		// 	);
-
-		// 	this.contentWidgets.appendChild(contentWidget.element);
-		// 	this.contentWidgetsMap.set(cell, contentWidget);
-		// } else {
-		// 	zone.updateShadowElement(shadowElement);
-		// }
 	}
 
 	disposeViewCell(cell: ViewCell) {
 		if (this.webview!.mapping.has(cell.id)) {
-			this.webview!.updateTop(cell.id, -2400);
+			this.webview!.updateContentWidgetTop(cell.id, -2400);
 			return;
-		}
-
-		let zone = this.contentWidgetsMap.get(cell);
-
-		if (zone) {
-			// we are going to dispose a view who has a webview
-			if (!zone.webview.containsScript) {
-				// this view can be disposed
-				zone.detachedFromViewEvents = true;
-				zone.element.style.top = '-2400px';
-				zone.element.style.height = '700px';
-
-				if (this.contentWidgetsPool.length < 10) {
-					this.contentWidgetsPool.push(zone);
-					this.contentWidgetsMap.delete(cell);
-				} else {
-					this.contentWidgets.removeChild(zone.element);
-					this.contentWidgetsMap.delete(cell);
-				}
-			}
 		}
 	}
 
@@ -251,11 +188,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 					cell.save();
 				});
 
-				this.contentWidgetsMap.forEach((value, cell) => {
-					this.contentWidgets.removeChild(value.element);
-				});
-				this.contentWidgetsMap.clear();
-
+				this.webview?.clearContentWidgets();
 				this.model = model;
 				this.viewCells = model.getNotebook().cells.map(cell => {
 					return new ViewCell(cell, false, this.modelService, this.modeService);

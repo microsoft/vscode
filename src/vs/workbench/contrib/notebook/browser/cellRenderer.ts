@@ -27,7 +27,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/outputRenderer';
-// import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
+import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';
@@ -177,7 +177,7 @@ export interface NotebookHandler {
 	editNotebookCell(cell: ViewCell): void;
 	saveNotebookCell(cell: ViewCell): void;
 	layoutElement(cell: ViewCell, height: number): void;
-	createContentWidget(cell: ViewCell, shadowContent: string, shadowElement: HTMLElement, offset: number): void;
+	createContentWidget(cell: ViewCell, shadowContent: string, offset: number): void;
 	disposeViewCell(cell: ViewCell): void;
 	triggerWheel(event: IMouseWheelEvent): void;
 }
@@ -577,34 +577,34 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
 					templateData.outputContainer?.appendChild(result.element);
 					if (result.shadowContent) {
-						this.handler.createContentWidget(element, result.shadowContent, result.whitespaceElement!, totalHeight + 8);
+						this.handler.createContentWidget(element, result.shadowContent, totalHeight + 8);
 					}
 				}
 			}
 
-			// if (height !== undefined) {
-			// let dimensions = DOM.getClientArea(templateData.outputContainer!);
-			// const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
-			// 	if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
-			// 		let height = elementSizeObserver.getHeight();
-			// 		if (dimensions.height !== height) {
-			// 			element.setDynamicHeight(totalHeight + 32 + height);
-			// 			this.handler.layoutElement(element, totalHeight + 32 + height);
+			// if (height !== undefined && hasDynamicHeight) {
+			// 	let dimensions = DOM.getClientArea(templateData.outputContainer!);
+			// 	const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
+			// 		if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
+			// 			let height = elementSizeObserver.getHeight();
+			// 			if (dimensions.height !== height) {
+			// 				element.setDynamicHeight(totalHeight + 32 + height);
+			// 				this.handler.layoutElement(element, totalHeight + 32 + height);
+			// 			}
 			// 		}
+			// 	});
+			// 	elementSizeObserver.startObserving();
+			// 	if (!hasDynamicHeight && dimensions.height !== 0) {
+			// 		element.setDynamicHeight(totalHeight + 32 + dimensions.height);
+			// 		this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
 			// 	}
-			// });
-			// elementSizeObserver.startObserving();
-			// if (!hasDynamicHeight && dimensions.height !== 0) {
-			// 	element.setDynamicHeight(totalHeight + 32 + dimensions.height);
-			// 	this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
-			// }
 
-			// this.disposables.set(templateData.outputContainer!, {
-			// 	dispose: () => {
-			// 		elementSizeObserver.stopObserving();
-			// 		elementSizeObserver.dispose();
-			// 	}
-			// });
+			// 	this.disposables.set(templateData.outputContainer!, {
+			// 		dispose: () => {
+			// 			elementSizeObserver.stopObserving();
+			// 			elementSizeObserver.dispose();
+			// 		}
+			// 	});
 			// }
 		}
 
