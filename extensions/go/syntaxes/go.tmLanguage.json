@@ -1,14 +1,16 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-go/blob/master/grammars/go.cson",
+		"This file has been converted from https://github.com/jeff-hykin/better-go-syntax/blob/master/source/generated.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-go/commit/b6fd68f74efa109679e31fe6f4a41ac105262d0e",
+	"version": "https://github.com/jeff-hykin/better-go-syntax/commit/54ff898316f8647d77ffcf83880a9556445326f1",
 	"name": "Go",
 	"scopeName": "source.go",
-	"comment": "Go language",
 	"patterns": [
+		{
+			"include": "#comments"
+		},
 		{
 			"include": "#comments"
 		},
@@ -350,24 +352,29 @@
 		"comments": {
 			"patterns": [
 				{
-					"begin": "/\\*",
-					"end": "\\*/",
-					"captures": {
-						"0": {
+					"name": "comment.block.go",
+					"begin": "(\\/\\*)",
+					"beginCaptures": {
+						"1": {
 							"name": "punctuation.definition.comment.go"
 						}
 					},
-					"name": "comment.block.go"
+					"end": "(\\*\\/)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.comment.go"
+						}
+					}
 				},
 				{
-					"begin": "//",
+					"name": "comment.line.double-slash.go",
+					"begin": "(\\/\\/)",
 					"beginCaptures": {
-						"0": {
+						"1": {
 							"name": "punctuation.definition.comment.go"
 						}
 					},
-					"end": "$",
-					"name": "comment.line.double-slash.go"
+					"end": "(?:\\n|$)"
 				}
 			]
 		},
