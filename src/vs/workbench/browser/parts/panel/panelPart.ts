@@ -100,7 +100,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(
 			notificationService,
@@ -157,10 +156,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.panelFocusContextKey = PanelFocusContext.bindTo(contextKeyService);
 
 		this.registerListeners();
-		this.onDidRegisterPanels([...this.getPanels()]);
+
+		setTimeout(() => {
+			this.onDidRegisterPanels([...this.getPanels()]);
+		}, 1);
 	}
 
 	private onDidRegisterPanels(panels: PanelDescriptor[]): void {
+		const viewsService = this.instantiationService.invokeFunction(accessor => accessor.get(IViewsService));
 		for (const panel of panels) {
 			const cachedPanel = this.getCachedPanels().filter(({ id }) => id === panel.id)[0];
 			const activePanel = this.getActivePanel();
@@ -184,7 +187,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			this.enableCompositeActions(panel);
 			const viewContainer = this.getViewContainer(panel.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+				const viewDescriptors = viewsService.getViewDescriptors(viewContainer);
 				if (viewDescriptors) {
 					this.onDidChangeActiveViews(panel, viewDescriptors);
 					this.panelDisposables.set(panel.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors)));
@@ -281,6 +284,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private onPanelOpen(panel: IPanel): void {
+		const viewsService = this.instantiationService.invokeFunction(accessor => accessor.get(IViewsService));
 		this.activePanelContextKey.set(panel.getId());
 
 		const foundPanel = this.panelRegistry.getPanel(panel.getId());
@@ -295,7 +299,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (panelDescriptor) {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
+				const viewDescriptors = viewsService.getViewDescriptors(viewContainer);
 				if (viewDescriptors?.activeViewDescriptors.length === 0) {
 					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
 				}
