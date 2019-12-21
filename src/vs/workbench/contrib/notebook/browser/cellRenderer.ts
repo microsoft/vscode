@@ -582,30 +582,31 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				}
 			}
 
-			// if (height !== undefined && hasDynamicHeight) {
-			// 	let dimensions = DOM.getClientArea(templateData.outputContainer!);
-			// 	const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
-			// 		if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
-			// 			let height = elementSizeObserver.getHeight();
-			// 			if (dimensions.height !== height) {
-			// 				element.setDynamicHeight(totalHeight + 32 + height);
-			// 				this.handler.layoutElement(element, totalHeight + 32 + height);
-			// 			}
-			// 		}
-			// 	});
-			// 	elementSizeObserver.startObserving();
-			// 	if (!hasDynamicHeight && dimensions.height !== 0) {
-			// 		element.setDynamicHeight(totalHeight + 32 + dimensions.height);
-			// 		this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
-			// 	}
+			if (height !== undefined && hasDynamicHeight) {
+				let dimensions = DOM.getClientArea(templateData.outputContainer!);
+				const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
+					if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
+						let height = elementSizeObserver.getHeight();
+						if (dimensions.height !== height) {
+							element.setDynamicHeight(totalHeight + 32 + height);
+							this.handler.layoutElement(element, totalHeight + 32 + height);
+						}
 
-			// 	this.disposables.set(templateData.outputContainer!, {
-			// 		dispose: () => {
-			// 			elementSizeObserver.stopObserving();
-			// 			elementSizeObserver.dispose();
-			// 		}
-			// 	});
-			// }
+						elementSizeObserver.dispose();
+					}
+				});
+				elementSizeObserver.startObserving();
+				if (!hasDynamicHeight && dimensions.height !== 0) {
+					element.setDynamicHeight(totalHeight + 32 + dimensions.height);
+					this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
+				}
+
+				this.disposables.set(templateData.cellContainer, {
+					dispose: () => {
+						elementSizeObserver.dispose();
+					}
+				});
+			}
 		}
 
 	}

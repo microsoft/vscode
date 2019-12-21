@@ -37,11 +37,43 @@
 				break;
 			case 'scroll':
 				{
-					let top = event.data.top;
 					let element = document.getElementById(id);
-					element.style.top = top + 'px';
+					let top = event.data.top;
+					if (event.data.widgetTop !== undefined) {
+						let widgetTop = event.data.widgetTop;
+						element.style.top = widgetTop + 'px';
+						document.getElementById('container').style.top = top + 'px';
+					}  else {
+						document.getElementById('container').style.top = top + 'px';
+					}
+
+					vscode.postMessage({
+						type: 'scroll-ack',
+						id: id,
+						data: {
+							top: top,
+						},
+						version: event.data.version
+					});
 				}
 				break;
+			case 'view-scroll':
+				{
+					document.getElementById('container').style.top = top + 'px';
+					for (let i = 0; i < event.data.widgets.length; i++) {
+						let widget = document.getElementById(event.data.widgets[i].id);
+						widget.style.top = event.data.widgets[i].top + 'px';
+					}
+
+					vscode.postMessage({
+						type: 'scroll-ack',
+						data: {
+							top: top,
+						},
+						version: event.data.version
+					});
+					break;
+				}
 			case 'clear':
 				document.getElementById('container').innerHTML = '';
 				break;

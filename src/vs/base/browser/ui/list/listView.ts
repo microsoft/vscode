@@ -196,6 +196,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
 
+	private readonly _willScroll = new Emitter<ScrollEvent>();
+	get onWillScroll(): Event<ScrollEvent> { return this._willScroll.event; }
+
 	constructor(
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
@@ -556,6 +559,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.rowsContainer.style.left = `-${renderLeft}px`;
+		console.log('------');
+		const date = new Date();
+		console.log('list view render top change, old ', this.rowsContainer.style.top, ' new ', `-${renderTop}` + ' - ' + date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 		this.rowsContainer.style.top = `-${renderTop}px`;
 
 		if (this.horizontalScrolling) {
@@ -757,6 +763,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private onScroll(e: ScrollEvent): void {
 		try {
+			this._willScroll.fire(e);
 			this.render(e.scrollTop, e.height, e.scrollLeft, e.scrollWidth);
 
 			if (this.supportDynamicHeights) {

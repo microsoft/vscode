@@ -23,6 +23,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const $ = DOM.$;
 
@@ -36,6 +37,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private list: WorkbenchList<ViewCell> | undefined;
 	private model: NotebookEditorModel | undefined;
 	private viewCells: ViewCell[] = [];
+	private localStore: DisposableStore = new DisposableStore();
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -116,22 +118,6 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 
 		this.webview = new BackLayerWebView(this.webviewService, this);
 		this.list.view.rowsContainer.appendChild(this.webview.element);
-
-		const updateScrollPosition = () => {
-			let scrollTop = this.list?.scrollTop || 0;
-			this.webview!.element.style.top = `${scrollTop}px`;
-			this.webview!.mapping.forEach((item) => {
-				let index = this.model!.getNotebook().cells.indexOf(item.cell.cell);
-				let top = this.list?.getElementTop(index);
-				if (top !== null && top !== undefined) {
-					this.webview!.updateContentWidgetTop(item.cell.id, -scrollTop + top);
-				}
-			});
-		};
-
-		this._register(this.list.onDidScroll(() => updateScrollPosition()));
-		this._register(this.list.onDidChangeContentHeight(() => updateScrollPosition()));
-
 		this._register(this.list);
 	}
 
@@ -140,31 +126,38 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	}
 
 	createContentWidget(cell: ViewCell, shadowContent: string, offset: number) {
+		if (!this.webview) {
+			return;
+		}
+
 		if (!this.webview!.mapping.has(cell.id)) {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			let top = this.list?.getElementTop(index) || 0;
-			let scrollTop = this.list?.scrollTop || 0;
-			this.webview!.createContentWidget(cell, offset, shadowContent, -scrollTop + top + offset);
+			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset);
 		} else {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			let top = this.list?.getElementTop(index) || 0;
 			let scrollTop = this.list?.scrollTop || 0;
 
-			this.webview!.updateContentWidgetTop(cell.id, -scrollTop + top + offset);
+			this.webview!.updateViewScrollTop(-scrollTop, [{ id: cell.id, top: top + offset }]);
 		}
 	}
 
 	disposeViewCell(cell: ViewCell) {
-		if (this.webview!.mapping.has(cell.id)) {
-			this.webview!.updateContentWidgetTop(cell.id, -2400);
-			return;
-		}
 	}
 
 	onHide() {
-		super.onHide();
-
 		this.viewCells.forEach(cell => cell.isEditing = false);
+
+		if (this.webview) {
+			this.localStore.clear();
+			this.list?.view.rowsContainer.removeChild(this.webview?.element);
+			this.webview?.dispose();
+			this.webview = null;
+		}
+
+		this.list?.splice(0, this.list?.length);
+		super.onHide();
 	}
 
 	setVisible(visible: boolean, group?: IEditorGroup): void {
@@ -180,19 +173,60 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				return input.resolve();
 			})
 			.then(model => {
-				if (this.model !== undefined && this.model.textModel === model.textModel) {
+				if (this.model !== undefined && this.model.textModel === model.textModel && this.webview !== null) {
 					return;
 				}
 
+				this.localStore.clear();
 				this.viewCells.forEach(cell => {
 					cell.save();
 				});
 
-				this.webview?.clearContentWidgets();
+				if (this.webview) {
+					this.webview?.clearContentWidgets();
+				} else {
+					this.webview = new BackLayerWebView(this.webviewService, this);
+					this.list?.view.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
+
+				}
+
 				this.model = model;
 				this.viewCells = model.getNotebook().cells.map(cell => {
 					return new ViewCell(cell, false, this.modelService, this.modeService);
 				});
+
+				const updateScrollPosition = () => {
+					let scrollTop = this.list?.scrollTop || 0;
+					this.webview!.element.style.top = `${scrollTop}px`;
+					let updateItems: { top: number, id: string }[] = [];
+
+					const date = new Date();
+					this.webview?.mapping.forEach((item) => {
+						let index = this.model!.getNotebook().cells.indexOf(item.cell.cell);
+						let top = this.list?.getElementTop(index) || 0;
+						let newTop = this.webview!.shouldRenderContentWidget(item.cell.id, top);
+
+						if (newTop !== undefined) {
+							updateItems.push({
+								top: newTop,
+								id: item.cell.id
+							});
+						}
+					});
+
+					if (updateItems.length > 0) {
+						console.log('----- did scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+						this.webview?.updateViewScrollTop(-scrollTop, updateItems);
+					}
+				};
+				this.localStore.add(this.list!.onWillScroll(e => {
+					const date = new Date();
+					console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+					this.webview?.updateViewScrollTop(-e.scrollTop, []);
+				}));
+				this.localStore.add(this.list!.onDidScroll(() => updateScrollPosition()));
+				this.localStore.add(this.list!.onDidChangeContentHeight(() => updateScrollPosition()));
+
 				this.list?.splice(0, this.list?.length, this.viewCells);
 				this.list?.layout();
 			});
