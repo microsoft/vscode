@@ -117,6 +117,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			badges: boolean;
 		};
 		incrementalNaming: 'simple' | 'smart';
+		collapseWorkspaceFoldersFirst: boolean;
 	};
 	editor: IEditorOptions;
 }
