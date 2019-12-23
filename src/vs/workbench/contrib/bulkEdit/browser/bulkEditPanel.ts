@@ -21,6 +21,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { URI } from 'vs/base/common/uri';
 
 const enum State {
 	Data = 'data',
@@ -46,6 +48,7 @@ export class BulkEditPanel extends Panel {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -151,10 +154,19 @@ export class BulkEditPanel extends Panel {
 
 	private async _previewTextEditElement(edit: TextEditElement): Promise<void> {
 
+		let leftResource: URI;
+
+		try {
+			(await this._textModelService.createModelReference(edit.parent.resource)).dispose();
+			leftResource = edit.parent.resource;
+		} catch {
+			leftResource = BulkEditPreviewProvider.emptyPreview;
+		}
+
 		const previewUri = BulkEditPreviewProvider.asPreviewUri(edit.parent.resource);
 
 		this._editorService.openEditor({
-			leftResource: edit.parent.resource,
+			leftResource,
 			rightResource: previewUri,
 			label: localize('edt.title', "{0} (Refactor Preview)", this._labelService.getUriLabel(edit.parent.resource)),
 			options: {

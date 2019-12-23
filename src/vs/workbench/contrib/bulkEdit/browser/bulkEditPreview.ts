@@ -8,9 +8,9 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/modes';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { flatten, mergeSort } from 'vs/base/common/arrays';
+import { WorkspaceEdit, isResourceTextEdit, isResourceFileEdit } from 'vs/editor/common/modes';
+import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { mergeSort } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import * as files from 'vs/platform/files/common/files';
@@ -22,55 +22,88 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	static readonly Schema = 'vscode-bulkeditpreview';
 
+	static emptyPreview = URI.from({ scheme: BulkEditPreviewProvider.Schema, fragment: 'empty' });
+
 	static asPreviewUri(uri: URI): URI {
-		return URI.from({ scheme: BulkEditPreviewProvider.Schema, path: uri.toString() });
+		return URI.from({ scheme: BulkEditPreviewProvider.Schema, path: uri.path, query: uri.toString() });
 	}
 
 	static fromPreviewUri(uri: URI): URI {
-		return URI.parse(uri.path);
+		return URI.parse(uri.query);
 	}
 
-	private readonly _reg: IDisposable;
+	private readonly _disposables = new DisposableStore();
+	private readonly _ready: Promise<any>;
 
 	constructor(
 		private readonly _edit: WorkspaceEdit,
 		@IModeService private readonly _modeService: IModeService,
 		@IModelService private readonly _modelService: IModelService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService
+		@ITextModelService private readonly _textModelResolverService: ITextModelService
 	) {
-		this._reg = this.textModelResolverService.registerTextModelContentProvider(BulkEditPreviewProvider.Schema, this);
+		this._disposables.add(this._textModelResolverService.registerTextModelContentProvider(BulkEditPreviewProvider.Schema, this));
+		this._ready = this._prepareModels();
 	}
 
 	dispose(): void {
-		this._reg.dispose();
+		this._disposables.dispose();
+	}
+
+	private async _prepareModels() {
+
+		const getOrCreatePreviewModel = async (uri: URI) => {
+			const previewUri = BulkEditPreviewProvider.asPreviewUri(uri);
+			let model = this._modelService.getModel(previewUri);
+			if (!model) {
+				try {
+					// try: copy existing
+					const ref = await this._textModelResolverService.createModelReference(uri);
+					const sourceModel = ref.object.textEditorModel;
+					model = this._modelService.createModel(
+						createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
+						this._modeService.create(sourceModel.getLanguageIdentifier().language),
+						previewUri
+					);
+					ref.dispose();
+
+				} catch {
+					// create NEW model
+					model = this._modelService.createModel(
+						'',
+						this._modeService.createByFilepathOrFirstLine(previewUri),
+						previewUri
+					);
+				}
+				this._disposables.add(model);
+			}
+			return model;
+		};
+
+		for (let edit of this._edit.edits) {
+			if (isResourceFileEdit(edit)) {
+				if (URI.isUri(edit.newUri)) {
+					await getOrCreatePreviewModel(edit.newUri);
+				}
+				if (URI.isUri(edit.oldUri)) {
+					await getOrCreatePreviewModel(edit.oldUri);
+				}
+			} else {
+				const model = await getOrCreatePreviewModel(edit.resource);
+				const editOperations = mergeSort(
+					edit.edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)),
+					(a, b) => Range.compareRangesUsingStarts(a.range, b.range)
+				);
+				model.applyEdits(editOperations);
+			}
+		}
 	}
 
 	async provideTextContent(previewUri: URI) {
-
-		const resourceUri = BulkEditPreviewProvider.fromPreviewUri(previewUri);
-
-		const ref = await this.textModelResolverService.createModelReference(resourceUri);
-
-		const sourceModel = ref.object.textEditorModel;
-
-		const previewModel = this._modelService.createModel(
-			createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
-			this._modeService.create(sourceModel.getLanguageIdentifier().language),
-			previewUri
-		);
-
-		const textEdits: TextEdit[][] = [];
-		for (let edit of this._edit.edits) {
-			if (isResourceTextEdit(edit) && edit.resource.toString() === resourceUri.toString()) {
-				textEdits.push(edit.edits);
-			}
+		if (previewUri.toString() === BulkEditPreviewProvider.emptyPreview.toString()) {
+			return this._modelService.createModel('', null, previewUri);
 		}
-
-		let allEdits = flatten(textEdits).map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text));
-		allEdits = mergeSort(allEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-		previewModel.applyEdits(allEdits);
-		ref.dispose();
-		return previewModel;
+		await this._ready;
+		return this._modelService.getModel(previewUri);
 	}
 }
 

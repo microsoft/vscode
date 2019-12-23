@@ -14,6 +14,9 @@ import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabe
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Range } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
+import { ITextModel } from 'vs/editor/common/model';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 // --- VIEW MODEL
 
@@ -64,8 +67,17 @@ export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit,
 
 		// file: text edit
 		if (element instanceof FileElement && modes.isResourceTextEdit(element.edit)) {
-			const ref = await this._textModelService.createModelReference(element.edit.resource);
-			const textModel = ref.object.textEditorModel;
+			// const previewUri = BulkEditPreviewProvider.asPreviewUri(element.edit.resource);
+			let textModel: ITextModel;
+			let textModelDisposable: IDisposable;
+			try {
+				const ref = await this._textModelService.createModelReference(element.edit.resource);
+				textModel = ref.object.textEditorModel;
+				textModelDisposable = ref;
+			} catch {
+				textModel = TextModel.createFromString('');
+				textModelDisposable = textModel;
+			}
 
 			const result = element.edit.edits.map(edit => {
 				const range = Range.lift(edit.range);
@@ -85,7 +97,8 @@ export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit,
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
 				);
 			});
-			ref.dispose();
+
+			textModelDisposable.dispose();
 			return result;
 		}
 
