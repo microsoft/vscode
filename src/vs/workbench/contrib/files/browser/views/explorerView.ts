@@ -686,11 +686,7 @@ export class ExplorerView extends ViewPane {
 	collapseAll(): void {
 		const treeInput = this.tree.getInput();
 		if (Array.isArray(treeInput)) {
-			const hasExpandedItemInsideFolder = treeInput.some(folder =>
-				Array.from(folder.children.entries()).some(([_id, child]) =>
-					this.tree.hasNode(child) && !this.tree.isCollapsed(child)));
-
-			if (hasExpandedItemInsideFolder) {
+			if (this.hasExpandedItemInsideFolder(treeInput)) {
 				treeInput.forEach(folder => {
 					folder.children.forEach(child => this.tree.hasNode(child) && this.tree.collapse(child));
 				});
@@ -700,6 +696,20 @@ export class ExplorerView extends ViewPane {
 		}
 
 		this.tree.collapseAll();
+	}
+
+	private hasExpandedItemInsideFolder(treeInput: ExplorerItem[]): boolean {
+		for (const folder of treeInput) {
+			if (this.tree.hasNode(folder) && !this.tree.isCollapsed(folder)) {
+				for (const [, child] of folder.children.entries()) {
+					if (this.tree.hasNode(child) && !this.tree.isCollapsed(child)) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	previousCompressedStat(): void {
