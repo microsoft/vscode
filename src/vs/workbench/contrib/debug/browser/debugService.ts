@@ -379,12 +379,21 @@ export class DebugService implements IDebugService {
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
 			try {
-				const resolvedConfig = await this.substituteVariables(launch, configByProviders);
+				let resolvedConfig = await this.substituteVariables(launch, configByProviders);
 
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return false;
 				}
+
+				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, this.initCancellationToken.token);
+				if (!cfg) {
+					if (launch && type && cfg === null) {	// show launch.json only for "config" being "null".
+						await launch.openConfigFile(false, true, type, this.initCancellationToken ? this.initCancellationToken.token : undefined);
+					}
+					return false;
+				}
+				resolvedConfig = cfg;
 
 				if (!this.configurationManager.getDebugger(resolvedConfig.type) || (configByProviders.request !== 'attach' && configByProviders.request !== 'launch')) {
 					let message: string;
@@ -639,6 +648,9 @@ export class DebugService implements IDebugService {
 					const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, this.initCancellationToken.token);
 					if (resolvedByProviders) {
 						resolved = await this.substituteVariables(launch, resolvedByProviders);
+						if (resolved) {
+							resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, this.initCancellationToken.token);
+						}
 					} else {
 						resolved = resolvedByProviders;
 					}
