@@ -74,6 +74,9 @@ export class DebugService implements IDebugService {
 	private initCancellationToken: CancellationTokenSource | undefined;
 	private activity: IDisposable | undefined;
 
+	// Enable undefined because that makes the test easier.
+	private replWasOpened : boolean | undefined = false;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -452,6 +455,8 @@ export class DebugService implements IDebugService {
 			await this.launchOrAttachToSession(session);
 
 			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
+			const activePanel = this.panelService.getActivePanel();
+			this.replWasOpened = activePanel && activePanel.getId() === REPL_ID;
 			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
 				this.panelService.openPanel(REPL_ID, false);
 			}
@@ -563,6 +568,12 @@ export class DebugService implements IDebugService {
 				// Data breakpoints that can not be persisted should be cleared when a session ends
 				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
 				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
+			}
+
+			const closeConsoleOnEnd = this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd;
+			if (this.panelService.getLastActivePanelId() === REPL_ID &&
+				(closeConsoleOnEnd === 'always' || (closeConsoleOnEnd === 'whenOpenedByDebug' && !this.replWasOpened))) {
+				this.panelService.hideActivePanel();
 			}
 
 		}));

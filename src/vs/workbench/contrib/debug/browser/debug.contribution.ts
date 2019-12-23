@@ -212,6 +212,12 @@ configurationRegistry.registerConfiguration({
 			default: 'onFirstSessionStart'
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+		'debug.console.closeOnEnd': {
+			enum: ['never', 'always', 'whenOpenedByDebug'],
+			description: nls.localize('debug.console.closeOnEnd', "Controls what to do with the debug console when the debug session ends."),
+			enumDescriptions: [nls.localize('neverClose', "Remain it as-is"), nls.localize('alwaysClose', "Close it (if opened)"), nls.localize('closeWhenOpenedByDebug', "Close if the debugging process opened it, see debug.internalConsoleOptions")],
+			default: 'never'
+		},
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnSessionStart',
