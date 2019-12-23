@@ -684,21 +684,18 @@ export class ExplorerView extends ViewPane {
 	}
 
 	collapseAll(): void {
-		const collapseWorkspaceFoldersFirst = this.configurationService.getValue<IFilesConfiguration>().explorer.collapseWorkspaceFoldersFirst;
-		if (collapseWorkspaceFoldersFirst) {
-			const treeInput = this.tree.getInput();
-			if (Array.isArray(treeInput)) {
-				const hasExpandedItemInsideFolder = treeInput.some(folder =>
-					Array.from(folder.children.entries()).some(([_id, child]) =>
-						this.tree.hasNode(child) && !this.tree.isCollapsed(child)));
+		const treeInput = this.tree.getInput();
+		if (Array.isArray(treeInput)) {
+			const hasExpandedItemInsideFolder = treeInput.some(folder =>
+				Array.from(folder.children.entries()).some(([_id, child]) =>
+					this.tree.hasNode(child) && !this.tree.isCollapsed(child)));
 
-				if (hasExpandedItemInsideFolder) {
-					treeInput.forEach(folder => {
-						folder.children.forEach(child => this.tree.hasNode(child) && this.tree.collapse(child));
-					});
+			if (hasExpandedItemInsideFolder) {
+				treeInput.forEach(folder => {
+					folder.children.forEach(child => this.tree.hasNode(child) && this.tree.collapse(child));
+				});
 
-					return;
-				}
+				return;
 			}
 		}
 
