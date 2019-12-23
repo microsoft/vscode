@@ -24,11 +24,8 @@ import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEWLET_ID = 'workbench.view.debug';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID, name: nls.localize('debugAndRun', "Debug and Run") }, ViewContainerLocation.Sidebar);
 
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
 export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
@@ -638,7 +635,7 @@ export interface IConfigurationManager {
 
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
 
-	getAllConfigurations(): { launch: ILaunch, name: string }[];
+	getAllConfigurations(): { launch: ILaunch, name: string, presentation?: IConfigPresentation }[];
 
 	/**
 	 * Allows to register on change of selected debug configuration.

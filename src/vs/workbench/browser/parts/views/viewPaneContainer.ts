@@ -243,7 +243,7 @@ interface IViewPaneItem {
 
 export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
-	private readonly viewContainer: ViewContainer;
+	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;

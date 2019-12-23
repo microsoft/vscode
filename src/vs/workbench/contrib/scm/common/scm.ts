@@ -9,12 +9,8 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
 import { ISequence } from 'vs/base/common/sequence';
-import { Extensions as ViewContainerExtensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
 
 export const VIEWLET_ID = 'workbench.view.scm';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: VIEWLET_ID, name: localize('source control', "Source Control"), }, ViewContainerLocation.Sidebar);
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;

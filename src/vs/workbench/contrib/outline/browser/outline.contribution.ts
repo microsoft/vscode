@@ -6,10 +6,10 @@
 import { localize } from 'vs/nls';
 import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { OutlinePane } from './outlinePane';
-import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
+import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 
 // import './outlineNavigation';
 

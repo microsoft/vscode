@@ -16,35 +16,8 @@ import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/s
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
 
 export const VIEWLET_ID = 'workbench.view.remote';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
-	{
-		id: VIEWLET_ID,
-		name: localize('remote.explorer', "Remote Explorer"),
-		hideIfEmpty: true,
-		viewOrderDelegate: {
-			getOrder: (group?: string) => {
-				if (!group) {
-					return;
-				}
-
-				let matches = /^targets@(\d+)$/.exec(group);
-				if (matches) {
-					return -1000;
-				}
-
-				matches = /^details(@(\d+))?$/.exec(group);
-
-				if (matches) {
-					return -500;
-				}
-
-				return;
-			}
-		}
-	}, ViewContainerLocation.Sidebar);
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
