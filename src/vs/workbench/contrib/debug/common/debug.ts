@@ -463,7 +463,7 @@ export interface IDebugConfiguration {
 		fontFamily: string;
 		lineHeight: number;
 		wordWrap: boolean;
-		closeOnEnd: 'never' | 'always' | 'whenOpenedByDebug';
+		closeOnEnd: boolean;
 	};
 	focusWindowOnBreak: boolean;
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
