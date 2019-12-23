@@ -14,7 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { StartAction, RunAction, ConfigureAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { StartAction, ConfigureAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -31,7 +31,6 @@ export class StartView extends ViewPane {
 	static LABEL = localize('start', "Start");
 
 	private debugButton!: Button;
-	private runButton!: Button;
 	private firstMessageContainer!: HTMLElement;
 	private secondMessageContainer!: HTMLElement;
 	private clickElement: HTMLElement | undefined;
@@ -63,20 +62,12 @@ export class StartView extends ViewPane {
 			const enabled = this.debuggerLabels.length > 0;
 
 			this.debugButton.enabled = enabled;
-			this.runButton.enabled = enabled;
 			const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
-			let debugLabel = this.debuggerLabels.length !== 1 ? localize('debug', "Debug") : localize('debugWith', "Debug with {0}", this.debuggerLabels[0]);
+			let debugLabel = this.debuggerLabels.length !== 1 ? localize('debug', "Run and Debug") : localize('debugWith', "Run and Debug {0}", this.debuggerLabels[0]);
 			if (debugKeybinding) {
 				debugLabel += ` (${debugKeybinding.getLabel()})`;
 			}
 			this.debugButton.label = debugLabel;
-
-			let runLabel = this.debuggerLabels.length !== 1 ? localize('run', "Run") : localize('runWith', "Run with {0}", this.debuggerLabels[0]);
-			const runKeybinding = this.keybindingService.lookupKeybinding(RunAction.ID);
-			if (runKeybinding) {
-				runLabel += ` (${runKeybinding.getLabel()})`;
-			}
-			this.runButton.label = runLabel;
 
 			const emptyWorkbench = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 			this.firstMessageContainer.innerHTML = '';
@@ -152,14 +143,7 @@ export class StartView extends ViewPane {
 		}));
 		attachButtonStyler(this.debugButton, this.themeService);
 
-		this.runButton = new Button(container);
-		this.runButton.label = localize('run', "Run");
-
 		dom.addClass(container, 'debug-start-view');
-		this._register(this.runButton.onDidClick(() => {
-			this.commandService.executeCommand(RunAction.ID);
-		}));
-		attachButtonStyler(this.runButton, this.themeService);
 
 		this.secondMessageContainer = $('.section');
 		container.appendChild(this.secondMessageContainer);
