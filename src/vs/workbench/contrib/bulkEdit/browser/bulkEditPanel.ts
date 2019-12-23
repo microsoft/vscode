@@ -19,8 +19,9 @@ import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistr
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkEditFileSystem, asPreviewEdit, fromPreviewUri } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 const enum State {
 	Data = 'data',
@@ -44,6 +45,7 @@ export class BulkEditPanel extends Panel {
 
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -110,11 +112,17 @@ export class BulkEditPanel extends Panel {
 		this.getContainer()!.dataset['state'] = state;
 	}
 
-	setInput(edit: WorkspaceEdit): Promise<boolean> {
+	async setInput(edit: WorkspaceEdit): Promise<boolean> {
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
 
-		this._sessionDisposables.add(this._instaService.createInstance(BulkEditPreviewProvider, edit));
+		this._sessionDisposables.add(this._instaService.createInstance(BulkEditFileSystem));
+
+		const previewEdit = asPreviewEdit(edit);
+
+		const summary = await this._bulkEditService.apply(previewEdit, { noPreview: true });
+		console.log(summary);
+		// this._sessionDisposables.add(this._instaService.createInstance(BulkEditPreviewProvider, edit));
 
 		if (this._currentResolve) {
 			this._currentResolve(false);
@@ -127,7 +135,7 @@ export class BulkEditPanel extends Panel {
 		return new Promise(async resolve => {
 
 			this._currentResolve = resolve;
-			await this._tree.setInput(edit);
+			await this._tree.setInput(previewEdit);
 			this._tree.domFocus();
 			this._tree.focusFirst();
 
@@ -151,11 +159,11 @@ export class BulkEditPanel extends Panel {
 
 	private async _previewTextEditElement(edit: TextEditElement): Promise<void> {
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(edit.parent.resource);
+		// const previewUri = BulkEditPreviewProvider.asPreviewUri(edit.parent.resource);
 
 		this._editorService.openEditor({
-			leftResource: edit.parent.resource,
-			rightResource: previewUri,
+			leftResource: fromPreviewUri(edit.parent.resource),
+			rightResource: edit.parent.resource,
 			label: localize('edt.title', "{0} (Refactor Preview)", this._labelService.getUriLabel(edit.parent.resource)),
 			options: {
 				selection: edit.edit.range
