@@ -134,7 +134,7 @@ function toEditorWithModeSupport(input: IEditorInput): IModeSupport | null {
 interface IEditorSelectionStatus {
 	selections?: Selection[];
 	charactersSelected?: number;
-	selectedNumberOfLines ?: number;
+	selectedNumberOfLines?: number;
 }
 
 class StateChange {
