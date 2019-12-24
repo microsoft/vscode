@@ -64,6 +64,20 @@ interface IExplorerViewStyles {
 	listDropBackground?: Color;
 }
 
+function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
+	for (const folder of treeInput) {
+		if (tree.hasNode(folder) && !tree.isCollapsed(folder)) {
+			for (const [, child] of folder.children.entries()) {
+				if (tree.hasNode(child) && !tree.isCollapsed(child)) {
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 export class ExplorerView extends ViewPane {
 	static readonly ID: string = 'workbench.explorer.fileView';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
@@ -139,7 +153,7 @@ export class ExplorerView extends ViewPane {
 		return this.name;
 	}
 
-	set title(value: string) {
+	set title(_: string) {
 		// noop
 	}
 
@@ -570,8 +584,6 @@ export class ExplorerView extends ViewPane {
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
-	// private didLoad = false;
-
 	private setTreeInput(): Promise<void> {
 		if (!this.isBodyVisible()) {
 			this.shouldRefresh = true;
@@ -686,7 +698,7 @@ export class ExplorerView extends ViewPane {
 	collapseAll(): void {
 		const treeInput = this.tree.getInput();
 		if (Array.isArray(treeInput)) {
-			if (this.hasExpandedItemInsideFolder(treeInput)) {
+			if (hasExpandedRootChild(this.tree, treeInput)) {
 				treeInput.forEach(folder => {
 					folder.children.forEach(child => this.tree.hasNode(child) && this.tree.collapse(child));
 				});
@@ -696,20 +708,6 @@ export class ExplorerView extends ViewPane {
 		}
 
 		this.tree.collapseAll();
-	}
-
-	private hasExpandedItemInsideFolder(treeInput: ExplorerItem[]): boolean {
-		for (const folder of treeInput) {
-			if (this.tree.hasNode(folder) && !this.tree.isCollapsed(folder)) {
-				for (const [, child] of folder.children.entries()) {
-					if (this.tree.hasNode(child) && !this.tree.isCollapsed(child)) {
-						return true;
-					}
-				}
-			}
-		}
-
-		return false;
 	}
 
 	previousCompressedStat(): void {
