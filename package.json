@@ -28,7 +28,7 @@
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node scripts/code-web.js",
-    "eslint": "eslint -c .eslintrc.json ./src/vs/ --ext .ts"
+    "eslint": "eslint -c ./src/.eslintrc.json ./src/vs --ext .ts"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -82,6 +82,7 @@
     "@types/yauzl": "^2.9.1",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/parser": "^2.12.0",
+    "@typescript-eslint/eslint-plugin": "2.3.2",
     "ansi-colors": "^3.2.3",
     "asar": "^0.14.0",
     "chromium-pickle-js": "^0.2.0",
