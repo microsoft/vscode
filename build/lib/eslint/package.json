@@ -1,0 +1,20 @@
+{
+  "name": "code-oss-eslint",
+  "version": "1.0.0",
+  "license": "MIT",
+  "description": "ESLint rules for code oss",
+  "engines": {
+    "node": ">=0.10.0"
+  },
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin"
+  ],
+  "author": "vscode",
+  "main": "lib/index.js",
+  "devDependencies": {
+    "@types/eslint": "4.16.1",
+    "eslint": "~3.9.1"
+  }
+}

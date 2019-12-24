@@ -1,20 +1,41 @@
 {
+	"$schema": "http://json.schemastore.org/eslintrc",
 	"root": true,
-	"env": {
-		"node": true,
-		"es6": true
-	},
-	"rules": {
-		"no-console": 0,
-		"no-cond-assign": 0,
-		"no-unused-vars": 1,
-		"no-extra-semi": "warn",
-		"semi": "warn"
-	},
-	"extends": "eslint:recommended",
+	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
-		"ecmaFeatures": {
-			"experimentalObjectRestSpread": true
-		}
+		"ecmaVersion": 6,
+		"sourceType": "module",
+		"project": "./src/tsconfig.json"
+	},
+	"plugins": [
+		"code-oss-eslint"
+	],
+	"rules": {
+		"no-extra-semi": "off",
+		"no-unused-vars": "off",
+		"semi": "warn",
+		"eqeqeq": "warn",
+		"no-duplicate-imports": "warn",
+		"code-oss-eslint/layering": [
+			"warn",
+			{
+				"common": [],
+				"node": [
+					"common"
+				],
+				"browser": [
+					"common"
+				],
+				"electron-main": [
+					"common",
+					"node"
+				],
+				"electron-browser": [
+					"common",
+					"browser",
+					"node"
+				]
+			}
+		]
 	}
 }
