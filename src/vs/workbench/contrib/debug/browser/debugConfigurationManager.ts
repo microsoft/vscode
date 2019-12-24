@@ -207,6 +207,22 @@ export class ConfigurationManager implements IConfigurationManager {
 		return result;
 	}
 
+	async resolveDebugConfigurationWithSubstitutedVariables(folderUri: uri | undefined, type: string | undefined, config: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
+		// pipe the config through the promises sequentially. Append at the end the '*' types
+		const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfigurationWithSubstitutedVariables)
+			.concat(this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfigurationWithSubstitutedVariables));
+
+		let result: IConfig | null | undefined = config;
+		await sequence(providers.map(provider => async () => {
+			// If any provider returned undefined or null make sure to respect that and do not pass the result to more resolver
+			if (result) {
+				result = await provider.resolveDebugConfigurationWithSubstitutedVariables!(folderUri, result, token);
+			}
+		}));
+
+		return result;
+	}
+
 	async provideDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
 		await this.activateDebuggers('onDebugInitialConfigurations');
 		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));

@@ -81,7 +81,7 @@ class OpenDebugPanelAction extends TogglePanelAction {
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	name: nls.localize('debugAndRun', "Debug and Run"),
+	name: nls.localize('runAndDebug', "Run and Debug"),
 	ctorDescriptor: { ctor: DebugViewPaneContainer },
 	icon: 'codicon-debug-alt',
 	order: 3

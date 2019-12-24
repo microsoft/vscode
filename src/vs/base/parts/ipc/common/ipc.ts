@@ -187,7 +187,7 @@ const BufferPresets = {
 	Object: createOneByteBuffer(DataType.Object),
 };
 
-declare var Buffer: any;
+declare const Buffer: any;
 const hasBuffer = (typeof Buffer !== 'undefined');
 
 function serialize(writer: IWriter, data: any): void {

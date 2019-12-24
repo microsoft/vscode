@@ -322,7 +322,7 @@ export interface IForeignModuleFactory {
 	(ctx: IWorkerContext, createData: any): any;
 }
 
-declare var require: any;
+declare const require: any;
 
 /**
  * @internal
