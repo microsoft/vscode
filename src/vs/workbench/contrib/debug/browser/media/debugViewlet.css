@@ -169,7 +169,7 @@
 	text-transform: uppercase;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .state {
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .state {
 	display: none;
 }
 
