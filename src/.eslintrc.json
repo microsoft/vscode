@@ -2,6 +2,12 @@
     "$schema": "http://json.schemastore.org/eslintrc",
     "root": true,
     "ignorePatterns": [
+        "**/vs/nls.build.js",
+        "**/vs/nls.js",
+        "**/vs/css.build.js",
+        "**/vs/css.js",
+        "**/vs/loader.js",
+        "**/promise-polyfill/**",
         "**/insane/**",
         "**/marked/**",
         "**/test/**/*.js"
