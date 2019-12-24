@@ -775,9 +775,11 @@ export class DebugService implements IDebugService {
 
 	//---- watches
 
-	addWatchExpression(name: string): void {
+	addWatchExpression(name?: string): void {
 		const we = this.model.addWatchExpression(name);
-		this.viewModel.setSelectedExpression(we);
+		if (!name) {
+			this.viewModel.setSelectedExpression(we);
+		}
 		this.storeWatchExpressions();
 	}
 

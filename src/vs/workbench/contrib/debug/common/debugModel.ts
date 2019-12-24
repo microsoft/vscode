@@ -1182,8 +1182,8 @@ export class DebugModel implements IDebugModel {
 		return this.watchExpressions;
 	}
 
-	addWatchExpression(name: string): IExpression {
-		const we = new Expression(name);
+	addWatchExpression(name?: string): IExpression {
+		const we = new Expression(name || '');
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 
