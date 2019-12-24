@@ -332,6 +332,13 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
+		},
+		'files.currentWorkingSets': {
+			'type': 'array',
+			'description': 'Enabled Working sets',
+			'default': [],
+			'scope': ConfigurationScope.WINDOW,
+			uniqueItems: true
 		}
 	}
 });

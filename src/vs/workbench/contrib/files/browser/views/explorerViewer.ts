@@ -55,6 +55,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
+import { flatten } from 'vs/base/common/arrays';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -472,8 +473,42 @@ interface CachedParsedExpression {
 	parsed: glob.ParsedExpression;
 }
 
+export class WorkingSetFilter {
+	private folders: string[];
+
+	constructor(folders: string[]) {
+		this.folders = folders.slice(0);
+	}
+
+	matches(path: string): boolean {
+		return this.folders.some(it => this.isChild(it, path) || this.isChild(path, it));
+	}
+
+	private toComponents(path: string): string[] {
+		if (path === '') {
+			return [];
+		}
+		return path.split('/');
+	}
+
+	private isChild(parent: string, child: string): boolean {
+		let parentComponents = this.toComponents(parent);
+		let childComponents = this.toComponents(child);
+		if (childComponents.length < parentComponents.length) {
+			return false;
+		}
+		for (let i = 0; i < parentComponents.length; i++) {
+			if (childComponents[i] !== parentComponents[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
+	private workingSetsPerRoot = new Map<string, string[]>();
 	private workspaceFolderChangeListener: IDisposable;
 
 	constructor(
@@ -486,19 +521,46 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	updateConfiguration(): boolean {
+		interface IWorkingSetsConfiguration {
+			'working-sets'?: {
+				'working-sets': {
+					[key: string]: string[]
+				}
+			};
+		}
+
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
 
+			const workingSetsConfig = this.configurationService.getValue<IWorkingSetsConfiguration>({ resource: folder.uri });
+			const currentWorkingSetConfig = this.configurationService.getValue<string[]>('files.currentWorkingSets', { resource: folder.uri });
+
+			const currentWorkingSet = currentWorkingSetConfig || [];
+			let newFolders = flatten(currentWorkingSet.map(ws => {
+				if (workingSetsConfig?.['working-sets']?.['working-sets'] !== undefined) {
+					return workingSetsConfig['working-sets']['working-sets'][ws] || [];
+				}
+				return [];
+			}));
+			if (newFolders.length === 0) {
+				newFolders = [''];
+			}
+
 			if (!needsRefresh) {
 				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
 				needsRefresh = !cached || !equals(cached.original, excludesConfig);
+
+				const oldFolders = this.workingSetsPerRoot.get(folder.uri.toString());
+				needsRefresh = !cached || !equals(cached.original, excludesConfig) || !equals(oldFolders, newFolders);
 			}
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
 			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
+
+			this.workingSetsPerRoot.set(folder.uri.toString(), newFolders);
 		});
 
 		return needsRefresh;
@@ -513,9 +575,16 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		}
 
 		// Hide those that match Hidden Patterns
-		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if (cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
+		const relativePath = path.relative(stat.root.resource.path, stat.resource.path);
+		const rootPath = stat.root.resource.toString();
+		const cached = this.hiddenExpressionPerRoot.get(rootPath);
+		if (cached && cached.parsed(relativePath, stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
 			return false; // hidden through pattern
+		}
+
+		const workingSetFolders = this.workingSetsPerRoot.get(rootPath) || [''];
+		if (!new WorkingSetFilter(workingSetFolders).matches(relativePath)) {
+			return false;
 		}
 
 		return true;
