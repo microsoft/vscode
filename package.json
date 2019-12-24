@@ -27,7 +27,8 @@
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
-    "web": "node scripts/code-web.js"
+    "web": "node scripts/code-web.js",
+    "eslint": "eslint -c .eslintrc.json ./src/vs/ --ext .ts"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",

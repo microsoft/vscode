@@ -4,8 +4,7 @@
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
 		"ecmaVersion": 6,
-		"sourceType": "module",
-		"project": "./src/tsconfig.json"
+		"sourceType": "module"
 	},
 	"plugins": [
 		"code-oss-eslint"
