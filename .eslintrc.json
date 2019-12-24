@@ -1,20 +1,54 @@
 {
-	"root": true,
-	"env": {
-		"node": true,
-		"es6": true
-	},
-	"rules": {
-		"no-console": 0,
-		"no-cond-assign": 0,
-		"no-unused-vars": 1,
-		"no-extra-semi": "warn",
-		"semi": "warn"
-	},
-	"extends": "eslint:recommended",
-	"parserOptions": {
-		"ecmaFeatures": {
-			"experimentalObjectRestSpread": true
-		}
-	}
+    "root": true,
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "ecmaVersion": 6,
+        "sourceType": "module"
+    },
+    "plugins": [
+        "code-oss-eslint",
+        "@typescript-eslint"
+    ],
+    "rules": {
+        "no-extra-semi": "off",
+        "no-unused-vars": "off",
+        "eqeqeq": "warn",
+        "semi": "off",
+        "@typescript-eslint/semi": "warn",
+        "no-duplicate-imports": "warn",
+        "code-oss-eslint/layering": [
+            "warn",
+            {
+                "common": [],
+                "node": [
+                    "common"
+                ],
+                "browser": [
+                    "common"
+                ],
+                "electron-main": [
+                    "common",
+                    "node"
+                ],
+                "electron-browser": [
+                    "common",
+                    "browser",
+                    "node"
+                ]
+            }
+        ],
+        "@typescript-eslint/class-name-casing": "warn",
+        "constructor-super": "warn",
+        "curly": "warn",
+        "no-caller": "warn",
+        "no-debugger": "warn",
+        "no-duplicate-case": "warn",
+        "no-eval": "warn",
+        "no-new-wrappers": "warn",
+        "no-sparse-arrays": "warn",
+        "no-throw-literal": "warn",
+        "no-unsafe-finally": "warn",
+        "no-unused-labels": "warn",
+        "no-var": "warn"
+    }
 }

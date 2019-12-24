@@ -186,7 +186,7 @@ const copyrightHeaderLines = [
 gulp.task('eslint', () => {
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(eslintFilter))
-		.pipe(gulpeslint('src/.eslintrc'))
+		.pipe(gulpeslint('.eslintrc.json'))
 		.pipe(gulpeslint.formatEach('compact'))
 		.pipe(gulpeslint.failAfterError());
 });
@@ -227,7 +227,7 @@ function checkPackageJSON(actualPath) {
 
 const checkPackageJSONTask = task.define('check-package-json', () => {
 	return gulp.src('package.json')
-		.pipe(es.through(function() {
+		.pipe(es.through(function () {
 			checkPackageJSON.call(this, 'remote/package.json');
 			checkPackageJSON.call(this, 'remote/web/package.json');
 		}));
@@ -359,7 +359,7 @@ function hygiene(some) {
 
 	const javascript = result
 		.pipe(filter(eslintFilter))
-		.pipe(gulpeslint('src/.eslintrc'))
+		.pipe(gulpeslint('.eslintrc.json'))
 		.pipe(gulpeslint.formatEach('compact'))
 		.pipe(gulpeslint.failAfterError());
 
