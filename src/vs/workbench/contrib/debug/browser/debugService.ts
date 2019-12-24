@@ -675,13 +675,13 @@ export class DebugService implements IDebugService {
 	}
 
 	stopSession(session: IDebugSession): Promise<any> {
-
 		if (session) {
 			return session.terminate();
 		}
 
 		const sessions = this.model.getSessions();
 		if (sessions.length === 0) {
+			this.taskRunner.cancel();
 			this.endInitializingState();
 		}
 

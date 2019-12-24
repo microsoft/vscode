@@ -38,6 +38,8 @@ export const enum TaskRunResult {
 
 export class DebugTaskRunner {
 
+	private canceled = false;
+
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
 		@IMarkerService private readonly markerService: IMarkerService,
@@ -46,9 +48,17 @@ export class DebugTaskRunner {
 		@IDialogService private readonly dialogService: IDialogService,
 	) { }
 
+	cancel(): void {
+		this.canceled = true;
+	}
+
 	async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | TaskIdentifier | undefined, onError: (msg: string, actions: IAction[]) => Promise<void>): Promise<TaskRunResult> {
 		try {
+			this.canceled = false;
 			const taskSummary = await this.runTask(root, taskId);
+			if (this.canceled) {
+				return TaskRunResult.Failure;
+			}
 
 			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
