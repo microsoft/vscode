@@ -79,7 +79,7 @@ interface IETextRange {
 	setEndPoint(how: string, SourceRange: IETextRange): void;
 }
 
-declare var IETextRange: {
+declare const IETextRange: {
 	prototype: IETextRange;
 	new(): IETextRange;
 };

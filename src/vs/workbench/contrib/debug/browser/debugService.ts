@@ -290,7 +290,7 @@ export class DebugService implements IDebugService {
 						"Compound must have \"configurations\" attribute set in order to start multiple configurations."));
 				}
 				if (compound.preLaunchTask) {
-					const taskResult = await this.taskRunner.runTaskAndCheckErrors(launch?.workspace || this.contextService.getWorkspace(), compound.preLaunchTask, this.showError);
+					const taskResult = await this.taskRunner.runTaskAndCheckErrors(launch?.workspace || this.contextService.getWorkspace(), compound.preLaunchTask, (msg, actions) => this.showError(msg, actions));
 					if (taskResult === TaskRunResult.Failure) {
 						this.endInitializingState();
 						return false;
@@ -410,8 +410,8 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const workspace = launch ? launch.workspace : this.contextService.getWorkspace();
-				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, this.showError);
+				const workspace = launch?.workspace || this.contextService.getWorkspace();
+				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, (msg, actions) => this.showError(msg, actions));
 				if (taskResult === TaskRunResult.Success) {
 					return this.doCreateSession(launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 				}
@@ -591,7 +591,7 @@ export class DebugService implements IDebugService {
 			}
 
 			await this.taskRunner.runTask(session.root, session.configuration.postDebugTask);
-			return this.taskRunner.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask, this.showError);
+			return this.taskRunner.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask, (msg, actions) => this.showError(msg, actions));
 		};
 
 		const extensionDebugSession = getExtensionHostDebugSession(session);
@@ -675,13 +675,13 @@ export class DebugService implements IDebugService {
 	}
 
 	stopSession(session: IDebugSession): Promise<any> {
-
 		if (session) {
 			return session.terminate();
 		}
 
 		const sessions = this.model.getSessions();
 		if (sessions.length === 0) {
+			this.taskRunner.cancel();
 			this.endInitializingState();
 		}
 
@@ -775,9 +775,11 @@ export class DebugService implements IDebugService {
 
 	//---- watches
 
-	addWatchExpression(name: string): void {
+	addWatchExpression(name?: string): void {
 		const we = this.model.addWatchExpression(name);
-		this.viewModel.setSelectedExpression(we);
+		if (!name) {
+			this.viewModel.setSelectedExpression(we);
+		}
 		this.storeWatchExpressions();
 	}
 

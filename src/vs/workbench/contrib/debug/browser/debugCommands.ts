@@ -303,9 +303,14 @@ export function registerCommands(): void {
 		id: RESTART_FRAME_ID,
 		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
+			const notificationService = accessor.get(INotificationService);
 			let frame = getFrame(debugService, context);
 			if (frame) {
-				await frame.restart();
+				try {
+					await frame.restart();
+				} catch (e) {
+					notificationService.error(e);
+				}
 			}
 		}
 	});
