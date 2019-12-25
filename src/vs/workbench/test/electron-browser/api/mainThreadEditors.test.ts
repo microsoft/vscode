@@ -28,6 +28,7 @@ import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 
 suite('MainThreadEditors', () => {
 
@@ -89,7 +90,11 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
+		const editorWorkerService = new class extends mock<IEditorWorkerService>() {
+
+		};
+
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), editorWorkerService, textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {

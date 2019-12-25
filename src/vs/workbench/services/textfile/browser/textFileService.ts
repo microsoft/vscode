@@ -433,7 +433,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				modelToRestoreResource = joinPath(target, sourceModelResource.path.substr(source.path.length + 1));
 			}
 
-			const modelToRestore: ModelToRestore = { resource: modelToRestoreResource, encoding: sourceModel.getEncoding(), mode: sourceModel.textEditorModel?.getModeId() };
+			const modelToRestore: ModelToRestore = { resource: modelToRestoreResource, encoding: sourceModel.getEncoding() };
 			if (sourceModel.isDirty()) {
 				modelToRestore.snapshot = sourceModel.createSnapshot();
 			}
@@ -766,7 +766,16 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				await this.create(target, '');
 			}
 
-			targetModel = await this.models.loadOrCreate(target, { encoding: sourceModel.getEncoding(), mode: sourceModel.textEditorModel?.getModeId() });
+			// Carry over the mode if this is an untitled file and the mode was picked by the user
+			let mode: string | undefined;
+			if (sourceModel instanceof UntitledTextEditorModel) {
+				mode = sourceModel.getMode();
+				if (mode === PLAINTEXT_MODE_ID) {
+					mode = undefined; // never enforce plain text mode when moving as it is unspecific
+				}
+			}
+
+			targetModel = await this.models.loadOrCreate(target, { encoding: sourceModel.getEncoding(), mode });
 		}
 
 		try {

@@ -234,23 +234,6 @@ suite('ConfigurationModel', () => {
 
 suite('CustomConfigurationModel', () => {
 
-	suiteSetup(() => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': 'a',
-			'order': 1,
-			'title': 'a',
-			'type': 'object',
-			'properties': {
-				'a': {
-					'description': 'a',
-					'type': 'boolean',
-					'default': true,
-					'overridable': true
-				}
-			}
-		});
-	});
-
 	test('simple merge using models', () => {
 		let base = new ConfigurationModelParser('base');
 		base.parseContent(JSON.stringify({ 'a': 1, 'b': 2 }));
@@ -346,6 +329,19 @@ suite('CustomConfigurationModel', () => {
 	});
 
 	test('Test registering the same property again', () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'a',
+			'order': 1,
+			'title': 'a',
+			'type': 'object',
+			'properties': {
+				'a': {
+					'description': 'a',
+					'type': 'boolean',
+					'default': true,
+				}
+			}
+		});
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 			'id': 'a',
 			'order': 1,

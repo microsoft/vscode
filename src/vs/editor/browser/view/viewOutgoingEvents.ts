@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IScrollEvent } from 'vs/editor/common/editorCommon';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 export interface EventCallback<T> {
@@ -132,22 +132,18 @@ export class ViewOutgoingEvents extends Disposable {
 	}
 
 	private _convertViewToModelMouseTarget(target: IMouseTarget): IMouseTarget {
+		return ViewOutgoingEvents.convertViewToModelMouseTarget(target, this._viewModel.coordinatesConverter);
+	}
+
+	public static convertViewToModelMouseTarget(target: IMouseTarget, coordinatesConverter: ICoordinatesConverter): IMouseTarget {
 		return new ExternalMouseTarget(
 			target.element,
 			target.type,
 			target.mouseColumn,
-			target.position ? this._convertViewToModelPosition(target.position) : null,
-			target.range ? this._convertViewToModelRange(target.range) : null,
+			target.position ? coordinatesConverter.convertViewPositionToModelPosition(target.position) : null,
+			target.range ? coordinatesConverter.convertViewRangeToModelRange(target.range) : null,
 			target.detail
 		);
-	}
-
-	private _convertViewToModelPosition(viewPosition: Position): Position {
-		return this._viewModel.coordinatesConverter.convertViewPositionToModelPosition(viewPosition);
-	}
-
-	private _convertViewToModelRange(viewRange: Range): Range {
-		return this._viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 }
 

@@ -37,7 +37,7 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 		this._register(this.textFileService.models.onModelDisposed(e => this.discardBackup(e)));
 
 		// Listen for untitled model changes
-		this._register(this.untitledTextEditorService.onDidCreate(e => this.onUntitledModelChanged(e)));
+		this._register(this.untitledTextEditorService.onDidCreate(e => this.onUntitledModelCreated(e)));
 		this._register(this.untitledTextEditorService.onDidChangeContent(e => this.onUntitledModelChanged(e)));
 		this._register(this.untitledTextEditorService.onDidDisposeModel(e => this.discardBackup(e)));
 
@@ -62,6 +62,12 @@ export class BackupModelTracker extends Disposable implements IWorkbenchContribu
 					model.backup();
 				}
 			}
+		}
+	}
+
+	private onUntitledModelCreated(resource: Uri): void {
+		if (this.untitledTextEditorService.isDirty(resource)) {
+			this.untitledTextEditorService.loadOrCreate({ resource }).then(model => model.backup());
 		}
 	}
 

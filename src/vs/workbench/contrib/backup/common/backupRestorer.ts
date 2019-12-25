@@ -31,7 +31,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreBackups());
 	}
 
-	private async doRestoreBackups(): Promise<URI[] | undefined> {
+	protected async doRestoreBackups(): Promise<URI[] | undefined> {
 
 		// Find all files and untitled with backups
 		const backups = await this.backupFileService.getWorkspaceFileBackups();

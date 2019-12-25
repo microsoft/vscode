@@ -460,7 +460,11 @@ export class View extends ViewEventHandler {
 	}
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
-		return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+		const mouseTarget = this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+		if (!mouseTarget) {
+			return null;
+		}
+		return ViewOutgoingEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
 	}
 
 	public createOverviewRuler(cssClassName: string): OverviewRuler {

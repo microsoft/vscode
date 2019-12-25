@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -20,7 +20,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { dirname, joinPath, isEqualOrParent, basename, hasToIgnoreCase, distinctParents } from 'vs/base/common/resources';
+import { dirname, joinPath, isEqualOrParent, basename, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -90,12 +90,13 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return Promise.resolve(element);
 		}
 
-		const promise = element.fetchChildren(this.fileService, this.explorerService).then(undefined, e => {
+		const sortOrder = this.explorerService.sortOrder;
+		const promise = element.fetchChildren(sortOrder).then(undefined, e => {
 
 			if (element instanceof ExplorerItem && element.isRoot) {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					// Single folder create a dummy explorer item to show error
-					const placeholder = new ExplorerItem(element.resource, undefined, false);
+					const placeholder = new ExplorerItem(element.resource, this.fileService, undefined, false);
 					placeholder.isError = true;
 					return [placeholder];
 				} else {
@@ -160,11 +161,13 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	private updateLabels(templateData: IFileTemplateData): void {
 		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
 
-		for (let i = 0; i < this.items.length; i++) {
+		for (let i = 0; i < this.labels.length; i++) {
 			this.labels[i].setAttribute('aria-label', this.items[i].name);
 		}
 
-		DOM.addClass(this.labels[this._index], 'active');
+		if (this._index < this.labels.length) {
+			DOM.addClass(this.labels[this._index], 'active');
+		}
 	}
 
 	previous(): void {
@@ -919,17 +922,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Check for name collisions
 			const targetNames = new Set<string>();
+			const caseSensitive = this.fileService.hasCapability(target.resource, FileSystemProviderCapabilities.PathCaseSensitive);
 			if (targetStat.children) {
-				const ignoreCase = hasToIgnoreCase(target.resource);
 				targetStat.children.forEach(child => {
-					targetNames.add(ignoreCase ? child.name.toLowerCase() : child.name);
+					targetNames.add(caseSensitive ? child.name : child.name.toLowerCase());
 				});
 			}
 
 			// Run add in sequence
 			const addPromisesFactory: ITask<Promise<void>>[] = [];
 			await Promise.all(resources.map(async resource => {
-				if (targetNames.has(!hasToIgnoreCase(resource) ? basename(resource) : basename(resource).toLowerCase())) {
+				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
 						return;
@@ -1031,7 +1034,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const stat = await this.textFileService.copy(source.resource, findValidPasteFileTarget(target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
+			const stat = await this.textFileService.copy(source.resource, findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
 			if (!stat.isDirectory) {
 				await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}

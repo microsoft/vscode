@@ -456,6 +456,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	makeDirty(): void;
 
+	getMode(): string | undefined;
+
 	isResolved(): this is IResolvedTextFileEditorModel;
 
 	isDisposed(): boolean;
@@ -468,9 +470,6 @@ export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 	createSnapshot(): ITextSnapshot;
 }
 
-/**
- * Helper method to convert a snapshot into its full string form.
- */
 export function snapshotToString(snapshot: ITextSnapshot): string {
 	const chunks: string[] = [];
 

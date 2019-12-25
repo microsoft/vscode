@@ -14,11 +14,9 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
-import { Extensions as ViewContainerExtensions, ViewContainer, IViewContainersRegistry } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { IAction } from 'vs/base/common/actions';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
 export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 
@@ -142,4 +140,13 @@ export class ExtensionContainers extends Disposable {
 			}
 		}
 	}
+}
+
+export interface IExtensionMenuAction extends IAction {
+	run(context: IExtensionMenuActionContext): Promise<void>;
+}
+
+export interface IExtensionMenuActionContext {
+	id: string;
+	packageJSON: IExtensionManifest;
 }

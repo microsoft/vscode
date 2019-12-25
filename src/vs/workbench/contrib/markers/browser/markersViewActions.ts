@@ -10,10 +10,8 @@ import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IThemeService, registerThemingParticipant, ICssStyleCollector, ITheme } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -29,19 +27,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-
-export class ToggleMarkersPanelAction extends TogglePanelAction {
-
-	public static readonly ID = 'workbench.actions.view.problems';
-	public static readonly LABEL = Messages.MARKERS_PANEL_TOGGLE_LABEL;
-
-	constructor(id: string, label: string,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IPanelService panelService: IPanelService
-	) {
-		super(id, label, Constants.MARKERS_PANEL_ID, panelService, layoutService);
-	}
-}
 
 export class ShowProblemsPanelAction extends Action {
 
@@ -304,6 +289,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.element.className = this.action.class || '';
 		this.createInput(this.element);
 		this.createControls(this.element);
+		this.updateClass();
 
 		this.adjustInputBox();
 	}

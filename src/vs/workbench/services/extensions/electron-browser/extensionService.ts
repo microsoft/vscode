@@ -473,7 +473,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 			// set the resolved authority
 			this._remoteAuthorityResolverService.setResolvedAuthority(resolvedAuthority.authority, resolvedAuthority.options);
-			this._remoteExplorerService.addDetected(resolvedAuthority.tunnelInformation?.detectedTunnels);
+			this._remoteExplorerService.addEnvironmentTunnels(resolvedAuthority.tunnelInformation?.environmentTunnels);
 
 			// monitor for breakage
 			const connection = this._remoteAgentService.getConnection();

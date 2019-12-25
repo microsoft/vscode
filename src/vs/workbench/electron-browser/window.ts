@@ -283,6 +283,7 @@ export class ElectronWindow extends Disposable {
 			}));
 		}
 
+		// Detect minimize / maximize
 		this._register(Event.any(
 			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronEnvironmentService.windowId), () => true),
 			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronEnvironmentService.windowId), () => false)
@@ -452,7 +453,7 @@ export class ElectronWindow extends Disposable {
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
-						const tunnel = await this.tunnelService.openTunnel(portMappingRequest.port);
+						const tunnel = await this.tunnelService.openTunnel(undefined, portMappingRequest.port);
 						if (tunnel) {
 							return {
 								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),

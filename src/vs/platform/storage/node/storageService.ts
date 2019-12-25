@@ -16,6 +16,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 export class NativeStorageService extends Disposable implements IStorageService {
 
@@ -37,6 +38,9 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	private workspaceStorageListener: IDisposable | undefined;
 
 	private initializePromise: Promise<void> | undefined;
+
+	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 60000 /* every minute */));
+	private runWhenIdleDisposable: IDisposable | undefined = undefined;
 
 	constructor(
 		globalStorageDatabase: IStorageDatabase,
@@ -63,10 +67,17 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	}
 
 	private async doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
+
+		// Init all storage locations
 		await Promise.all([
 			this.initializeGlobalStorage(),
 			this.initializeWorkspaceStorage(payload)
 		]);
+
+		// On some OS we do not get enough time to persist state on shutdown (e.g. when
+		// Windows restarts after applying updates). In other cases, VSCode might crash,
+		// so we periodically save state to reduce the chance of loosing any state.
+		this.periodicFlushScheduler.schedule();
 	}
 
 	private initializeGlobalStorage(): Promise<void> {
@@ -185,7 +196,31 @@ export class NativeStorageService extends Disposable implements IStorageService 
 		this.getStorage(scope).delete(key);
 	}
 
+	private doFlushWhenIdle(): void {
+
+		// Dispose any previous idle runner
+		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+
+		// Run when idle
+		this.runWhenIdleDisposable = runWhenIdle(() => {
+
+			// send event to collect state
+			this.flush();
+
+			// repeat
+			this.periodicFlushScheduler.schedule();
+		});
+	}
+
+	flush(): void {
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+	}
+
 	async close(): Promise<void> {
+
+		// Stop periodic scheduler and idle runner as we now collect state normally
+		this.periodicFlushScheduler.dispose();
+		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
 
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });

@@ -9,6 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { find } from 'vs/base/common/arrays';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IEditorDescriptor {
 	instantiate(instantiationService: IInstantiationService): BaseEditor;
@@ -30,7 +31,7 @@ export interface IEditorRegistry {
 	 * @param inputDescriptors A set of constructor functions that return an instance of EditorInput for which the
 	 * registered editor should be used for.
 	 */
-	registerEditor(descriptor: IEditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): void;
+	registerEditor(descriptor: IEditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable;
 
 	/**
 	 * Returns the editor descriptor for the given input or `undefined` if none.
@@ -54,7 +55,7 @@ export interface IEditorRegistry {
  */
 export class EditorDescriptor implements IEditorDescriptor {
 
-	public static create<Services extends BrandedService[]>(
+	static create<Services extends BrandedService[]>(
 		ctor: { new(...services: Services): BaseEditor },
 		id: string,
 		name: string
@@ -87,14 +88,22 @@ export class EditorDescriptor implements IEditorDescriptor {
 
 class EditorRegistry implements IEditorRegistry {
 
-	private editors: EditorDescriptor[] = [];
+	private readonly editors: EditorDescriptor[] = [];
 	private readonly mapEditorToInputs = new Map<EditorDescriptor, readonly SyncDescriptor<EditorInput>[]>();
 
-	registerEditor(descriptor: EditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): void {
-		// Register (Support multiple Editors per Input)
+	registerEditor(descriptor: EditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable {
 		this.mapEditorToInputs.set(descriptor, inputDescriptors);
 
 		this.editors.push(descriptor);
+
+		return toDisposable(() => {
+			this.mapEditorToInputs.delete(descriptor);
+
+			const index = this.editors.indexOf(descriptor);
+			if (index !== -1) {
+				this.editors.splice(index, 1);
+			}
+		});
 	}
 
 	getEditor(input: EditorInput): EditorDescriptor | undefined {
@@ -154,10 +163,6 @@ class EditorRegistry implements IEditorRegistry {
 
 	getEditors(): readonly EditorDescriptor[] {
 		return this.editors.slice(0);
-	}
-
-	setEditors(editorsToSet: EditorDescriptor[]): void {
-		this.editors = editorsToSet;
 	}
 
 	getEditorInputs(): SyncDescriptor<EditorInput>[] {

@@ -40,8 +40,8 @@ class ServiceAccessor {
 
 class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 
-	public value: boolean | Promise<boolean> | undefined;
-	public reason = ShutdownReason.CLOSE;
+	value: boolean | Promise<boolean> | undefined;
+	reason = ShutdownReason.CLOSE;
 
 	veto(value: boolean | Promise<boolean>): void {
 		this.value = value;
