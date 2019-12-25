@@ -33,6 +33,9 @@ steps:
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
 - script: |
+    yarn valid-globals-check
+  displayName: Run Valid Globals Checks
+- script: |
     yarn compile
   displayName: Compile Sources
 - script: |
