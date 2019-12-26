@@ -4298,7 +4298,7 @@ declare module 'vscode' {
 		 *
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
 		 * is computed like this: `defaultValue` overridden by `globalValue`,
-		 * `globalValue` overridden by `workspaceValue`. `workspaceValue` overwridden by `workspaceFolderValue`.
+		 * `globalValue` overridden by `workspaceValue`. `workspaceValue` overridden by `workspaceFolderValue`.
 		 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
