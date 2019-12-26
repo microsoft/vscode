@@ -215,9 +215,11 @@ export class Dialog extends Disposable {
 				case 'pending':
 					addClasses(this.iconElement, 'codicon-loading', 'codicon-animation-spin');
 					break;
+				case 'question':
+					addClass(this.iconElement, 'codicon-question');
+					break;
 				case 'none':
 				case 'info':
-				case 'question':
 				default:
 					addClass(this.iconElement, 'codicon-info');
 					break;
