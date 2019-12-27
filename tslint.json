@@ -609,48 +609,6 @@
 				"restrictions": "**/vs/**"
 			}
 		],
-		"no-nodejs-globals": [
-			true,
-			{
-				"target": "**/vs/base/common/{path,process,platform}.ts",
-				"allowed": [
-					"process" // -> defines safe access to process
-				]
-			},
-			{
-				"target": "**/vs/**/test/{common,browser}/**",
-				"allowed": [
-					"process",
-					"Buffer",
-					"__filename",
-					"__dirname"
-				]
-			},
-			{
-				"target": "**/vs/workbench/api/common/extHostExtensionService.ts",
-				"allowed": [
-					"global" // -> safe access to 'global'
-				]
-			},
-			{
-				"target": "**/vs/**/{common,browser}/**",
-				"allowed": [ /* none */]
-			}
-		],
-		"no-dom-globals": [
-			true,
-			{
-				"target": "**/vs/**/test/{common,node,electron-main}/**",
-				"allowed": [
-					"document",
-					"HTMLElement"
-				]
-			},
-			{
-				"target": "**/vs/**/{common,node,electron-main}/**",
-				"allowed": [ /* none */]
-			}
-		],
 		"duplicate-imports": true,
 		"no-new-buffer": true,
 		"translation-remind": true,
