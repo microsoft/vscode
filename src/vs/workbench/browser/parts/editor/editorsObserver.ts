@@ -41,6 +41,8 @@ export class EditorsObserver extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private activeGroupChangeTimeout: number | undefined = undefined;
+
 	get count(): number {
 		return this.mostRecentEditorsMap.size;
 	}
@@ -91,8 +93,21 @@ export class EditorsObserver extends Disposable {
 
 				// Group gets active: put active editor as most recent
 				case GroupChangeKind.GROUP_ACTIVE: {
-					if (this.editorGroupsService.activeGroup === group && group.activeEditor) {
-						this.addMostRecentEditor(group, group.activeEditor, true /* is active */);
+					const groupActiveEditor = group.activeEditor;
+					if (this.editorGroupsService.activeGroup === group && groupActiveEditor) {
+						clearTimeout(this.activeGroupChangeTimeout);
+
+						// Reduce the likelyhood of recording a false active editor on
+						// this kind of group event. Often a group-active event is fired
+						// before opening an editor and we want to record that editor
+						// as the new most recent one, not the previous one of the group.
+						// This fixes the following case:
+						// - 2 groups are open with editors in each
+						// - user clicks on a non-active editor of the inactive group
+						// => that clicked editor should be the most recent one and the
+						//    previous one of that group should not be the second most
+						//    active
+						this.activeGroupChangeTimeout = setTimeout(() => this.addMostRecentEditor(group, groupActiveEditor, true /* is active */));
 					}
 
 					break;
@@ -102,6 +117,8 @@ export class EditorsObserver extends Disposable {
 				// if group is active, otherwise second most recent
 				case GroupChangeKind.EDITOR_ACTIVE: {
 					if (e.editor) {
+						clearTimeout(this.activeGroupChangeTimeout);
+
 						this.addMostRecentEditor(group, e.editor, this.editorGroupsService.activeGroup === group);
 					}
 
@@ -114,6 +131,8 @@ export class EditorsObserver extends Disposable {
 				// start to close oldest ones if needed.
 				case GroupChangeKind.EDITOR_OPEN: {
 					if (e.editor) {
+						clearTimeout(this.activeGroupChangeTimeout);
+
 						this.addMostRecentEditor(group, e.editor, false /* is not active */);
 						this.ensureOpenedEditorsLimit({ groupId: group.id, editor: e.editor }, group.id);
 					}
@@ -124,6 +143,8 @@ export class EditorsObserver extends Disposable {
 				// Editor closes: remove from recently opened
 				case GroupChangeKind.EDITOR_CLOSE: {
 					if (e.editor) {
+						clearTimeout(this.activeGroupChangeTimeout);
+
 						this.removeMostRecentEditor(group, e.editor);
 					}
 
