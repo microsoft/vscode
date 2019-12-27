@@ -173,6 +173,12 @@ export interface IAsyncDataSource<TInput, T> {
 	getChildren(element: TInput | T): T[] | Promise<T[]>;
 }
 
+type IGroupingRule<T> = (parent: T, siblings: T[]) => T[] | null;
+
+export interface IGroupingAsyncDataStore<TInput, T> extends IAsyncDataSource<TInput, T> {
+	groupingRules: IGroupingRule<T>[];
+}
+
 export const enum TreeDragOverBubble {
 	Down,
 	Up

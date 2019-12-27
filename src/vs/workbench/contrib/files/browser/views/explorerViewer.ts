@@ -15,7 +15,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble, IGroupingAsyncDataStore } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -70,6 +70,57 @@ export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 }
 
 export const explorerRootErrorEmitter = new Emitter<URI>();
+
+function groupBySuffix(parent: ExplorerItem, siblings: ExplorerItem[]): ExplorerItem[] {
+	const neededPrefix = `${parent.name}.`;
+	return siblings
+		.filter(s => s !== parent)
+		.filter(s => !s.isDirectory)
+		.filter(s => s.name.startsWith(neededPrefix));
+}
+
+function groupByBuilt(parent: ExplorerItem, siblings: ExplorerItem[]): ExplorerItem[] {
+	if (!parent.name.endsWith('.ts')) {
+		return [];
+	}
+	const neededFileName = parent.name.slice(0, -2) + 'js';
+	console.log(parent.name, neededFileName);
+	return siblings.filter(s => s.name === neededFileName);
+}
+
+export class GroupingExplorerDataSourceWrapper implements IGroupingAsyncDataStore<ExplorerItem | ExplorerItem[], ExplorerItem> {
+	constructor(
+		private source: ExplorerDataSource,
+	) { }
+	// TODO: Make them customizable via config file/extensions
+	groupingRules = [groupBySuffix, groupByBuilt];
+	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
+		return Array.isArray(element) || element.children.size !== 0;
+	}
+	// TODO: Cache with invalidation, cyclic orphaning adopting (lol) detection
+	async getChildren(element: ExplorerItem | ExplorerItem[]): Promise<ExplorerItem[]> {
+		const adopted = new Set();
+		return (await this.source.getChildren(element)).map((file, _i, siblings) => {
+			const result = new Set<ExplorerItem>();
+			for (const rule of this.groupingRules) {
+				console.log('owner ', file.name);
+				for (const child of rule(file, siblings)) {
+					result.add(child);
+					console.log('child ', child.name);
+				}
+			}
+			if (result.size !== 0) {
+				for (const child of result) {
+					adopted.add(child);
+					file.addChildNoRewrite(child);
+				}
+				return file;
+			}
+			return file;
+		}).filter(e => !adopted.has(e));
+	}
+}
+
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(

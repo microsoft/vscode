@@ -253,6 +253,16 @@ export class ExplorerItem {
 		this.children.set(this.getPlatformAwareName(child.name), child);
 	}
 
+	/**
+	 * Adds a child element to this folder/file, preserving original parent.
+	 * TODO: Protect them from rewrites?
+	 */
+	addChildNoRewrite(child: ExplorerItem): void {
+		child._parent = this._parent;
+		child.updateResource(false);
+		this.children.set(this.getPlatformAwareName(child.name), child);
+	}
+
 	getChild(name: string): ExplorerItem | undefined {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
