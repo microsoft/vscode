@@ -38,10 +38,10 @@ SignTool=esrp
 #endif
 
 #if "user" == InstallTarget
-DefaultDirName={userpf}\{#DirName}
+DefaultDirName={userpf}
 PrivilegesRequired=lowest
 #else
-DefaultDirName={pf}\{#DirName}
+DefaultDirName={pf}
 #endif
 
 [Languages]
