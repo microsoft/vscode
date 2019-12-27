@@ -8,38 +8,24 @@ import { readFileSync, existsSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { match } from 'minimatch';
 
-const TS_CONFIG_PATH = join(__dirname, '../../', 'src', 'tsconfig.json');
-
-const DOM_GLOBALS_DEFINITION = 'lib.dom.d.ts';
-
-const DISALLOWED_DOM_GLOBALS = [
-	"window",
-	"document",
-	"HTMLElement",
-	"createElement"
-];
-
-const NODE_GLOBALS_DEFINITION = '@types/node';
-
-const DISALLOWED_NODE_GLOBALS = [
-	// https://nodejs.org/api/globals.html#globals_global_objects
-	"NodeJS",
-	"Buffer",
-	"__dirname",
-	"__filename",
-	"clearImmediate",
-	"exports",
-	"global",
-	"module",
-	"process",
-	"setImmediate"
-];
+//
+// #############################################################################################
+//
+// A custom typescript linter for the specific task of detecting the use of certain globals in a
+// layer that does not allow the use. For example:
+// - using DOM globals in common/node/electron-main layer (e.g. HTMLElement)
+// - using node.js globals in common/browser layer (e.g. process)
+//
+// Make changes to below RULES to lift certain files from these checks only if absolutely needed
+//
+// #############################################################################################
+//
 
 const RULES = {
 	"no-nodejs-globals": [
 		{
 			"target": "**/vs/**/test/{common,browser}/**",
-			"allowed": [
+			"allowed": [ // -> less strict for test files
 				"process",
 				"Buffer",
 				"__filename",
@@ -66,7 +52,7 @@ const RULES = {
 		},
 		{
 			"target": "**/vs/**/test/{common,node,electron-main}/**",
-			"allowed": [
+			"allowed": [ // -> less strict for test files
 				"document",
 				"HTMLElement",
 				"createElement"
@@ -78,6 +64,33 @@ const RULES = {
 		}
 	]
 };
+
+const TS_CONFIG_PATH = join(__dirname, '../../', 'src', 'tsconfig.json');
+
+const DOM_GLOBALS_DEFINITION = 'lib.dom.d.ts';
+
+const DISALLOWED_DOM_GLOBALS = [
+	"window",
+	"document",
+	"HTMLElement",
+	"createElement"
+];
+
+const NODE_GLOBALS_DEFINITION = '@types/node';
+
+const DISALLOWED_NODE_GLOBALS = [
+	// https://nodejs.org/api/globals.html#globals_global_objects
+	"NodeJS",
+	"Buffer",
+	"__dirname",
+	"__filename",
+	"clearImmediate",
+	"exports",
+	"global",
+	"module",
+	"process",
+	"setImmediate"
+];
 
 interface IRule {
 	definition: string;
