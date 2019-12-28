@@ -12,7 +12,7 @@ const url = require('url');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
-const opn = require('opn');
+const open = require('open');
 const minimist = require('vscode-minimist');
 
 const APP_ROOT = path.dirname(__dirname);
@@ -271,5 +271,5 @@ async function serveFile(req, res, filePath, responseHeaders = Object.create(nul
 }
 
 if (args.launch !== false) {
-	opn(`${SCHEME}://${HOST}:${PORT}`);
+	open(`${SCHEME}://${HOST}:${PORT}`);
 }
