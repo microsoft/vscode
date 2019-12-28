@@ -47,8 +47,9 @@ export class OpenSettings2Action extends Action {
 		super(id, label);
 	}
 
-	run(event?: any): Promise<any> {
-		return this.preferencesService.openSettings(false, undefined);
+	run(args: any): Promise<any> {
+		const query = typeof args === 'string' ? args : undefined;
+		return this.preferencesService.openSettings(query ? false : undefined, query);
 	}
 }
 
@@ -83,8 +84,9 @@ export class OpenGlobalSettingsAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any): Promise<any> {
-		return this.preferencesService.openGlobalSettings();
+	run(args: any): Promise<any> {
+		const query = typeof args === 'string' ? args : undefined;
+		return this.preferencesService.openGlobalSettings(query ? false : undefined, { query });
 	}
 }
 
@@ -118,8 +120,9 @@ export class OpenGlobalKeybindingsAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any): Promise<any> {
-		return this.preferencesService.openGlobalKeybindingSettings(false);
+	run(args: any): Promise<any> {
+		const query = typeof args === 'string' ? args : undefined;
+		return this.preferencesService.openGlobalKeybindingSettings(false, query);
 	}
 }
 
@@ -181,8 +184,9 @@ export class OpenWorkspaceSettingsAction extends Action {
 		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
-	run(event?: any): Promise<any> {
-		return this.preferencesService.openWorkspaceSettings();
+	run(args: any): Promise<any> {
+		const query = typeof args === 'string' ? args : undefined;
+		return this.preferencesService.openWorkspaceSettings(query ? false : undefined, { query });
 	}
 
 	dispose(): void {
@@ -214,12 +218,12 @@ export class OpenFolderSettingsAction extends Action {
 	private update(): void {
 		this.enabled = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceContextService.getWorkspace().folders.length > 0;
 	}
-
-	run(): Promise<any> {
+	run(args: any): Promise<any> {
 		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.preferencesService.openFolderSettings(workspaceFolder.uri);
+					const query = typeof args === 'string' ? args : undefined;
+					return this.preferencesService.openFolderSettings(workspaceFolder.uri, query ? false : undefined, { query });
 				}
 
 				return undefined;

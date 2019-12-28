@@ -496,8 +496,8 @@ CommandsRegistry.registerCommand(OPEN_FOLDER_SETTINGS_COMMAND, function (accesso
 	return preferencesService.openFolderSettings(resource);
 });
 
-CommandsRegistry.registerCommand(OpenFolderSettingsAction.ID, serviceAccessor => {
-	serviceAccessor.get(IInstantiationService).createInstance(OpenFolderSettingsAction, OpenFolderSettingsAction.ID, OpenFolderSettingsAction.LABEL).run();
+CommandsRegistry.registerCommand(OpenFolderSettingsAction.ID, (serviceAccessor, args) => {
+	serviceAccessor.get(IInstantiationService).createInstance(OpenFolderSettingsAction, OpenFolderSettingsAction.ID, OpenFolderSettingsAction.LABEL).run(args);
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -508,8 +508,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: WorkbenchStateContext.isEqualTo('workspace')
 });
 
-CommandsRegistry.registerCommand(OpenWorkspaceSettingsAction.ID, serviceAccessor => {
-	serviceAccessor.get(IInstantiationService).createInstance(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL).run();
+CommandsRegistry.registerCommand(OpenWorkspaceSettingsAction.ID, (serviceAccessor, args) => {
+	serviceAccessor.get(IInstantiationService).createInstance(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL).run(args);
 });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {

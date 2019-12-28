@@ -113,7 +113,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		// otherwise run and dispose
 		try {
 			const from = args?.from || 'keybinding';
-			await actionInstance.run(undefined, { from });
+			await actionInstance.run(args, { from });
 		} finally {
 			actionInstance.dispose();
 		}
