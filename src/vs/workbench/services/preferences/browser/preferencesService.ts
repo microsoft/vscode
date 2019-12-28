@@ -279,7 +279,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 	}
 
-	openGlobalKeybindingSettings(textual: boolean): Promise<void> {
+	openGlobalKeybindingSettings(textual: boolean, query?: string): Promise<void> {
 		type OpenKeybindingsClassification = {
 			textual: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 		};
@@ -304,7 +304,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 		}
 
-		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true, revealIfOpened: true }).then(() => undefined);
+		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), SettingsEditorOptions.create({ pinned: true, revealIfOpened: true, query })).then(() => undefined);
 	}
 
 	openDefaultKeybindingsFile(): Promise<IEditor | undefined> {

@@ -200,7 +200,7 @@ export interface IPreferencesService {
 	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditor | undefined>;
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
-	openGlobalKeybindingSettings(textual: boolean): Promise<void>;
+	openGlobalKeybindingSettings(textual: boolean, query?: string): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditor | undefined>;
 
 	configureSettingsForLanguage(language: string | null): void;
