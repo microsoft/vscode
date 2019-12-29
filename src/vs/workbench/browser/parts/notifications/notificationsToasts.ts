@@ -433,7 +433,7 @@ export class NotificationsToasts extends Themable {
 				const backgroundColor = this.getColor(NOTIFICATIONS_TOAST_BACKGROUND);
 				element.style.background = backgroundColor ? backgroundColor : '';
 			}
-		);
+			);
 	}
 
 	private getToasts(state: ToastVisibility): INotificationToast[] {
