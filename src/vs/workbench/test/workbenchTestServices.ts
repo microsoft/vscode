@@ -957,6 +957,10 @@ export class TestEditorService implements EditorServiceImpl {
 		throw new Error('not implemented');
 	}
 
+	findTargetGroup(_input: IEditorInput, _options?: IEditorOptions, _group?: any): IEditorGroup {
+		throw new Error('not implemented');
+	}
+
 	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}

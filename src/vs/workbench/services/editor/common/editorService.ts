@@ -218,6 +218,11 @@ export interface IEditorService {
 	createInput(input: IResourceEditor): IEditorInput;
 
 	/**
+	 * Find target editor group according to a group, an indentifier or a placeholder.
+	 */
+	findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): IEditorGroup;
+
+	/**
 	 * Save the provided list of editors.
 	 */
 	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
