@@ -192,10 +192,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			return;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
-		if (targetGroup) {
-			this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
-		}
+		const targetGroup = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
+		this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
 	}
 
 	public async $postMessage(handle: extHostProtocol.WebviewPanelHandle, message: any): Promise<boolean> {

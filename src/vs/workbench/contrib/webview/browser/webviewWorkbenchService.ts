@@ -68,7 +68,7 @@ export interface IWebviewWorkbenchService {
 
 	revealWebview(
 		webview: WebviewInput,
-		group: IEditorGroup,
+		group: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE,
 		preserveFocus: boolean
 	): void;
 
@@ -175,20 +175,22 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 
 	public revealWebview(
 		webview: WebviewInput,
-		group: IEditorGroup,
+		group: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE,
 		preserveFocus: boolean
 	): void {
-		if (webview.group === group.id) {
-			this._editorService.openEditor(webview, {
-				preserveFocus,
-				// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
-				// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
-				activation: preserveFocus ? EditorActivation.RESTORE : undefined
-			}, webview.group);
+		const editorOptions = {
+			preserveFocus,
+			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
+			activation: preserveFocus ? EditorActivation.RESTORE : undefined
+		};
+		const targetGroup = this._editorService.findTargetGroup(webview, editorOptions, group);
+		if (webview.group === targetGroup.id) {
+			this._editorService.openEditor(webview, editorOptions, targetGroup);
 		} else {
 			const groupView = this._editorGroupService.getGroup(webview.group!);
 			if (groupView) {
-				groupView.moveEditor(webview, group, { preserveFocus });
+				groupView.moveEditor(webview, targetGroup, { preserveFocus });
 			}
 		}
 	}
