@@ -31,7 +31,7 @@ module.exports = new class NoNlsInStandaloneEditorRule {
                 || /vs(\/|\\)editor(\/|\\)editor.main/.test(path)
                 || /vs(\/|\\)editor(\/|\\)editor.worker/.test(path)) {
                 context.report({
-                    node,
+                    loc: node.loc,
                     messageId: 'badImport'
                 });
             }

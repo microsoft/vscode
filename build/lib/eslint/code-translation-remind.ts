@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as estree from 'estree';
+import { TSESTree } from '@typescript-eslint/experimental-utils';
 import { readFileSync } from 'fs';
 import { createImportRuleListener } from './utils';
 
@@ -25,7 +25,7 @@ export = new class TranslationRemind implements eslint.Rule.RuleModule {
 		return createImportRuleListener((node, path) => this._checkImport(context, node, path));
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, node: estree.Node, path: string) {
+	private _checkImport(context: eslint.Rule.RuleContext, node: TSESTree.Node, path: string) {
 
 		if (path !== TranslationRemind.NLS_MODULE) {
 			return;
@@ -59,7 +59,7 @@ export = new class TranslationRemind implements eslint.Rule.RuleModule {
 
 		if (!resourceDefined) {
 			context.report({
-				node,
+				loc: node.loc,
 				messageId: 'missing',
 				data: { resource }
 			});

@@ -39,7 +39,7 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 				|| /vs(\/|\\)editor(\/|\\)editor.worker/.test(path)
 			) {
 				context.report({
-					node,
+					loc: node.loc,
 					messageId: 'badImport'
 				});
 			}

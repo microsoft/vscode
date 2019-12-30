@@ -52,7 +52,7 @@ module.exports = new class {
                 if (config.disallowed.has(part)) {
                     // BAD - wrong layer
                     context.report({
-                        node,
+                        loc: node.loc,
                         messageId: 'layerbreaker',
                         data: {
                             from: part,

@@ -48,7 +48,7 @@ module.exports = new (_a = class TranslationRemind {
             });
             if (!resourceDefined) {
                 context.report({
-                    node,
+                    loc: node.loc,
                     messageId: 'missing',
                     data: { resource }
                 });

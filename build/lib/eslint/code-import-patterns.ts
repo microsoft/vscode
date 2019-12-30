@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as estree from 'estree';
+import { TSESTree } from '@typescript-eslint/experimental-utils';
 import { join } from 'path';
 import * as minimatch from 'minimatch';
 import { createImportRuleListener } from './utils';
@@ -37,7 +37,7 @@ export = new class implements eslint.Rule.RuleModule {
 		return {};
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: estree.Node, path: string) {
+	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: TSESTree.Node, path: string) {
 
 		// resolve relative paths
 		if (path[0] === '.') {
@@ -62,7 +62,7 @@ export = new class implements eslint.Rule.RuleModule {
 		if (!matched) {
 			// None of the restrictions matched
 			context.report({
-				node,
+				loc: node.loc,
 				messageId: 'badImport',
 				data: {
 					restrictions: restrictions.join(' or ')

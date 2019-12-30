@@ -47,7 +47,7 @@ module.exports = new class {
         if (!matched) {
             // None of the restrictions matched
             context.report({
-                node,
+                loc: node.loc,
                 messageId: 'badImport',
                 data: {
                     restrictions: restrictions.join(' or ')

@@ -37,7 +37,7 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 					/vs(\/|\\)nls/.test(path)
 				) {
 					context.report({
-						node,
+						loc: node.loc,
 						messageId: 'noNls'
 					});
 				}

@@ -29,7 +29,7 @@ module.exports = new class NoNlsInStandaloneEditorRule {
                 }
                 if (/vs(\/|\\)nls/.test(path)) {
                     context.report({
-                        node,
+                        loc: node.loc,
                         messageId: 'noNls'
                     });
                 }

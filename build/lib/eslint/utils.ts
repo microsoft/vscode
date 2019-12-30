@@ -4,43 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as estree from 'estree';
+import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/experimental-utils';
 
-//https://github.com/estree/estree/blob/master/es2015.md#exportnameddeclaration
-declare interface ExportNamedDeclaration {
-	type: "ExportNamedDeclaration";
-	declaration: estree.Declaration | null;
-	specifiers: [estree.ExportSpecifier];
-	source: estree.Literal | null;
-}
+export function createImportRuleListener(validateImport: (node: TSESTree.Literal, value: string) => any): eslint.Rule.RuleListener {
 
-export function createImportRuleListener(validateImport: (node: estree.SimpleLiteral, value: string) => any): eslint.Rule.RuleListener {
-
-	function _checkImport(node: estree.Literal | null) {
+	function _checkImport(node: TSESTree.Node | null) {
 		if (node && node.type === 'Literal' && typeof node.value === 'string') {
-			validateImport(<estree.SimpleLiteral>node, node.value);
+			validateImport(node, node.value);
 		}
 	}
 
 	return {
 		// import ??? from 'module'
-		ImportDeclaration: (node: estree.Node) => {
-			_checkImport((<estree.ImportDeclaration>node).source);
+		ImportDeclaration: (node: any) => {
+			_checkImport((<TSESTree.ImportDeclaration>node).source);
 		},
 		// import('module').then(...)
-		CallExpression: (node: estree.Node) => {
-			const { callee, arguments: args } = <estree.CallExpression>node;
+		CallExpression: (node: any) => {
+			const { callee, arguments: args } = <TSESTree.CallExpression>node;
 			if ((<any>callee.type) === 'Import' && args.length > 0 && args[0]?.type === 'Literal') {
-				_checkImport(<estree.SimpleLiteral>args[0]);
+				_checkImport(args[0]);
+			}
+		},
+		// import foo = ...
+		[AST_NODE_TYPES.TSImportEqualsDeclaration]: (node: any) => {
+			const { moduleReference } = (<TSESTree.TSImportEqualsDeclaration>node);
+			if (moduleReference.type === AST_NODE_TYPES.TSExternalModuleReference) {
+				_checkImport((<TSESTree.Literal>(<TSESTree.TSExternalModuleReference>moduleReference).expression));
 			}
 		},
 		// export ?? from 'module'
-		ExportAllDeclaration: (node: estree.Node) => {
-			_checkImport((<estree.ExportAllDeclaration>node).source);
+		ExportAllDeclaration: (node: any) => {
+			_checkImport((<TSESTree.ExportAllDeclaration>node).source);
 		},
 		// export {foo} from 'module'
-		ExportNamedDeclaration: (node: estree.Node) => {
-			_checkImport((<ExportNamedDeclaration>node).source);
-		}
+		ExportNamedDeclaration: (node: any) => {
+			_checkImport((<TSESTree.ExportNamedDeclaration>node).source);
+		},
+
 	};
 }
