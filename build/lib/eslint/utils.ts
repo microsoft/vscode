@@ -30,7 +30,7 @@ export function createImportRuleListener(validateImport: (node: estree.SimpleLit
 		// import('module').then(...)
 		CallExpression: (node: estree.Node) => {
 			const { callee, arguments: args } = <estree.CallExpression>node;
-			if ((<any>callee.type) === 'Import' && args[0]?.type === 'Literal') {
+			if ((<any>callee.type) === 'Import' && args.length > 0 && args[0]?.type === 'Literal') {
 				_checkImport(<estree.SimpleLiteral>args[0]);
 			}
 		},

@@ -19,7 +19,7 @@ function createImportRuleListener(validateImport) {
         CallExpression: (node) => {
             var _a;
             const { callee, arguments: args } = node;
-            if (callee.type === 'Import' && ((_a = args[0]) === null || _a === void 0 ? void 0 : _a.type) === 'Literal') {
+            if (callee.type === 'Import' && args.length > 0 && ((_a = args[0]) === null || _a === void 0 ? void 0 : _a.type) === 'Literal') {
                 _checkImport(args[0]);
             }
         },
