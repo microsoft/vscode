@@ -6,7 +6,6 @@
         "sourceType": "module"
     },
     "plugins": [
-        "code-oss-eslint",
         "@typescript-eslint"
     ],
     "rules": {
@@ -16,7 +15,7 @@
         "semi": "off",
         "@typescript-eslint/semi": "warn",
         "no-duplicate-imports": "warn",
-        "code-oss-eslint/layering": [
+        "code-layering": [
             "warn",
             {
                 "common": [],
