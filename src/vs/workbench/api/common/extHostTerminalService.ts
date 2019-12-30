@@ -9,7 +9,7 @@ import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShap
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ITerminalChildProcess, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalChildProcess, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { timeout } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
@@ -554,8 +554,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 				c(terminal);
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
-				// the ExtHostTerminal has not yet been iniitalized
-				timeout(EXT_HOST_CREATION_DELAY * 2).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
+				// the ExtHostTerminal has not yet been initialized
+				timeout(200).then(() => c(this._createGetTerminalPromise(id, retries - 1)));
 			}
 		});
 	}
