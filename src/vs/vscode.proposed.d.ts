@@ -962,7 +962,7 @@ declare module 'vscode' {
 		 * The exit code that a terminal exited with, it can have the following values:
 		 * - Zero: the terminal process or custom execution succeeded.
 		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcefully closed the terminal or a custom execution exited
+		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
 		 *   without providing an exit code.
 		 */
 		readonly code: number | undefined;
