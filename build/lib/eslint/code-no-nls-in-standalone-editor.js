@@ -4,6 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 const path_1 = require("path");
+const utils_1 = require("./utils");
 module.exports = new class NoNlsInStandaloneEditorRule {
     constructor() {
         this.meta = {
@@ -16,39 +17,24 @@ module.exports = new class NoNlsInStandaloneEditorRule {
     }
     create(context) {
         const fileName = context.getFilename();
-        if (!(/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(fileName)
+        if (/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(fileName)
             || /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(fileName)
             || /vs(\/|\\)editor(\/|\\)editor.api/.test(fileName)
             || /vs(\/|\\)editor(\/|\\)editor.main/.test(fileName)
-            || /vs(\/|\\)editor(\/|\\)editor.worker/.test(fileName))) {
-            return {};
-        }
-        return {
-            ImportDeclaration: (node) => {
-                this._checkImport(context, node, node.source.value);
-            },
-            CallExpression: (node) => {
-                var _a;
-                const { callee, arguments: args } = node;
-                if (callee.type === 'Import' && ((_a = args[0]) === null || _a === void 0 ? void 0 : _a.type) === 'Literal') {
-                    this._checkImport(context, node, args[0].value);
+            || /vs(\/|\\)editor(\/|\\)editor.worker/.test(fileName)) {
+            return utils_1.createImportRuleListener((node, path) => {
+                // resolve relative paths
+                if (path[0] === '.') {
+                    path = path_1.join(context.getFilename(), path);
                 }
-            }
-        };
-    }
-    _checkImport(context, node, path) {
-        if (typeof path !== 'string') {
-            return;
-        }
-        // resolve relative paths
-        if (path[0] === '.') {
-            path = path_1.join(context.getFilename(), path);
-        }
-        if (/vs(\/|\\)nls/.test(path)) {
-            context.report({
-                node,
-                messageId: 'noNls'
+                if (/vs(\/|\\)nls/.test(path)) {
+                    context.report({
+                        node,
+                        messageId: 'noNls'
+                    });
+                }
             });
         }
+        return {};
     }
 };

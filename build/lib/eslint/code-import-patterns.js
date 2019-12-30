@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 const path_1 = require("path");
 const minimatch = require("minimatch");
+const utils_1 = require("./utils");
 module.exports = new class {
     constructor() {
         this.meta = {
@@ -19,26 +20,12 @@ module.exports = new class {
         const configs = context.options;
         for (const config of configs) {
             if (minimatch(context.getFilename(), config.target)) {
-                return {
-                    ImportDeclaration: (node) => {
-                        this._checkImport(context, config, node, node.source.value);
-                    },
-                    CallExpression: (node) => {
-                        var _a;
-                        const { callee, arguments: args } = node;
-                        if (callee.type === 'Import' && ((_a = args[0]) === null || _a === void 0 ? void 0 : _a.type) === 'Literal') {
-                            this._checkImport(context, config, node, args[0].value);
-                        }
-                    }
-                };
+                return utils_1.createImportRuleListener((node, value) => this._checkImport(context, config, node, value));
             }
         }
         return {};
     }
     _checkImport(context, config, node, path) {
-        if (typeof path !== 'string') {
-            return;
-        }
         // resolve relative paths
         if (path[0] === '.') {
             path = path_1.join(context.getFilename(), path);

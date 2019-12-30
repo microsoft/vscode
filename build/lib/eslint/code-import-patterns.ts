@@ -7,6 +7,7 @@ import * as eslint from 'eslint';
 import * as estree from 'estree';
 import { join } from 'path';
 import * as minimatch from 'minimatch';
+import { createImportRuleListener } from './utils';
 
 interface ImportPatternsConfig {
 	target: string;
@@ -29,28 +30,14 @@ export = new class implements eslint.Rule.RuleModule {
 
 		for (const config of configs) {
 			if (minimatch(context.getFilename(), config.target)) {
-				return {
-					ImportDeclaration: (node: estree.Node) => {
-						this._checkImport(context, config!, node, (<estree.ImportDeclaration>node).source.value);
-					},
-					CallExpression: (node: estree.Node) => {
-						const { callee, arguments: args } = <estree.CallExpression>node;
-						if ((<any>callee.type) === 'Import' && args[0]?.type === 'Literal') {
-							this._checkImport(context, config!, node, (<estree.Literal>args[0]).value);
-						}
-					}
-				};
+				return createImportRuleListener((node, value) => this._checkImport(context, config, node, value));
 			}
 		}
 
 		return {};
-
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: estree.Node, path: any) {
-		if (typeof path !== 'string') {
-			return;
-		}
+	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: estree.Node, path: string) {
 
 		// resolve relative paths
 		if (path[0] === '.') {

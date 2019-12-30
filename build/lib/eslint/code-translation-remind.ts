@@ -6,6 +6,7 @@
 import * as eslint from 'eslint';
 import * as estree from 'estree';
 import { readFileSync } from 'fs';
+import { createImportRuleListener } from './utils';
 
 
 export = new class TranslationRemind implements eslint.Rule.RuleModule {
@@ -21,59 +22,48 @@ export = new class TranslationRemind implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-
-		return {
-			ImportDeclaration: (node: estree.Node) => {
-				this._checkImport(context, node, (<estree.ImportDeclaration>node).source.value);
-			},
-			CallExpression: (node: estree.Node) => {
-				const { callee, arguments: args } = <estree.CallExpression>node;
-				if ((<any>callee.type) === 'Import' && args[0]?.type === 'Literal') {
-					this._checkImport(context, node, (<estree.Literal>args[0]).value);
-				}
-			}
-		};
+		return createImportRuleListener((node, path) => this._checkImport(context, node, path));
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, node: estree.Node, path: any) {
+	private _checkImport(context: eslint.Rule.RuleContext, node: estree.Node, path: string) {
 
-		if (path === TranslationRemind.NLS_MODULE) {
-
-			const currentFile = context.getFilename();
-			const matchService = currentFile.match(/vs\/workbench\/services\/\w+/);
-			const matchPart = currentFile.match(/vs\/workbench\/contrib\/\w+/);
-			if (!matchService && !matchPart) {
-				return;
-			}
-
-			const resource = matchService ? matchService[0] : matchPart![0];
-			let resourceDefined = false;
-
-			let json;
-			try {
-				json = readFileSync('./build/lib/i18n.resources.json', 'utf8');
-			} catch (e) {
-				console.error('[translation-remind rule]: File with resources to pull from Transifex was not found. Aborting translation resource check for newly defined workbench part/service.');
-				return;
-			}
-			const workbenchResources = JSON.parse(json).workbench;
-
-			workbenchResources.forEach((existingResource: any) => {
-				if (existingResource.name === resource) {
-					resourceDefined = true;
-					return;
-				}
-			});
-
-			if (!resourceDefined) {
-				context.report({
-					node,
-					messageId: 'missing',
-					data: { resource }
-				});
-			}
+		if (path !== TranslationRemind.NLS_MODULE) {
+			return;
 		}
 
+		const currentFile = context.getFilename();
+		const matchService = currentFile.match(/vs\/workbench\/services\/\w+/);
+		const matchPart = currentFile.match(/vs\/workbench\/contrib\/\w+/);
+		if (!matchService && !matchPart) {
+			return;
+		}
+
+		const resource = matchService ? matchService[0] : matchPart![0];
+		let resourceDefined = false;
+
+		let json;
+		try {
+			json = readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		} catch (e) {
+			console.error('[translation-remind rule]: File with resources to pull from Transifex was not found. Aborting translation resource check for newly defined workbench part/service.');
+			return;
+		}
+		const workbenchResources = JSON.parse(json).workbench;
+
+		workbenchResources.forEach((existingResource: any) => {
+			if (existingResource.name === resource) {
+				resourceDefined = true;
+				return;
+			}
+		});
+
+		if (!resourceDefined) {
+			context.report({
+				node,
+				messageId: 'missing',
+				data: { resource }
+			});
+		}
 	}
 };
 
