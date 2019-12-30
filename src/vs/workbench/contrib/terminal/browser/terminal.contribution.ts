@@ -174,6 +174,16 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			default: 1
 		},
+		'terminal.integrated.fastScrollSensitivity': {
+			markdownDescription: nls.localize('terminal.integrated.fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`."),
+			type: 'number',
+			default: 5
+		},
+		'terminal.integrated.mouseWheelScrollSensitivity': {
+			markdownDescription: nls.localize('terminal.integrated.mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaY` of mouse wheel scroll events."),
+			type: 'number',
+			default: 1
+		},
 		'terminal.integrated.fontWeight': {
 			type: 'string',
 			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
