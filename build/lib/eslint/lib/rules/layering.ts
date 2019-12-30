@@ -14,7 +14,7 @@ type Config = {
 
 export = new class implements eslint.Rule.RuleModule {
 
-	meta = {
+	readonly meta = {
 		type: 'problem',
 		schema: {},
 		messages: {
@@ -75,19 +75,19 @@ export = new class implements eslint.Rule.RuleModule {
 		for (let i = parts.length - 1; i >= 0; i--) {
 			const part = parts[i];
 
-			if (config!.allowed.has(part)) {
+			if (config.allowed.has(part)) {
 				// GOOD - same layer
 				break;
 			}
 
-			if (config!.disallowed.has(part)) {
+			if (config.disallowed.has(part)) {
 				// BAD - wrong layer
 				context.report({
 					node,
 					messageId: 'layerbreaker',
 					data: {
 						from: part,
-						allowed: [...config!.allowed.keys()].join(', ')
+						allowed: [...config.allowed.keys()].join(', ')
 					}
 				});
 
