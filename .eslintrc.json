@@ -28,6 +28,7 @@
         "semi": "off",
         "@typescript-eslint/semi": "warn",
         "@typescript-eslint/class-name-casing": "warn",
+        "code-translation-remind": "warn",
         "code-layering": [
             "warn",
             {
