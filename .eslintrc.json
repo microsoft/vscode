@@ -24,7 +24,6 @@
         "no-throw-literal": "warn",
         "no-unsafe-finally": "warn",
         "no-unused-labels": "warn",
-        "no-unused-vars": "off",
         "no-var": "warn",
         "semi": "off",
         "@typescript-eslint/semi": "warn",

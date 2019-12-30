@@ -11,3 +11,5 @@
 **/vscode-api-tests/testWorkspace/**
 **/extensions/**/out/**
 **/extensions/**/build/**
+**/extensions/markdown-language-features/media/**
+**/extensions/typescript-basics/test/colorize-fixtures/**
