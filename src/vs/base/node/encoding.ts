@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as iconv from 'iconv-lite';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { exec } from 'child_process';
 import { Readable, Writable } from 'stream';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -352,88 +350,4 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, aut
 	}
 
 	return { seemsBinary, encoding };
-}
-
-// https://ss64.com/nt/chcp.html
-const windowsTerminalEncodings = {
-	'437': 'cp437', // United States
-	'850': 'cp850', // Multilingual(Latin I)
-	'852': 'cp852', // Slavic(Latin II)
-	'855': 'cp855', // Cyrillic(Russian)
-	'857': 'cp857', // Turkish
-	'860': 'cp860', // Portuguese
-	'861': 'cp861', // Icelandic
-	'863': 'cp863', // Canadian - French
-	'865': 'cp865', // Nordic
-	'866': 'cp866', // Russian
-	'869': 'cp869', // Modern Greek
-	'936': 'cp936', // Simplified Chinese
-	'1252': 'cp1252' // West European Latin
-};
-
-export async function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
-	let rawEncodingPromise: Promise<string>;
-
-	// Support a global environment variable to win over other mechanics
-	const cliEncodingEnv = process.env['VSCODE_CLI_ENCODING'];
-	if (cliEncodingEnv) {
-		if (verbose) {
-			console.log(`Found VSCODE_CLI_ENCODING variable: ${cliEncodingEnv}`);
-		}
-
-		rawEncodingPromise = Promise.resolve(cliEncodingEnv);
-	}
-
-	// Linux/Mac: use "locale charmap" command
-	else if (isLinux || isMacintosh) {
-		rawEncodingPromise = new Promise<string>(resolve => {
-			if (verbose) {
-				console.log('Running "locale charmap" to detect terminal encoding...');
-			}
-
-			exec('locale charmap', (err, stdout, stderr) => resolve(stdout));
-		});
-	}
-
-	// Windows: educated guess
-	else {
-		rawEncodingPromise = new Promise<string>(resolve => {
-			if (verbose) {
-				console.log('Running "chcp" to detect terminal encoding...');
-			}
-
-			exec('chcp', (err, stdout, stderr) => {
-				if (stdout) {
-					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings) as Array<keyof typeof windowsTerminalEncodings>;
-					for (const key of windowsTerminalEncodingKeys) {
-						if (stdout.indexOf(key) >= 0) {
-							return resolve(windowsTerminalEncodings[key]);
-						}
-					}
-				}
-
-				return resolve(undefined);
-			});
-		});
-	}
-
-	const rawEncoding = await rawEncodingPromise;
-	if (verbose) {
-		console.log(`Detected raw terminal encoding: ${rawEncoding}`);
-	}
-
-	if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
-		return UTF8;
-	}
-
-	const iconvEncoding = toIconvLiteEncoding(rawEncoding);
-	if (iconv.encodingExists(iconvEncoding)) {
-		return iconvEncoding;
-	}
-
-	if (verbose) {
-		console.log('Unsupported terminal encoding, falling back to UTF-8.');
-	}
-
-	return UTF8;
 }
