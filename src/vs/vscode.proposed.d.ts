@@ -34,15 +34,18 @@ declare module 'vscode' {
 	}
 
 	export interface TunnelOptions {
-		remote: { port: number, host: string };
-		localPort?: number;
-		name?: string;
+		remoteAddress: { port: number, host: string };
+		// The desired local port. If this port can't be used, then another will be chosen.
+		localAddressPort?: number;
+		label?: string;
 	}
 
 	export interface Tunnel {
-		remote: { port: number, host: string };
+		remoteAddress: { port: number, host: string };
+		//The complete local address(ex. localhost:1234)
 		localAddress: string;
-		onDispose: Event<void>;
+		// Implementers of Tunnel should fire onDidDispose when dispose is called.
+		onDidDispose: Event<void>;
 		dispose(): void;
 	}
 
@@ -52,10 +55,10 @@ declare module 'vscode' {
 	export interface TunnelInformation {
 		/**
 		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
-		 * The localAddress should be the complete local address(ex. localhost:1234) for connecting to the port. Tunnels provided through
+		 * The localAddress should be the complete local address (ex. localhost:1234) for connecting to the port. Tunnels provided through
 		 * detected are read-only from the forwarded ports UI.
 		 */
-		detectedTunnels?: { remote: { port: number, host: string }, localAddress: string }[];
+		environmentTunnels?: { remoteAddress: { port: number, host: string }, localAddress: string }[];
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -74,15 +77,16 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		forwardPort?(tunnelOptions: TunnelOptions): Thenable<Tunnel> | undefined;
+		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
 	}
 
 	export namespace workspace {
 		/**
-		 * Forwards a port. Currently only works for a remote host of localhost.
-		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
-		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;
+		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -784,44 +788,24 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region André: debug API for inline debug adapters https://github.com/microsoft/vscode/issues/85544
+	//#region Debug:
 
-	/**
-	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
-	 */
-	export interface DebugProtocolMessage {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
-	}
-
-	/**
-	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements the DebugAdapter interface.
-	 */
-	export interface DebugAdapter extends Disposable {
+	export interface DebugConfigurationProvider {
 
 		/**
-		 * An event which fires after the debug adapter has sent a Debug Adapter Protocol message to VS Code.
-		 * Messages can be requests, responses, or events.
+		 * This hook is directly called after 'resolveDebugConfiguration' but with all variables substituted.
+		 * It can be used to resolve or verify a [debug configuration](#DebugConfiguration) by filling in missing values or by adding/changing/removing attributes.
+		 * If more than one debug configuration provider is registered for the same type, the 'resolveDebugConfigurationWithSubstitutedVariables' calls are chained
+		 * in arbitrary order and the initial debug configuration is piped through the chain.
+		 * Returning the value 'undefined' prevents the debug session from starting.
+		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
+		 *
+		 * @param folder The workspace folder from which the configuration originates from or `undefined` for a folderless setup.
+		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
+		 * @param token A cancellation token.
+		 * @return The resolved debug configuration or undefined or null.
 		 */
-		readonly onDidSendMessage: Event<DebugProtocolMessage>;
-
-		/**
-		 * Handle a Debug Adapter Protocol message.
-		 * Messages can be requests, responses, or events.
-		 * Results or errors are returned via onSendMessage events.
-		 * @param message A Debug Adapter Protocol message
-		 */
-		handleMessage(message: DebugProtocolMessage): void;
-	}
-
-	/**
-	 * A debug adapter descriptor for an inline implementation.
-	 */
-	export class DebugAdapterInlineImplementation {
-
-		/**
-		 * Create a descriptor for an inline implementation of a debug adapter.
-		 */
-		constructor(implementation: DebugAdapter);
+		resolveDebugConfigurationWithSubstitutedVariables?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}
 
 	// deprecated
@@ -1344,4 +1328,204 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Language specific settings: https://github.com/microsoft/vscode/issues/26707
+
+	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { resource: Uri, languageId: string };
+
+	/**
+	 * An event describing the change in Configuration
+	 */
+	export interface ConfigurationChangeEvent {
+
+		/**
+		 * Returns `true` if the given section is affected in the provided scope.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param scope A scope in which to check.
+		 * @return `true` if the given section is affected in the provided scope.
+		 */
+		affectsConfiguration(section: string, scope?: ConfigurationScope): boolean;
+	}
+
+	export namespace workspace {
+
+		/**
+		 * Get a workspace configuration object.
+		 *
+		 * When a section-identifier is provided only that part of the configuration
+		 * is returned. Dots in the section-identifier are interpreted as child-access,
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
+		 *
+		 * When a scope is provided configuraiton confined to that scope is returned. Scope can be a resource or a language identifier or both.
+		 *
+		 * @param section A dot-separated identifier.
+		 * @return The full configuration or a subset.
+		 */
+		export function getConfiguration(section?: string | undefined, scope?: ConfigurationScope | null): WorkspaceConfiguration;
+
+	}
+
+	/**
+	 * Represents the configuration. It is a merged view of
+	 *
+	 * - *Default Settings*
+	 * - *Global (User) Settings*
+	 * - *Workspace settings*
+	 * - *Workspace Folder settings* - From one of the [Workspace Folders](#workspace.workspaceFolders) under which requested resource belongs to.
+	 * - *Language settings* - Settings defined under requested language.
+	 *
+	 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get)) is computed by overriding or merging the values in the following order.
+	 *
+	 * ```
+	 * `defaultValue`
+	 * `globalValue` (if defined)
+	 * `workspaceValue` (if defined)
+	 * `workspaceFolderValue` (if defined)
+	 * `defaultLanguageValue` (if defined)
+	 * `globalLanguageValue` (if defined)
+	 * `workspaceLanguageValue` (if defined)
+	 * `workspaceLanguageValue` (if defined)
+	 * ```
+	 * **Note:** Only `object` value types are merged and all other value types are overridden.
+	 *
+	 * Example 1: Overriding
+	 *
+	 * ```ts
+	 * defaultValue = 'on';
+	 * globalValue = 'relative'
+	 * workspaceFolderValue = 'off'
+	 * value = 'off'
+	 * ```
+	 *
+	 * Example 2: Language Values
+	 *
+	 * ```ts
+	 * defaultValue = 'on';
+	 * globalValue = 'relative'
+	 * workspaceFolderValue = 'off'
+	 * globalLanguageValue = 'on'
+	 * value = 'on'
+	 * ```
+	 *
+	 * Example 3: Object Values
+	 *
+	 * ```ts
+	 * defaultValue = { "a": 1, "b": 2 };
+	 * globalValue = { "b": 3, "c": 4 };
+	 * value = { "a": 1, "b": 3, "c": 4 };
+	 * ```
+	 *
+	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
+	 * part of the section identifier. The following snippets shows how to retrieve all configurations
+	 * from `launch.json`:
+	 *
+	 * ```ts
+	 * // launch.json configuration
+	 * const config = workspace.getConfiguration('launch', vscode.workspace.workspaceFolders[0].uri);
+	 *
+	 * // retrieve values
+	 * const values = config.get('configurations');
+	 * ```
+	 *
+	 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings) for more information.
+	 */
+	export interface WorkspaceConfiguration {
+
+		/**
+		 * Retrieve all information about a configuration setting. A configuration value
+		 * often consists of a *default* value, a global or installation-wide value,
+		 * a workspace-specific value, folder-specific value
+		 * and language-specific values (if [WorkspaceConfiguration](#WorkspaceConfiguration) is scoped to a language).
+		 *
+		 * *Note:* The configuration name must denote a leaf in the configuration tree
+		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @return Information about a configuration setting or `undefined`.
+		 */
+		inspect<T>(section: string): {
+			key: string;
+
+			defaultValue?: T;
+			globalValue?: T;
+			workspaceValue?: T,
+			workspaceFolderValue?: T,
+
+			defaultLanguageValue?: T;
+			userLanguageValue?: T;
+			workspaceLanguageValue?: T;
+			workspaceFolderLanguageValue?: T;
+
+		} | undefined;
+
+		/**
+		 * Update a configuration value. The updated configuration values are persisted.
+		 *
+		 * A value can be changed in
+		 *
+		 * - [Global settings](#ConfigurationTarget.Global): Changes the value for all instances of the editor.
+		 * - [Workspace settings](#ConfigurationTarget.Workspace): Changes the value for current workspace, if available.
+		 * - [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder): Changes the value for settings from one of the [Workspace Folders](#workspace.workspaceFolders) under which the requested resource belongs to.
+		 * - Language settings: Changes the value for the requested languageId.
+		 *
+		 * *Note:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param value The new value.
+		 * @param configurationTarget The [configuration target](#ConfigurationTarget) or a boolean value.
+		 *	- If `true` updates [Global settings](#ConfigurationTarget.Global).
+		 *	- If `false` updates [Workspace settings](#ConfigurationTarget.Workspace).
+		 *	- If `undefined` or `null` updates to [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder) if configuration is resource specific,
+		 * 	otherwise to [Workspace settings](#ConfigurationTarget.Workspace).
+		 * @param scopeToLanguage Whether to update the value in the scope of requested languageId or not.
+		 *	- If `true` updates the value under the requested languageId.
+		 *	- If `undefined` updates the value under the requested languageId only if the configuration is defined for the language.
+		 * @throws error while updating
+		 *	- configuration which is not registered.
+		 *	- window configuration to workspace folder
+		 *	- configuration to workspace or workspace folder when no workspace is opened.
+		 *	- configuration to workspace folder when there is no workspace folder settings.
+		 *	- configuration to workspace folder when [WorkspaceConfiguration](#WorkspaceConfiguration) is not scoped to a resource.
+		 */
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, scopeToLanguage?: boolean): Thenable<void>;
+	}
+
+	//#endregion
+
+	//#region color theme access
+
+	/**
+	 * Represents a color theme kind.
+	 */
+	export enum ColorThemeKind {
+		Light = 1,
+		Dark = 2,
+		HighContrast = 3
+	}
+
+	/**
+	 * Represents a color theme.
+	 */
+	export interface ColorTheme {
+
+		/**
+		 * The kind of this color theme: light, dark or high contrast.
+		 */
+		readonly kind: ColorThemeKind;
+	}
+
+	export namespace window {
+		/**
+		 * The currently active color theme as configured in the settings. The active
+		 * theme can be changed via the `workbench.colorTheme` setting.
+		 */
+		export let activeColorTheme: ColorTheme;
+
+		/**
+		 * An [event](#Event) which fires when the active theme changes or one of it's colors chnage.
+		 */
+		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
+	}
+
 }

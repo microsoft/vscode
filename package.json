@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.42.0",
-  "distro": "e49812b31f1c71911d0557284874d07c7b790f13",
+  "distro": "ec0412876eac04d73be9bcc6919aecfaffe2ab64",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -25,6 +25,7 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
+    "valid-globals-check": "node build/lib/globalsLinter.js",
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node scripts/code-web.js"
@@ -70,8 +71,9 @@
     "@types/iconv-lite": "0.0.1",
     "@types/keytar": "^4.4.0",
     "@types/mocha": "2.2.39",
-    "@types/node": "^10.12.12",
+    "@types/node": "^12.11.7",
     "@types/sinon": "^1.16.36",
+    "@types/vscode-windows-registry": "^1.0.0",
     "@types/webpack": "^4.4.10",
     "@types/windows-foreground-love": "^0.3.0",
     "@types/windows-mutex": "^0.4.0",

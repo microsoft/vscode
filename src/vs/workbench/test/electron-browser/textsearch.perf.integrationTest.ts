@@ -36,7 +36,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/textRe
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
-declare var __dirname: string;
+// declare var __dirname: string;
 
 // Checkout sources to run against:
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace

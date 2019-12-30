@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkspaceFolder } from 'vscode-languageserver';
 import * as path from 'path';
 import * as fs from 'fs';
 import { URI } from 'vscode-uri';
-import { ICompletionParticipant, TextDocument, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-html-languageservice';
+import { ICompletionParticipant, TextDocument, CompletionItemKind, CompletionItem, TextEdit, Range, Position, WorkspaceFolder } from './languageModes';
 import { startsWith } from '../utils/strings';
 import { contains } from '../utils/arrays';
 

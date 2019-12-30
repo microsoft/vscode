@@ -161,6 +161,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.memberSetAccessor:
 				return vscode.CompletionItemKind.Field;
 			case PConst.Kind.function:
+			case PConst.Kind.localFunction:
 				return vscode.CompletionItemKind.Function;
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.constructSignature:

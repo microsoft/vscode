@@ -49,7 +49,7 @@ namespace Timer {
 	}
 }
 
-declare var __dirname: string;
+// declare var __dirname: string;
 
 // Checkout sources to run against:
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace

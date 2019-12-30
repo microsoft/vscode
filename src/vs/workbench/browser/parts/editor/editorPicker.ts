@@ -13,12 +13,11 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { toResource, SideBySideEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor, IEditorInput, EditorsOrder } from 'vs/workbench/common/editor';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 
@@ -209,14 +208,13 @@ export abstract class BaseAllEditorsPicker extends BaseEditorPicker {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IHistoryService protected historyService: IHistoryService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(instantiationService, editorService, editorGroupService);
 	}
 
 	protected count(): number {
-		return this.historyService.getMostRecentlyUsedOpenEditors().length;
+		return this.editorService.count;
 	}
 
 	getEmptyLabel(searchString: string): string {
@@ -262,7 +260,7 @@ export class AllEditorsByMostRecentlyUsedPicker extends BaseAllEditorsPicker {
 	protected getEditorEntries(): EditorPickerEntry[] {
 		const entries: EditorPickerEntry[] = [];
 
-		for (const { editor, groupId } of this.historyService.getMostRecentlyUsedOpenEditors()) {
+		for (const { editor, groupId } of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 			entries.push(this.instantiationService.createInstance(EditorPickerEntry, editor, this.editorGroupService.getGroup(groupId)!));
 		}
 

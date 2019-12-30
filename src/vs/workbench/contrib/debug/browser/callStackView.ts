@@ -93,7 +93,7 @@ export class CallStackView extends ViewPane {
 			if (thread && thread.stoppedDetails) {
 				this.pauseMessageLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
 				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
-				dom.toggleClass(this.pauseMessageLabel, 'exception', thread.stoppedDetails.reason === 'exception');
+				this.pauseMessageLabel.toggleAttribute('exception', thread.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
 				if (this.toolbar) {
 					this.toolbar.setActions([])();
@@ -511,11 +511,11 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
 		const stackFrame = element.element;
-		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
-		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
-		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
-		const hasActions = stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle';
-		dom.toggleClass(data.stackFrame, 'has-actions', hasActions);
+		data.stackFrame.toggleAttribute('disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
+		data.stackFrame.toggleAttribute('label', stackFrame.presentationHint === 'label');
+		data.stackFrame.toggleAttribute('subtle', stackFrame.presentationHint === 'subtle');
+		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle';
+		data.stackFrame.toggleAttribute('has-actions', hasActions);
 
 		data.file.title = stackFrame.source.inMemory ? stackFrame.source.uri.path : this.labelService.getUriLabel(stackFrame.source.uri);
 		if (stackFrame.source.raw.origin) {

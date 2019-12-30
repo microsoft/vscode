@@ -118,9 +118,12 @@ export class ExpressionContainer implements IExpressionContainer {
 		try {
 			const response = await this.session!.variables(this.reference || 0, this.threadId, filter, start, count);
 			return response && response.body && response.body.variables
-				? distinct(response.body.variables.filter(v => !!v && isString(v.name)), (v: DebugProtocol.Variable) => v.name).map((v: DebugProtocol.Variable) =>
-					new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
-				: [];
+				? distinct(response.body.variables.filter(v => !!v), v => v.name).map(v => {
+					if (isString(v.value) && isString(v.name) && typeof v.variablesReference === 'number') {
+						return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type);
+					}
+					return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, { kind: 'virtual' }, undefined, false);
+				}) : [];
 		} catch (e) {
 			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, { kind: 'virtual' }, undefined, false)];
 		}
@@ -157,10 +160,6 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.session = session;
 		try {
 			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
-			if (response && response.success === false) {
-				this.value = response.message || '';
-				return false;
-			}
 
 			if (response && response.body) {
 				this.value = response.body.result || '';
@@ -1183,8 +1182,8 @@ export class DebugModel implements IDebugModel {
 		return this.watchExpressions;
 	}
 
-	addWatchExpression(name: string): IExpression {
-		const we = new Expression(name);
+	addWatchExpression(name?: string): IExpression {
+		const we = new Expression(name || '');
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 

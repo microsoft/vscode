@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct, find, mergeSort } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/resources';
@@ -32,8 +33,8 @@ export interface ICustomEditorService {
 	readonly activeCustomEditor: ICustomEditor | undefined;
 
 	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
-	getContributedCustomEditors(resource: URI): readonly CustomEditorInfo[];
-	getUserConfiguredCustomEditors(resource: URI): readonly CustomEditorInfo[];
+	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
+	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
 	createInput(resource: URI, viewType: string, group: IEditorGroup | undefined, options?: { readonly customClasses: string }): EditorInput;
 
@@ -120,5 +121,62 @@ export class CustomEditorInfo {
 			}
 		}
 		return false;
+	}
+}
+
+export class CustomEditorInfoCollection {
+
+	public readonly allEditors: readonly CustomEditorInfo[];
+
+	constructor(
+		editors: readonly CustomEditorInfo[],
+	) {
+		this.allEditors = distinct(editors, editor => editor.id);
+	}
+
+	public get length(): number { return this.allEditors.length; }
+
+	/**
+	 * Find the single default editor to use (if any) by looking at the editor's priority and the
+	 * other contributed editors.
+	 */
+	public get defaultEditor(): CustomEditorInfo | undefined {
+		return find(this.allEditors, editor => {
+			switch (editor.priority) {
+				case CustomEditorPriority.default:
+				case CustomEditorPriority.builtin:
+					// A default editor must have higher priority than all other contributed editors.
+					return this.allEditors.every(otherEditor =>
+						otherEditor === editor || isLowerPriority(otherEditor, editor));
+
+				default:
+					return false;
+			}
+		});
+	}
+
+	/**
+	 * Find the best available editor to use.
+	 *
+	 * Unlike the `defaultEditor`, a bestAvailableEditor can exist even if there are other editors with
+	 * the same priority.
+	 */
+	public get bestAvailableEditor(): CustomEditorInfo | undefined {
+		const editors = mergeSort(Array.from(this.allEditors), (a, b) => {
+			return priorityToRank(a.priority) - priorityToRank(b.priority);
+		});
+		return editors[0];
+	}
+}
+
+function isLowerPriority(otherEditor: CustomEditorInfo, editor: CustomEditorInfo): unknown {
+	return priorityToRank(otherEditor.priority) < priorityToRank(editor.priority);
+}
+
+function priorityToRank(priority: CustomEditorPriority): number {
+	switch (priority) {
+		case CustomEditorPriority.default: return 3;
+		case CustomEditorPriority.builtin: return 2;
+		case CustomEditorPriority.option: return 1;
 	}
 }
