@@ -34,6 +34,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class DebugSession implements IDebugSession {
 
@@ -74,7 +75,8 @@ export class DebugSession implements IDebugSession {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		this.id = generateUuid();
 		this._options = options || {};
@@ -711,6 +713,7 @@ export class DebugSession implements IDebugSession {
 						await this.raw.configurationDone();
 					} catch (e) {
 						// Disconnect the debug session on configuration done error #10596
+						this.notificationService.error(e);
 						if (this.raw) {
 							this.raw.disconnect();
 						}

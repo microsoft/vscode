@@ -623,13 +623,7 @@ export class RawDebugSession implements IDisposable {
 					}
 				});
 			}
-		}).then(res => {
-			if (typeof res.success === 'boolean' && res.success === false) {
-				return Promise.reject(this.handleErrorResponse(res));
-			}
-
-			return res as R;
-		}, err => Promise.reject(this.handleErrorResponse(err)));
+		}).then(undefined, err => Promise.reject(this.handleErrorResponse(err)));
 	}
 
 	private handleErrorResponse(errorResponse: DebugProtocol.Response): Error {
