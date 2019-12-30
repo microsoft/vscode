@@ -987,19 +987,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal creation options https://github.com/microsoft/vscode/issues/63052
-
-	export interface Terminal {
-		/**
-		 * The object used to initialize the terminal, this is useful for things like detecting the
-		 * shell type of shells not launched by the extension or detecting what folder the shell was
-		 * launched in.
-		 */
-		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
-	}
-
-	//#endregion
-
 	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
 
 	/**
