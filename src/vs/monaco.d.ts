@@ -3727,6 +3727,13 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Editor aria options.
+	 */
+	export interface IEditorAriaOptions {
+		activeDescendent: string | undefined;
+	}
+
+	/**
 	 * A rich code editor.
 	 */
 	export interface ICodeEditor extends IEditor {
