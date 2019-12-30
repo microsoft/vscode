@@ -33,7 +33,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, getConfirmMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult, getFileNamesMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/base/common/uint';
@@ -199,11 +199,17 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 
 	// Confirm for moving to trash
 	else if (useTrash) {
-		const message = getMoveToTrashMessage(distinctElements);
+		let { message, detail } = getMoveToTrashMessage(distinctElements);
+		detail += detail ? '\n' : '';
+		if (isWindows) {
+			detail += nls.localize('undoBin', "You can restore from the Recycle Bin.");
+		} else {
+			detail += nls.localize('undoTrash', "You can restore from the Trash.");
+		}
 
 		confirmDeletePromise = dialogService.confirm({
 			message,
-			detail: isWindows ? nls.localize('undoBin', "You can restore from the Recycle Bin.") : nls.localize('undoTrash', "You can restore from the Trash."),
+			detail,
 			primaryButton,
 			checkbox: {
 				label: nls.localize('doNotAskAgain', "Do not ask me again")
@@ -214,10 +220,12 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 
 	// Confirm for deleting permanently
 	else {
-		const message = getDeleteMessage(distinctElements);
+		let { message, detail } = getDeleteMessage(distinctElements);
+		detail += detail ? '\n' : '';
+		detail += nls.localize('irreversible', "This action is irreversible!");
 		confirmDeletePromise = dialogService.confirm({
 			message,
-			detail: nls.localize('irreversible', "This action is irreversible!"),
+			detail,
 			primaryButton,
 			type: 'warning'
 		});
@@ -280,44 +288,62 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 	});
 }
 
-function getMoveToTrashMessage(distinctElements: ExplorerItem[]): string {
+function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
-		return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		return {
+			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length),
+			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		};
 	}
 
 	if (distinctElements.length > 1) {
 		if (distinctElements[0].isDirectory) {
-			return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			return {
+				message: nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length),
+				detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+			};
 		}
 
-		return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		return {
+			message: nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length),
+			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		};
 	}
 
 	if (distinctElements[0].isDirectory) {
-		return nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
+		return { message: nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 
-	return nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
+	return { message: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
-function getDeleteMessage(distinctElements: ExplorerItem[]): string {
+function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
-		return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		return {
+			message: nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length),
+			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		};
 	}
 
 	if (distinctElements.length > 1) {
 		if (distinctElements[0].isDirectory) {
-			return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			return {
+				message: nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length),
+				detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+			};
 		}
 
-		return getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		return {
+			message: nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length),
+			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		};
 	}
 
 	if (distinctElements[0].isDirectory) {
-		return nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name);
+		return { message: nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 
-	return nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
+	return { message: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
 function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
