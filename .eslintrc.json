@@ -31,6 +31,18 @@
         "code-translation-remind": "warn",
         "code-no-nls-in-standalone-editor": "warn",
         "code-no-standalone-editor": "warn",
+        "code-no-unexternalized-strings2": "warn",
+        "code-no-unexternalized-strings": [
+            "off",
+            {
+                "signatures": [
+                    "localize",
+                    "nls.localize"
+                ],
+                "keyIndex": 0,
+                "messageIndex": 1
+            }
+        ],
         "code-layering": [
             "warn",
             {
