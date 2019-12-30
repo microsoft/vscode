@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/experimental-utils';
+import { TSESTree } from '@typescript-eslint/experimental-utils';
 
 export function createImportRuleListener(validateImport: (node: TSESTree.Literal, value: string) => any): eslint.Rule.RuleListener {
 
@@ -19,19 +19,13 @@ export function createImportRuleListener(validateImport: (node: TSESTree.Literal
 		ImportDeclaration: (node: any) => {
 			_checkImport((<TSESTree.ImportDeclaration>node).source);
 		},
-		// import('module').then(...)
-		CallExpression: (node: any) => {
-			const { callee, arguments: args } = <TSESTree.CallExpression>node;
-			if ((<any>callee.type) === 'Import' && args.length > 0 && args[0]?.type === 'Literal') {
-				_checkImport(args[0]);
-			}
+		// import('module').then(...) OR await import('module')
+		['CallExpression[callee.type="Import"][arguments.length=1] > Literal']: (node: any) => {
+			_checkImport(node);
 		},
 		// import foo = ...
-		[AST_NODE_TYPES.TSImportEqualsDeclaration]: (node: any) => {
-			const { moduleReference } = (<TSESTree.TSImportEqualsDeclaration>node);
-			if (moduleReference.type === AST_NODE_TYPES.TSExternalModuleReference) {
-				_checkImport((<TSESTree.Literal>(<TSESTree.TSExternalModuleReference>moduleReference).expression));
-			}
+		['TSImportEqualsDeclaration > TSExternalModuleReference > Literal']: (node: any) => {
+			_checkImport(node);
 		},
 		// export ?? from 'module'
 		ExportAllDeclaration: (node: any) => {
