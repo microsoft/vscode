@@ -20,7 +20,8 @@ type AutoDetect = 'on' | 'off' | 'build' | 'watch';
 const exists = async (resource: vscode.Uri): Promise<boolean> => {
 	try {
 		const stat = await vscode.workspace.fs.stat(resource);
-		return stat.type === vscode.FileType.File;
+		// stat.type is an enum flag
+		return !!(stat.type & vscode.FileType.File);
 	} catch {
 		return false;
 	}

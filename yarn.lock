@@ -167,15 +167,15 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.12.21.tgz#7e8a0c34cf29f4e17a36e9bd0ea72d45ba03908e"
   integrity sha512-CBgLNk4o3XMnqMc0rhb6lc77IwShMEglz05deDcn2lQxyXEZivfwgYJu7SMha9V5XcrP6qZuevTHV/QrN2vjKQ==
 
-"@types/node@^10.12.12":
-  version "10.12.12"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-10.12.12.tgz#e15a9d034d9210f00320ef718a50c4a799417c47"
-  integrity sha512-Pr+6JRiKkfsFvmU/LK68oBRCQeEg36TyAbPhc2xpez24OOZZCuoIhWGTd39VZy6nGafSbxzGouFPTFD/rR1A0A==
-
 "@types/node@^10.12.18":
   version "10.17.9"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.17.9.tgz#4f251a1ed77ac7ef09d456247d67fc8173f6b9da"
   integrity sha512-+6VygF9LbG7Gaqeog2G7u1+RUcmo0q1rI+2ZxdIg2fAUngk5Vz9fOCHXdloNUOHEPd1EuuOpL5O0CdgN9Fx5UQ==
+
+"@types/node@^12.11.7":
+  version "12.12.14"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.12.14.tgz#1c1d6e3c75dba466e0326948d56e8bd72a1903d2"
+  integrity sha512-u/SJDyXwuihpwjXy7hOOghagLEV1KdAST6syfnOk6QZAMzZuWZqXy5aYYZbh8Jdpd4escVFP0MvftHNDb9pruA==
 
 "@types/semver@^5.4.0", "@types/semver@^5.5.0":
   version "5.5.0"
@@ -199,6 +199,11 @@
   dependencies:
     source-map "^0.6.1"
 
+"@types/vscode-windows-registry@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@types/vscode-windows-registry/-/vscode-windows-registry-1.0.0.tgz#333eea7fd5743fa4c99dff13af16de2c08a586d0"
+  integrity sha512-gyq9tIMbxry5GL2gY7J30E6R3EUx0cAin/k3wfsQez4C5uDWVJmJw142x6KFXtYX7xYQL/IXmm4cRqi4ghg05A==
+
 "@types/webpack@^4.4.10":
   version "4.4.10"
   resolved "https://registry.yarnpkg.com/@types/webpack/-/webpack-4.4.10.tgz#2ecf12589142bc531549140612815b7d8b076358"
@@ -213,6 +218,11 @@
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/@types/windows-foreground-love/-/windows-foreground-love-0.3.0.tgz#26bc230b2568aa7ab7c56d35bb5653c0a6965a42"
   integrity sha512-tFUVA/fiofNqOh6lZlymvQiQYPY+cZXZPR9mn9wN6/KS8uwx0zgH4Ij/jmFyRYr+x+DGZWEIeknS2BMi7FZJAQ==
+
+"@types/windows-mutex@^0.4.0":
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/@types/windows-mutex/-/windows-mutex-0.4.0.tgz#d27070418aa26047c6c860c704952ff26aeb961b"
+  integrity sha512-zUMH4nutIURLARU6f10Ls6XcZWhUkwmzVEALs26dt1ZbaLv/qxsGdYiePUbwhQmrQUp3EPZ1HxopWpzzC8ot5A==
 
 "@types/windows-process-tree@^0.2.0":
   version "0.2.0"

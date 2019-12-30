@@ -6,7 +6,7 @@
 import * as strings from 'vs/base/common/strings';
 import * as streams from 'vs/base/common/stream';
 
-declare var Buffer: any;
+declare const Buffer: any;
 
 const hasBuffer = (typeof Buffer !== 'undefined');
 const hasTextEncoder = (typeof TextEncoder !== 'undefined');

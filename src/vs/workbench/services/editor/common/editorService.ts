@@ -5,7 +5,7 @@
 
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -123,10 +123,25 @@ export interface IEditorService {
 	readonly visibleTextEditorWidgets: ReadonlyArray<ICodeEditor>;
 
 	/**
-	 * All editors that are opened across all editor groups. This includes active as well as inactive
-	 * editors in each editor group.
+	 * All editors that are opened across all editor groups in sequential order
+	 * of appearance.
+	 *
+	 * This includes active as well as inactive editors in each editor group.
 	 */
 	readonly editors: ReadonlyArray<IEditorInput>;
+
+	/**
+	 * The total number of editors that are opened either inactive or active.
+	 */
+	readonly count: number;
+
+	/**
+	 * All editors that are opened across all editor groups with their group
+	 * identifier.
+	 *
+	 * @param order the order of the editors to use
+	 */
+	getEditors(order: EditorsOrder): ReadonlyArray<IEditorIdentifier>;
 
 	/**
 	 * Open an editor in an editor group.

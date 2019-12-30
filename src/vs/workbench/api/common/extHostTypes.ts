@@ -14,7 +14,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { markdownUnescapeCodicons, escapeCodicons } from 'vs/base/common/codicons';
+import { escapeCodicons } from 'vs/base/common/codicons';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -1234,17 +1234,16 @@ export class MarkdownString {
 	isTrusted?: boolean;
 	readonly supportThemeIcons?: boolean;
 
-	constructor(value?: string, { supportThemeIcons }: { supportThemeIcons?: boolean } = {}) {
+	constructor(value?: string, supportThemeIcons: boolean = false) {
 		this.value = value ?? '';
-		this.supportThemeIcons = supportThemeIcons ?? false;
+		this.supportThemeIcons = supportThemeIcons;
 	}
 
 	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		value = value
+		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
 			.replace('\n', '\n\n');
-		this.value += this.supportThemeIcons ? markdownUnescapeCodicons(value) : value;
 
 		return this;
 	}
@@ -1262,10 +1261,6 @@ export class MarkdownString {
 		this.value += code;
 		this.value += '\n```\n';
 		return this;
-	}
-
-	static escapeThemeIcons(value: string): string {
-		return escapeCodicons(value);
 	}
 }
 
@@ -2513,3 +2508,20 @@ export enum WebviewContentState {
 	Unchanged = 2,
 	Dirty = 3,
 }
+
+
+//#region Theming
+
+@es5ClassCompat
+export class ColorTheme implements vscode.ColorTheme {
+	constructor(public readonly kind: ColorThemeKind) {
+	}
+}
+
+export enum ColorThemeKind {
+	Light = 1,
+	Dark = 2,
+	HighContrast = 3
+}
+
+//#endregion Theming

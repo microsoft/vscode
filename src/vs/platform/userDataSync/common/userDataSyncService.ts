@@ -47,7 +47,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 		if (this.userDataSyncStoreService.userDataSyncStore) {
 			this._register(Event.any(...this.synchronisers.map(s => Event.map(s.onDidChangeStatus, () => undefined)))(() => this.updateStatus()));
-			this._register(authTokenService.onDidChangeStatus(() => this.onDidChangeAuthTokenStatus()));
 		}
 
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
@@ -118,11 +117,4 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 		return null;
 	}
-
-	private onDidChangeAuthTokenStatus(): void {
-		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
-			this.stop();
-		}
-	}
-
 }

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
-import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -16,7 +16,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';

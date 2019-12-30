@@ -40,7 +40,7 @@ import { Constants } from 'vs/base/common/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { coalesce } from 'vs/base/common/arrays';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { onUnexpectedError, getErrorMessage } from 'vs/base/common/errors';
+import { getErrorMessage } from 'vs/base/common/errors';
 import { asDomUri, triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -328,12 +328,12 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
+export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
 	while (true && !fileToPaste.allowOverwrite) {
-		if (!targetFolder.root.find(candidate)) {
+		if (!explorerService.findClosest(candidate)) {
 			break;
 		}
 
@@ -870,8 +870,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		throw new Error('Parent folder is readonly.');
 	}
 
-	const newStat = new NewExplorerItem(folder, isFolder);
-	await folder.fetchChildren(fileService, explorerService);
+	const newStat = new NewExplorerItem(fileService, folder, isFolder);
+	const sortOrder = explorerService.sortOrder;
+	await folder.fetchChildren(sortOrder);
 
 	folder.addChild(newStat);
 
@@ -915,6 +916,7 @@ CommandsRegistry.registerCommand({
 export const renameHandler = (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const textFileService = accessor.get(ITextFileService);
+	const notificationService = accessor.get(INotificationService);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -924,12 +926,17 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 
 	explorerService.setEditable(stat, {
 		validationMessage: value => validateFileName(stat, value),
-		onFinish: (value, success) => {
+		onFinish: async (value, success) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;
 				const targetResource = resources.joinPath(parentResource, value);
 				if (stat.resource.toString() !== targetResource.toString()) {
-					textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+					try {
+						await textFileService.move(stat.resource, targetResource);
+						refreshIfSeparator(value, explorerService);
+					} catch (e) {
+						notificationService.error(e);
+					}
 				}
 			}
 			explorerService.setEditable(stat, null);
@@ -1049,7 +1056,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			}
 
 			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
+			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
 
 			// Move/Copy File
 			if (pasteShouldMove) {

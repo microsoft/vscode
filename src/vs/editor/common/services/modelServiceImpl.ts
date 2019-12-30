@@ -592,30 +592,34 @@ class SemanticColoringProviderStyling {
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number): number {
 		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet);
+		let metadata: number | undefined;
 		if (entry) {
-			return entry.metadata;
-		}
-
-		const tokenType = this._legend.tokenTypes[tokenTypeIndex];
-		const tokenModifiers: string[] = [];
-		for (let modifierIndex = 0; tokenModifierSet !== 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
-			if (tokenModifierSet & 1) {
-				tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
+			metadata = entry.metadata;
+		} else {
+			const tokenType = this._legend.tokenTypes[tokenTypeIndex];
+			const tokenModifiers: string[] = [];
+			for (let modifierIndex = 0; tokenModifierSet !== 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
+				if (tokenModifierSet & 1) {
+					tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
+				}
+				tokenModifierSet = tokenModifierSet >> 1;
 			}
-			tokenModifierSet = tokenModifierSet >> 1;
-		}
 
-		let metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
-		if (typeof metadata === 'undefined') {
-			metadata = Constants.NO_STYLING;
+			metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
+			if (typeof metadata === 'undefined') {
+				metadata = Constants.NO_STYLING;
+			}
+			this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
 		}
 		if (this._logService.getLevel() === LogLevel.Trace) {
-			this._logService.trace(`getTokenStyleMetadata(${tokenType}${tokenModifiers.length ? ', ' + tokenModifiers.join(' ') : ''}): foreground: ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
+			const type = this._legend.tokenTypes[tokenTypeIndex];
+			const modifiers = tokenModifierSet ? ' ' + this._legend.tokenModifiers.filter((_, i) => tokenModifierSet & (1 << i)).join(' ') : '';
+			this._logService.trace(`tokenStyleMetadata ${entry ? '[CACHED] ' : ''}${type}${modifiers}: foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
 		}
-
-		this._hashTable.add(tokenTypeIndex, tokenModifierSet, metadata);
 		return metadata;
 	}
+
+
 }
 
 const enum SemanticColoringConstants {

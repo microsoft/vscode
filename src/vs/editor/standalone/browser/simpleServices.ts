@@ -312,30 +312,29 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	public addDynamicKeybinding(commandId: string, _keybinding: number, handler: ICommandHandler, when: ContextKeyExpr | undefined): IDisposable {
 		const keybinding = createKeybinding(_keybinding, OS);
-		if (!keybinding) {
-			throw new Error(`Invalid keybinding`);
-		}
 
 		const toDispose = new DisposableStore();
 
-		this._dynamicKeybindings.push({
-			keybinding: keybinding,
-			command: commandId,
-			when: when,
-			weight1: 1000,
-			weight2: 0
-		});
+		if (keybinding) {
+			this._dynamicKeybindings.push({
+				keybinding: keybinding,
+				command: commandId,
+				when: when,
+				weight1: 1000,
+				weight2: 0
+			});
 
-		toDispose.add(toDisposable(() => {
-			for (let i = 0; i < this._dynamicKeybindings.length; i++) {
-				let kb = this._dynamicKeybindings[i];
-				if (kb.command === commandId) {
-					this._dynamicKeybindings.splice(i, 1);
-					this.updateResolver({ source: KeybindingSource.Default });
-					return;
+			toDispose.add(toDisposable(() => {
+				for (let i = 0; i < this._dynamicKeybindings.length; i++) {
+					let kb = this._dynamicKeybindings[i];
+					if (kb.command === commandId) {
+						this._dynamicKeybindings.splice(i, 1);
+						this.updateResolver({ source: KeybindingSource.Default });
+						return;
+					}
 				}
-			}
-		}));
+			}));
+		}
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
