@@ -27,78 +27,82 @@ module.exports = new (_a = class NoUnexternalizedStrings {
         create(context) {
             const externalizedStringLiterals = new Map();
             const doubleQuotedStringLiterals = new Set();
-            return {
-                ['Literal']: (node) => {
-                    if (isStringLiteral(node) && isDoubleQuoted(node)) {
-                        doubleQuotedStringLiterals.add(node);
-                    }
-                },
-                ['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node) => {
-                    // localize(key, message)
-                    const [keyNode, messageNode] = node.arguments;
-                    // (1)
-                    // extract key so that it can be checked later
-                    let key;
-                    if (isStringLiteral(keyNode)) {
-                        key = keyNode.value;
-                    }
-                    else if (keyNode.type === experimental_utils_1.AST_NODE_TYPES.ObjectExpression) {
-                        for (let property of keyNode.properties) {
-                            if (property.type === experimental_utils_1.AST_NODE_TYPES.Property && !property.computed) {
-                                if (property.key.type === experimental_utils_1.AST_NODE_TYPES.Identifier && property.key.name === 'key') {
-                                    if (isStringLiteral(property.value)) {
-                                        key = property.value.value;
-                                        break;
-                                    }
+            function collectDoubleQuotedStrings(node) {
+                if (isStringLiteral(node) && isDoubleQuoted(node)) {
+                    doubleQuotedStringLiterals.add(node);
+                }
+            }
+            function visitLocalizeCall(node) {
+                // localize(key, message)
+                const [keyNode, messageNode] = node.arguments;
+                // (1)
+                // extract key so that it can be checked later
+                let key;
+                if (isStringLiteral(keyNode)) {
+                    key = keyNode.value;
+                }
+                else if (keyNode.type === experimental_utils_1.AST_NODE_TYPES.ObjectExpression) {
+                    for (let property of keyNode.properties) {
+                        if (property.type === experimental_utils_1.AST_NODE_TYPES.Property && !property.computed) {
+                            if (property.key.type === experimental_utils_1.AST_NODE_TYPES.Identifier && property.key.name === 'key') {
+                                if (isStringLiteral(property.value)) {
+                                    key = property.value.value;
+                                    break;
                                 }
                             }
                         }
                     }
-                    if (typeof key === 'string') {
-                        let array = externalizedStringLiterals.get(key);
-                        if (!array) {
-                            array = [];
-                            externalizedStringLiterals.set(key, array);
+                }
+                if (typeof key === 'string') {
+                    let array = externalizedStringLiterals.get(key);
+                    if (!array) {
+                        array = [];
+                        externalizedStringLiterals.set(key, array);
+                    }
+                    array.push({ call: node, message: messageNode });
+                }
+                // (2)
+                // remove message-argument from doubleQuoted list and make
+                // sure it is a string-literal
+                doubleQuotedStringLiterals.delete(messageNode);
+                if (!isStringLiteral(messageNode)) {
+                    context.report({
+                        loc: messageNode.loc,
+                        messageId: 'badMessage',
+                        data: { message: context.getSourceCode().getText(node) }
+                    });
+                }
+            }
+            function reportBadStringsAndBadKeys() {
+                // (1)
+                // report all strings that are in double quotes
+                for (const node of doubleQuotedStringLiterals) {
+                    context.report({ loc: node.loc, messageId: 'doubleQuoted' });
+                }
+                for (const [key, values] of externalizedStringLiterals) {
+                    // (2)
+                    // report all invalid NLS keys
+                    if (!key.match(NoUnexternalizedStrings._rNlsKeys)) {
+                        for (let value of values) {
+                            context.report({ loc: value.call.loc, messageId: 'badKey', data: { key } });
                         }
-                        array.push({ call: node, message: messageNode });
                     }
                     // (2)
-                    // remove message-argument from doubleQuoted list and make
-                    // sure it is a string-literal
-                    doubleQuotedStringLiterals.delete(messageNode);
-                    if (!isStringLiteral(messageNode)) {
-                        context.report({
-                            loc: messageNode.loc,
-                            messageId: 'badMessage',
-                            data: { message: context.getSourceCode().getText(node) }
-                        });
-                    }
-                },
-                ['Program:exit']: () => {
-                    // (1)
-                    // report all strings that are in double quotes
-                    for (const node of doubleQuotedStringLiterals) {
-                        context.report({ loc: node.loc, messageId: 'doubleQuoted' });
-                    }
-                    for (const [key, values] of externalizedStringLiterals) {
-                        // (2)
-                        // report all invalid NLS keys
-                        if (!key.match(NoUnexternalizedStrings._rNlsKeys)) {
-                            for (let value of values) {
-                                context.report({ loc: value.call.loc, messageId: 'badKey', data: { key } });
-                            }
-                        }
-                        // (2)
-                        // report all invalid duplicates (same key, different message)
-                        if (values.length > 1) {
-                            for (let i = 1; i < values.length; i++) {
-                                if (context.getSourceCode().getText(values[i - 1].message) !== context.getSourceCode().getText(values[i].message)) {
-                                    context.report({ loc: values[i].call.loc, messageId: 'duplicateKey', data: { key } });
-                                }
+                    // report all invalid duplicates (same key, different message)
+                    if (values.length > 1) {
+                        for (let i = 1; i < values.length; i++) {
+                            if (context.getSourceCode().getText(values[i - 1].message) !== context.getSourceCode().getText(values[i].message)) {
+                                context.report({ loc: values[i].call.loc, messageId: 'duplicateKey', data: { key } });
                             }
                         }
                     }
-                },
+                }
+            }
+            return {
+                ['Literal']: (node) => collectDoubleQuotedStrings(node),
+                ['CallExpression[callee.type="MemberExpression"][callee.property.name="localize"]:exit']: (node) => visitLocalizeCall(node),
+                ['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node) => visitLocalizeCall(node),
+                ['Program:exit']: reportBadStringsAndBadKeys,
             };
         }
     },
