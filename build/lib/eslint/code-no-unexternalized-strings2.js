@@ -39,6 +39,7 @@ module.exports = new (_a = class NoUnexternalizedStrings {
                 // extract key so that it can be checked later
                 let key;
                 if (isStringLiteral(keyNode)) {
+                    doubleQuotedStringLiterals.delete(keyNode); //todo@joh reconsider
                     key = keyNode.value;
                 }
                 else if (keyNode.type === experimental_utils_1.AST_NODE_TYPES.ObjectExpression) {
@@ -46,6 +47,7 @@ module.exports = new (_a = class NoUnexternalizedStrings {
                         if (property.type === experimental_utils_1.AST_NODE_TYPES.Property && !property.computed) {
                             if (property.key.type === experimental_utils_1.AST_NODE_TYPES.Identifier && property.key.name === 'key') {
                                 if (isStringLiteral(property.value)) {
+                                    doubleQuotedStringLiterals.delete(property.value); //todo@joh reconsider
                                     key = property.value.value;
                                     break;
                                 }

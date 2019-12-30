@@ -49,6 +49,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 			// extract key so that it can be checked later
 			let key: string | undefined;
 			if (isStringLiteral(keyNode)) {
+				doubleQuotedStringLiterals.delete(keyNode); //todo@joh reconsider
 				key = keyNode.value;
 
 			} else if (keyNode.type === AST_NODE_TYPES.ObjectExpression) {
@@ -56,6 +57,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 					if (property.type === AST_NODE_TYPES.Property && !property.computed) {
 						if (property.key.type === AST_NODE_TYPES.Identifier && property.key.name === 'key') {
 							if (isStringLiteral(property.value)) {
+								doubleQuotedStringLiterals.delete(property.value); //todo@joh reconsider
 								key = property.value.value;
 								break;
 							}
