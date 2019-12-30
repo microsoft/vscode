@@ -186,7 +186,10 @@ const copyrightHeaderLines = [
 gulp.task('eslint', () => {
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(eslintFilter))
-		.pipe(gulpeslint('.eslintrc.json'))
+		.pipe(gulpeslint({
+			configFile: '.eslintrc.json',
+			rulePaths: ['./build/lib/eslint']
+		}))
 		.pipe(gulpeslint.formatEach('compact'))
 		.pipe(gulpeslint.failAfterError());
 });
