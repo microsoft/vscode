@@ -700,7 +700,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Discard first frame time as it's normal to take longer
 			frameTimes.shift();
 
-			const medianTime = frameTimes.sort()[Math.floor(frameTimes.length / 2)];
+			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
 			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
 				const promptChoices: IPromptChoice[] = [
 					{
@@ -1231,6 +1231,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
 		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
+		this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
+		this._safeSetOption('scrollSensitivity', config.mouseWheelScrollSensitivity);
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
@@ -1238,10 +1240,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Never set webgl as it's an addon not a rendererType
 			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 		}
-
-		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
-		this._safeSetOption('fastScrollSensitivity', editorOptions.fastScrollSensitivity);
-		this._safeSetOption('scrollSensitivity', editorOptions.mouseWheelScrollSensitivity);
 	}
 
 	public updateAccessibilitySupport(): void {

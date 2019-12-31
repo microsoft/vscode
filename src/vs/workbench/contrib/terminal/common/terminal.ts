@@ -92,10 +92,12 @@ export interface ITerminalConfiguration {
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	drawBoldTextInBrightColors: boolean;
+	fastScrollSensitivity: number;
 	fontFamily: string;
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
+	mouseWheelScrollSensitivity: number;
 	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;

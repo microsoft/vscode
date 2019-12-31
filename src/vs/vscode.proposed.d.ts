@@ -962,7 +962,7 @@ declare module 'vscode' {
 		 * The exit code that a terminal exited with, it can have the following values:
 		 * - Zero: the terminal process or custom execution succeeded.
 		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcefully closed the terminal or a custom execution exited
+		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
 		 *   without providing an exit code.
 		 */
 		readonly code: number | undefined;
@@ -983,19 +983,6 @@ declare module 'vscode' {
 		 * ```
 		 */
 		readonly exitStatus: TerminalExitStatus | undefined;
-	}
-
-	//#endregion
-
-	//#region Terminal creation options https://github.com/microsoft/vscode/issues/63052
-
-	export interface Terminal {
-		/**
-		 * The object used to initialize the terminal, this is useful for things like detecting the
-		 * shell type of shells not launched by the extension or detecting what folder the shell was
-		 * launched in.
-		 */
-		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
 	}
 
 	//#endregion
