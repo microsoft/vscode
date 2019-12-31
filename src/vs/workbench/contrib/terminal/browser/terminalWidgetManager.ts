@@ -22,14 +22,11 @@ export class TerminalWidgetManager implements IDisposable {
 
 	private _messageWidget: MessageWidget | undefined;
 	private readonly _messageListeners = new DisposableStore();
-	private readonly _openerService: IOpenerService;
 
 	constructor(
 		terminalWrapper: HTMLElement,
-		openerService: IOpenerService
+		private readonly _openerService: IOpenerService
 	) {
-		this._openerService = openerService;
-
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-widget-overlay');
 		terminalWrapper.appendChild(this._container);
