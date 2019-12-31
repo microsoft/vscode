@@ -161,11 +161,11 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		return data;
 	}
 
-	renderElement(element: CompletionItem, _index: number, templateData: ISuggestionTemplateData): void {
+	renderElement(element: CompletionItem, index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).completion;
 
-		data.root.id = getAriaId(_index);
+		data.root.id = getAriaId(index);
 		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
 
