@@ -516,7 +516,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			mouseSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: (item: CompletionItem) => {
-					if (this.expandDocsSettingFromStorage()) {
+					if (item.isResolved && this.expandDocsSettingFromStorage()) {
 						const { documentation, detail } = item.completion;
 						const docs = strings.format(
 							'{0}{1}',

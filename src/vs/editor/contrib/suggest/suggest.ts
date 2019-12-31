@@ -44,6 +44,7 @@ export class CompletionItem {
 	// sorting, filtering
 	score: FuzzyScore = FuzzyScore.Default;
 	distance: number = 0;
+	isResolved: boolean = false;
 	idx?: number;
 	word?: string;
 
@@ -74,14 +75,14 @@ export class CompletionItem {
 		const { resolveCompletionItem } = provider;
 		if (typeof resolveCompletionItem !== 'function') {
 			this.resolve = () => Promise.resolve();
+			this.isResolved = true;
 		} else {
 			let cached: Promise<void> | undefined;
 			this.resolve = (token) => {
 				if (!cached) {
-					let isDone = false;
 					cached = Promise.resolve(resolveCompletionItem.call(provider, model, position, completion, token)).then(value => {
 						assign(completion, value);
-						isDone = true;
+						this.isResolved = true;
 					}, err => {
 						if (isPromiseCanceledError(err)) {
 							// the IPC queue will reject the request with the
@@ -90,7 +91,7 @@ export class CompletionItem {
 						}
 					});
 					token.onCancellationRequested(() => {
-						if (!isDone) {
+						if (!this.isResolved) {
 							// cancellation after the request has been
 							// dispatched -> reset cache
 							cached = undefined;
