@@ -91,6 +91,7 @@ export interface ITerminalConfiguration {
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
+	cursorBarWidth: number;
 	drawBoldTextInBrightColors: boolean;
 	fastScrollSensitivity: number;
 	fontFamily: string;
