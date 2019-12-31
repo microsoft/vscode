@@ -362,7 +362,10 @@ function hygiene(some) {
 
 	const javascript = result
 		.pipe(filter(eslintFilter))
-		.pipe(gulpeslint('.eslintrc.json'))
+		.pipe(gulpeslint({
+			configFile: '.eslintrc.json',
+			rulePaths: ['./build/lib/eslint']
+		}))
 		.pipe(gulpeslint.formatEach('compact'))
 		.pipe(gulpeslint.failAfterError());
 
