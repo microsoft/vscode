@@ -288,11 +288,13 @@ export class TerminalLinkHandler {
 			} else {
 				label = nls.localize('terminalLinkHandler.followLinkAlt', "Alt + click");
 			}
+		} else {
+			if (isMacintosh) {
+				label = nls.localize('terminalLinkHandler.followLinkCmd', "Cmd + click");
+			} else {
+				label = nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click");
+			}
 		}
-		if (isMacintosh) {
-			label = nls.localize('terminalLinkHandler.followLinkCmd', "Cmd + click");
-		}
-		label = nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click");
 
 		const message: IMarkdownString = new MarkdownString(`[Follow Link](${uri}) (${label})`, true);
 		message.uris = {

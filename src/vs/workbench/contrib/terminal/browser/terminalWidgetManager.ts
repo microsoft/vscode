@@ -110,7 +110,7 @@ class MessageWidget {
 		private _y: number,
 		private _text: IMarkdownString,
 		private _verticalAlignment: WidgetVerticalAlignment,
-		private _openerService: IOpenerService
+		private readonly _openerService: IOpenerService
 	) {
 		this._domNode = renderMarkdown(this._text, {
 			actionHandler: {
@@ -151,10 +151,6 @@ class MessageWidget {
 	}
 
 	private _handleLinkClicked(content: string) {
-		if (!this._openerService) {
-			return;
-		}
-
 		this._openerService.open(URI.parse(content));
 	}
 }
