@@ -6,7 +6,8 @@
         "sourceType": "module"
     },
     "plugins": [
-        "@typescript-eslint"
+        "@typescript-eslint",
+        "jsdoc"
     ],
     "rules": {
         "constructor-super": "warn",
@@ -20,11 +21,14 @@
         "no-eval": "warn",
         "no-extra-semi": "off",
         "no-new-wrappers": "warn",
+        "no-redeclare": "off",
         "no-sparse-arrays": "warn",
         "no-throw-literal": "warn",
         "no-unsafe-finally": "warn",
+        "no-unused-expressions": "off",
         "no-unused-labels": "warn",
         "no-var": "warn",
+        "jsdoc/no-types": "off",
         "semi": "off",
         "@typescript-eslint/semi": "warn",
         "@typescript-eslint/class-name-casing": "warn",
