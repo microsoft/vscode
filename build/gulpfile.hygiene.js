@@ -185,7 +185,7 @@ const copyrightHeaderLines = [
 
 gulp.task('eslint', () => {
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
-		.pipe(filter(eslintFilter))
+		.pipe(filter(eslintFilter.concat(tslintHygieneFilter)))
 		.pipe(gulpeslint({
 			configFile: '.eslintrc.json',
 			rulePaths: ['./build/lib/eslint']
@@ -361,7 +361,7 @@ function hygiene(some) {
 	}
 
 	const javascript = result
-		.pipe(filter(eslintFilter))
+		.pipe(filter(eslintFilter.concat(tslintHygieneFilter)))
 		.pipe(gulpeslint({
 			configFile: '.eslintrc.json',
 			rulePaths: ['./build/lib/eslint']
