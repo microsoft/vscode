@@ -206,8 +206,8 @@ configurationRegistry.registerConfiguration({
 			enum: [TerminalCursorStyle.BLOCK, TerminalCursorStyle.LINE, TerminalCursorStyle.UNDERLINE],
 			default: TerminalCursorStyle.BLOCK
 		},
-		'terminal.integrated.cursorBarWidth': {
-			description: nls.localize('terminal.integrated.cursorBarWidth', "Controls the width of terminal bar cursor."),
+		'terminal.integrated.cursorWidth': {
+			markdownDescription: nls.localize('terminal.integrated.cursorWidth', "Controls the width of the cursor when `#terminal.integrated.cursorStyle#` is set to `line`."),
 			type: 'number',
 			default: 1
 		},

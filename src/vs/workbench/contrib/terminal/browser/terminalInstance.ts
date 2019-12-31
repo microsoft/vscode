@@ -1227,7 +1227,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const config = this._configHelper.config;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
-		this._setCursorBarWidth(config.cursorBarWidth);
+		this._setCursorWidth(config.cursorWidth);
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
 		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
@@ -1270,10 +1270,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _setCursorBarWidth(width: number): void {
-		console.log('option', width);
+	private _setCursorWidth(width: number): void {
 		if (this._xterm && this._xterm.getOption('cursorWidth') !== width) {
-			console.log('set option', width);
 			this._xterm.setOption('cursorWidth', width);
 		}
 	}
