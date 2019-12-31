@@ -9,7 +9,6 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
-import { CompletionItem, completionKindFromString } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
@@ -26,7 +25,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
@@ -567,35 +565,17 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	async completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<CompletionItem[]> {
+	async completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
 		if (!this.raw) {
 			return Promise.reject(new Error('no debug adapter'));
 		}
 
-		const response = await this.raw.completions({
+		return this.raw.completions({
 			frameId,
 			text,
 			column: position.column,
 			line: position.lineNumber,
 		}, token);
-
-		const result: CompletionItem[] = [];
-		if (response && response.body && response.body.targets) {
-			response.body.targets.forEach(item => {
-				if (item && item.label) {
-					result.push({
-						label: item.label,
-						insertText: item.text || item.label,
-						kind: completionKindFromString(item.type || 'property'),
-						filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
-						range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position),
-						sortText: item.sortText
-					});
-				}
-			});
-		}
-
-		return result;
 	}
 
 	//---- threads
