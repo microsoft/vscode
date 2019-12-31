@@ -206,6 +206,11 @@ configurationRegistry.registerConfiguration({
 			enum: [TerminalCursorStyle.BLOCK, TerminalCursorStyle.LINE, TerminalCursorStyle.UNDERLINE],
 			default: TerminalCursorStyle.BLOCK
 		},
+		'terminal.integrated.cursorWidth': {
+			markdownDescription: nls.localize('terminal.integrated.cursorWidth', "Controls the width of the cursor when `#terminal.integrated.cursorStyle#` is set to `line`."),
+			type: 'number',
+			default: 1
+		},
 		'terminal.integrated.scrollback': {
 			description: nls.localize('terminal.integrated.scrollback', "Controls the maximum amount of lines the terminal keeps in its buffer."),
 			type: 'number',

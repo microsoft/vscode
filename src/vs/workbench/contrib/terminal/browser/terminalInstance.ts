@@ -1227,6 +1227,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const config = this._configHelper.config;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
+		this._setCursorWidth(config.cursorWidth);
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
 		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
@@ -1266,6 +1267,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
 			const xtermOption = style === 'line' ? 'bar' : style;
 			this._xterm.setOption('cursorStyle', xtermOption);
+		}
+	}
+
+	private _setCursorWidth(width: number): void {
+		if (this._xterm && this._xterm.getOption('cursorWidth') !== width) {
+			this._xterm.setOption('cursorWidth', width);
 		}
 	}
 
