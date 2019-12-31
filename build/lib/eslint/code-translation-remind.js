@@ -9,8 +9,6 @@ const utils_1 = require("./utils");
 module.exports = new (_a = class TranslationRemind {
         constructor() {
             this.meta = {
-                type: 'problem',
-                schema: {},
                 messages: {
                     missing: 'Please add \'{{resource}}\' to ./build/lib/i18n.resources.json file to use translations here.'
                 }

@@ -8,10 +8,11 @@ const utils_1 = require("./utils");
 module.exports = new class NoNlsInStandaloneEditorRule {
     constructor() {
         this.meta = {
-            type: 'problem',
-            schema: {},
             messages: {
-                badImport: 'Not allowed to import standalone editor modules. See https://github.com/Microsoft/vscode/wiki/Code-Organization'
+                badImport: 'Not allowed to import standalone editor modules.'
+            },
+            docs: {
+                url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
             }
         };
     }

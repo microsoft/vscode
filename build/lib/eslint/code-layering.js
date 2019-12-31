@@ -8,10 +8,11 @@ const utils_1 = require("./utils");
 module.exports = new class {
     constructor() {
         this.meta = {
-            type: 'problem',
-            schema: {},
             messages: {
                 layerbreaker: 'Bad layering. You are not allowed to access {{from}} from here, allowed layers are: [{{allowed}}]'
+            },
+            docs: {
+                url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
             }
         };
     }

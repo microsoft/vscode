@@ -14,11 +14,12 @@ type Config = {
 
 export = new class implements eslint.Rule.RuleModule {
 
-	readonly meta = {
-		type: 'problem',
-		schema: {},
+	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			layerbreaker: 'Bad layering. You are not allowed to access {{from}} from here, allowed layers are: [{{allowed}}]'
+		},
+		docs: {
+			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
 		}
 	};
 

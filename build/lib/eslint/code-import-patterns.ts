@@ -16,11 +16,12 @@ interface ImportPatternsConfig {
 
 export = new class implements eslint.Rule.RuleModule {
 
-	readonly meta = {
-		type: 'problem',
-		schema: {},
+	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/Microsoft/vscode/wiki/Code-Organization'
+			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+		},
+		docs: {
+			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
 		}
 	};
 

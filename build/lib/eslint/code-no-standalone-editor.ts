@@ -9,11 +9,12 @@ import { createImportRuleListener } from './utils';
 
 export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule {
 
-	readonly meta = {
-		type: 'problem',
-		schema: {},
+	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			badImport: 'Not allowed to import standalone editor modules. See https://github.com/Microsoft/vscode/wiki/Code-Organization'
+			badImport: 'Not allowed to import standalone editor modules.'
+		},
+		docs: {
+			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
 		}
 	};
 

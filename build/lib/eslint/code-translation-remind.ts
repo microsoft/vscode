@@ -13,9 +13,7 @@ export = new class TranslationRemind implements eslint.Rule.RuleModule {
 
 	private static NLS_MODULE = 'vs/nls';
 
-	readonly meta = {
-		type: 'problem',
-		schema: {},
+	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			missing: 'Please add \'{{resource}}\' to ./build/lib/i18n.resources.json file to use translations here.'
 		}

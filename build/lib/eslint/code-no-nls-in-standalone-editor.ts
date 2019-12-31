@@ -9,9 +9,7 @@ import { createImportRuleListener } from './utils';
 
 export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule {
 
-	readonly meta = {
-		type: 'problem',
-		schema: {},
+	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			noNls: 'Not allowed to import vs/nls in standalone editor modules. Use standaloneStrings.ts'
 		}

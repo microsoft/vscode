@@ -14,8 +14,6 @@ function isDoubleQuoted(node) {
 module.exports = new (_a = class NoUnexternalizedStrings {
         constructor() {
             this.meta = {
-                type: 'problem',
-                schema: {},
                 messages: {
                     doubleQuoted: 'Only use double-quoted strings for externalized strings.',
                     badKey: 'The key \'{{key}}\' doesn\'t conform to a valid localize identifier.',

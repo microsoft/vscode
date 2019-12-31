@@ -8,8 +8,6 @@ const utils_1 = require("./utils");
 module.exports = new class NoNlsInStandaloneEditorRule {
     constructor() {
         this.meta = {
-            type: 'problem',
-            schema: {},
             messages: {
                 noNls: 'Not allowed to import vs/nls in standalone editor modules. Use standaloneStrings.ts'
             }

@@ -9,10 +9,11 @@ const utils_1 = require("./utils");
 module.exports = new class {
     constructor() {
         this.meta = {
-            type: 'problem',
-            schema: {},
             messages: {
-                badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/Microsoft/vscode/wiki/Code-Organization'
+                badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+            },
+            docs: {
+                url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
             }
         };
     }

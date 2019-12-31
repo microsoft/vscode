@@ -18,9 +18,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 
 	private static _rNlsKeys = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
 
-	readonly meta = {
-		type: 'problem',
-		schema: {},
+	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			doubleQuoted: 'Only use double-quoted strings for externalized strings.',
 			badKey: 'The key \'{{key}}\' doesn\'t conform to a valid localize identifier.',
