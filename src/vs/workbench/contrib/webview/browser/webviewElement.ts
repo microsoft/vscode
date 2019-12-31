@@ -12,7 +12,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
-import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
+import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
@@ -61,7 +61,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	protected createElement(options: WebviewOptions) {
 		const element = document.createElement('iframe');
 		element.className = `webview ${options.customClasses || ''}`;
-		element.sandbox.add('allow-scripts', 'allow-same-origin');
+		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms');
 		element.setAttribute('src', `${this.externalEndpoint}/index.html?id=${this.id}`);
 		element.style.border = 'none';
 		element.style.width = '100%';
@@ -130,7 +130,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			const result = await loadLocalResource(uri, this.fileService, this.extension ? this.extension.location : undefined,
 				() => (this.content.options.localResourceRoots || []));
 
-			if (result.type === 'success') {
+			if (result.type === WebviewResourceResponse.Type.Success) {
 				return this._send('did-load-resource', {
 					status: 200,
 					path: requestPath,

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as jsonc from 'jsonc-parser';
-import { dirname, join, basename } from 'path';
+import { basename, dirname, join } from 'path';
 import * as vscode from 'vscode';
-import { flatten } from '../utils/arrays';
+import { coalesce, flatten } from '../utils/arrays';
 
 function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
 	return node && node.type === 'array' && node.children
@@ -25,11 +25,11 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 			return null;
 		}
 
-		return [
+		return coalesce([
 			this.getExtendsLink(document, root),
 			...this.getFilesLinks(document, root),
 			...this.getReferencesLinks(document, root)
-		].filter(x => !!x) as vscode.DocumentLink[];
+		]);
 	}
 
 	private getExtendsLink(document: vscode.TextDocument, root: jsonc.Node): vscode.DocumentLink | undefined {
@@ -68,7 +68,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 				}
 
 				return new vscode.DocumentLink(this.getRange(document, pathNode),
-					basename(pathNode.value).match('.json$')
+					basename(pathNode.value).endsWith('.json')
 						? this.getFileTarget(document, pathNode)
 						: this.getFolderTarget(document, pathNode));
 			});

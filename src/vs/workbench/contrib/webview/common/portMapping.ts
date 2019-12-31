@@ -37,16 +37,16 @@ export class WebviewPortMappingManager extends Disposable {
 						if (tunnel.tunnelLocalPort === mapping.webviewPort) {
 							return undefined;
 						}
-						return uri.with({
+						return encodeURI(uri.with({
 							authority: `127.0.0.1:${tunnel.tunnelLocalPort}`,
-						}).toString();
+						}).toString(true));
 					}
 				}
 
 				if (mapping.webviewPort !== mapping.extensionHostPort) {
-					return uri.with({
+					return encodeURI(uri.with({
 						authority: `${requestLocalHostInfo.address}:${mapping.extensionHostPort}`
-					}).toString();
+					}).toString(true));
 				}
 			}
 		}
@@ -68,7 +68,7 @@ export class WebviewPortMappingManager extends Disposable {
 		if (existing) {
 			return existing;
 		}
-		const tunnel = this.tunnelService.openTunnel(remotePort);
+		const tunnel = this.tunnelService.openTunnel(undefined, remotePort);
 		if (tunnel) {
 			this._tunnels.set(remotePort, tunnel);
 		}

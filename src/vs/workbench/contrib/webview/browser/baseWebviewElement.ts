@@ -10,7 +10,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewExtensionDescription, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { URI } from 'vs/base/common/uri';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -50,8 +49,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private _element: T | undefined;
 	protected get element(): T | undefined { return this._element; }
 
-	private _focused: boolean;
-	protected get focused(): boolean { return this._focused; }
+	private _focused: boolean | undefined;
+	protected get focused(): boolean { return !!this._focused; }
 
 	private readonly _ready: Promise<void>;
 
@@ -94,7 +93,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}));
 
 		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
-			this._onDidClickLink.fire(URI.parse(uri));
+			this._onDidClickLink.fire(uri);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.onmessage, (data: any) => {
@@ -145,7 +144,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp = this._onMissingCsp.event;
 
-	private readonly _onDidClickLink = this._register(new Emitter<URI>());
+	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
 
 	private readonly _onMessage = this._register(new Emitter<any>());

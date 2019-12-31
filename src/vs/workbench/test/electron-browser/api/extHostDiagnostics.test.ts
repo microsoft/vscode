@@ -11,6 +11,7 @@ import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/commo
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { Emitter, Event } from 'vs/base/common/event';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostDiagnostics', () => {
 
@@ -96,10 +97,10 @@ suite('ExtHostDiagnostics', () => {
 		assert.throws(() => array.pop());
 		assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 
-		collection.forEach((uri, array: Diagnostic[]) => {
-			assert.throws(() => array.length = 0);
-			assert.throws(() => array.pop());
-			assert.throws(() => array[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
+		collection.forEach((uri, array: readonly Diagnostic[]) => {
+			assert.throws(() => (array as Diagnostic[]).length = 0);
+			assert.throws(() => (array as Diagnostic[]).pop());
+			assert.throws(() => (array as Diagnostic[])[0] = new Diagnostic(new Range(0, 0, 0, 0), 'evil'));
 		});
 
 		array = collection.get(URI.parse('foo:bar')) as Diagnostic[];
@@ -387,7 +388,7 @@ suite('ExtHostDiagnostics', () => {
 			assertRegistered(): void {
 
 			}
-		});
+		}, new NullLogService());
 
 		let collection1 = diags.createDiagnosticCollection('foo');
 		let collection2 = diags.createDiagnosticCollection('foo'); // warns, uses a different owner
@@ -436,7 +437,7 @@ suite('ExtHostDiagnostics', () => {
 			assertRegistered(): void {
 
 			}
-		});
+		}, new NullLogService());
 
 
 		//

@@ -81,6 +81,7 @@ const vscodeResources = [
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
 	'out-build/vs/code/electron-browser/issue/issueReporter.js',
 	'out-build/vs/code/electron-browser/processExplorer/processExplorer.js',
+	'out-build/vs/platform/auth/common/auth.css',
 	'!**/test/**'
 ];
 

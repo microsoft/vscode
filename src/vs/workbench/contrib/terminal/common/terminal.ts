@@ -87,14 +87,18 @@ export interface ITerminalConfiguration {
 	};
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	rendererType: 'auto' | 'canvas' | 'dom';
+	rendererType: 'auto' | 'canvas' | 'dom' | 'experimentalWebgl';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
+	cursorWidth: number;
 	drawBoldTextInBrightColors: boolean;
+	fastScrollSensitivity: number;
 	fontFamily: string;
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
+	minimumContrastRatio: number;
+	mouseWheelScrollSensitivity: number;
 	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
@@ -285,7 +289,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<string>;
 	readonly onProcessTitle: Event<string>;
-	readonly onProcessExit: Event<number>;
+	readonly onProcessExit: Event<number | undefined>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 
@@ -324,7 +328,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitData(data: string): void;
 	emitTitle(title: string): void;
 	emitReady(pid: number, cwd: string): void;
-	emitExit(exitCode: number): void;
+	emitExit(exitCode: number | undefined): void;
 	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
 	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
 	emitInitialCwd(initialCwd: string): void;
@@ -388,7 +392,7 @@ export interface IWindowsShellHelper extends IDisposable {
  */
 export interface ITerminalChildProcess {
 	onProcessData: Event<string>;
-	onProcessExit: Event<number>;
+	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<{ pid: number, cwd: string }>;
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
@@ -452,6 +456,7 @@ export const enum TERMINAL_COMMAND_ID {
 	CLEAR_SELECTION = 'workbench.action.terminal.clearSelection',
 	MANAGE_WORKSPACE_SHELL_PERMISSIONS = 'workbench.action.terminal.manageWorkspaceShellPermissions',
 	RENAME = 'workbench.action.terminal.rename',
+	RENAME_WITH_ARG = 'workbench.action.terminal.renameWithArg',
 	FIND_WIDGET_FOCUS = 'workbench.action.terminal.focusFindWidget',
 	FIND_WIDGET_HIDE = 'workbench.action.terminal.hideFindWidget',
 	QUICK_OPEN_TERM = 'workbench.action.quickOpenTerm',

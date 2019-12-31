@@ -23,6 +23,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container {
 	display: flex;
 	height: 35px;
+	scrollbar-width: none; /* Firefox: hide scrollbar */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.scroll {
@@ -30,7 +31,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container::-webkit-scrollbar {
-	display: none;
+	display: none; /* Chrome + Safari: hide scrollbar */
 }
 
 /* Tab */
@@ -83,7 +84,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged {
-	will-change: transform; /* forces tab to be drawn on a separate layer (fixes https://github.com/Microsoft/vscode/issues/18733) */
+	transform: translate3d(0px, 0px, 0px); /* forces tab to be drawn on a separate layer (fixes https://github.com/Microsoft/vscode/issues/18733) */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged-over div {
@@ -207,6 +208,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-close .action-label.codicon {
 	color: inherit;
+	font-size: 16px;
 }
 
 /* change close icon to dirty state icon */

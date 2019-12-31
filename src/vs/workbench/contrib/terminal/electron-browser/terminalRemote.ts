@@ -15,7 +15,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 
 export function registerRemoteContributions() {
 	const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewLocalTerminalAction, CreateNewLocalTerminalAction.ID, CreateNewLocalTerminalAction.LABEL), 'Terminal: Create New Integrated Terminal (Local)', TERMINAL_ACTION_CATEGORY);
+	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(CreateNewLocalTerminalAction, CreateNewLocalTerminalAction.ID, CreateNewLocalTerminalAction.LABEL), 'Terminal: Create New Integrated Terminal (Local)', TERMINAL_ACTION_CATEGORY);
 }
 
 export class CreateNewLocalTerminalAction extends Action {

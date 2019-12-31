@@ -15,7 +15,7 @@ import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchDataTree, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -379,7 +379,10 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 			sorter: new FileSorter(),
 			filter: this._instantiationService.createInstance(FileFilter),
 			identityProvider: new FileIdentityProvider(),
-			keyboardNavigationLabelProvider: new FileNavigationLabelProvider()
+			keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
+			overrideStyles: {
+				listBackground: breadcrumbsPickerBackground
+			}
 		});
 	}
 
@@ -426,6 +429,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 
 	protected readonly _symbolSortOrder: BreadcrumbsConfig<'position' | 'name' | 'type'>;
+	protected _outlineComparator: OutlineItemComparator;
 
 	constructor(
 		parent: HTMLElement,
@@ -435,6 +439,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	) {
 		super(parent, instantiationService, themeService, configurationService);
 		this._symbolSortOrder = BreadcrumbsConfig.SymbolSortOrder.bindTo(this._configurationService);
+		this._outlineComparator = new OutlineItemComparator();
 	}
 
 	protected _createTree(container: HTMLElement) {
@@ -449,10 +454,10 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 				collapseByDefault: true,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
-				sorter: new OutlineItemComparator(this._getOutlineItemCompareType()),
+				sorter: this._outlineComparator,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs.filteredTypes')
+				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
 			}
 		);
 	}
@@ -468,14 +473,17 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		const tree = this._tree as WorkbenchDataTree<OutlineModel, any, FuzzyScore>;
 		tree.setInput(model);
 
-		let focusElement: TreeElement;
-		if (element === model) {
-			focusElement = tree.navigate().first();
-		} else {
-			focusElement = element;
+		const textModel = model.textModel;
+		const overrideConfiguration = {
+			resource: textModel.uri,
+			overrideIdentifier: textModel.getLanguageIdentifier().language
+		};
+		this._outlineComparator.type = this._getOutlineItemCompareType(overrideConfiguration);
+
+		if (element !== model) {
+			tree.reveal(element, 0.5);
+			tree.setFocus([element], this._fakeEvent);
 		}
-		tree.reveal(focusElement, 0.5);
-		tree.setFocus([focusElement], this._fakeEvent);
 		tree.domFocus();
 
 		return Promise.resolve();
@@ -487,8 +495,8 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		}
 	}
 
-	private _getOutlineItemCompareType(): OutlineSortOrder {
-		switch (this._symbolSortOrder.getValue()) {
+	private _getOutlineItemCompareType(overrideConfiguration?: IConfigurationOverrides): OutlineSortOrder {
+		switch (this._symbolSortOrder.getValue(overrideConfiguration)) {
 			case 'name':
 				return OutlineSortOrder.ByName;
 			case 'type':

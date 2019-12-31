@@ -13,7 +13,7 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG, IFileService } from 'vs/platform/files/common/files';
@@ -28,7 +28,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IResourceLabelProps {
 	resource?: URI;
-	name?: string;
+	name?: string | string[];
 	description?: string;
 }
 
@@ -41,6 +41,7 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 export interface IFileLabelOptions extends IResourceLabelOptions {
 	hideLabel?: boolean;
 	hidePath?: boolean;
+	readonly parentCount?: number;
 }
 
 export interface IResourceLabel extends IDisposable {
@@ -164,7 +165,7 @@ export class ResourceLabels extends Disposable {
 		const label: IResourceLabel = {
 			element: widget.element,
 			onDidRender: widget.onDidRender,
-			setLabel: (label?: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
+			setLabel: (label: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
 			setResource: (label: IResourceLabelProps, options?: IResourceLabelOptions) => widget.setResource(label, options),
 			setEditor: (editor: IEditorInput, options?: IResourceLabelOptions) => widget.setEditor(editor, options),
 			setFile: (resource: URI, options?: IFileLabelOptions) => widget.setFile(resource, options),
@@ -259,7 +260,7 @@ class ResourceLabelWidget extends IconLabel {
 		@IModelService private readonly modelService: IModelService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(container, options);
@@ -367,7 +368,7 @@ class ResourceLabelWidget extends IconLabel {
 	setEditor(editor: IEditorInput, options?: IResourceLabelOptions): void {
 		this.setResource({
 			resource: toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }),
-			name: withNullAsUndefined(editor.getName()),
+			name: editor.getName(),
 			description: editor.getDescription(options ? options.descriptionVerbosity : undefined)
 		}, options);
 	}
@@ -389,7 +390,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		let description: string | undefined;
-		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
+		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledTextEditorService.hasAssociatedFilePath(resource));
 		if (!hidePath) {
 			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
 		}
@@ -404,7 +405,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 
-		this.setLabel();
+		this.setLabel('');
 	}
 
 	private render(clearIconCache: boolean): void {
@@ -442,7 +443,9 @@ class ResourceLabelWidget extends IconLabel {
 			title: '',
 			italic: this.options && this.options.italic,
 			matches: this.options && this.options.matches,
-			extraClasses: []
+			extraClasses: [],
+			separator: this.options?.separator,
+			domId: this.options?.domId
 		};
 
 		const resource = this.label.resource;
@@ -493,7 +496,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		this.setLabel(label, this.label.description, iconLabelOptions);
+		this.setLabel(label || '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
 	}

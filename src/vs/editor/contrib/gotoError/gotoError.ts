@@ -43,7 +43,7 @@ class MarkerModel {
 		this._markers = [];
 		this._nextIdx = -1;
 		this._ignoreSelectionChange = false;
-		this._onCurrentMarkerChanged = new Emitter<IMarker>();
+		this._onCurrentMarkerChanged = new Emitter<IMarker | undefined>();
 		this._onMarkerSetChanged = new Emitter<MarkerModel>();
 		this.setMarkers(markers);
 
@@ -245,7 +245,7 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
-		this._widget.onDidClose(() => this._cleanUp(), this, this._disposeOnClose);
+		this._widget.onDidClose(() => this.closeMarkersNavigation(), this, this._disposeOnClose);
 
 		this._disposeOnClose.add(this._model);
 		this._disposeOnClose.add(this._widget);

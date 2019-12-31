@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteExtensionsFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
+import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
@@ -26,6 +26,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -90,7 +91,10 @@ class BrowserMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, () => workbench.layout()));
+		const viewport = platform.isIOS && (<any>window).visualViewport ? (<any>window).visualViewport /** Visual viewport */ : window /** Layout viewport */;
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			workbench.layout();
+		}));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
@@ -99,6 +103,9 @@ class BrowserMain extends Disposable {
 
 		// Prevent native context menus in web
 		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
+
+		// Prevent default navigation on drop
+		this._register(addDisposableListener(this.domElement, EventType.DROP, (e) => EventHelper.stop(e, true)));
 
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
@@ -126,7 +133,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private restoreBaseTheme(): void {
-		addClass(this.domElement, window.localStorage.getItem('baseTheme') || getThemeTypeSelector(DARK));
+		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(DARK));
 	}
 
 	private saveBaseTheme(): void {
@@ -134,7 +141,7 @@ class BrowserMain extends Disposable {
 		const baseThemes = [DARK, LIGHT, HIGH_CONTRAST].map(baseTheme => getThemeTypeSelector(baseTheme));
 		for (const baseTheme of baseThemes) {
 			if (classes.indexOf(baseTheme) >= 0) {
-				window.localStorage.setItem('baseTheme', baseTheme);
+				window.localStorage.setItem('vscode.baseTheme', baseTheme);
 				break;
 			}
 		}
@@ -211,17 +218,21 @@ class BrowserMain extends Disposable {
 	private registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): void {
 
 		// Logger
-		const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
 		(async () => {
-			try {
-				await indexedDBLogProvider.database;
-
-				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
-			} catch (error) {
-				logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
-				logService.error(error);
-
+			if (browser.isEdge) {
 				fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+			} else {
+				try {
+					const indexedDBLogProvider = new IndexedDBLogProvider(logsPath.scheme);
+					await indexedDBLogProvider.database;
+
+					fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
+				} catch (error) {
+					logService.info('Error while creating indexedDB log provider. Falling back to in-memory log provider.');
+					logService.error(error);
+
+					fileService.registerProvider(logsPath.scheme, new InMemoryLogProvider(logsPath.scheme));
+				}
 			}
 
 			const consoleLogService = new ConsoleLogService(logService.getLevel());
@@ -234,7 +245,7 @@ class BrowserMain extends Disposable {
 
 			// Remote file system
 			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const remoteFileSystemProvider = this._register(new RemoteExtensionsFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(channel, remoteAgentService.getEnvironment()));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 
 			if (!this.configuration.userDataProvider) {

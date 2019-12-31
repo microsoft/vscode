@@ -22,8 +22,7 @@ suite('ExtHostTypes', function () {
 		assert.deepEqual(uri.toJSON(), {
 			$mid: 1,
 			scheme: 'file',
-			path: '/path/test.file',
-			external: 'file:///path/test.file'
+			path: '/path/test.file'
 		});
 
 		assert.ok(uri.fsPath);
@@ -31,7 +30,6 @@ suite('ExtHostTypes', function () {
 			$mid: 1,
 			scheme: 'file',
 			path: '/path/test.file',
-			external: 'file:///path/test.file',
 			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
 			_sep: isWindows ? 1 : undefined,
 		});
@@ -529,6 +527,25 @@ suite('ExtHostTypes', function () {
 		string.appendVariable('BAR', b => { });
 		assert.equal(string.value, '${BAR}');
 
+		string = new types.SnippetString();
+		string.appendChoice(['b', 'a', 'r']);
+		assert.equal(string.value, '${1|b,a,r|}');
+
+		string = new types.SnippetString();
+		string.appendChoice(['b', 'a', 'r'], 0);
+		assert.equal(string.value, '${0|b,a,r|}');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendChoice(['far', 'boo']).appendText('bar');
+		assert.equal(string.value, 'foo${1|far,boo|}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
+		assert.equal(string.value, 'foo${1|far,\\$boo|}bar');
+
+		string = new types.SnippetString();
+		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
+		assert.equal(string.value, 'foo${1:farboo}${2|far,boo|}bar');
 	});
 
 	test('instanceof doesn\'t work for FileSystemError #49386', function () {

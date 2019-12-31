@@ -273,7 +273,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model = await manager.loadOrCreate(resource, { encoding: 'utf8' });
 		model.dispose();
 		assert.ok(!manager.get(resource));
-		assert.ok(!accessor.modelService.getModel(model.getResource()));
+		assert.ok(!accessor.modelService.getModel(model.resource));
 		manager.dispose();
 	});
 
@@ -286,7 +286,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model.textEditorModel!.setValue('make dirty');
 		manager.disposeModel((model as TextFileEditorModel));
 		assert.ok(!model.isDisposed());
-		model.revert(true);
+		model.revert({ soft: true });
 		manager.disposeModel((model as TextFileEditorModel));
 		assert.ok(model.isDisposed());
 		manager.dispose();

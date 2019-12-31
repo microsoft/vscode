@@ -111,7 +111,7 @@ export class RunToCursorAction extends EditorAction {
 			label: RunToCursorAction.LABEL,
 			alias: 'Debug: Run to Cursor',
 			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'debug',
 				order: 2
 			}
@@ -157,10 +157,10 @@ class SelectionToReplAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.selectionToRepl',
-			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
-			alias: 'Debug: Evaluate',
+			label: nls.localize('evaluateInDebugConsole', "Evaluate in Debug Console"),
+			alias: 'Evaluate',
 			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'debug',
 				order: 0
 			}
@@ -187,10 +187,10 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.selectionToWatch',
-			label: nls.localize('debugAddToWatch', "Debug: Add to Watch"),
-			alias: 'Debug: Add to Watch',
+			label: nls.localize('addToWatch', "Add to Watch"),
+			alias: 'Add to Watch',
 			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'debug',
 				order: 1
 			}

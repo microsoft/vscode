@@ -13,6 +13,31 @@
 	height: 100%;
 }
 
+.debug-viewlet .debug-start-view {
+	padding: 0 20px 0 20px;
+}
+
+.debug-viewlet .debug-start-view .monaco-button,
+.debug-viewlet .debug-start-view .section {
+	margin-top: 20px;
+}
+
+.debug-viewlet .debug-start-view .top-section {
+	margin-top: 10px;
+}
+
+.debug-viewlet .debug-start-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
+.debug-viewlet .debug-start-view .click {
+	cursor: pointer;
+	color: #007ACC;
+}
+
 .monaco-workbench .debug-action.notification:after {
 	content: '';
 	width: 6px;
@@ -78,8 +103,12 @@
 	color: #666;
 }
 
+.debug-viewlet .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+	color: inherit !important;
+}
+
 .debug-viewlet .disabled {
-	opacity: 0.35;
+	opacity: 0.65;
 }
 
 /* Call stack */
@@ -140,9 +169,11 @@
 	text-transform: uppercase;
 }
 
-.debug-viewlet .debug-call-stack .thread:hover > .state,
-.debug-viewlet .debug-call-stack .session:hover > .state,
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .state {
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .state {
+	display: none;
+}
+
+.debug-viewlet .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file {
 	display: none;
 }
 
@@ -150,7 +181,6 @@
 	display: none;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list-row.focused .monaco-action-bar,
 .debug-viewlet .debug-call-stack .monaco-list-row:hover .monaco-action-bar {
 	display: initial;
 }
@@ -159,6 +189,7 @@
 	width: 16px;
 	height: 100%;
 	margin-right: 8px;
+	vertical-align: text-top;
 }
 
 .debug-viewlet .debug-call-stack .thread > .state > .label,
@@ -240,7 +271,7 @@
 	overflow: hidden;
 }
 
-.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+.debug-viewlet .debug-call-stack .monaco-list:focus .monaco-list-row.selected .codicon {
 	color: inherit !important;
 }
 
@@ -334,10 +365,13 @@
 	flex-shrink: 0;
 }
 
-.debug-viewlet .debug-breakpoints .breakpoint > .icon {
+.debug-viewlet .debug-breakpoints .breakpoint > .codicon {
 	width: 19px;
 	height: 19px;
 	min-width: 19px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

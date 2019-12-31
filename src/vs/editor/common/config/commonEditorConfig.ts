@@ -15,6 +15,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { forEach } from 'vs/base/common/collections';
 
 /**
  * Control what pressing Tab does.
@@ -197,6 +198,43 @@ function migrateOptions(options: IEditorOptions): void {
 		options.tabCompletion = 'onlySnippets';
 	}
 
+	const suggest = options.suggest;
+	if (suggest && typeof (<any>suggest).filteredTypes === 'object' && (<any>suggest).filteredTypes) {
+		const mapping: Record<string, string> = {};
+		mapping['method'] = 'showMethods';
+		mapping['function'] = 'showFunctions';
+		mapping['constructor'] = 'showConstructors';
+		mapping['field'] = 'showFields';
+		mapping['variable'] = 'showVariables';
+		mapping['class'] = 'showClasses';
+		mapping['struct'] = 'showStructs';
+		mapping['interface'] = 'showInterfaces';
+		mapping['module'] = 'showModules';
+		mapping['property'] = 'showProperties';
+		mapping['event'] = 'showEvents';
+		mapping['operator'] = 'showOperators';
+		mapping['unit'] = 'showUnits';
+		mapping['value'] = 'showValues';
+		mapping['constant'] = 'showConstants';
+		mapping['enum'] = 'showEnums';
+		mapping['enumMember'] = 'showEnumMembers';
+		mapping['keyword'] = 'showKeywords';
+		mapping['text'] = 'showWords';
+		mapping['color'] = 'showColors';
+		mapping['file'] = 'showFiles';
+		mapping['reference'] = 'showReferences';
+		mapping['folder'] = 'showFolders';
+		mapping['typeParameter'] = 'showTypeParameters';
+		mapping['snippet'] = 'showSnippets';
+		forEach(mapping, entry => {
+			const value = (<any>suggest).filteredTypes[entry.key];
+			if (value === false) {
+				(<any>suggest)[entry.value] = value;
+			}
+		});
+		// delete (<any>suggest).filteredTypes;
+	}
+
 	const hover = options.hover;
 	if (<any>hover === true) {
 		options.hover = {
@@ -217,6 +255,20 @@ function migrateOptions(options: IEditorOptions): void {
 		options.parameterHints = {
 			enabled: false
 		};
+	}
+
+	const autoIndent = options.autoIndent;
+	if (<any>autoIndent === true) {
+		options.autoIndent = 'full';
+	} else if (<any>autoIndent === false) {
+		options.autoIndent = 'advanced';
+	}
+
+	const matchBrackets = options.matchBrackets;
+	if (<any>matchBrackets === true) {
+		options.matchBrackets = 'always';
+	} else if (<any>matchBrackets === false) {
+		options.matchBrackets = 'never';
 	}
 }
 
@@ -304,18 +356,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
 	}
 
-	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
 		for (const key in subset) {
 			if (hasOwnProperty.call(subset, key)) {
@@ -326,7 +366,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 					continue;
 				}
 				if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
-					if (!this._primitiveArrayEquals(baseValue, subsetValue)) {
+					if (!arrays.equals(baseValue, subsetValue)) {
 						return false;
 					}
 					continue;
@@ -387,14 +427,17 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 }
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-const editorConfiguration: IConfigurationNode = {
+export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'editor',
 	order: 5,
 	type: 'object',
 	title: nls.localize('editorConfigurationTitle', "Editor"),
-	overridable: true,
-	scope: ConfigurationScope.RESOURCE,
+	scope: ConfigurationScope.RESOURCE_LANGUAGE,
+});
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+const editorConfiguration: IConfigurationNode = {
+	...editorConfigurationBaseNode,
 	properties: {
 		'editor.tabSize': {
 			type: 'number',
@@ -450,29 +493,6 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'integer',
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
-		},
-		'editor.codeActionsOnSave': {
-			type: 'object',
-			properties: {
-				'source.organizeImports': {
-					type: 'boolean',
-					description: nls.localize('codeActionsOnSave.organizeImports', "Controls whether organize imports action should be run on file save.")
-				},
-				'source.fixAll': {
-					type: 'boolean',
-					description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
-				}
-			},
-			'additionalProperties': {
-				type: 'boolean'
-			},
-			default: {},
-			description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
-		},
-		'editor.codeActionsOnSaveTimeout': {
-			type: 'number',
-			default: 750,
-			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
 		},
 		'diffEditor.maxComputationTime': {
 			type: 'number',

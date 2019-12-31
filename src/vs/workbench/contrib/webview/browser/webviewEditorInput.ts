@@ -6,12 +6,12 @@
 import * as dom from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
-import { UnownedDisposable as Unowned } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { Emitter } from 'vs/base/common/event';
 
 const WebviewPanelResourceScheme = 'webview-panel';
 
@@ -70,20 +70,31 @@ export class WebviewInput extends EditorInput {
 	private _name: string;
 	private _iconPath?: { light: URI, dark: URI };
 	private _group?: GroupIdentifier;
+
 	private readonly _webview: Lazy<WebviewEditorOverlay>;
+	private _didSomeoneTakeMyWebview = false;
+
+	private readonly _onDisposeWebview = this._register(new Emitter<void>());
+	readonly onDisposeWebview = this._onDisposeWebview.event;
 
 	constructor(
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		webview: Lazy<Unowned<WebviewEditorOverlay>>,
+		webview: Lazy<WebviewEditorOverlay>,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
-
 		this._name = name;
+		this._webview = webview;
+	}
 
-		this._webview = webview.map(value => this._register(value.acquire())); // The input owns this webview
+	dispose() {
+		if (!this._didSomeoneTakeMyWebview) {
+			this._webview?.rawValue?.dispose();
+			this._onDisposeWebview.fire();
+		}
+		super.dispose();
 	}
 
 	public getTypeId(): string {
@@ -101,7 +112,7 @@ export class WebviewInput extends EditorInput {
 		return this._name;
 	}
 
-	public getTitle(_verbosity?: Verbosity) {
+	public getTitle(_verbosity?: Verbosity): string {
 		return this.getName();
 	}
 
@@ -119,7 +130,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public get extension() {
-		return this._webview.getValue().extension;
+		return this.webview.extension;
 	}
 
 	public get iconPath() {
@@ -149,5 +160,13 @@ export class WebviewInput extends EditorInput {
 
 	public supportsSplitEditor() {
 		return false;
+	}
+
+	protected takeOwnershipOfWebview(): WebviewEditorOverlay | undefined {
+		if (this._didSomeoneTakeMyWebview) {
+			return undefined;
+		}
+		this._didSomeoneTakeMyWebview = true;
+		return this.webview;
 	}
 }

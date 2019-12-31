@@ -12,7 +12,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, isIOS } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -42,6 +42,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 // tslint:disable-next-line: import-patterns layering TODO@sbatten
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export abstract class MenubarControl extends Disposable {
 
@@ -327,12 +328,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 			if (menubarActiveWindowFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar > .menubar-menu-button {
-					color: ${menubarActiveWindowFgColor};
-				}
-
+				.monaco-workbench .menubar > .menubar-menu-button,
 				.monaco-workbench .menubar .toolbar-toggle-more {
-					background-color: ${menubarActiveWindowFgColor}
+					color: ${menubarActiveWindowFgColor};
 				}
 				`);
 			}
@@ -340,12 +338,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const activityBarInactiveFgColor = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND);
 			if (activityBarInactiveFgColor) {
 				collector.addRule(`
-				.monaco-workbench .menubar.compact > .menubar-menu-button {
-					color: ${activityBarInactiveFgColor};
-				}
-
+				.monaco-workbench .menubar.compact > .menubar-menu-button,
 				.monaco-workbench .menubar.compact .toolbar-toggle-more {
-					background-color: ${activityBarInactiveFgColor}
+					color: ${activityBarInactiveFgColor};
 				}
 				`);
 
@@ -356,14 +351,11 @@ export class CustomMenubarControl extends MenubarControl {
 				collector.addRule(`
 				.monaco-workbench .menubar.compact > .menubar-menu-button.open,
 				.monaco-workbench .menubar.compact > .menubar-menu-button:focus,
-				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover {
-					color: ${activityBarFgColor};
-				}
-
+				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
 				.monaco-workbench .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
 				.monaco-workbench .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
 				.monaco-workbench .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
-					background-color: ${activityBarFgColor}
+					color: ${activityBarFgColor};
 				}
 			`);
 			}
@@ -371,12 +363,9 @@ export class CustomMenubarControl extends MenubarControl {
 			const menubarInactiveWindowFgColor = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
 			if (menubarInactiveWindowFgColor) {
 				collector.addRule(`
-					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button {
+					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button,
+					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more  {
 						color: ${menubarInactiveWindowFgColor};
-					}
-
-					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more {
-						background-color: ${menubarInactiveWindowFgColor}
 					}
 				`);
 			}
@@ -387,14 +376,11 @@ export class CustomMenubarControl extends MenubarControl {
 				collector.addRule(`
 					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
 					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover {
-						color: ${menubarSelectedFgColor};
-					}
-
+					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover,
 					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .toolbar-toggle-more,
 					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .toolbar-toggle-more,
 					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .toolbar-toggle-more {
-						background-color: ${menubarSelectedFgColor}
+						color: ${menubarSelectedFgColor};
 					}
 				`);
 			}
@@ -673,7 +659,7 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		this._register(DOM.addDisposableListener(window, DOM.EventType.RESIZE, () => {
-			if (this.menubar) {
+			if (this.menubar && !(isIOS && BrowserFeatures.pointerEvents)) {
 				this.menubar.blur();
 			}
 		}));

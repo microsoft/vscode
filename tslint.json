@@ -75,6 +75,7 @@
 				"target": "**/vs/base/test/common/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/test/common/**"
@@ -92,7 +93,7 @@
 				"target": "**/vs/base/node/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,browser,node}/**",
+					"**/vs/base/{common,node}/**",
 					"!path" // node modules (except path where we have our own impl)
 				]
 			},
@@ -101,6 +102,7 @@
 				"target": "**/vs/base/test/browser/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**"
@@ -127,8 +129,8 @@
 				"target": "**/vs/base/parts/*/node/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,browser,node}/**",
-					"**/vs/base/parts/*/{common,browser,node}/**",
+					"**/vs/base/{common,node}/**",
+					"**/vs/base/parts/*/{common,node}/**",
 					"!path" // node modules (except path where we have our own impl)
 				]
 			},
@@ -146,8 +148,8 @@
 				"target": "**/vs/base/parts/*/electron-main/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,browser,node,electron-main}/**",
-					"**/vs/base/parts/*/{common,browser,node,electron-main}/**",
+					"**/vs/base/{common,node,electron-main}/**",
+					"**/vs/base/parts/*/{common,node,electron-main}/**",
 					"!path" // node modules (except path where we have our own impl)
 				]
 			},
@@ -185,9 +187,9 @@
 				"target": "**/vs/platform/*/node/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,browser,node}/**",
-					"**/vs/base/parts/*/{common,browser,node}/**",
-					"**/vs/platform/*/{common,browser,node}/**",
+					"**/vs/base/{common,node}/**",
+					"**/vs/base/parts/*/{common,node}/**",
+					"**/vs/platform/*/{common,node}/**",
 					"!path" // node modules (except path where we have our own impl)
 				]
 			},
@@ -206,9 +208,9 @@
 				"target": "**/vs/platform/*/electron-main/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/{common,browser,node}/**",
-					"**/vs/base/parts/*/{common,browser,node,electron-browser}/**",
-					"**/vs/platform/*/{common,browser,node,electron-main}/**",
+					"**/vs/base/{common,node,electron-main}/**",
+					"**/vs/base/parts/*/{common,node,electron-main}/**",
+					"**/vs/platform/*/{common,node,electron-main}/**",
 					"!path" // node modules (except path where we have our own impl)
 				]
 			},
@@ -237,6 +239,7 @@
 				"target": "**/vs/editor/test/common/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -259,6 +262,7 @@
 				"target": "**/vs/editor/test/browser/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -281,6 +285,7 @@
 				"target": "**/vs/editor/standalone/test/common/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -306,6 +311,7 @@
 				"target": "**/vs/editor/standalone/test/browser/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -319,6 +325,7 @@
 				"target": "**/vs/editor/contrib/*/test/**",
 				"restrictions": [
 					"assert",
+					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**",
@@ -502,37 +509,6 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/contrib/files/common/**",
-				"restrictions": [
-					"vs/nls",
-					"**/vs/base/common/**",
-					"**/vs/base/parts/*/common/**",
-					"**/vs/platform/*/common/**",
-					"**/vs/editor/common/**",
-					"**/vs/editor/contrib/*/common/**",
-					"**/vs/workbench/common/**",
-					"**/vs/workbench/services/*/common/**",
-					"**/vs/workbench/contrib/files/common/**",
-					"assert"
-				]
-			},
-			{
-				"target": "**/vs/workbench/contrib/files/browser/**",
-				"restrictions": [
-					"vs/nls",
-					"vs/css!./**/*",
-					"**/vs/base/{common,browser}/**",
-					"**/vs/base/parts/*/{common,browser}/**",
-					"**/vs/platform/*/{common,browser}/**",
-					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
-					"**/vs/workbench/{common,browser}/**",
-					"**/vs/workbench/services/*/{common,browser}/**",
-					"**/vs/workbench/contrib/files/{common,browser}/**",
-					"assert"
-				]
-			},
-			{
 				"target": "**/vs/workbench/contrib/terminal/browser/**",
 				"restrictions": [
 					// xterm and its addons are strictly browser-only components
@@ -559,10 +535,10 @@
 				"target": "**/vs/code/node/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,browser,node}/**",
-					"**/vs/base/parts/**/{common,browser,node}/**",
-					"**/vs/platform/**/{common,browser,node}/**",
-					"**/vs/code/**/{common,browser,node}/**",
+					"**/vs/base/**/{common,node}/**",
+					"**/vs/base/parts/**/{common,node}/**",
+					"**/vs/platform/**/{common,node}/**",
+					"**/vs/code/**/{common,node}/**",
 					"!path" // node modules (except path where we have our own impl)
 				]
 			},
@@ -582,10 +558,10 @@
 				"target": "**/vs/code/electron-main/**",
 				"restrictions": [
 					"vs/nls",
-					"**/vs/base/**/{common,browser,node}/**",
-					"**/vs/base/parts/**/{common,browser,node,electron-main}/**",
-					"**/vs/platform/**/{common,browser,node,electron-main}/**",
-					"**/vs/code/**/{common,browser,node,electron-main}/**",
+					"**/vs/base/**/{common,node,electron-main}/**",
+					"**/vs/base/parts/**/{common,node,electron-main}/**",
+					"**/vs/platform/**/{common,node,electron-main}/**",
+					"**/vs/code/**/{common,node,electron-main}/**",
 					"!path" // node modules (except path where we have our own impl)
 				]
 			},
@@ -631,48 +607,6 @@
 			{
 				"target": "**/{common,browser,workbench}/**",
 				"restrictions": "**/vs/**"
-			}
-		],
-		"no-nodejs-globals": [
-			true,
-			{
-				"target": "**/vs/base/common/{path,process,platform}.ts",
-				"allowed": [
-					"process" // -> defines safe access to process
-				]
-			},
-			{
-				"target": "**/vs/**/test/{common,browser}/**",
-				"allowed": [
-					"process",
-					"Buffer",
-					"__filename",
-					"__dirname"
-				]
-			},
-			{
-				"target": "**/vs/workbench/api/common/extHostExtensionService.ts",
-				"allowed": [
-					"global" // -> safe access to 'global'
-				]
-			},
-			{
-				"target": "**/vs/**/{common,browser}/**",
-				"allowed": [ /* none */]
-			}
-		],
-		"no-dom-globals": [
-			true,
-			{
-				"target": "**/vs/**/test/{common,node,electron-main}/**",
-				"allowed": [
-					"document",
-					"HTMLElement"
-				]
-			},
-			{
-				"target": "**/vs/**/{common,node,electron-main}/**",
-				"allowed": [ /* none */]
 			}
 		],
 		"duplicate-imports": true,

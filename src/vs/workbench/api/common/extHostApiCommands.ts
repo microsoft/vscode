@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -19,10 +19,215 @@ import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
+
+//#region --- NEW world
+
+export class ApiCommandArgument<V, O = V> {
+
+	static readonly Uri = new ApiCommandArgument<URI>('uri', 'Uri of a text document', v => URI.isUri(v), v => v);
+	static readonly Position = new ApiCommandArgument<types.Position, IPosition>('position', 'A position in a text document', v => types.Position.isPosition(v), typeConverters.Position.from);
+	static readonly Range = new ApiCommandArgument<types.Range, IRange>('range', 'A range in a text document', v => types.Range.isRange(v), typeConverters.Range.from);
+
+	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof types.CallHierarchyItem, typeConverters.CallHierarchyItem.to);
+
+	constructor(
+		readonly name: string,
+		readonly description: string,
+		readonly validate: (v: V) => boolean,
+		readonly convert: (v: V) => O
+	) { }
+}
+
+export class ApiCommandResult<V, O = V> {
+
+	constructor(
+		readonly description: string,
+		readonly convert: (v: V, apiArgs: any[]) => O
+	) { }
+}
+
+export class ApiCommand {
+
+	constructor(
+		readonly id: string,
+		readonly internalId: string,
+		readonly description: string,
+		readonly args: ApiCommandArgument<any, any>[],
+		readonly result: ApiCommandResult<any, any>
+	) { }
+
+	register(commands: ExtHostCommands): IDisposable {
+
+		return commands.registerCommand(false, this.id, async (...apiArgs) => {
+
+			const internalArgs = this.args.map((arg, i) => {
+				if (!arg.validate(apiArgs[i])) {
+					throw new Error(`Invalid argument '${arg.name}' when running '${this.id}', receieved: ${apiArgs[i]}`);
+				}
+				return arg.convert(apiArgs[i]);
+			});
+
+			const internalResult = await commands.executeCommand(this.internalId, ...internalArgs);
+			return this.result.convert(internalResult, apiArgs);
+		}, undefined, this._getCommandHandlerDesc());
+	}
+
+	private _getCommandHandlerDesc(): ICommandHandlerDescription {
+		return {
+			description: this.description,
+			args: this.args,
+			returns: this.result.description
+		};
+	}
+}
+
+
+const newCommands: ApiCommand[] = [
+	// -- document highlights
+	new ApiCommand(
+		'vscode.executeDocumentHighlights', '_executeDocumentHighlights', 'Execute document highlight provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<modes.DocumentHighlight[], types.DocumentHighlight[] | undefined>('A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.', tryMapWith(typeConverters.DocumentHighlight.to))
+	),
+	// -- document symbols
+	new ApiCommand(
+		'vscode.executeDocumentSymbolProvider', '_executeDocumentSymbolProvider', 'Execute document symbol provider.',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<modes.DocumentSymbol[], vscode.SymbolInformation[] | undefined>('A promise that resolves to an array of DocumentHighlight-instances.', (value, apiArgs) => {
+
+			if (isFalsyOrEmpty(value)) {
+				return undefined;
+			}
+			class MergedInfo extends types.SymbolInformation implements vscode.DocumentSymbol {
+				static to(symbol: modes.DocumentSymbol): MergedInfo {
+					const res = new MergedInfo(
+						symbol.name,
+						typeConverters.SymbolKind.to(symbol.kind),
+						symbol.containerName || '',
+						new types.Location(apiArgs[0], typeConverters.Range.to(symbol.range))
+					);
+					res.detail = symbol.detail;
+					res.range = res.location.range;
+					res.selectionRange = typeConverters.Range.to(symbol.selectionRange);
+					res.children = symbol.children ? symbol.children.map(MergedInfo.to) : [];
+					return res;
+				}
+
+				detail!: string;
+				range!: vscode.Range;
+				selectionRange!: vscode.Range;
+				children!: vscode.DocumentSymbol[];
+				containerName!: string;
+			}
+			return value.map(MergedInfo.to);
+
+		})
+	),
+	// -- formatting
+	new ApiCommand(
+		'vscode.executeFormatDocumentProvider', '_executeFormatDocumentProvider', 'Execute document format provider.',
+		[ApiCommandArgument.Uri, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
+		new ApiCommandResult<ISingleEditOperation[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+	),
+	new ApiCommand(
+		'vscode.executeFormatRangeProvider', '_executeFormatRangeProvider', 'Execute range format provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
+		new ApiCommandResult<ISingleEditOperation[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+	),
+	new ApiCommand(
+		'vscode.executeFormatOnTypeProvider', '_executeFormatOnTypeProvider', 'Execute format on type provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('ch', 'Trigger character', v => typeof v === 'string', v => v), new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
+		new ApiCommandResult<ISingleEditOperation[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+	),
+	// -- go to symbol (definition, type definition, declaration, impl, references)
+	new ApiCommand(
+		'vscode.executeDefinitionProvider', '_executeDefinitionProvider', 'Execute all definition provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+	),
+	new ApiCommand(
+		'vscode.executeTypeDefinitionProvider', '_executeTypeDefinitionProvider', 'Execute all type definition providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+	),
+	new ApiCommand(
+		'vscode.executeDeclarationProvider', '_executeDeclarationProvider', 'Execute all declaration providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+	),
+	new ApiCommand(
+		'vscode.executeImplementationProvider', '_executeImplementationProvider', 'Execute all implementation providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+	),
+	new ApiCommand(
+		'vscode.executeReferenceProvider', '_executeReferenceProvider', 'Execute all reference providers.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+	),
+	// -- hover
+	new ApiCommand(
+		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<modes.Hover[], types.Hover[] | undefined>('A promise that resolves to an array of Hover-instances.', tryMapWith(typeConverters.Hover.to))
+	),
+	// -- selection range
+	new ApiCommand(
+		'vscode.executeSelectionRangeProvider', '_executeSelectionRangeProvider', 'Execute selection range provider.',
+		[ApiCommandArgument.Uri, new ApiCommandArgument('position', 'A positions in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
+		new ApiCommandResult<IRange[][], types.SelectionRange[]>('A promise that resolves to an array of ranges.', result => {
+			return result.map(ranges => {
+				let node: types.SelectionRange | undefined;
+				for (const range of ranges.reverse()) {
+					node = new types.SelectionRange(typeConverters.Range.to(range), node);
+				}
+				return node!;
+			});
+		})
+	),
+	// -- symbol search
+	new ApiCommand(
+		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol provider.',
+		[new ApiCommandArgument('query', 'Search string', v => typeof v === 'string', v => v)],
+		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
+			const result: types.SymbolInformation[] = [];
+			if (Array.isArray(value)) {
+				for (let tuple of value) {
+					result.push(...tuple[1].map(typeConverters.WorkspaceSymbol.to));
+				}
+			}
+			return result;
+		})
+	),
+	// --- call hierarchy
+	new ApiCommand(
+		'vscode.prepareCallHierarchy', '_executePrepareCallHierarchy', 'Prepare call hierarchy at a position inside a document',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<ICallHierarchyItemDto[], types.CallHierarchyItem[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyItem.to))
+	),
+	new ApiCommand(
+		'vscode.provideIncomingCalls', '_executeProvideIncomingCalls', 'Compute incoming calls for an item',
+		[ApiCommandArgument.CallHierarchyItem],
+		new ApiCommandResult<IIncomingCallDto[], types.CallHierarchyIncomingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyIncomingCall.to))
+	),
+	new ApiCommand(
+		'vscode.provideOutgoingCalls', '_executeProvideOutgoingCalls', 'Compute outgoing calls for an item',
+		[ApiCommandArgument.CallHierarchyItem],
+		new ApiCommandResult<IOutgoingCallDto[], types.CallHierarchyOutgoingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyOutgoingCall.to))
+	),
+];
+
+
+//#endregion
+
+
+//#region OLD world
 
 export class ExtHostApiCommands {
 
 	static register(commands: ExtHostCommands) {
+		newCommands.forEach(command => command.register(commands));
 		return new ExtHostApiCommands(commands).registerCommands();
 	}
 
@@ -34,68 +239,6 @@ export class ExtHostApiCommands {
 	}
 
 	registerCommands() {
-		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
-			description: 'Execute all workspace symbol provider.',
-			args: [{ name: 'query', description: 'Search string', constraint: String }],
-			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
-
-		});
-		this._register('vscode.executeDefinitionProvider', this._executeDefinitionProvider, {
-			description: 'Execute all definition provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
-			],
-			returns: 'A promise that resolves to an array of Location-instances.'
-		});
-		this._register('vscode.executeDeclarationProvider', this._executeDeclaraionProvider, {
-			description: 'Execute all declaration provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
-			],
-			returns: 'A promise that resolves to an array of Location-instances.'
-		});
-		this._register('vscode.executeTypeDefinitionProvider', this._executeTypeDefinitionProvider, {
-			description: 'Execute all type definition providers.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
-			],
-			returns: 'A promise that resolves to an array of Location-instances.'
-		});
-		this._register('vscode.executeImplementationProvider', this._executeImplementationProvider, {
-			description: 'Execute all implementation providers.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
-			],
-			returns: 'A promise that resolves to an array of Location-instance.'
-		});
-		this._register('vscode.executeHoverProvider', this._executeHoverProvider, {
-			description: 'Execute all hover provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
-			],
-			returns: 'A promise that resolves to an array of Hover-instances.'
-		});
-		this._register('vscode.executeDocumentHighlights', this._executeDocumentHighlights, {
-			description: 'Execute document highlight provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
-			],
-			returns: 'A promise that resolves to an array of DocumentHighlight-instances.'
-		});
-		this._register('vscode.executeReferenceProvider', this._executeReferenceProvider, {
-			description: 'Execute reference provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
-			],
-			returns: 'A promise that resolves to an array of Location-instances.'
-		});
 		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider, {
 			description: 'Execute rename provider.',
 			args: [
@@ -113,13 +256,6 @@ export class ExtHostApiCommands {
 				{ name: 'triggerCharacter', description: '(optional) Trigger signature help when the user types the character, like `,` or `(`', constraint: (value: any) => value === undefined || typeof value === 'string' }
 			],
 			returns: 'A promise that resolves to SignatureHelp.'
-		});
-		this._register('vscode.executeDocumentSymbolProvider', this._executeDocumentSymbolProvider, {
-			description: 'Execute document symbol provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
-			],
-			returns: 'A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.'
 		});
 		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider, {
 			description: 'Execute completion item provider.',
@@ -148,33 +284,7 @@ export class ExtHostApiCommands {
 			],
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
-		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider, {
-			description: 'Execute document format provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'options', description: 'Formatting options' }
-			],
-			returns: 'A promise that resolves to an array of TextEdits.'
-		});
-		this._register('vscode.executeFormatRangeProvider', this._executeFormatRangeProvider, {
-			description: 'Execute range format provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'range', description: 'Range in a text document', constraint: types.Range },
-				{ name: 'options', description: 'Formatting options' }
-			],
-			returns: 'A promise that resolves to an array of TextEdits.'
-		});
-		this._register('vscode.executeFormatOnTypeProvider', this._executeFormatOnTypeProvider, {
-			description: 'Execute document format provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'ch', description: 'Character that got typed', constraint: String },
-				{ name: 'options', description: 'Formatting options' }
-			],
-			returns: 'A promise that resolves to an array of TextEdits.'
-		});
+
 		this._register('vscode.executeLinkProvider', this._executeDocumentLinkProvider, {
 			description: 'Execute document link provider.',
 			args: [
@@ -196,14 +306,6 @@ export class ExtHostApiCommands {
 				{ name: 'context', description: 'Context object with uri and range' }
 			],
 			returns: 'A promise that resolves to an array of ColorPresentation objects.'
-		});
-		this._register('vscode.executeSelectionRangeProvider', this._executeSelectionRangeProvider, {
-			description: 'Execute selection range provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'positions', description: 'Positions in a text document', constraint: Array.isArray }
-			],
-			returns: 'A promise that resolves to an array of ranges.'
 		});
 
 		// -----------------------------------------------------------------
@@ -275,87 +377,6 @@ export class ExtHostApiCommands {
 		this._disposables.add(disposable);
 	}
 
-	/**
-	 * Execute workspace symbol provider.
-	 *
-	 * @param query Search string to match query symbol names
-	 * @return A promise that resolves to an array of symbol information.
-	 */
-	private _executeWorkspaceSymbolProvider(query: string): Promise<types.SymbolInformation[]> {
-		return this._commands.executeCommand<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
-			const result: types.SymbolInformation[] = [];
-			if (Array.isArray(value)) {
-				for (let tuple of value) {
-					result.push(...tuple[1].map(typeConverters.WorkspaceSymbol.to));
-				}
-			}
-			return result;
-		});
-	}
-
-	private _executeDefinitionProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position)
-		};
-		return this._commands.executeCommand<modes.Location[]>('_executeDefinitionProvider', args)
-			.then(tryMapWith(typeConverters.location.to));
-	}
-
-	private _executeDeclaraionProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position)
-		};
-		return this._commands.executeCommand<modes.Location[]>('_executeDeclarationProvider', args)
-			.then(tryMapWith(typeConverters.location.to));
-	}
-
-	private _executeTypeDefinitionProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position)
-		};
-		return this._commands.executeCommand<modes.Location[]>('_executeTypeDefinitionProvider', args)
-			.then(tryMapWith(typeConverters.location.to));
-	}
-
-	private _executeImplementationProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position)
-		};
-		return this._commands.executeCommand<modes.Location[]>('_executeImplementationProvider', args)
-			.then(tryMapWith(typeConverters.location.to));
-	}
-
-	private _executeHoverProvider(resource: URI, position: types.Position): Promise<types.Hover[] | undefined> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position)
-		};
-		return this._commands.executeCommand<modes.Hover[]>('_executeHoverProvider', args)
-			.then(tryMapWith(typeConverters.Hover.to));
-	}
-
-	private _executeDocumentHighlights(resource: URI, position: types.Position): Promise<types.DocumentHighlight[] | undefined> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position)
-		};
-		return this._commands.executeCommand<modes.DocumentHighlight[]>('_executeDocumentHighlights', args)
-			.then(tryMapWith(typeConverters.DocumentHighlight.to));
-	}
-
-	private _executeReferenceProvider(resource: URI, position: types.Position): Promise<types.Location[] | undefined> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position)
-		};
-		return this._commands.executeCommand<modes.Location[]>('_executeReferenceProvider', args)
-			.then(tryMapWith(typeConverters.location.to));
-	}
-
 	private _executeDocumentRenameProvider(resource: URI, position: types.Position, newName: string): Promise<types.WorkspaceEdit> {
 		const args = {
 			resource,
@@ -396,7 +417,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.CompletionList>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {
-				const items = result.suggestions.map(suggestion => typeConverters.CompletionItem.to(suggestion));
+				const items = result.suggestions.map(suggestion => typeConverters.CompletionItem.to(suggestion, this._commands.converter));
 				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;
@@ -415,25 +436,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeSelectionRangeProvider(resource: URI, positions: types.Position[]): Promise<vscode.SelectionRange[]> {
-		const pos = positions.map(typeConverters.Position.from);
-		const args = {
-			resource,
-			position: pos[0],
-			positions: pos
-		};
-		return this._commands.executeCommand<IRange[][]>('_executeSelectionRangeProvider', args).then(result => {
-			return result.map(ranges => {
-				let node: types.SelectionRange | undefined;
-				for (const range of ranges.reverse()) {
-					node = new types.SelectionRange(typeConverters.Range.to(range), node);
-				}
-				return node!;
-			});
-		});
-	}
-
-	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range }): Promise<types.ColorPresentation[]> {
+	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range; }): Promise<types.ColorPresentation[]> {
 		const args = {
 			resource: context.uri,
 			color: typeConverters.Color.from(color),
@@ -447,38 +450,6 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDocumentSymbolProvider(resource: URI): Promise<vscode.SymbolInformation[] | undefined> {
-		const args = {
-			resource
-		};
-		return this._commands.executeCommand<modes.DocumentSymbol[]>('_executeDocumentSymbolProvider', args).then((value): vscode.SymbolInformation[] | undefined => {
-			if (isFalsyOrEmpty(value)) {
-				return undefined;
-			}
-			class MergedInfo extends types.SymbolInformation implements vscode.DocumentSymbol {
-				static to(symbol: modes.DocumentSymbol): MergedInfo {
-					const res = new MergedInfo(
-						symbol.name,
-						typeConverters.SymbolKind.to(symbol.kind),
-						symbol.containerName || '',
-						new types.Location(resource, typeConverters.Range.to(symbol.range))
-					);
-					res.detail = symbol.detail;
-					res.range = res.location.range;
-					res.selectionRange = typeConverters.Range.to(symbol.selectionRange);
-					res.children = symbol.children ? symbol.children.map(MergedInfo.to) : [];
-					return res;
-				}
-
-				detail!: string;
-				range!: vscode.Range;
-				selectionRange!: vscode.Range;
-				children!: vscode.DocumentSymbol[];
-				containerName!: string;
-			}
-			return value.map(MergedInfo.to);
-		});
-	}
 
 	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
 		const args = {
@@ -521,36 +492,6 @@ export class ExtHostApiCommands {
 					item.command ? this._commands.converter.fromInternal(item.command) : undefined);
 			}));
 
-	}
-
-	private _executeFormatDocumentProvider(resource: URI, options: vscode.FormattingOptions): Promise<vscode.TextEdit[] | undefined> {
-		const args = {
-			resource,
-			options
-		};
-		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatDocumentProvider', args)
-			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
-	}
-
-	private _executeFormatRangeProvider(resource: URI, range: types.Range, options: vscode.FormattingOptions): Promise<vscode.TextEdit[] | undefined> {
-		const args = {
-			resource,
-			range: typeConverters.Range.from(range),
-			options
-		};
-		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatRangeProvider', args)
-			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
-	}
-
-	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Promise<vscode.TextEdit[] | undefined> {
-		const args = {
-			resource,
-			position: typeConverters.Position.from(position),
-			ch,
-			options
-		};
-		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatOnTypeProvider', args)
-			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
 	private _executeDocumentLinkProvider(resource: URI): Promise<vscode.DocumentLink[] | undefined> {

@@ -48,6 +48,10 @@ export class RemoteExtensionManagementChannelClient extends ExtensionManagementC
 	}
 
 	private async doInstallFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+		if (this.configurationService.getValue<boolean>('remote.downloadExtensionsLocally')) {
+			this.logService.trace(`Download '${extension.identifier.id}' extension locally and install`);
+			return this.downloadCompatibleAndInstall(extension);
+		}
 		try {
 			const local = await super.installFromGallery(extension);
 			return local;

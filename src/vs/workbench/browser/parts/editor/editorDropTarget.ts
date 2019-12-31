@@ -4,19 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass, removeClass } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorIdentifier, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { GroupDirection, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { find } from 'vs/base/common/arrays';
+import { DataTransfers } from 'vs/base/browser/dnd';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { URI } from 'vs/base/common/uri';
+import { joinPath } from 'vs/base/common/resources';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -40,8 +46,10 @@ class DropOverlay extends Themable {
 	constructor(
 		private accessor: IEditorGroupsAccessor,
 		private groupView: IEditorGroupView,
-		themeService: IThemeService,
-		private instantiationService: IInstantiationService
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IUntitledTextEditorService private untitledTextEditorService: IUntitledTextEditorService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService
 	) {
 		super(themeService);
 
@@ -273,6 +281,45 @@ class DropOverlay extends Themable {
 				}
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+			}
+		}
+
+		// Web: check for file transfer
+		else if (isWeb && containsDragType(event, DataTransfers.FILES)) {
+			let targetGroup: IEditorGroupView | undefined = undefined;
+
+			const files = event.dataTransfer?.files;
+			if (files) {
+				for (let i = 0; i < files.length; i++) {
+					const file = files.item(i);
+					if (file) {
+						const reader = new FileReader();
+						reader.readAsArrayBuffer(file);
+						reader.onload = async event => {
+							const name = file.name;
+							if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
+
+								// Try to come up with a good file path for the untitled
+								// editor by asking the file dialog service for the default
+								let proposedFilePath: URI | undefined = undefined;
+								const defaultFilePath = this.fileDialogService.defaultFilePath();
+								if (defaultFilePath) {
+									proposedFilePath = joinPath(defaultFilePath, name);
+								}
+
+								// Open as untitled file with the provided contents
+								const contents = VSBuffer.wrap(new Uint8Array(event.target.result)).toString();
+								const untitledEditor = this.untitledTextEditorService.createOrGet(proposedFilePath, undefined, contents);
+
+								if (!targetGroup) {
+									targetGroup = ensureTargetGroup();
+								}
+
+								await targetGroup.openEditor(untitledEditor);
+							}
+						};
+					}
+				}
 			}
 		}
 
@@ -527,7 +574,7 @@ export class EditorDropTarget extends Themable {
 			if (!this.overlay) {
 				const targetGroupView = this.findTargetGroupView(target);
 				if (targetGroupView) {
-					this._overlay = new DropOverlay(this.accessor, targetGroupView, this.themeService, this.instantiationService);
+					this._overlay = this.instantiationService.createInstance(DropOverlay, this.accessor, targetGroupView);
 				}
 			}
 		}

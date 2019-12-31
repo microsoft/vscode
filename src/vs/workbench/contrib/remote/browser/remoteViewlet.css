@@ -18,6 +18,7 @@
 	background-position: left center;
 	background-repeat: no-repeat;
 	padding-right: 6px;
+	padding-top: 3px;
 	width: 16px;
 	height: 22px;
 	-webkit-font-smoothing: antialiased;
@@ -28,62 +29,33 @@
 	width: 0px !important;
 }
 
-.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.getStarted {
-	background-image: url('help-getting-started-light.svg')
+.remote-help-tree-node-item-icon .monaco-icon-label-description-container {
+	padding-left: 22px;
 }
 
-.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.documentation {
-	background-image: url('help-documentation-light.svg')
+.remote-help-content .monaco-list .monaco-list-row .monaco-tl-twistie {
+	width: 0px !important;
 }
 
-.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.feedback {
-	background-image: url('help-feedback-light.svg')
+.monaco-workbench .part > .title > .title-actions .switch-remote {
+	display: flex;
+	align-items: center;
+	font-size: 11px;
+	margin-right: 0.3em;
+	height: 20px;
+	flex-shrink: 1;
+	margin-top: 7px;
 }
 
-.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issues {
-	background-image: url('help-review-issues-light.svg')
+.monaco-workbench.mac .part > .title > .title-actions .switch-remote {
+	border-radius: 4px;
 }
 
-.vs .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issueReporter {
-	background-image: url('help-report-issue-light.svg')
+.switch-remote > .monaco-select-box {
+	border: none;
+	display: block;
 }
 
-.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.getStarted {
-	background-image: url('help-getting-started-dark.svg')
-}
-
-.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.documentation {
-	background-image: url('help-documentation-dark.svg')
-}
-
-.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.feedback {
-	background-image: url('help-feedback-dark.svg')
-}
-
-.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issues {
-	background-image: url('help-review-issues-dark.svg')
-}
-
-.vs-dark .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issueReporter {
-	background-image: url('help-report-issue-dark.svg')
-}
-
-.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.getStarted {
-	background-image: url('help-getting-started-hc.svg')
-}
-
-.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.documentation {
-	background-image: url('help-documentation-hc.svg')
-}
-
-.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.feedback {
-	background-image: url('help-feedback-hc.svg')
-}
-
-.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issues {
-	background-image: url('help-review-issues-hc.svg')
-}
-
-.hc-black .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon.issueReporter {
-	background-image: url('help-report-issue-hc.svg')
+.monaco-workbench .part > .title > .title-actions .switch-remote > .monaco-select-box {
+	padding: 0 22px 0 6px;
 }

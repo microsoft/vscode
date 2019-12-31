@@ -40,7 +40,7 @@ import * as modes from 'vs/editor/common/modes';
 import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/view/editorColorRegistry';
 import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -52,8 +52,6 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 let EDITOR_ID = 0;
-
-const SHOW_UNUSED_ENABLED_CLASS = 'showUnused';
 
 export interface ICodeEditorWidgetOptions {
 	/**
@@ -263,11 +261,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				const layoutInfo = options.get(EditorOption.layoutInfo);
 				this._onDidLayoutChange.fire(layoutInfo);
 			}
-			if (options.get(EditorOption.showUnused)) {
-				this._domElement.classList.add(SHOW_UNUSED_ENABLED_CLASS);
-			} else {
-				this._domElement.classList.remove(SHOW_UNUSED_ENABLED_CLASS);
-			}
 		}));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
@@ -417,9 +410,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			// Current model is the new model
 			return;
 		}
-
+		const hasTextFocus = this.hasTextFocus();
 		const detachedModel = this._detachModel();
 		this._attachModel(model);
+		if (hasTextFocus && this.hasModel()) {
+			this.focus();
+		}
 
 		const e: editorCommon.IModelChangedEvent = {
 			oldModelUrl: detachedModel ? detachedModel.uri : null,
@@ -869,9 +865,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public onVisible(): void {
+		this._modelData?.view.refreshFocusState();
 	}
 
 	public onHide(): void {
+		this._modelData?.view.refreshFocusState();
+		this._focusTracker.refreshState();
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {
@@ -1804,6 +1803,12 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	public hasFocus(): boolean {
 		return this._hasFocus;
 	}
+
+	public refreshState(): void {
+		if (this._domFocusTracker.refreshState) {
+			this._domFocusTracker.refreshState();
+		}
+	}
 }
 
 const squigglyStart = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3' enable-background='new 0 0 6 3' height='3' width='6'><g fill='`);
@@ -1859,12 +1864,12 @@ registerThemingParticipant((theme, collector) => {
 
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
+		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
 	}
 
 	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);
 	if (unnecessaryBorder) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
+		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
 	}
 
 	const deprecatedForeground = theme.getColor(editorForeground) || 'inherit';

@@ -8,7 +8,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isArray, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
@@ -155,23 +155,23 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	update(inspectResult: IInspectResult): void {
 		const { isConfigured, inspected, targetSelector } = inspectResult;
 
-		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
+		const displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
 		const overriddenScopeList: string[] = [];
-		if (targetSelector !== 'workspace' && typeof inspected.workspace !== 'undefined') {
+		if (targetSelector !== 'workspaceValue' && typeof inspected.workspaceValue !== 'undefined') {
 			overriddenScopeList.push(localize('workspace', "Workspace"));
 		}
 
-		if (targetSelector !== 'userRemote' && typeof inspected.userRemote !== 'undefined') {
+		if (targetSelector !== 'userRemoteValue' && typeof inspected.userRemoteValue !== 'undefined') {
 			overriddenScopeList.push(localize('remote', "Remote"));
 		}
 
-		if (targetSelector !== 'userLocal' && typeof inspected.userLocal !== 'undefined') {
+		if (targetSelector !== 'userLocalValue' && typeof inspected.userLocalValue !== 'undefined') {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
 		this.value = displayValue;
 		this.scopeValue = isConfigured && inspected[targetSelector];
-		this.defaultValue = inspected.default;
+		this.defaultValue = inspected.defaultValue;
 
 		this.isConfigured = isConfigured;
 		if (isConfigured || this.setting.tags || this.tags) {
@@ -374,26 +374,17 @@ export class SettingsTreeModel {
 
 interface IInspectResult {
 	isConfigured: boolean;
-	inspected: {
-		default: any,
-		user: any,
-		userLocal?: any,
-		userRemote?: any,
-		workspace?: any,
-		workspaceFolder?: any,
-		memory?: any,
-		value: any,
-	};
-	targetSelector: 'userLocal' | 'userRemote' | 'workspace' | 'workspaceFolder';
+	inspected: IConfigurationValue<any>;
+	targetSelector: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
 }
 
 function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): IInspectResult {
 	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
 	const inspected = configurationService.inspect(key, inspectOverrides);
-	const targetSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocal' :
-		target === ConfigurationTarget.USER_REMOTE ? 'userRemote' :
-			target === ConfigurationTarget.WORKSPACE ? 'workspace' :
-				'workspaceFolder';
+	const targetSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocalValue' :
+		target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :
+			target === ConfigurationTarget.WORKSPACE ? 'workspaceValue' :
+				'workspaceFolderValue';
 	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
 
 	return { isConfigured, inspected, targetSelector };

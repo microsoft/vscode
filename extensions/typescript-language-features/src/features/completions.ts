@@ -150,17 +150,18 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.keyword:
 				return vscode.CompletionItemKind.Keyword;
 			case PConst.Kind.const:
-				return vscode.CompletionItemKind.Constant;
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
 			case PConst.Kind.localVariable:
 			case PConst.Kind.alias:
+			case PConst.Kind.parameter:
 				return vscode.CompletionItemKind.Variable;
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 				return vscode.CompletionItemKind.Field;
 			case PConst.Kind.function:
+			case PConst.Kind.localFunction:
 				return vscode.CompletionItemKind.Function;
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.constructSignature:
@@ -169,6 +170,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 				return vscode.CompletionItemKind.Method;
 			case PConst.Kind.enum:
 				return vscode.CompletionItemKind.Enum;
+			case PConst.Kind.enumMember:
+				return vscode.CompletionItemKind.EnumMember;
 			case PConst.Kind.module:
 			case PConst.Kind.externalModuleName:
 				return vscode.CompletionItemKind.Module;
@@ -328,7 +331,7 @@ namespace CompletionConfiguration {
 
 class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public static readonly triggerCharacters = ['.', '"', '\'', '/', '@', '<'];
+	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<'];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,

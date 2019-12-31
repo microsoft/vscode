@@ -36,10 +36,10 @@
 		"c": "_UCRT",
 		"t": "source.cpp meta.preprocessor.conditional.cpp entity.name.function.preprocessor.cpp",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
+			"dark_plus": "entity.name.function.preprocessor: #569CD6",
+			"light_plus": "entity.name.function.preprocessor: #0000FF",
+			"dark_vs": "entity.name.function.preprocessor: #569CD6",
+			"light_vs": "entity.name.function.preprocessor: #0000FF",
 			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
@@ -80,10 +80,10 @@
 		"c": "_UCRT",
 		"t": "source.cpp meta.preprocessor.macro.cpp entity.name.function.preprocessor.cpp",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
+			"dark_plus": "entity.name.function.preprocessor: #569CD6",
+			"light_plus": "entity.name.function.preprocessor: #0000FF",
+			"dark_vs": "entity.name.function.preprocessor: #569CD6",
+			"light_vs": "entity.name.function.preprocessor: #0000FF",
 			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
