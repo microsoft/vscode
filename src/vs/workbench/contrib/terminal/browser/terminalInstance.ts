@@ -39,6 +39,7 @@ import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addon
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -286,7 +287,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 
@@ -666,7 +668,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._refreshSelectionContextKey();
 			}));
 
-			const widgetManager = new TerminalWidgetManager(this._wrapperElement);
+			const widgetManager = new TerminalWidgetManager(this._wrapperElement, this._openerService);
 			this._widgetManager = widgetManager;
 			this._processManager.onProcessReady(() => this._linkHandler?.setWidgetManager(widgetManager));
 
