@@ -100,7 +100,7 @@ if (typeof global === 'object') {
 if (typeof define === 'function') {
 	// amd
 	define([], function () { return _factory(sharedObj); });
-} else if (typeof module === "object" && typeof module.exports === "object") {
+} else if (typeof module === 'object' && typeof module.exports === 'object') {
 	// commonjs
 	module.exports = _factory(sharedObj);
 } else {
