@@ -191,7 +191,11 @@ gulp.task('eslint', () => {
 			rulePaths: ['./build/lib/eslint']
 		}))
 		.pipe(gulpeslint.formatEach('compact'))
-		.pipe(gulpeslint.failAfterError());
+		.pipe(gulpeslint.results(results => {
+			if (results.warningCount > 0 || results.errorCount > 0) {
+				throw new Error('eslint failed with warnings and/or errors');
+			}
+		}));
 });
 
 gulp.task('tslint', () => {
@@ -307,7 +311,7 @@ function hygiene(some) {
 			let formatted = result.dest.replace(/\r\n/gm, '\n');
 
 			if (original !== formatted) {
-				console.error("File not formatted. Run the 'Format Document' command to fix it:", file.relative);
+				console.error('File not formatted. Run the \'Format Document\' command to fix it:', file.relative);
 				errorCount++;
 			}
 			cb(null, file);
@@ -367,7 +371,10 @@ function hygiene(some) {
 			rulePaths: ['./build/lib/eslint']
 		}))
 		.pipe(gulpeslint.formatEach('compact'))
-		.pipe(gulpeslint.failAfterError());
+		.pipe(gulpeslint.results(results => {
+			errorCount += results.warningCount;
+			errorCount += results.errorCount;
+		}));
 
 	let count = 0;
 	return es.merge(typescript, javascript)
