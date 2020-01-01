@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2015 - present Microsoft Corporation
+Copyright (c) 2020 - present Microsoft Corporation
 
 All rights reserved.
 
