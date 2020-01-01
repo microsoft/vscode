@@ -180,8 +180,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		}
 
 		if (fn && typeof fn !== 'function') {
-			console.warn('Invalid SCM input box validation function');
-			return;
+			throw new Error(`[${this._extension.identifier.value}]: Invalid SCM input box validation function`);
 		}
 
 		this._validateInput = fn;

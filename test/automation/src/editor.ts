@@ -40,7 +40,7 @@ export class Editor {
 
 	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Go to Implementation');
+		await this.commands.runCommand('Go to Implementations');
 	}
 
 	async peekDefinition(filename: string, term: string, line: number): Promise<References> {

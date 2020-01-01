@@ -7,16 +7,18 @@ import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache
 import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString,
-	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind
-} from 'vscode-languageserver-types';
-import { LanguageMode, Settings } from './languageModes';
+	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
+	LanguageMode, Settings
+} from './languageModes';
 import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { join } from 'path';
+import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
+const TS_FILE_NAME = 'vscode://javascript/2.ts';
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
 let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts'); // when packaged
@@ -38,10 +40,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	}
 	const host: ts.LanguageServiceHost = {
 		getCompilationSettings: () => compilerOptions,
-		getScriptFileNames: () => [FILE_NAME, jquery_d_ts],
-		getScriptKind: () => ts.ScriptKind.JS,
+		getScriptFileNames: () => [FILE_NAME, TS_FILE_NAME, jquery_d_ts],
+		getScriptKind: (fileName) => fileName === TS_FILE_NAME ? ts.ScriptKind.TS : ts.ScriptKind.JS,
 		getScriptVersion: (fileName: string) => {
-			if (fileName === FILE_NAME) {
+			if (fileName === FILE_NAME || fileName === TS_FILE_NAME) {
 				return String(scriptFileVersion);
 			}
 			return '1'; // default lib an jquery.d.ts are static
@@ -49,7 +51,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		getScriptSnapshot: (fileName: string) => {
 			let text = '';
 			if (startsWith(fileName, 'vscode:')) {
-				if (fileName === FILE_NAME) {
+				if (fileName === FILE_NAME || fileName === TS_FILE_NAME) {
 					text = currentTextDocument.getText();
 				}
 			} else {
@@ -247,6 +249,15 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return [];
 		},
+		getSelectionRange(document: TextDocument, position: Position): SelectionRange {
+			updateCurrentTextDocument(document);
+			function convertSelectionRange(selectionRange: ts.SelectionRange): SelectionRange {
+				const parent = selectionRange.parent ? convertSelectionRange(selectionRange.parent) : undefined;
+				return SelectionRange.create(convertRange(currentTextDocument, selectionRange.textSpan), parent);
+			}
+			const range = jsLanguageService.getSmartSelectionRange(FILE_NAME, currentTextDocument.offsetAt(position));
+			return convertSelectionRange(range);
+		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings): TextEdit[] {
 			currentTextDocument = documentRegions.get(document).getEmbeddedDocument('javascript', true);
 			scriptFileVersion++;
@@ -305,12 +316,25 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		onDocumentRemoved(document: TextDocument) {
 			jsDocuments.onDocumentRemoved(document);
 		},
+		getSemanticTokens(document: TextDocument, ranges: Range[] | undefined): number[] {
+			updateCurrentTextDocument(document);
+			if (!ranges) {
+				ranges = [Range.create(Position.create(0, 0), document.positionAt(document.getText().length))];
+			}
+			return getSemanticTokens(jsLanguageService, currentTextDocument, TS_FILE_NAME, ranges);
+		},
+		getSemanticTokenLegend(): { types: string[], modifiers: string[] } {
+			return getSemanticTokenLegend();
+		},
 		dispose() {
 			jsLanguageService.dispose();
 			jsDocuments.dispose();
 		}
 	};
 }
+
+
+
 
 function convertRange(document: TextDocument, span: { start: number | undefined, length: number | undefined }): Range {
 	if (typeof span.start === 'undefined') {

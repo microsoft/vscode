@@ -11,7 +11,7 @@ import { Editor } from './editor';
 import { IElement } from '../src/driver';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
-const DEBUG_VIEW = `${VIEWLET} .debug-view-content`;
+const DEBUG_VIEW = `${VIEWLET}`;
 const CONFIGURE = `div[id="workbench.parts.sidebar"] .actions-container .codicon-gear`;
 const STOP = `.debug-toolbar .action-label[title*="Stop"]`;
 const STEP_OVER = `.debug-toolbar .action-label[title*="Step Over"]`;
@@ -19,7 +19,7 @@ const STEP_IN = `.debug-toolbar .action-label[title*="Step Into"]`;
 const STEP_OUT = `.debug-toolbar .action-label[title*="Step Out"]`;
 const CONTINUE = `.debug-toolbar .action-label[title*="Continue"]`;
 const GLYPH_AREA = '.margin-view-overlays>:nth-child';
-const BREAKPOINT_GLYPH = '.debug-breakpoint';
+const BREAKPOINT_GLYPH = '.codicon-debug-breakpoint';
 const PAUSE = `.debug-toolbar .action-label[title*="Pause"]`;
 const DEBUG_STATUS_BAR = `.statusbar.debugging`;
 const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;

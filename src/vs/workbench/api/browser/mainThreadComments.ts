@@ -446,7 +446,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	private registerPanel(commentsPanelAlreadyConstructed: boolean) {
 		if (!commentsPanelAlreadyConstructed) {
-			Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
+			Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
 				CommentsPanel,
 				COMMENTS_PANEL_ID,
 				COMMENTS_PANEL_TITLE,

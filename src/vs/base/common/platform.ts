@@ -10,6 +10,7 @@ let _isMacintosh = false;
 let _isLinux = false;
 let _isNative = false;
 let _isWeb = false;
+let _isIOS = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
@@ -41,6 +42,7 @@ declare const global: any;
 interface INavigator {
 	userAgent: string;
 	language: string;
+	maxTouchPoints?: number;
 }
 declare const navigator: INavigator;
 declare const self: any;
@@ -52,6 +54,7 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_userAgent = navigator.userAgent;
 	_isWindows = _userAgent.indexOf('Windows') >= 0;
 	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
+	_isIOS = _userAgent.indexOf('Macintosh') >= 0 && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 	_locale = navigator.language;
@@ -106,6 +109,7 @@ export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
+export const isIOS = _isIOS;
 export const platform = _platform;
 export const userAgent = _userAgent;
 

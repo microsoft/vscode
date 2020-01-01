@@ -3,22 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .monaco-icon-label.deprecated {
+.monaco-icon-label.deprecated {
 	text-decoration: line-through;
 	opacity: 0.66;
-}
-
-.monaco-workbench .symbol-icon.inline {
-	display: flex;
-	align-items: center;
-	padding-left: 0;
-}
-
-.monaco-workbench .symbol-icon.block {
-	display: inline-block;
-	height: 14px;
-	width: 16px;
-	min-height: 14px;
-	min-width: 16px;
-	background-position: center;
 }

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/suggest';
+import 'vs/base/browser/ui/codiconLabel/codiconLabel'; // The codicon symbol styles are defined here and must be loaded
+import 'vs/editor/contrib/documentSymbols/outlineTree'; // The codicon symbol colors are defined here and must be loaded
 import * as nls from 'vs/nls';
 import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
@@ -1072,6 +1074,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	getId(): string {
 		return SuggestWidget.ID;
+	}
+
+	isFrozen(): boolean {
+		return this.state === State.Frozen;
 	}
 
 	private updateListHeight(): number {

@@ -63,7 +63,7 @@ const PART_WIDTH = 275;
 const FIND_INPUT_AREA_WIDTH = PART_WIDTH - 54;
 
 let MAX_MATCHES_COUNT_WIDTH = 69;
-let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
+// let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
 
 const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
 const ctrlEnterReplaceAllWarningPromptedKey = 'ctrlEnterReplaceAll.windows.donotask';
@@ -706,10 +706,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		if (this._resized) {
 			this._findInput.inputBox.layout();
-			let findInputWidth = this._findInput.inputBox.width;
+			let findInputWidth = this._findInput.inputBox.element.clientWidth;
 			if (findInputWidth > 0) {
 				this._replaceInput.width = findInputWidth;
 			}
+		} else if (this._isReplaceVisible) {
+			this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 		}
 	}
 
@@ -1159,13 +1161,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				return;
 			}
 
-			const inputBoxWidth = width - FIND_ALL_CONTROLS_WIDTH;
 			const maxWidth = parseFloat(dom.getComputedStyle(this._domNode).maxWidth!) || 0;
 			if (width > maxWidth) {
 				return;
 			}
 			this._domNode.style.width = `${width}px`;
-			this._findInput.inputBox.width = inputBoxWidth;
 			if (this._isReplaceVisible) {
 				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 			}
@@ -1197,10 +1197,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				 */
 			}
 
-			const inputBoxWidth = width - FIND_ALL_CONTROLS_WIDTH;
 
 			this._domNode.style.width = `${width}px`;
-			this._findInput.inputBox.width = inputBoxWidth;
 			if (this._isReplaceVisible) {
 				this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 			}
@@ -1343,20 +1341,10 @@ registerThemingParticipant((theme, collector) => {
 		}
 	}
 
-	const inputActiveBorder = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveBorder) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { border: 1px solid ${inputActiveBorder.toString()}; }`);
-	}
-
-	const inputActiveBackground = theme.getColor(inputActiveOptionBackground);
-	if (inputActiveBackground) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { background-color: ${inputActiveBackground.toString()}; }`);
-	}
-
 	// This rule is used to override the outline color for synthetic-focus find input.
 	const focusOutline = theme.getColor(focusBorder);
 	if (focusOutline) {
-		collector.addRule(`.monaco-workbench .monaco-editor .find-widget .monaco-inputbox.synthetic-focus { outline-color: ${focusOutline}; }`);
+		collector.addRule(`.monaco-editor .find-widget .monaco-inputbox.synthetic-focus { outline-color: ${focusOutline}; }`);
 
 	}
 });

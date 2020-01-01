@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getCSSLanguageService } from 'vscode-css-languageservice';
-import { ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange } from 'vscode-html-languageservice';
-import { Color, ColorInformation, ColorPresentation, WorkspaceFolder } from 'vscode-languageserver';
-import { CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions, Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit } from 'vscode-languageserver-types';
+import {
+	ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange,
+	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
+	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit,
+	Color, ColorInformation, ColorPresentation, WorkspaceEdit
+} from 'vscode-html-languageservice';
+import { WorkspaceFolder } from 'vscode-languageserver';
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getCSSMode } from './cssMode';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 import { getHTMLMode } from './htmlMode';
 import { getJavaScriptMode } from './javascriptMode';
 
-export { ColorInformation, ColorPresentation, Color };
+export * from 'vscode-html-languageservice';
+export { WorkspaceFolder } from 'vscode-languageserver';
 
 export interface Settings {
 	css?: any;
@@ -28,12 +33,13 @@ export interface Workspace {
 
 export interface LanguageMode {
 	getId(): string;
-	getSelectionRanges?: (document: TextDocument, positions: Position[]) => SelectionRange[];
+	getSelectionRange?: (document: TextDocument, position: Position) => SelectionRange;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
+	doRename?: (document: TextDocument, position: Position, newName: string) => WorkspaceEdit | null;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];
 	findDocumentSymbols?: (document: TextDocument) => SymbolInformation[];
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
@@ -43,8 +49,11 @@ export interface LanguageMode {
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
+	findMatchingTagPosition?: (document: TextDocument, position: Position) => Position | null;
 	getFoldingRanges?: (document: TextDocument) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
+	getSemanticTokens?(document: TextDocument, ranges: Range[] | undefined): number[];
+	getSemanticTokenLegend?(): { types: string[], modifiers: string[] };
 	dispose(): void;
 }
 

@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 export const enum AuthTokenStatus {
-	Disabled = 'Disabled',
-	Inactive = 'Inactive',
-	Active = 'Active'
+	Initializing = 'Initializing',
+	SignedOut = 'SignedOut',
+	SignedIn = 'SignedIn',
+	SigningIn = 'SigningIn',
+	RefreshingToken = 'RefreshingToken'
 }
 
 export const IAuthTokenService = createDecorator<IAuthTokenService>('IAuthTokenService');
@@ -19,11 +22,10 @@ export interface IAuthTokenService {
 
 	readonly status: AuthTokenStatus;
 	readonly onDidChangeStatus: Event<AuthTokenStatus>;
+	readonly _onDidGetCallback: Emitter<URI>;
 
-	getToken(): Promise<string | null>;
-	updateToken(token: string): Promise<void>;
+	getToken(): Promise<string | undefined>;
 	refreshToken(): Promise<void>;
-	deleteToken(): Promise<void>;
-
+	login(): Promise<void>;
+	logout(): Promise<void>;
 }
-

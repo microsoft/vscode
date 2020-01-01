@@ -277,7 +277,7 @@ export class SearchService implements IRawSearchService {
 		for (const previousSearch in cache.resultsToSearchCache) {
 			// If we narrow down, we might be able to reuse the cached results
 			if (strings.startsWith(searchValue, previousSearch)) {
-				if (hasPathSep && previousSearch.indexOf(sep) < 0) {
+				if (hasPathSep && previousSearch.indexOf(sep) < 0 && previousSearch !== '') {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
@@ -380,10 +380,11 @@ export class SearchService implements IRawSearchService {
 	 */
 	private preventCancellation<C>(promise: CancelablePromise<C>): CancelablePromise<C> {
 		return new class implements CancelablePromise<C> {
+			get [Symbol.toStringTag]() { return this.toString(); }
 			cancel() {
 				// Do nothing
 			}
-			then(resolve: any, reject: any) {
+			then<TResult1 = C, TResult2 = never>(resolve?: ((value: C) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
 				return promise.then(resolve, reject);
 			}
 			catch(reject?: any) {

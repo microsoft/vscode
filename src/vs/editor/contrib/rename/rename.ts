@@ -238,7 +238,7 @@ export class RenameAction extends EditorAction {
 				primary: KeyCode.F2,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menuOpts: {
+			contextMenuOpts: {
 				group: '1_modification',
 				order: 1.1
 			}

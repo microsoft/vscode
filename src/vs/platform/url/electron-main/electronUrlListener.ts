@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/product/common/product';
 import { app, Event as ElectronEvent } from 'electron';
@@ -32,7 +33,8 @@ export class ElectronURLListener {
 	constructor(
 		initial: string | string[],
 		@IURLService private readonly urlService: IURLService,
-		@IWindowsMainService windowsMainService: IWindowsMainService
+		@IWindowsMainService windowsMainService: IWindowsMainService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];
 		const rawBuffer = [
@@ -43,7 +45,9 @@ export class ElectronURLListener {
 		this.uris = coalesce(rawBuffer.map(uriFromRawUrl));
 
 		if (isWindows) {
-			app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url', '--']);
+			const windowsParameters = environmentService.isBuilt ? [] : [`"${environmentService.appRoot}"`];
+			windowsParameters.push('--open-url', '--');
+			app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, windowsParameters);
 		}
 
 		const onOpenElectronUrl = Event.map(

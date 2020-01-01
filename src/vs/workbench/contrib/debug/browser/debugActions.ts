@@ -7,12 +7,13 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -60,7 +61,8 @@ export class ConfigureAction extends AbstractDebugAction {
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(id, label, 'debug-action codicon codicon-gear', debugService, keybindingService);
 		this._register(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
@@ -77,8 +79,7 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	private updateClass(): void {
 		const configurationManager = this.debugService.getConfigurationManager();
-		const configurationCount = configurationManager.getLaunches().map(l => l.getConfigurationNames().length).reduce((sum, current) => sum + current);
-		this.class = configurationCount > 0 ? 'debug-action codicon codicon-gear' : 'debug-action codicon codicon-gear notification';
+		this.class = configurationManager.selectedConfiguration.name ? 'debug-action codicon codicon-gear' : 'debug-action codicon codicon-gear notification';
 	}
 
 	async run(event?: any): Promise<any> {
@@ -87,10 +88,26 @@ export class ConfigureAction extends AbstractDebugAction {
 			return;
 		}
 
-		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		const configurationManager = this.debugService.getConfigurationManager();
-		if (configurationManager.selectedConfiguration.launch) {
-			return configurationManager.selectedConfiguration.launch.openConfigFile(sideBySide, false);
+		let launch: ILaunch | undefined;
+		if (configurationManager.selectedConfiguration.name) {
+			launch = configurationManager.selectedConfiguration.launch;
+		} else {
+			const launches = configurationManager.getLaunches().filter(l => !!l.workspace);
+			if (launches.length === 1) {
+				launch = launches[0];
+			} else {
+				const picks = launches.map(l => ({ label: l.name, launch: l }));
+				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, { activeItem: picks[0], placeHolder: nls.localize('selectWorkspaceFolder', "Select a workspace folder to create a launch.json file in") });
+				if (picked) {
+					launch = picked.launch;
+				}
+			}
+		}
+
+		if (launch) {
+			const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
+			return launch.openConfigFile(sideBySide, false);
 		}
 	}
 }
@@ -127,7 +144,7 @@ export class StartAction extends AbstractDebugAction {
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if ((sessions.length > 0) && debugService.getConfigurationManager().getLaunches().every(l => l.getConfigurationNames().length === 0)) {
+		if ((sessions.length > 0) && !debugService.getConfigurationManager().selectedConfiguration.name) {
 			// There is already a debug session running and we do not have any launch configuration selected
 			return false;
 		}
@@ -143,7 +160,7 @@ export class StartAction extends AbstractDebugAction {
 
 export class RunAction extends StartAction {
 	static readonly ID = 'workbench.action.debug.run';
-	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
+	static LABEL = nls.localize('startWithoutDebugging', "Run (Start Without Debugging)");
 
 	protected isNoDebug(): boolean {
 		return true;

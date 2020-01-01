@@ -6,7 +6,7 @@
 import * as strings from 'vs/base/common/strings';
 import * as streams from 'vs/base/common/stream';
 
-declare var Buffer: any;
+declare const Buffer: any;
 
 const hasBuffer = (typeof Buffer !== 'undefined');
 const hasTextEncoder = (typeof TextEncoder !== 'undefined');
@@ -164,8 +164,8 @@ export function bufferToStream(buffer: VSBuffer): streams.ReadableStream<VSBuffe
 	return streams.toStream<VSBuffer>(buffer, chunks => VSBuffer.concat(chunks));
 }
 
-export function streamToBufferReadableStream(stream: streams.ReadableStream<Uint8Array | string>): streams.ReadableStream<VSBuffer> {
-	return streams.transform<Uint8Array | string, VSBuffer>(stream, data => typeof data === 'string' ? VSBuffer.fromString(data) : VSBuffer.wrap(data), chunks => VSBuffer.concat(chunks));
+export function streamToBufferReadableStream(stream: streams.ReadableStreamEvents<Uint8Array | string>): streams.ReadableStream<VSBuffer> {
+	return streams.transform<Uint8Array | string, VSBuffer>(stream, { data: data => typeof data === 'string' ? VSBuffer.fromString(data) : VSBuffer.wrap(data) }, chunks => VSBuffer.concat(chunks));
 }
 
 export function newWriteableBufferStream(): streams.WriteableStream<VSBuffer> {

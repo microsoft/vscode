@@ -1753,7 +1753,7 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		kbExpr: null,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
 	},
-	menubarOpts: {
+	menuOpts: {
 		menuId: MenuId.MenubarSelectionMenu,
 		group: '1_basic',
 		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
@@ -1771,7 +1771,7 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
 	},
-	menubarOpts: {
+	menuOpts: {
 		menuId: MenuId.MenubarEditMenu,
 		group: '1_do',
 		title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
@@ -1792,7 +1792,7 @@ registerCommand(new EditorOrNativeTextInputCommand({
 		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
 	},
-	menubarOpts: {
+	menuOpts: {
 		menuId: MenuId.MenubarEditMenu,
 		group: '1_do',
 		title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),

@@ -80,9 +80,9 @@ import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 // Logs
 import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
 
-// Stats
-import 'vs/workbench/contrib/stats/electron-browser/workspaceStatsService';
-import 'vs/workbench/contrib/stats/electron-browser/stats.contribution';
+// Tags
+import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';
+import 'vs/workbench/contrib/tags/electron-browser/tags.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';

@@ -15,7 +15,7 @@
 }
 
 .scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-panel-view {
+.scm-viewlet.empty .monaco-pane-view {
 	display: none;
 }
 
@@ -42,15 +42,19 @@
 	text-overflow: ellipsis;
 	display: flex;
 	align-items: center;
+	min-width: 14px;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
+	min-width: 14px; /* minimum size of icons */
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label .codicon {
 	font-size: 14px;
+	vertical-align: sub;
+	display: inline-flex;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item:last-of-type {
@@ -134,6 +138,7 @@
 .scm-viewlet .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
+	max-width: fit-content;
 }
 
 .scm-viewlet .monaco-list .monaco-list-row:hover .resource-group > .actions,

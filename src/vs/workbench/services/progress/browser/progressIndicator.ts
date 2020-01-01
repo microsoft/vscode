@@ -117,9 +117,9 @@ namespace ProgressIndicatorState {
 		Work
 	}
 
-	export const None = new class { readonly type = Type.None; };
-	export const Done = new class { readonly type = Type.Done; };
-	export const Infinite = new class { readonly type = Type.Infinite; };
+	export const None = { type: Type.None } as const;
+	export const Done = { type: Type.Done } as const;
+	export const Infinite = { type: Type.Infinite } as const;
 
 	export class While {
 		readonly type = Type.While;

@@ -23,6 +23,7 @@ const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
 class StandaloneTheme implements IStandaloneTheme {
+
 	public readonly id: string;
 	public readonly themeName: string;
 
@@ -127,6 +128,14 @@ class StandaloneTheme implements IStandaloneTheme {
 			this._tokenTheme = TokenTheme.createFromRawTokenTheme(rules, encodedTokensColors);
 		}
 		return this._tokenTheme;
+	}
+
+	public getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
+		return undefined;
+	}
+
+	public get tokenColorMap(): string[] {
+		return [];
 	}
 }
 

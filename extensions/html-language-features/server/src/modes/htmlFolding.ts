@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, CancellationToken, Position, Range } from 'vscode-languageserver';
-import { FoldingRange } from 'vscode-languageserver-types';
-import { LanguageModes, LanguageMode } from './languageModes';
+import { TextDocument, FoldingRange, Position, Range, LanguageModes, LanguageMode } from './languageModes';
+import { CancellationToken } from 'vscode-languageserver';
 
 export function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, _cancellationToken: CancellationToken | null): FoldingRange[] {
 	let htmlMode = languageModes.getMode('html');

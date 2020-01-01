@@ -38,6 +38,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { RemoteConnectionState, Deprecated_RemoteAuthorityContext, RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 const WINDOW_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
 const CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
@@ -95,7 +96,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 			});
 
 			// Pending entry until extensions are ready
-			this.renderWindowIndicator(nls.localize('host.open', "$(sync~spin) Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
+			this.renderWindowIndicator('$(sync~spin) ' + nls.localize('host.open', "Opening Remote..."), undefined, WINDOW_ACTIONS_COMMAND_ID);
 			this.connectionState = 'initializing';
 			RemoteConnectionState.bindTo(this.contextKeyService).set(this.connectionState);
 
@@ -365,7 +366,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveI
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteTelemetryEnablementUpdater, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteEmptyWorkbenchPresentation, LifecyclePhase.Starting);
 
-const extensionKindSchema = {
+const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',
@@ -389,12 +390,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
 						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
-						default: 'ui',
+						default: ['ui'],
 					},
 				},
 				default: {
-					'pub.name': 'ui'
+					'pub.name': ['ui']
 				}
+			},
+			'remote.downloadExtensionsLocally': {
+				type: 'boolean',
+				markdownDescription: nls.localize('remote.downloadExtensionsLocally', "When enabled extensions are downloaded locally and installed on remote."),
+				default: false
+			},
+			'remote.restoreForwardedPorts': {
+				type: 'boolean',
+				markdownDescription: nls.localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
+				default: false
 			}
 		}
 	});

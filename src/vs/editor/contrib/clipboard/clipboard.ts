@@ -77,11 +77,11 @@ class ExecCommandCutAction extends ExecCommandAction {
 			alias: 'Cut',
 			precondition: EditorContextKeys.writable,
 			kbOpts: kbOpts,
-			menuOpts: {
+			contextMenuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 1
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '2_ccp',
 				title: nls.localize({ key: 'miCut', comment: ['&& denotes a mnemonic'] }, "Cu&&t"),
@@ -126,11 +126,11 @@ class ExecCommandCopyAction extends ExecCommandAction {
 			alias: 'Copy',
 			precondition: undefined,
 			kbOpts: kbOpts,
-			menuOpts: {
+			contextMenuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 2
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '2_ccp',
 				title: nls.localize({ key: 'miCopy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
@@ -175,11 +175,11 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			alias: 'Paste',
 			precondition: EditorContextKeys.writable,
 			kbOpts: kbOpts,
-			menuOpts: {
+			contextMenuOpts: {
 				group: CLIPBOARD_CONTEXT_MENU_GROUP,
 				order: 3
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '2_ccp',
 				title: nls.localize({ key: 'miPaste', comment: ['&& denotes a mnemonic'] }, "&&Paste"),

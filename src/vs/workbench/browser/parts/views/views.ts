@@ -11,7 +11,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService, IContextKeyChangeEvent, IReadableSet, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
-import { sortedDiff, firstIndex, move, isNonEmptyArray } from 'vs/base/common/arrays';
+import { firstIndex, move, isNonEmptyArray } from 'vs/base/common/arrays';
 import { isUndefinedOrNull, isUndefined } from 'vs/base/common/types';
 import { MenuId, MenuRegistry, ICommandAction } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -223,7 +223,11 @@ export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
 
 export class ContributableViewsModel extends Disposable {
 
-	readonly viewDescriptors: IViewDescriptor[] = [];
+	private _viewDescriptors: IViewDescriptor[] = [];
+	get viewDescriptors(): ReadonlyArray<IViewDescriptor> {
+		return this._viewDescriptors;
+	}
+
 	get visibleViewDescriptors(): IViewDescriptor[] {
 		return this.viewDescriptors.filter(v => this.isViewDescriptorVisible(v));
 	}
@@ -239,6 +243,9 @@ export class ContributableViewsModel extends Disposable {
 
 	private _onDidChangeViewState = this._register(new Emitter<IViewDescriptorRef>());
 	protected readonly onDidChangeViewState: Event<IViewDescriptorRef> = this._onDidChangeViewState.event;
+
+	private _onDidChangeActiveViews = this._register(new Emitter<ReadonlyArray<IViewDescriptor>>());
+	readonly onDidChangeActiveViews: Event<ReadonlyArray<IViewDescriptor>> = this._onDidChangeActiveViews.event;
 
 	constructor(
 		container: ViewContainer,
@@ -335,7 +342,7 @@ export class ContributableViewsModel extends Disposable {
 		const fromViewDescriptor = this.viewDescriptors[fromIndex];
 		const toViewDescriptor = this.viewDescriptors[toIndex];
 
-		move(this.viewDescriptors, fromIndex, toIndex);
+		move(this._viewDescriptors, fromIndex, toIndex);
 
 		for (let index = 0; index < this.viewDescriptors.length; index++) {
 			const state = this.viewStates.get(this.viewDescriptors[index].id)!;
@@ -403,14 +410,6 @@ export class ContributableViewsModel extends Disposable {
 	}
 
 	private onDidChangeViewDescriptors(viewDescriptors: IViewDescriptor[]): void {
-		const ids = new Set<string>();
-
-		for (const viewDescriptor of this.viewDescriptors) {
-			ids.add(viewDescriptor.id);
-		}
-
-		viewDescriptors = viewDescriptors.sort(this.compareViewDescriptors.bind(this));
-
 		for (const viewDescriptor of viewDescriptors) {
 			const viewState = this.viewStates.get(viewDescriptor.id);
 			if (viewState) {
@@ -430,37 +429,28 @@ export class ContributableViewsModel extends Disposable {
 			}
 		}
 
-		const splices = sortedDiff<IViewDescriptor>(
-			this.viewDescriptors,
-			viewDescriptors,
-			(a, b) => a.id === b.id ? 0 : a.id < b.id ? -1 : 1
-		).reverse();
+		viewDescriptors = viewDescriptors.sort(this.compareViewDescriptors.bind(this));
 
 		const toRemove: { index: number, viewDescriptor: IViewDescriptor; }[] = [];
-		const toAdd: { index: number, viewDescriptor: IViewDescriptor, size?: number, collapsed: boolean; }[] = [];
-
-		for (const splice of splices) {
-			const startViewDescriptor = this.viewDescriptors[splice.start];
-			let startIndex = startViewDescriptor ? this.find(startViewDescriptor.id).visibleIndex : this.viewDescriptors.length;
-
-			for (let i = 0; i < splice.deleteCount; i++) {
-				const viewDescriptor = this.viewDescriptors[splice.start + i];
-
-				if (this.isViewDescriptorVisible(viewDescriptor)) {
-					toRemove.push({ index: startIndex++, viewDescriptor });
-				}
-			}
-
-			for (const viewDescriptor of splice.toInsert) {
-				const state = this.viewStates.get(viewDescriptor.id)!;
-
-				if (this.isViewDescriptorVisible(viewDescriptor)) {
-					toAdd.push({ index: startIndex++, viewDescriptor, size: state.size, collapsed: !!state.collapsed });
-				}
+		for (let index = 0; index < this._viewDescriptors.length; index++) {
+			const previousViewDescriptor = this._viewDescriptors[index];
+			if (this.isViewDescriptorVisible(previousViewDescriptor) && viewDescriptors.every(viewDescriptor => viewDescriptor.id !== previousViewDescriptor.id)) {
+				const { visibleIndex } = this.find(previousViewDescriptor.id);
+				toRemove.push({ index: visibleIndex, viewDescriptor: previousViewDescriptor });
 			}
 		}
 
-		this.viewDescriptors.splice(0, this.viewDescriptors.length, ...viewDescriptors);
+		const previous = this._viewDescriptors;
+		this._viewDescriptors = viewDescriptors.slice(0);
+
+		const toAdd: { index: number, viewDescriptor: IViewDescriptor, size?: number, collapsed: boolean; }[] = [];
+		for (let i = 0; i < this._viewDescriptors.length; i++) {
+			const viewDescriptor = this._viewDescriptors[i];
+			if (this.isViewDescriptorVisible(viewDescriptor) && previous.every(previousViewDescriptor => previousViewDescriptor.id !== viewDescriptor.id)) {
+				const { visibleIndex, state } = this.find(viewDescriptor.id);
+				toAdd.push({ index: visibleIndex, viewDescriptor, size: state.size, collapsed: !!state.collapsed });
+			}
+		}
 
 		if (toRemove.length) {
 			this._onDidRemove.fire(toRemove);
@@ -469,6 +459,8 @@ export class ContributableViewsModel extends Disposable {
 		if (toAdd.length) {
 			this._onDidAdd.fire(toAdd);
 		}
+
+		this._onDidChangeActiveViews.fire(this.viewDescriptors);
 	}
 }
 
@@ -663,8 +655,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.viewDisposable.forEach(disposable => disposable.dispose());
 			this.viewDisposable.clear();
 		}));
-		this._register(viewContainersRegistry.onDidRegister(viewContainer => this.onDidRegisterViewContainer(viewContainer)));
-		this._register(viewContainersRegistry.onDidDeregister(viewContainer => this.onDidDeregisterViewContainer(viewContainer)));
+		this._register(viewContainersRegistry.onDidRegister(({ viewContainer }) => this.onDidRegisterViewContainer(viewContainer)));
+		this._register(viewContainersRegistry.onDidDeregister(({ viewContainer }) => this.onDidDeregisterViewContainer(viewContainer)));
 		this._register(toDisposable(() => {
 			this.viewDescriptorCollections.forEach(({ disposable }) => disposable.dispose());
 			this.viewDescriptorCollections.clear();

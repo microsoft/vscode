@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
+import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
@@ -47,7 +47,7 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 
 	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
 	if (!services.has(ITextModelService)) {
-		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
+		simpleEditorModelResolverService = new SimpleEditorModelResolverService(StaticServices.modelService.get());
 		services.set(ITextModelService, simpleEditorModelResolverService);
 	}
 
@@ -125,13 +125,6 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			null
 		);
 	});
-}
-
-export interface IDiffNavigator {
-	canNavigate(): boolean;
-	next(): void;
-	previous(): void;
-	dispose(): void;
 }
 
 export interface IDiffNavigatorOptions {
@@ -353,9 +346,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		remeasureFonts: remeasureFonts,
 
 		// enums
-		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
-		WrappingIndent: standaloneEnums.WrappingIndent,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
 		MinimapPosition: standaloneEnums.MinimapPosition,
 		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
@@ -364,13 +355,10 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
 		CursorChangeReason: standaloneEnums.CursorChangeReason,
 		MouseTargetType: standaloneEnums.MouseTargetType,
-		TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
-		TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
 		RenderMinimap: standaloneEnums.RenderMinimap,
 		ScrollType: standaloneEnums.ScrollType,
-		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,

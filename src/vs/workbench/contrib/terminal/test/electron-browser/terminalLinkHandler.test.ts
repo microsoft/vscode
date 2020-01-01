@@ -46,6 +46,9 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 	getXtermSearchConstructor(): Promise<any> {
 		throw new Error('Method not implemented.');
 	}
+	getXtermWebglConstructor(): Promise<any> {
+		throw new Error('Method not implemented.');
+	}
 	createWindowsShellHelper(): any {
 		throw new Error('Method not implemented.');
 	}
