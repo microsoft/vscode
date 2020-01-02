@@ -89,7 +89,6 @@
 
 .monaco-editor .parameter-hints-widget .button.previous {
 	bottom: 24px;
-	/* background-image: url('arrow-up.svg'); */
 }
 
 .monaco-editor .parameter-hints-widget .overloads {
