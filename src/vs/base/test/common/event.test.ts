@@ -136,6 +136,7 @@ suite('Event', function () {
 			let a = new Emitter<undefined>();
 			let hit = false;
 			a.event(function () {
+				// eslint-disable-next-line no-throw-literal
 				throw 9;
 			});
 			a.event(function () {
