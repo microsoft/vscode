@@ -248,6 +248,10 @@ suite('window namespace tests', () => {
 					resolveOnceDataWritten!();
 				}));
 
+				disposables.push(window.onDidOpenTerminal(e => {
+					console.log('onDidOpenTerminal ' + e.name);
+				}));
+
 				disposables.push(window.onDidCloseTerminal(e => {
 					console.log('onDidCloseTerminal ' + e.name);
 					closeEvents.push(e.name);
