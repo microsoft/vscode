@@ -28,7 +28,7 @@
         "no-unused-expressions": "off",
         "no-unused-labels": "warn",
         "no-var": "warn",
-        "jsdoc/no-types": "off",
+        "jsdoc/no-types": "warn",
         "semi": "off",
         "@typescript-eslint/semi": "warn",
         "@typescript-eslint/class-name-casing": "warn",
@@ -607,5 +607,15 @@
                 "restrictions": "**/vs/**"
             }
         ]
-    }
+    },
+    "overrides": [
+        {
+            "files": [
+                "*.js"
+            ],
+            "rules": {
+                "jsdoc/no-types": "off"
+            }
+        }
+    ]
 }
