@@ -243,11 +243,13 @@ suite('window namespace tests', () => {
 				let resolveOnceClosed: (() => void) | undefined;
 
 				disposables.push(window.onDidWriteTerminalData(e => {
+					console.log('onDidWriteTerminalData ' + e);
 					dataEvents.push({ name: e.terminal.name, data: e.data });
 					resolveOnceDataWritten!();
 				}));
 
 				disposables.push(window.onDidCloseTerminal(e => {
+					console.log('onDidCloseTerminal ' + e.name);
 					closeEvents.push(e.name);
 					try {
 						if (closeEvents.length === 1) {
@@ -267,6 +269,7 @@ suite('window namespace tests', () => {
 
 				const term1Write = new EventEmitter<string>();
 				const term1Close = new EventEmitter<void>();
+				console.log('createTerminal 1');
 				window.createTerminal({
 					name: 'test1', pty: {
 						onDidWrite: term1Write.event,
@@ -275,15 +278,18 @@ suite('window namespace tests', () => {
 							// Wait until the data is swritten
 							const onceDataWritten = new Promise(resolve => { resolveOnceDataWritten = resolve; });
 							term1Write.fire('write1');
+							console.log('await write 1');
 							await onceDataWritten;
 
 							// Wait until the terminal is closed
 							const onceClosed = new Promise<void>(resolve => { resolveOnceClosed = resolve; });
 							term1Close.fire();
+							console.log('await close 1');
 							await onceClosed;
 
 							const term2Write = new EventEmitter<string>();
 							const term2Close = new EventEmitter<void>();
+							console.log('createTerminal 2');
 							window.createTerminal({
 								name: 'test2', pty: {
 									onDidWrite: term2Write.event,
@@ -292,11 +298,13 @@ suite('window namespace tests', () => {
 										// Wait until the data is written
 										const onceDataWritten = new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
 										term2Write.fire('write2');
+										console.log('await write 2');
 										await onceDataWritten;
 
 										// Wait until the terminal is closed
 										const onceClosed = new Promise<void>(resolve => { resolveOnceClosed = resolve; });
 										term2Close.fire();
+										console.log('await close 2');
 										await onceClosed;
 
 										done();
