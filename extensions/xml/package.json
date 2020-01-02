@@ -23,6 +23,8 @@
 				".dita",
 				".ditamap",
 				".dtd",
+        ".ent",
+        ".mod",
 				".dtml",
 				".fsproj",
 				".fxml",

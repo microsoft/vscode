@@ -50,7 +50,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 				}
 				if (this._documentsAndEditors.getDocument(uri)) {
 					this.$provideTextDocumentContent(handle, uri).then(value => {
-						if (!value) {
+						if (!value && typeof value !== 'string') {
 							return;
 						}
 

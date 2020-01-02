@@ -14,13 +14,14 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 
 	private readonly selection: Selection;
 	private readonly targetPosition: Position;
-	private targetSelection: Selection;
+	private targetSelection: Selection | null;
 	private readonly copy: boolean;
 
 	constructor(selection: Selection, targetPosition: Position, copy: boolean) {
 		this.selection = selection;
 		this.targetPosition = targetPosition;
 		this.copy = copy;
+		this.targetSelection = null;
 	}
 
 	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
@@ -102,6 +103,6 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		return this.targetSelection;
+		return this.targetSelection!;
 	}
 }

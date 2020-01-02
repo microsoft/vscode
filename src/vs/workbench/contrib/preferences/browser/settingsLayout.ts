@@ -100,6 +100,11 @@ export const tocData: ITOCEntry = {
 					id: 'workbench/zenmode',
 					label: localize('zenMode', "Zen Mode"),
 					settings: ['zenmode.*']
+				},
+				{
+					id: 'workbench/screencastmode',
+					label: localize('screencastMode', "Screencast Mode"),
+					settings: ['screencastMode.*']
 				}
 			]
 		},
@@ -127,7 +132,7 @@ export const tocData: ITOCEntry = {
 				{
 					id: 'features/search',
 					label: localize('search', "Search"),
-					settings: ['search.*', 'searchRipgrep.*']
+					settings: ['search.*']
 				}
 				,
 				{
@@ -142,13 +147,18 @@ export const tocData: ITOCEntry = {
 				},
 				{
 					id: 'features/extensions',
-					label: localize('extensionViewlet', "Extension Viewlet"),
+					label: localize('extensions', "Extensions"),
 					settings: ['extensions.*']
 				},
 				{
 					id: 'features/terminal',
 					label: localize('terminal', "Terminal"),
 					settings: ['terminal.*']
+				},
+				{
+					id: 'features/task',
+					label: localize('task', "Task"),
+					settings: ['task.*']
 				},
 				{
 					id: 'features/problems',
@@ -190,6 +200,11 @@ export const tocData: ITOCEntry = {
 					id: 'application/telemetry',
 					label: localize('telemetry', "Telemetry"),
 					settings: ['telemetry.*']
+				},
+				{
+					id: 'application/sync',
+					label: localize('sync', "Sync"),
+					settings: ['sync.*']
 				}
 			]
 		}
@@ -213,3 +228,5 @@ export const knownAcronyms = new Set<string>();
 export const knownTermMappings = new Map<string, string>();
 knownTermMappings.set('power shell', 'PowerShell');
 knownTermMappings.set('powershell', 'PowerShell');
+knownTermMappings.set('javascript', 'JavaScript');
+knownTermMappings.set('typescript', 'TypeScript');

@@ -15,7 +15,8 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import * as platform from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -34,7 +35,7 @@ export function isInDOM(node: Node | null): boolean {
 		if (node === document.body) {
 			return true;
 		}
-		node = node.parentNode;
+		node = node.parentNode || (node as ShadowRoot).host;
 	}
 	return false;
 }
@@ -50,8 +51,8 @@ interface IDomClassList {
 
 const _manualClassList = new class implements IDomClassList {
 
-	private _lastStart: number;
-	private _lastEnd: number;
+	private _lastStart: number = -1;
+	private _lastEnd: number = -1;
 
 	private _findClassName(node: HTMLElement, className: string): void {
 
@@ -203,16 +204,16 @@ export const toggleClass: (node: HTMLElement | SVGElement, className: string, sh
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;
-	private _node: Element | Window | Document;
+	private _node: EventTarget;
 	private readonly _type: string;
-	private readonly _useCapture: boolean;
+	private readonly _options: boolean | AddEventListenerOptions;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
+	constructor(node: EventTarget, type: string, handler: (e: any) => void, options?: boolean | AddEventListenerOptions) {
 		this._node = node;
 		this._type = type;
 		this._handler = handler;
-		this._useCapture = (useCapture || false);
-		this._node.addEventListener(this._type, this._handler, this._useCapture);
+		this._options = (options || false);
+		this._node.addEventListener(this._type, this._handler, this._options);
 	}
 
 	public dispose(): void {
@@ -221,7 +222,7 @@ class DomListener implements IDisposable {
 			return;
 		}
 
-		this._node.removeEventListener(this._type, this._handler, this._useCapture);
+		this._node.removeEventListener(this._type, this._handler, this._options);
 
 		// Prevent leakers from holding on to the dom or handler func
 		this._node = null!;
@@ -229,10 +230,11 @@ class DomListener implements IDisposable {
 	}
 }
 
-export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: Element | Window | Document, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	return new DomListener(node, type, handler, useCapture);
+export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, options: AddEventListenerOptions): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCaptureOrOptions?: boolean | AddEventListenerOptions): IDisposable {
+	return new DomListener(node, type, handler, useCaptureOrOptions);
 }
 
 export interface IAddStandardDisposableListenerSignature {
@@ -265,8 +267,40 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
+export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+};
+
+export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
+}
+
+export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_MOVE : EventType.MOUSE_MOVE, handler, useCapture);
+}
+
+export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
+}
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
+		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
+		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
+		while (toElement && toElement !== node) {
+			toElement = toElement.parentNode;
+		}
+		if (toElement === node) {
+			return;
+		}
+
+		handler(e);
+	});
+}
+
+export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
+	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
 		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
 		while (toElement && toElement !== node) {
@@ -427,7 +461,7 @@ export interface DOMEvent {
 }
 
 const MINIMUM_TIME_MS = 16;
-const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent, currentEvent: DOMEvent) {
+const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
 
@@ -474,6 +508,20 @@ export function getClientArea(element: HTMLElement): Dimension {
 	// Try with DOM clientWidth / clientHeight
 	if (element !== document.body) {
 		return new Dimension(element.clientWidth, element.clientHeight);
+	}
+
+	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
+	if (platform.isIOS && (<any>window).visualViewport) {
+		const width = (<any>window).visualViewport.width;
+		const height = (<any>window).visualViewport.height - (
+			browser.isStandalone
+				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
+				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
+				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
+				? (20 + 4) // + 4px for body margin
+				: 0
+		);
+		return new Dimension(width, height);
 	}
 
 	// Try innerWidth / innerHeight
@@ -559,13 +607,11 @@ class SizeUtils {
 // Position & Dimension
 
 export class Dimension {
-	public width: number;
-	public height: number;
 
-	constructor(width: number, height: number) {
-		this.width = width;
-		this.height = height;
-	}
+	constructor(
+		public readonly width: number,
+		public readonly height: number,
+	) { }
 
 	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
@@ -782,6 +828,12 @@ export function createStyleSheet(container: HTMLElement = document.getElementsBy
 	return style;
 }
 
+export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
+	let meta = document.createElement('meta');
+	container.appendChild(meta);
+	return meta;
+}
+
 let _sharedStyleSheet: HTMLStyleElement | null = null;
 function getSharedStyleSheet(): HTMLStyleElement {
 	if (!_sharedStyleSheet) {
@@ -806,7 +858,8 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 	if (!style || !cssText) {
 		return;
 	}
-	style.textContent = `${selector}{${cssText}}\n${style.textContent}`;
+
+	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
 export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
@@ -846,6 +899,9 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
+	POINTER_UP: 'pointerup',
+	POINTER_DOWN: 'pointerdown',
+	POINTER_MOVE: 'pointermove',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
@@ -854,6 +910,7 @@ export const EventType = {
 	KEY_UP: 'keyup',
 	// HTML Document
 	LOAD: 'load',
+	BEFORE_UNLOAD: 'beforeunload',
 	UNLOAD: 'unload',
 	ABORT: 'abort',
 	ERROR: 'error',
@@ -915,6 +972,7 @@ export const EventHelper = {
 export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
+	refreshState?(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
@@ -943,6 +1001,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
+	private _refreshStateHandler: () => void;
+
 	constructor(element: HTMLElement | Window) {
 		super();
 		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
@@ -969,8 +1029,23 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
+		this._refreshStateHandler = () => {
+			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			if (currentNodeHasFocus !== hasFocus) {
+				if (hasFocus) {
+					onBlur();
+				} else {
+					onFocus();
+				}
+			}
+		};
+
 		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
 		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
+	}
+
+	refreshState() {
+		this._refreshStateHandler();
 	}
 }
 
@@ -1022,6 +1097,11 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	Object.keys(attrs).forEach(name => {
 		const value = attrs![name];
+
+		if (typeof value === 'undefined') {
+			return;
+		}
+
 		if (/^on\w+$/.test(name)) {
 			(<any>result)[name] = value;
 		} else if (name === 'selected') {
@@ -1184,22 +1264,39 @@ export function animate(fn: () => void): IDisposable {
 	return toDisposable(() => stepDisposable.dispose());
 }
 
-
-
-const _location = URI.parse(window.location.href);
+RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
 
 export function asDomUri(uri: URI): URI {
 	if (!uri) {
 		return uri;
 	}
-	if (!platform.isWeb) {
-		//todo@joh remove this once we have sw in electron going
-		return uri;
-	}
 	if (Schemas.vscodeRemote === uri.scheme) {
-		// rewrite vscode-remote-uris to uris of the window location
-		// so that they can be intercepted by the service worker
-		return _location.with({ path: '/vscode-resources/fetch', query: JSON.stringify({ u: uri.toJSON(), i: 1 }) });
+		return RemoteAuthorities.rewrite(uri);
 	}
 	return uri;
+}
+
+/**
+ * returns url('...')
+ */
+export function asCSSUrl(uri: URI): string {
+	if (!uri) {
+		return `url('')`;
+	}
+	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
+}
+
+export function triggerDownload(uri: URI, name: string): void {
+	// In order to download from the browser, the only way seems
+	// to be creating a <a> element with download attribute that
+	// points to the file to download.
+	// See also https://developers.google.com/web/updates/2011/08/Downloading-resources-in-HTML5-a-download
+	const anchor = document.createElement('a');
+	document.body.appendChild(anchor);
+	anchor.download = name;
+	anchor.href = uri.toString(true);
+	anchor.click();
+
+	// Ensure to remove the element from DOM eventually
+	setTimeout(() => document.body.removeChild(anchor));
 }

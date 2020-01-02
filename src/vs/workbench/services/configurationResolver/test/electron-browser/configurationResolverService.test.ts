@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
@@ -19,8 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import * as Types from 'vs/base/common/types';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
-import { WorkbenchEnvironmentService } from 'vs/workbench/services/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -126,7 +125,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('substitute one configuration variable', () => {
-		let configurationService: IConfigurationService = new MockConfigurationService({
+		let configurationService: IConfigurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -143,7 +142,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute many configuration variables', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -160,7 +159,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute one env variable and a configuration variable', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -181,7 +180,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute many env variable and a configuration variable', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			},
@@ -202,7 +201,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('mixed types of configuration variables', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo',
 				lineNumbers: 123,
@@ -232,7 +231,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('uses original variable as fallback', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {}
 		});
 
@@ -243,7 +242,7 @@ suite('Configuration Resolver Service', () => {
 
 	test('configuration variables with invalid accessor', () => {
 		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
+		configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
 			}
@@ -488,41 +487,29 @@ suite('Configuration Resolver Service', () => {
 			assert.equal(2, mockCommandService.callCount);
 		});
 	});
+	test('contributed variable', () => {
+		const buildTask = 'npm: compile';
+		const variable = 'defaultBuildTask';
+		const configuration = {
+			'name': '${' + variable + '}',
+		};
+		configurationResolverService!.contributeVariable(variable, async () => { return buildTask; });
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration).then(result => {
+			assert.deepEqual(result, {
+				'name': `${buildTask}`
+			});
+		});
+	});
 });
 
 
-class MockConfigurationService implements IConfigurationService {
-	public _serviceBrand: any;
-	public serviceId = IConfigurationService;
-	public constructor(private configuration: any = {}) { }
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: undefined, folder: undefined }; }
-	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }
-	public getValue(): any;
-	public getValue(value: string): any;
-	public getValue(value?: any): any {
-		if (!value) {
-			return this.configuration;
-		}
-		const valuePath = (<string>value).split('.');
-		let object = this.configuration;
-		while (valuePath.length && object) {
-			object = object[valuePath.shift()!];
-		}
-
-		return object;
-	}
-	public updateValue(): Promise<void> { return Promise.resolve(); }
-	public getConfigurationData(): any { return null; }
-	public onDidChangeConfiguration() { return { dispose() { } }; }
-	public reloadConfiguration() { return Promise.resolve(); }
-}
-
 class MockCommandService implements ICommandService {
 
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 	public callCount = 0;
 
 	onWillExecuteCommand = () => Disposable.None;
+	onDidExecuteCommand = () => Disposable.None;
 	public executeCommand(commandId: string, ...args: any[]): Promise<any> {
 		this.callCount++;
 
@@ -538,7 +525,7 @@ class MockCommandService implements ICommandService {
 }
 
 class MockQuickInputService implements IQuickInputService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
@@ -554,7 +541,7 @@ class MockQuickInputService implements IQuickInputService {
 		return Promise.resolve(options ? 'resolved' + options.prompt : 'resolved');
 	}
 
-	backButton: IQuickInputButton;
+	backButton!: IQuickInputButton;
 
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
 		throw new Error('not implemented.');
@@ -629,13 +616,9 @@ class MockInputsConfigurationService extends TestConfigurationService {
 	}
 }
 
-class MockWorkbenchEnvironmentService extends WorkbenchEnvironmentService {
+class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
-	constructor(private env: platform.IProcessEnvironment) {
-		super(parseArgs(process.argv) as IWindowConfiguration, process.execPath);
-	}
-
-	get configuration(): IWindowConfiguration {
-		return { userEnv: this.env } as IWindowConfiguration;
+	constructor(env: platform.IProcessEnvironment) {
+		super({ userEnv: env } as IWindowConfiguration, process.execPath, 0);
 	}
 }

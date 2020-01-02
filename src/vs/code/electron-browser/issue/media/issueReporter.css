@@ -109,7 +109,7 @@ html:lang(zh-Hant) {
 }
 
 html:lang(ja) {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Noto Sans", "Yu Gothic UI", "Meiryo UI", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif;
 }
 
 html:lang(ko) {
@@ -251,16 +251,9 @@ a {
 	text-decoration: none;
 }
 
-.invalid-input {
-	border: 1px solid #be1100;
-}
-
-.required-input, .validation-error {
-	color: #be1100;
-}
-
 .section .input-group .validation-error {
-	margin-left: 15%;
+	margin-left: calc(15% + 5px);
+	padding: 10px;
 }
 
 .section .inline-form-control, .section .inline-label {
@@ -352,7 +345,7 @@ a {
 	text-overflow: ellipsis;
 }
 
-.issues-container > .issue > .issue-state .octicon {
+.issues-container > .issue > .issue-state .codicon {
 	width: 16px;
 }
 

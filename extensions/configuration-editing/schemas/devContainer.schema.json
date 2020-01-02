@@ -1,5 +1,5 @@
 {
-	"$schema": "http://json-schema.org/schema#",
+	"$schema": "http://json-schema.org/draft-07/schema#",
 	"description": "Defines a dev container",
 	"allowComments": true,
 	"type": "object",
@@ -21,6 +21,20 @@
 				"settings": {
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container."
+				},
+				"remoteEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": [
+							"string",
+							"null"
+						]
+					},
+					"description": "Remote environment variables."
+				},
+				"remoteUser": {
+					"type": "string",
+					"description": "The user VS Code Server will be started with. The default is the same user as the container."
 				},
 				"postCreateCommand": {
 					"type": [
@@ -55,6 +69,28 @@
 						]
 					}
 				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"updateRemoteUserUID": {
+					"type": "boolean",
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"type": "string"
+					}
+				},
 				"runArgs": {
 					"type": "array",
 					"description": "The arguments required when starting in the container.",
@@ -68,7 +104,7 @@
 						"none",
 						"stopContainer"
 					],
-					"description": "Action to take when VS Code is shutting down. The default is to stop the container."
+					"description": "Action to take when the VS Code window is closed. The default is to stop the container."
 				},
 				"overrideCommand": {
 					"type": "boolean",
@@ -129,6 +165,13 @@
 					"type": "string",
 					"description": "The service you want to work on."
 				},
+				"runServices": {
+					"type": "array",
+					"description": "An array of services that should be started and stopped.",
+					"items": {
+						"type": "string"
+					}
+				},
 				"workspaceFolder": {
 					"type": "string",
 					"description": "The path of the workspace folder inside the container."
@@ -139,7 +182,7 @@
 						"none",
 						"stopCompose"
 					],
-					"description": "Action to take when VS Code is shutting down. The default is to stop the containers."
+					"description": "Action to take when the VS Code window is closed. The default is to stop the containers."
 				}
 			},
 			"required": [

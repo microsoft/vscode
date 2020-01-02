@@ -41,8 +41,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = Event.None;
 
-	protected _input: EditorInput | null;
-	protected _options: EditorOptions | null;
+	protected _input: EditorInput | undefined;
+	protected _options: EditorOptions | undefined;
 
 	private _group?: IEditorGroup;
 
@@ -55,11 +55,11 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		super(id, telemetryService, themeService, storageService);
 	}
 
-	get input(): EditorInput | null {
+	get input(): EditorInput | undefined {
 		return this._input;
 	}
 
-	get options(): EditorOptions | null {
+	get options(): EditorOptions | undefined {
 		return this._options;
 	}
 
@@ -78,11 +78,9 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	setInput(input: EditorInput, options: EditorOptions | null, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
-
-		return Promise.resolve();
 	}
 
 	/**
@@ -90,8 +88,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * resources associated with the input should be freed.
 	 */
 	clearInput(): void {
-		this._input = null;
-		this._options = null;
+		this._input = undefined;
+		this._options = undefined;
 	}
 
 	/**
@@ -101,7 +99,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * Sets the given options to the editor. Clients should apply the options
 	 * to the current input.
 	 */
-	setOptions(options: EditorOptions | null): void {
+	setOptions(options: EditorOptions | undefined): void {
 		this._options = options;
 	}
 
@@ -111,6 +109,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		// Create Editor
 		this.createEditor(parent);
 	}
+
+	onHide() { }
 
 	/**
 	 * Called to create the editor in the parent HTMLElement.
@@ -160,8 +160,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	}
 
 	dispose(): void {
-		this._input = null;
-		this._options = null;
+		this._input = undefined;
+		this._options = undefined;
 
 		super.dispose();
 	}
@@ -172,7 +172,7 @@ interface MapGroupToMemento<T> {
 }
 
 export class EditorMemento<T> implements IEditorMemento<T> {
-	private cache: LRUCache<string, MapGroupToMemento<T>>;
+	private cache: LRUCache<string, MapGroupToMemento<T>> | undefined;
 	private cleanedUp = false;
 
 	constructor(

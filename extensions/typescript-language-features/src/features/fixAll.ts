@@ -22,8 +22,10 @@ const autoFixableDiagnosticCodes = new Set<number>([
 
 class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 
+	private static readonly kind = vscode.CodeActionKind.SourceFixAll.append('ts');
+
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [vscode.CodeActionKind.SourceFixAll]
+		providedCodeActionKinds: [TypeScriptAutoFixProvider.kind]
 	};
 
 	constructor(
@@ -80,9 +82,13 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 		const { edit, fixedDiagnostics } = autoFixResponse;
+		if (!edit.size) {
+			return undefined;
+		}
+
 		const codeAction = new vscode.CodeAction(
 			localize('autoFix.label', 'Auto fix'),
-			vscode.CodeActionKind.SourceFixAll);
+			TypeScriptAutoFixProvider.kind);
 		codeAction.edit = edit;
 		codeAction.diagnostics = fixedDiagnostics;
 
@@ -103,11 +109,11 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 			};
 			const response = await this.client.execute('getCodeFixes', args, token);
 			if (response.type !== 'response' || !response.body || response.body.length > 1) {
-				return undefined;
+				continue;
 			}
 
 			const fix = response.body[0];
-			if (new Set<string>(['fixClassIncorrectlyImplementsInterface', 'spelling']).has(fix.fixName)) {
+			if (['fixClassIncorrectlyImplementsInterface', 'spelling'].includes(fix.fixName)) {
 				typeConverters.WorkspaceEdit.withFileCodeEdits(edit, this.client, fix.changes);
 				fixedDiagnostics.push(diagnostic);
 			}

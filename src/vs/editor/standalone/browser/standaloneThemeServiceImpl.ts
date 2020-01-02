@@ -23,6 +23,7 @@ const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
 class StandaloneTheme implements IStandaloneTheme {
+
 	public readonly id: string;
 	public readonly themeName: string;
 
@@ -128,6 +129,14 @@ class StandaloneTheme implements IStandaloneTheme {
 		}
 		return this._tokenTheme;
 	}
+
+	public getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
+		return undefined;
+	}
+
+	public get tokenColorMap(): string[] {
+		return [];
+	}
 }
 
 function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
@@ -156,11 +165,11 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 
 export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
 	private readonly _styleElement: HTMLStyleElement;
-	private _theme: IStandaloneTheme;
+	private _theme!: IStandaloneTheme;
 	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
 	private readonly _onIconThemeChange: Emitter<IIconTheme>;
 	private readonly environment: IEnvironmentService = Object.create(null);

@@ -16,7 +16,7 @@ import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThre
 import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource } from 'vs/base/common/resources';
 
@@ -70,13 +70,13 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private readonly _textModelResolverService: ITextModelService;
 	private readonly _textFileService: ITextFileService;
 	private readonly _fileService: IFileService;
-	private readonly _untitledEditorService: IUntitledEditorService;
+	private readonly _untitledTextEditorService: IUntitledTextEditorService;
 	private readonly _environmentService: IWorkbenchEnvironmentService;
 
 	private readonly _toDispose = new DisposableStore();
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private readonly _proxy: ExtHostDocumentsShape;
-	private readonly _modelIsSynced: { [modelId: string]: boolean; };
+	private readonly _modelIsSynced = new Set<string>();
 	private _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
@@ -87,18 +87,17 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@ITextFileService textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._fileService = fileService;
-		this._untitledEditorService = untitledEditorService;
+		this._untitledTextEditorService = untitledTextEditorService;
 		this._environmentService = environmentService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
-		this._modelIsSynced = {};
 
 		this._toDispose.add(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
 		this._toDispose.add(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
@@ -144,7 +143,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 			return;
 		}
 		const modelUrl = model.uri;
-		this._modelIsSynced[modelUrl.toString()] = true;
+		this._modelIsSynced.add(modelUrl.toString());
 		this._modelToDisposeMap[modelUrl.toString()] = model.onDidChangeContent((e) => {
 			this._proxy.$acceptModelChanged(modelUrl, e, this._textFileService.isDirty(modelUrl));
 		});
@@ -153,7 +152,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
 		let { model, oldModeId } = event;
 		const modelUrl = model.uri;
-		if (!this._modelIsSynced[modelUrl.toString()]) {
+		if (!this._modelIsSynced.has(modelUrl.toString())) {
 			return;
 		}
 		this._proxy.$acceptModelModeChanged(model.uri, oldModeId, model.getLanguageIdentifier().language);
@@ -161,10 +160,10 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _onModelRemoved(modelUrl: URI): void {
 		const strModelUrl = modelUrl.toString();
-		if (!this._modelIsSynced[strModelUrl]) {
+		if (!this._modelIsSynced.has(strModelUrl)) {
 			return;
 		}
-		delete this._modelIsSynced[strModelUrl];
+		this._modelIsSynced.delete(strModelUrl);
 		this._modelToDisposeMap[strModelUrl].dispose();
 		delete this._modelToDisposeMap[strModelUrl];
 	}
@@ -195,7 +194,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return promise.then(success => {
 			if (!success) {
 				return Promise.reject(new Error('cannot open ' + uri.toString()));
-			} else if (!this._modelIsSynced[uri.toString()]) {
+			} else if (!this._modelIsSynced.has(uri.toString())) {
 				return Promise.reject(new Error('cannot open ' + uri.toString() + '. Detail: Files above 50MB cannot be synchronized with extensions.'));
 			} else {
 				return undefined;
@@ -228,15 +227,15 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _doCreateUntitled(resource?: URI, mode?: string, initialValue?: string): Promise<URI> {
-		return this._untitledEditorService.loadOrCreate({
+		return this._untitledTextEditorService.loadOrCreate({
 			resource,
 			mode,
 			initialValue,
 			useResourcePath: Boolean(resource && resource.path)
 		}).then(model => {
-			const resource = model.getResource();
+			const resource = model.resource;
 
-			if (!this._modelIsSynced[resource.toString()]) {
+			if (!this._modelIsSynced.has(resource.toString())) {
 				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
 			}
 

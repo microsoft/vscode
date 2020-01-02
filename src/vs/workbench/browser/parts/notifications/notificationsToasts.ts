@@ -11,18 +11,19 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { Event } from 'vs/base/common/event';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
+import { Themable, NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
+import { assertIsDefined } from 'vs/base/common/types';
 
 interface INotificationToast {
 	item: INotificationViewItem;
@@ -40,8 +41,8 @@ enum ToastVisibility {
 
 export class NotificationsToasts extends Themable {
 
-	private static MAX_WIDTH = 450;
-	private static MAX_NOTIFICATIONS = 3;
+	private static readonly MAX_WIDTH = 450;
+	private static readonly MAX_NOTIFICATIONS = 3;
 
 	private static PURGE_TIMEOUT: { [severity: number]: number } = (() => {
 		const intervals = Object.create(null);
@@ -52,9 +53,9 @@ export class NotificationsToasts extends Themable {
 		return intervals;
 	})();
 
-	private notificationsToastsContainer: HTMLElement;
-	private workbenchDimensions: Dimension;
-	private isNotificationsCenterVisible: boolean;
+	private notificationsToastsContainer: HTMLElement | undefined;
+	private workbenchDimensions: Dimension | undefined;
+	private isNotificationsCenterVisible: boolean | undefined;
 	private mapNotificationToToast: Map<INotificationViewItem, INotificationToast>;
 	private notificationsToastsVisibleContextKey: IContextKey<boolean>;
 
@@ -67,7 +68,7 @@ export class NotificationsToasts extends Themable {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWindowService private readonly windowService: IWindowService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
 
@@ -91,6 +92,13 @@ export class NotificationsToasts extends Themable {
 			// Update toasts on notification changes
 			this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 		});
+
+		// Filter
+		this._register(this.model.onDidFilterChange(filter => {
+			if (filter === NotificationsFilter.SILENT || filter === NotificationsFilter.ERROR) {
+				this.hide();
+			}
+		}));
 	}
 
 	private async onCanShowNotifications(): Promise<void> {
@@ -125,15 +133,16 @@ export class NotificationsToasts extends Themable {
 		}
 
 		// Lazily create toasts containers
-		if (!this.notificationsToastsContainer) {
-			this.notificationsToastsContainer = document.createElement('div');
-			addClass(this.notificationsToastsContainer, 'notifications-toasts');
+		let notificationsToastsContainer = this.notificationsToastsContainer;
+		if (!notificationsToastsContainer) {
+			notificationsToastsContainer = this.notificationsToastsContainer = document.createElement('div');
+			addClass(notificationsToastsContainer, 'notifications-toasts');
 
-			this.container.appendChild(this.notificationsToastsContainer);
+			this.container.appendChild(notificationsToastsContainer);
 		}
 
 		// Make Visible
-		addClass(this.notificationsToastsContainer, 'visible');
+		addClass(notificationsToastsContainer, 'visible');
 
 		const itemDisposables = new DisposableStore();
 
@@ -141,11 +150,11 @@ export class NotificationsToasts extends Themable {
 		const notificationToastContainer = document.createElement('div');
 		addClass(notificationToastContainer, 'notification-toast-container');
 
-		const firstToast = this.notificationsToastsContainer.firstChild;
+		const firstToast = notificationsToastsContainer.firstChild;
 		if (firstToast) {
-			this.notificationsToastsContainer.insertBefore(notificationToastContainer, firstToast); // always first
+			notificationsToastsContainer.insertBefore(notificationToastContainer, firstToast); // always first
 		} else {
-			this.notificationsToastsContainer.appendChild(notificationToastContainer);
+			notificationsToastsContainer.appendChild(notificationToastContainer);
 		}
 
 		// Toast
@@ -155,6 +164,7 @@ export class NotificationsToasts extends Themable {
 
 		// Create toast with item and show
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
+			ariaRole: 'dialog', // https://github.com/microsoft/vscode/issues/82728
 			ariaLabel: localize('notificationsToast', "Notification Toast"),
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
@@ -164,8 +174,8 @@ export class NotificationsToasts extends Themable {
 		this.mapNotificationToToast.set(item, toast);
 
 		itemDisposables.add(toDisposable(() => {
-			if (this.isVisible(toast)) {
-				this.notificationsToastsContainer.removeChild(toast.container);
+			if (this.isVisible(toast) && notificationsToastsContainer) {
+				notificationsToastsContainer.removeChild(toast.container);
 			}
 		}));
 
@@ -236,14 +246,13 @@ export class NotificationsToasts extends Themable {
 
 			purgeTimeoutHandle = setTimeout(() => {
 
-				// If the notification is sticky or prompting and the window does not have
-				// focus, we wait for the window to gain focus again before triggering
-				// the timeout again. This prevents an issue where focussing the window
-				// could immediately hide the notification because the timeout was triggered
-				// again.
-				if ((item.sticky || item.hasPrompt()) && !this.windowService.hasFocus) {
+				// If the window does not have focus, we wait for the window to gain focus
+				// again before triggering the timeout again. This prevents an issue where
+				// focussing the window could immediately hide the notification because the
+				// timeout was triggered again.
+				if (!this.hostService.hasFocus) {
 					if (!listener) {
-						listener = this.windowService.onDidChangeFocus(focus => {
+						listener = this.hostService.onDidChangeFocus(focus => {
 							if (focus) {
 								hideAfterTimeout();
 							}
@@ -319,7 +328,7 @@ export class NotificationsToasts extends Themable {
 	}
 
 	hide(): void {
-		const focusGroup = isAncestor(document.activeElement, this.notificationsToastsContainer);
+		const focusGroup = this.notificationsToastsContainer ? isAncestor(document.activeElement, this.notificationsToastsContainer) : false;
 
 		this.removeToasts();
 
@@ -412,11 +421,14 @@ export class NotificationsToasts extends Themable {
 
 	protected updateStyles(): void {
 		this.mapNotificationToToast.forEach(t => {
+			const backgroundColor = this.getColor(NOTIFICATIONS_BACKGROUND);
+			t.toast.style.background = backgroundColor ? backgroundColor : '';
+
 			const widgetShadowColor = this.getColor(widgetShadow);
-			t.toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
+			t.toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : '';
 
 			const borderColor = this.getColor(NOTIFICATIONS_TOAST_BORDER);
-			t.toast.style.border = borderColor ? `1px solid ${borderColor}` : null;
+			t.toast.style.border = borderColor ? `1px solid ${borderColor}` : '';
 		});
 	}
 
@@ -444,7 +456,7 @@ export class NotificationsToasts extends Themable {
 		return notificationToasts.reverse(); // from newest to oldest
 	}
 
-	layout(dimension: Dimension): void {
+	layout(dimension: Dimension | undefined): void {
 		this.workbenchDimensions = dimension;
 
 		const maxDimensions = this.computeMaxDimensions();
@@ -526,10 +538,11 @@ export class NotificationsToasts extends Themable {
 			return;
 		}
 
+		const notificationsToastsContainer = assertIsDefined(this.notificationsToastsContainer);
 		if (visible) {
-			this.notificationsToastsContainer.appendChild(toast.container);
+			notificationsToastsContainer.appendChild(toast.container);
 		} else {
-			this.notificationsToastsContainer.removeChild(toast.container);
+			notificationsToastsContainer.removeChild(toast.container);
 		}
 	}
 

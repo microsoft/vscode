@@ -5,33 +5,34 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
-import { INavigator } from 'vs/base/common/iterator';
 import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
-import { normalize } from 'vs/base/common/path';
 import { isWindows, OS } from 'vs/base/common/platform';
 import { repeat } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { BaseFolderMatch, FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FolderMatch, FileMatch, FileMatchOrMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ISearchConfiguration, VIEWLET_ID, PANEL_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, VIEWLET_ID, PANEL_ID, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
+import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
+import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
+import { createEditorFromSearchResult, refreshActiveEditorSearch } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	const searchView = getSearchView(viewletService, panelService);
@@ -57,13 +58,13 @@ export function openSearchView(viewletService: IViewletService, panelService: IP
 		return Promise.resolve((panelService.openPanel(PANEL_ID, focus) as SearchPanel).getSearchView());
 	}
 
-	return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet as SearchViewlet).getSearchView());
+	return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet?.getViewPaneContainer() as SearchViewPaneContainer).getSearchView() as SearchView);
 }
 
 export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView | undefined {
 	const activeViewlet = viewletService.getActiveViewlet();
 	if (activeViewlet && activeViewlet.getId() === VIEWLET_ID) {
-		return (activeViewlet as SearchViewlet).getSearchView();
+		return (activeViewlet.getViewPaneContainer() as SearchViewPaneContainer).getSearchView();
 	}
 
 	const activePanel = panelService.getActivePanel();
@@ -254,6 +255,30 @@ export class CloseReplaceAction extends Action {
 	}
 }
 
+// --- Toggle Search On Type
+
+export class ToggleSearchOnTypeAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleSearchOnType';
+	static readonly LABEL = nls.localize('toggleTabs', "Toggle Search on Type");
+
+	private static readonly searchOnTypeKey = 'search.searchOnType';
+
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		const searchOnType = this.configurationService.getValue<boolean>(ToggleSearchOnTypeAction.searchOnTypeKey);
+		return this.configurationService.updateValue(ToggleSearchOnTypeAction.searchOnTypeKey, !searchOnType);
+	}
+}
+
+
 export class RefreshAction extends Action {
 
 	static readonly ID: string = 'search.action.refreshSearchResults';
@@ -263,12 +288,12 @@ export class RefreshAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'search-action refresh');
+		super(id, label, 'search-action codicon-refresh');
 	}
 
 	get enabled(): boolean {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		return !!searchView && searchView.hasSearchResults();
+		return !!searchView && searchView.hasSearchPattern();
 	}
 
 	update(): void {
@@ -278,7 +303,7 @@ export class RefreshAction extends Action {
 	run(): Promise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
-			searchView.onQueryChanged();
+			searchView.onQueryChanged(false);
 		}
 
 		return Promise.resolve();
@@ -294,7 +319,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'search-action collapse');
+		super(id, label, 'search-action codicon-collapse-all');
 		this.update();
 	}
 
@@ -315,7 +340,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 			const navigator = viewer.navigate();
 			let node = navigator.first();
 			let collapseFileMatchLevel = false;
-			if (node instanceof BaseFolderMatch) {
+			if (node instanceof FolderMatch) {
 				while (node = navigator.next()) {
 					if (node instanceof Match) {
 						collapseFileMatchLevel = true;
@@ -342,6 +367,92 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 	}
 }
 
+export class ExpandAllAction extends Action {
+
+	static readonly ID: string = 'search.action.expandSearchResults';
+	static LABEL: string = nls.localize('ExpandAllAction.label', "Expand All");
+
+	constructor(id: string, label: string,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
+	) {
+		super(id, label, 'search-action codicon-expand-all');
+		this.update();
+	}
+
+	update(): void {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		this.enabled = !!searchView && searchView.hasSearchResults();
+	}
+
+	run(): Promise<void> {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		if (searchView) {
+			const viewer = searchView.getControl();
+			viewer.expandAll();
+			viewer.domFocus();
+			viewer.focusFirst();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+export class ToggleCollapseAndExpandAction extends Action {
+	static readonly ID: string = 'search.action.collapseOrExpandSearchResults';
+	static LABEL: string = nls.localize('ToggleCollapseAndExpandAction.label', "Toggle Collapse and Expand");
+
+	// Cache to keep from crawling the tree too often.
+	private action: CollapseDeepestExpandedLevelAction | ExpandAllAction | undefined;
+
+	constructor(id: string, label: string,
+		private collapseAction: CollapseDeepestExpandedLevelAction,
+		private expandAction: ExpandAllAction,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
+	) {
+		super(id, label, collapseAction.class);
+		this.update();
+	}
+
+	update(): void {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		this.enabled = !!searchView && searchView.hasSearchResults();
+		this.onTreeCollapseStateChange();
+	}
+
+	onTreeCollapseStateChange() {
+		this.action = undefined;
+		this.determineAction();
+	}
+
+	private determineAction(): CollapseDeepestExpandedLevelAction | ExpandAllAction {
+		if (this.action !== undefined) { return this.action; }
+		this.action = this.isSomeCollapsible() ? this.collapseAction : this.expandAction;
+		this.class = this.action.class;
+		return this.action;
+	}
+
+	private isSomeCollapsible(): boolean {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		if (searchView) {
+			const viewer = searchView.getControl();
+			const navigator = viewer.navigate();
+			let node = navigator.first();
+			do {
+				if (!viewer.isCollapsed(node)) {
+					return true;
+				}
+			} while (node = navigator.next());
+		}
+		return false;
+	}
+
+
+	async run(): Promise<void> {
+		await this.determineAction().run();
+	}
+}
+
 export class ClearSearchResultsAction extends Action {
 
 	static readonly ID: string = 'search.action.clearSearchResults';
@@ -351,7 +462,7 @@ export class ClearSearchResultsAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'search-action clear-search-results');
+		super(id, label, 'search-action codicon-clear-all');
 		this.update();
 	}
 
@@ -378,7 +489,7 @@ export class CancelSearchAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService
 	) {
-		super(id, label, 'search-action cancel-search');
+		super(id, label, 'search-action codicon-search-stop');
 		this.update();
 	}
 
@@ -396,6 +507,94 @@ export class CancelSearchAction extends Action {
 		return Promise.resolve(undefined);
 	}
 }
+
+export class OpenResultsInEditorAction extends Action {
+
+	static readonly ID: string = Constants.OpenInEditorCommandId;
+	static readonly LABEL = nls.localize('search.openResultsInEditor', "Open Results in Editor");
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IPanelService private panelService: IPanelService,
+		@ILabelService private labelService: ILabelService,
+		@IEditorService private editorService: IEditorService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(id, label, 'codicon-go-to-file');
+	}
+
+	get enabled(): boolean {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		return !!searchView && searchView.hasSearchResults();
+	}
+
+	update() {
+		this._setEnabled(this.enabled);
+	}
+
+	async run() {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService);
+		}
+	}
+}
+
+export class RerunEditorSearchAction extends Action {
+
+	static readonly ID: string = Constants.RerunEditorSearchCommandId;
+	static readonly LABEL = nls.localize('search.rerunEditorSearch', "Search Again");
+
+	constructor(id: string, label: string,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEditorService private editorService: IEditorService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ILabelService private labelService: ILabelService,
+		@IProgressService private progressService: IProgressService
+	) {
+		super(id, label);
+	}
+
+	async run() {
+		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+			await this.progressService.withProgress({ location: ProgressLocation.Window, title: nls.localize('searchRunning', "Running search...") },
+				() => refreshActiveEditorSearch(undefined, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
+		}
+	}
+}
+
+export class RerunEditorSearchWithContextAction extends Action {
+
+	static readonly ID: string = Constants.RerunEditorSearchWithContextCommandId;
+	static readonly LABEL = nls.localize('search.rerunEditorSearchContext', "Search Again (With Context)");
+
+	constructor(id: string, label: string,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEditorService private editorService: IEditorService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ILabelService private labelService: ILabelService,
+		@IProgressService private progressService: IProgressService,
+		@IQuickInputService private quickPickService: IQuickInputService
+	) {
+		super(id, label);
+	}
+
+	async run() {
+		const lines = await this.quickPickService.input({
+			prompt: nls.localize('lines', "Lines of Context"),
+			value: '2',
+			validateInput: async (value) => isNaN(parseInt(value)) ? nls.localize('mustBeInteger', "Must enter an integer") : undefined
+		});
+		if (lines === undefined) { return; }
+		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+			await this.progressService.withProgress({ location: ProgressLocation.Window, title: nls.localize('searchRunning', "Running search...") },
+				() => refreshActiveEditorSearch(+lines, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
+		}
+	}
+}
+
 
 export class FocusNextSearchResultAction extends Action {
 	static readonly ID = 'search.action.focusNextSearchResult';
@@ -450,9 +649,9 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	}
 
 	getNextElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
-		const navigator: INavigator<any> = viewer.navigate(element);
-		if (element instanceof BaseFolderMatch) {
-			while (!!navigator.next() && !(navigator.current() instanceof BaseFolderMatch)) { }
+		const navigator: ITreeNavigator<any> = viewer.navigate(element);
+		if (element instanceof FolderMatch) {
+			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
 		} else if (element instanceof FileMatch) {
 			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
@@ -464,7 +663,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 	}
 
 	getPreviousElementAfterRemoved(viewer: WorkbenchObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch {
-		const navigator: INavigator<any> = viewer.navigate(element);
+		const navigator: ITreeNavigator<any> = viewer.navigate(element);
 		let previousElement = navigator.previous();
 
 		// Hence take the previous element.
@@ -479,7 +678,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 		// If the previous element is a File or Folder, expand it and go to its last child.
 		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
-		if (element instanceof Match && previousElement && previousElement instanceof BaseFolderMatch) {
+		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
 			navigator.next();
 			viewer.expand(previousElement);
 			previousElement = navigator.previous();
@@ -497,13 +696,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 export class RemoveAction extends AbstractSearchAndReplaceAction {
 
-	static LABEL = nls.localize('RemoveAction.label', "Dismiss");
+	static readonly LABEL = nls.localize('RemoveAction.label', "Dismiss");
 
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
 		private element: RenderableMatch
 	) {
-		super('remove', RemoveAction.LABEL, 'action-remove');
+		super('remove', RemoveAction.LABEL, 'codicon-close');
 	}
 
 	run(): Promise<any> {
@@ -543,7 +742,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		private fileMatch: FileMatch,
 		@IKeybindingService keyBindingService: IKeybindingService
 	) {
-		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
+		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'codicon-replace-all');
 	}
 
 	run(): Promise<any> {
@@ -567,7 +766,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private folderMatch: FolderMatch,
 		@IKeybindingService keyBindingService: IKeybindingService
 	) {
-		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
+		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'codicon-replace-all');
 	}
 
 	run(): Promise<any> {
@@ -590,7 +789,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService) {
-		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
+		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'codicon-replace');
 	}
 
 	run(): Promise<any> {
@@ -616,7 +815,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private getElementToFocusAfterReplace(): Match {
-		const navigator: INavigator<any> = this.viewer.navigate();
+		const navigator: ITreeNavigator<any> = this.viewer.navigate();
 		let fileMatched = false;
 		let elementToFocus: any = null;
 		do {
@@ -654,27 +853,24 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasSameParent(element: RenderableMatch): boolean {
-		return element && element instanceof Match && element.parent().resource() === this.element.parent().resource();
+		return element && element instanceof Match && element.parent().resource === this.element.parent().resource;
 	}
 
 	private hasToOpenFile(): boolean {
 		const activeEditor = this.editorService.activeEditor;
 		const file = activeEditor ? activeEditor.getResource() : undefined;
 		if (file) {
-			return file.toString() === this.element.parent().resource().toString();
+			return file.toString() === this.element.parent().resource.toString();
 		}
 		return false;
 	}
 }
 
-function uriToClipboardString(resource: URI): string {
-	return resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(resource.fsPath)) : resource.toString();
-}
-
-export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: FileMatch | FolderMatch) => {
+export const copyPathCommand: ICommandHandler = async (accessor, fileMatch: FileMatch | FolderMatchWithResource) => {
 	const clipboardService = accessor.get(IClipboardService);
+	const labelService = accessor.get(ILabelService);
 
-	const text = uriToClipboardString(fileMatch.resource());
+	const text = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
 	await clipboardService.writeText(text);
 };
 
@@ -706,25 +902,26 @@ function matchToString(match: Match, indent = 0): string {
 }
 
 const lineDelimiter = isWindows ? '\r\n' : '\n';
-function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: string, count: number } {
+function fileMatchToString(fileMatch: FileMatch, maxMatches: number, labelService: ILabelService): { text: string, count: number } {
 	const matchTextRows = fileMatch.matches()
 		.sort(searchMatchComparer)
 		.slice(0, maxMatches)
 		.map(match => matchToString(match, 2));
+	const uriString = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
 	return {
-		text: `${uriToClipboardString(fileMatch.resource())}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
+		text: `${uriString}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
 		count: matchTextRows.length
 	};
 }
 
-function folderMatchToString(folderMatch: FolderMatch | BaseFolderMatch, maxMatches: number): { text: string, count: number } {
+function folderMatchToString(folderMatch: FolderMatchWithResource | FolderMatch, maxMatches: number, labelService: ILabelService): { text: string, count: number } {
 	const fileResults: string[] = [];
 	let numMatches = 0;
 
 	const matches = folderMatch.matches().sort(searchMatchComparer);
 
 	for (let i = 0; i < folderMatch.fileCount() && numMatches < maxMatches; i++) {
-		const fileResult = fileMatchToString(matches[i], maxMatches - numMatches);
+		const fileResult = fileMatchToString(matches[i], maxMatches - numMatches, labelService);
 		numMatches += fileResult.count;
 		fileResults.push(fileResult.text);
 	}
@@ -738,14 +935,15 @@ function folderMatchToString(folderMatch: FolderMatch | BaseFolderMatch, maxMatc
 const maxClipboardMatches = 1e4;
 export const copyMatchCommand: ICommandHandler = async (accessor, match: RenderableMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
+	const labelService = accessor.get(ILabelService);
 
 	let text: string | undefined;
 	if (match instanceof Match) {
 		text = matchToString(match);
 	} else if (match instanceof FileMatch) {
-		text = fileMatchToString(match, maxClipboardMatches).text;
-	} else if (match instanceof BaseFolderMatch) {
-		text = folderMatchToString(match, maxClipboardMatches).text;
+		text = fileMatchToString(match, maxClipboardMatches, labelService).text;
+	} else if (match instanceof FolderMatch) {
+		text = folderMatchToString(match, maxClipboardMatches, labelService).text;
 	}
 
 	if (text) {
@@ -753,12 +951,12 @@ export const copyMatchCommand: ICommandHandler = async (accessor, match: Rendera
 	}
 };
 
-function allFolderMatchesToString(folderMatches: Array<FolderMatch | BaseFolderMatch>, maxMatches: number): string {
+function allFolderMatchesToString(folderMatches: Array<FolderMatchWithResource | FolderMatch>, maxMatches: number, labelService: ILabelService): string {
 	const folderResults: string[] = [];
 	let numMatches = 0;
 	folderMatches = folderMatches.sort(searchMatchComparer);
 	for (let i = 0; i < folderMatches.length && numMatches < maxMatches; i++) {
-		const folderResult = folderMatchToString(folderMatches[i], maxMatches - numMatches);
+		const folderResult = folderMatchToString(folderMatches[i], maxMatches - numMatches, labelService);
 		if (folderResult.count) {
 			numMatches += folderResult.count;
 			folderResults.push(folderResult.text);
@@ -772,12 +970,13 @@ export const copyAllCommand: ICommandHandler = async (accessor) => {
 	const viewletService = accessor.get(IViewletService);
 	const panelService = accessor.get(IPanelService);
 	const clipboardService = accessor.get(IClipboardService);
+	const labelService = accessor.get(ILabelService);
 
 	const searchView = getSearchView(viewletService, panelService);
 	if (searchView) {
 		const root = searchView.searchResult;
 
-		const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
+		const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches, labelService);
 		await clipboardService.writeText(text);
 	}
 };

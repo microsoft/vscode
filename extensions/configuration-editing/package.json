@@ -18,7 +18,7 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "2.0.2",
+    "jsonc-parser": "^2.1.1",
     "vscode-nls": "^4.0.0"
   },
   "contributes": {
@@ -37,7 +37,9 @@
           "launch.json",
           "tasks.json",
           "keybindings.json",
-          "extensions.json"
+          "extensions.json",
+          "argv.json",
+          "profiles.json"
         ]
       }
     ],
@@ -51,7 +53,7 @@
         "url": "vscode://schemas/keybindings"
       },
       {
-        "fileMatch": "vscode://defaultsettings/settings.json",
+        "fileMatch": "vscode://defaultsettings/*/*.json",
         "url": "vscode://schemas/settings/default"
       },
       {
@@ -71,8 +73,8 @@
         "url": "vscode://schemas/workspaceConfig"
       },
       {
-        "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
-        "url": "vscode://schemas/locale"
+        "fileMatch": "**/argv.json",
+        "url": "vscode://schemas/argv"
       },
       {
         "fileMatch": "/.vscode/settings.json",
@@ -84,6 +86,10 @@
       },
       {
         "fileMatch": "/.vscode/tasks.json",
+        "url": "vscode://schemas/tasks"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/tasks.json",
         "url": "vscode://schemas/tasks"
       },
       {
@@ -105,10 +111,14 @@
       {
         "fileMatch": "/.devcontainer.json",
         "url": "./schemas/devContainer.schema.json"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
+        "url": "./schemas/attachContainer.schema.json"
       }
     ]
   },
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "^12.11.7"
   }
 }

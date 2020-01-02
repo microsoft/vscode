@@ -13,6 +13,20 @@ export interface ResolvedAuthority {
 	readonly port: number;
 }
 
+export interface ResolvedOptions {
+	readonly extensionHostEnv?: { [key: string]: string | null };
+}
+
+export interface TunnelInformation {
+	environmentTunnels?: { remoteAddress: { port: number, host: string }, localAddress: string }[];
+}
+
+export interface ResolverResult {
+	authority: ResolvedAuthority;
+	options?: ResolvedOptions;
+	tunnelInformation?: TunnelInformation;
+}
+
 export enum RemoteAuthorityResolverErrorCode {
 	Unknown = 'Unknown',
 	NotAvailable = 'NotAvailable',
@@ -59,11 +73,11 @@ export class RemoteAuthorityResolverError extends Error {
 
 export interface IRemoteAuthorityResolverService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
-	resolveAuthority(authority: string): Promise<ResolvedAuthority>;
+	resolveAuthority(authority: string): Promise<ResolverResult>;
 
 	clearResolvedAuthority(authority: string): void;
-	setResolvedAuthority(resolvedAuthority: ResolvedAuthority): void;
+	setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
 	setResolvedAuthorityError(authority: string, err: any): void;
 }

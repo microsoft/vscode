@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
-import { FileChangeType, IFileSystemProvider, FileType, IWatchOptions, IStat, FileSystemProviderErrorCode, FileSystemProviderError, FileWriteOptions, IFileChange, FileDeleteOptions, FileSystemProviderCapabilities, FileOverwriteOptions } from 'vs/platform/files/common/files';
+import { FileChangeType, FileType, IWatchOptions, IStat, FileSystemProviderErrorCode, FileSystemProviderError, FileWriteOptions, IFileChange, FileDeleteOptions, FileSystemProviderCapabilities, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 
 class File implements IStat {
@@ -50,7 +50,7 @@ class Directory implements IStat {
 
 export type Entry = File | Directory;
 
-export class InMemoryUserDataProvider extends Disposable implements IFileSystemProvider {
+export class InMemoryFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
 	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
@@ -134,13 +134,12 @@ export class InMemoryUserDataProvider extends Disposable implements IFileSystemP
 		let dirname = resources.dirname(resource);
 		let basename = resources.basename(resource);
 		let parent = this._lookupAsDirectory(dirname, false);
-		if (!parent.entries.has(basename)) {
-			throw new FileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+		if (parent.entries.has(basename)) {
+			parent.entries.delete(basename);
+			parent.mtime = Date.now();
+			parent.size -= 1;
+			this._fireSoon({ type: FileChangeType.UPDATED, resource: dirname }, { resource, type: FileChangeType.DELETED });
 		}
-		parent.entries.delete(basename);
-		parent.mtime = Date.now();
-		parent.size -= 1;
-		this._fireSoon({ type: FileChangeType.UPDATED, resource: dirname }, { resource, type: FileChangeType.DELETED });
 	}
 
 	async mkdir(resource: URI): Promise<void> {
@@ -205,12 +204,11 @@ export class InMemoryUserDataProvider extends Disposable implements IFileSystemP
 
 	// --- manage file events
 
-	private readonly _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
-	readonly onDidChangeFile: Event<IFileChange[]> = this._onDidChangeFile.event;
+	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private _bufferedChanges: IFileChange[] = [];
-	private _fireSoonHandle?: NodeJS.Timer;
-
+	private _fireSoonHandle?: any;
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		// ignore, fires for all changes...

@@ -5,27 +5,38 @@
 
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
-import * as minimist from 'minimist';
+import * as minimist from 'vscode-minimist';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol, ProtocolConstants, createBufferedEvent } from 'vs/base/parts/ipc/common/ipc.net';
+import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import product from 'vs/platform/product/node/product';
-import { IInitData, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain, IExitFn, ILogServiceFn } from 'vs/workbench/services/extensions/node/extensionHostMain';
+import product from 'vs/platform/product/common/product';
+import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
+import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
 import { exists } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
-import { IHostUtils } from 'vs/workbench/api/node/extHostExtensionService';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import 'vs/workbench/api/node/extHost.services';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
 }
+
+// workaround for https://github.com/microsoft/vscode/issues/85490
+// remove --inspect-port=0 after start so that it doesn't trigger LSP debugging
+(function removeInspectPort() {
+	for (let i = 0; i < process.execArgv.length; i++) {
+		if (process.execArgv[i] === '--inspect-port=0') {
+			process.execArgv.splice(i, 1);
+			i--;
+		}
+	}
+})();
 
 const args = minimist(process.argv.slice(2), {
 	string: [
@@ -63,26 +74,12 @@ function patchProcess(allowExit: boolean) {
 		}
 	} as (code?: number) => never;
 
+	// override Electron's process.crash() method
 	process.crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');
 		console.warn(err.stack);
 	};
 }
-
-// use IPC messages to forward console-calls
-function patchPatchedConsole(mainThreadConsole: MainThreadConsoleShape): void {
-	// The console is already patched to use `process.send()`
-	const nativeProcessSend = process.send!;
-	process.send = (...args: any[]) => {
-		if (args.length === 0 || !args[0] || args[0].type !== '__$console') {
-			return nativeProcessSend.apply(process, args);
-		}
-
-		mainThreadConsole.$logExtensionHostMessage(args[0]);
-	};
-}
-
-const createLogService: ILogServiceFn = initData => new SpdLogService(ExtensionHostLogFileName, initData.logsLocation.fsPath, initData.logLevel);
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
@@ -106,9 +103,12 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				reject(new Error('VSCODE_EXTHOST_IPC_SOCKET timeout'));
 			}, 60000);
 
-			let disconnectWaitTimer: NodeJS.Timeout | null = null;
+			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
+			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
+			const disconnectRunner1 = new RunOnceScheduler(() => onTerminate(), reconnectionGraceTime);
+			const disconnectRunner2 = new RunOnceScheduler(() => onTerminate(), reconnectionShortGraceTime);
 
-			process.on('message', (msg: IExtHostSocketMessage, handle: net.Socket) => {
+			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
 					let socket: NodeSocket | WebSocketNodeSocket;
@@ -119,10 +119,8 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 					}
 					if (protocol) {
 						// reconnection case
-						if (disconnectWaitTimer) {
-							clearTimeout(disconnectWaitTimer);
-							disconnectWaitTimer = null;
-						}
+						disconnectRunner1.cancel();
+						disconnectRunner2.cancel();
 						protocol.beginAcceptReconnection(socket, initialDataChunk);
 						protocol.endAcceptReconnection();
 					} else {
@@ -131,21 +129,21 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						protocol.onClose(() => onTerminate());
 						resolve(protocol);
 
-						if (msg.skipWebSocketFrames) {
-							// Wait for rich client to reconnect
-							protocol.onSocketClose(() => {
-								// The socket has closed, let's give the renderer a certain amount of time to reconnect
-								disconnectWaitTimer = setTimeout(() => {
-									disconnectWaitTimer = null;
-									onTerminate();
-								}, ProtocolConstants.ReconnectionGraceTime);
-							});
-						} else {
-							// Do not wait for web companion to reconnect
-							protocol.onSocketClose(() => {
-								onTerminate();
-							});
-						}
+						// Wait for rich client to reconnect
+						protocol.onSocketClose(() => {
+							// The socket has closed, let's give the renderer a certain amount of time to reconnect
+							disconnectRunner1.schedule();
+						});
+					}
+				}
+				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_REDUCE_GRACE_TIME') {
+					if (disconnectRunner2.isScheduled()) {
+						// we are disconnected and already running the short reconnection timer
+						return;
+					}
+					if (disconnectRunner1.isScheduled()) {
+						// we are disconnected and running the long reconnection timer
+						disconnectRunner2.schedule();
 					}
 				}
 			});
@@ -179,8 +177,8 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 	return new class implements IMessagePassingProtocol {
 
-		private readonly _onMessage = new Emitter<VSBuffer>();
-		readonly onMessage: Event<VSBuffer> = createBufferedEvent(this._onMessage.event);
+		private readonly _onMessage = new BufferedEmitter<VSBuffer>();
+		readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
 		private _terminating: boolean;
 
@@ -205,7 +203,7 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 }
 
 function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {
-	return new Promise<IRendererConnection>((c, e) => {
+	return new Promise<IRendererConnection>((c) => {
 
 		// Listen init data message
 		const first = protocol.onMessage(raw => {
@@ -235,7 +233,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 						promise.catch(e => {
 							unhandledPromises.splice(idx, 1);
 							console.warn(`rejected promise not handled within 1 second: ${e}`);
-							if (e.stack) {
+							if (e && e.stack) {
 								console.warn(`stack trace: ${e.stack}`);
 							}
 							onUnexpectedError(reason);
@@ -288,20 +286,6 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-// patchExecArgv:
-(function () {
-	// when encountering the prevent-inspect flag we delete this
-	// and the prior flag
-	if (process.env.VSCODE_PREVENT_FOREIGN_INSPECT) {
-		for (let i = 0; i < process.execArgv.length; i++) {
-			if (process.execArgv[i].match(/--inspect-brk=\d+|--inspect=\d+/)) {
-				process.execArgv.splice(i, 1);
-				break;
-			}
-		}
-	}
-})();
-
 export async function startExtensionHostProcess(): Promise<void> {
 
 	const protocol = await createExtHostProtocol();
@@ -312,6 +296,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {
+		_serviceBrand: undefined;
 		exit(code: number) { nativeExit(code); }
 		exists(path: string) { return exists(path); }
 		realpath(path: string) { return realpath(path); }
@@ -333,8 +318,6 @@ export async function startExtensionHostProcess(): Promise<void> {
 		renderer.protocol,
 		initData,
 		hostUtils,
-		patchPatchedConsole,
-		createLogService,
 		uriTransformer
 	);
 

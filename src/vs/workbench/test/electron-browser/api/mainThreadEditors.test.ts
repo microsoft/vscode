@@ -27,6 +27,8 @@ import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/se
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 
 suite('MainThreadEditors', () => {
 
@@ -36,15 +38,17 @@ suite('MainThreadEditors', () => {
 	let editors: MainThreadTextEditors;
 
 	const movedResources = new Map<URI, URI>();
+	const copiedResources = new Map<URI, URI>();
 	const createdResources = new Set<URI>();
 	const deletedResources = new Set<URI>();
 
 	setup(() => {
 		const configService = new TestConfigurationService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService());
 		const codeEditorService = new TestCodeEditorService();
 
 		movedResources.clear();
+		copiedResources.clear();
 		createdResources.clear();
 		deletedResources.clear();
 
@@ -62,6 +66,10 @@ suite('MainThreadEditors', () => {
 			}
 			move(source: URI, target: URI) {
 				movedResources.set(source, target);
+				return Promise.resolve(Object.create(null));
+			}
+			copy(source: URI, target: URI) {
+				copiedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
 			models = <any>{
@@ -82,7 +90,11 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
+		const editorWorkerService = new class extends mock<IEditorWorkerService>() {
+
+		};
+
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), editorWorkerService, textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -107,11 +119,11 @@ suite('MainThreadEditors', () => {
 			editorGroupService,
 			bulkEditService,
 			new class extends mock<IPanelService>() implements IPanelService {
-				_serviceBrand: any;
+				_serviceBrand: undefined;
 				onDidPanelOpen = Event.None;
 				onDidPanelClose = Event.None;
 				getActivePanel() {
-					return null;
+					return undefined;
 				}
 			},
 			TestEnvironmentService

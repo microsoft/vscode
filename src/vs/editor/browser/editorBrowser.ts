@@ -6,18 +6,19 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer } from 'vs/editor/common/model';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -83,17 +84,17 @@ export interface IViewZoneChangeAccessor {
 	 * @param zone Zone to create
 	 * @return A unique identifier to the view zone.
 	 */
-	addZone(zone: IViewZone): number;
+	addZone(zone: IViewZone): string;
 	/**
 	 * Remove a zone
 	 * @param id A unique identifier to the view zone, as returned by the `addZone` call.
 	 */
-	removeZone(id: number): void;
+	removeZone(id: string): void;
 	/**
 	 * Change a zone's position.
 	 * The editor will rescan the `afterLineNumber` and `afterColumn` properties of a view zone.
 	 */
-	layoutZone(id: number): void;
+	layoutZone(id: string): void;
 }
 
 /**
@@ -315,7 +316,7 @@ export interface IOverviewRuler {
 	getDomNode(): HTMLElement;
 	dispose(): void;
 	setZones(zones: OverviewRulerZone[]): void;
-	setLayout(position: editorOptions.OverviewRulerPosition): void;
+	setLayout(position: OverviewRulerPosition): void;
 }
 
 /**
@@ -351,7 +352,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
 	 * @event
 	 */
-	onDidChangeConfiguration(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
+	onDidChangeConfiguration(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the cursor position has changed.
 	 * @event
@@ -399,7 +400,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onWillType(listener: (text: string) => void): IDisposable;
 	/**
-	 * An event emitted before interpreting typed characters (on the keyboard).
+	 * An event emitted after interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
@@ -421,7 +422,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
-	 * @internal
 	 */
 	onDidPaste(listener: (range: Range) => void): IDisposable;
 	/**
@@ -481,7 +481,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when the layout of the editor has changed.
 	 * @event
 	 */
-	onDidLayoutChange(listener: (e: editorOptions.EditorLayoutInfo) => void): IDisposable;
+	onDidLayoutChange(listener: (e: EditorLayoutInfo) => void): IDisposable;
 	/**
 	 * An event emitted when the scroll in the editor has changed.
 	 * @event
@@ -532,15 +532,19 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	setModel(model: ITextModel | null): void;
 
 	/**
-	 * Returns the current editor's configuration
-	 */
-	getConfiguration(): editorOptions.InternalEditorOptions;
-
-	/**
-	 * Returns the 'raw' editor's configuration (without any validation or defaults).
 	 * @internal
 	 */
-	getRawConfiguration(): editorOptions.IEditorOptions;
+	getOptions(): IComputedEditorOptions;
+
+	/**
+	 * @internal
+	 */
+	getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
+
+	/**
+	 * Returns the editor's configuration (without any validation or defaults).
+	 */
+	getRawOptions(): IEditorOptions;
 
 	/**
 	 * Get value of the current model attached to this editor.
@@ -612,7 +616,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param edits The edits to execute.
 	 * @param endCursorState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concomitant) commands on the editor.
@@ -655,7 +659,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Get the layout info for the editor.
 	 */
-	getLayoutInfo(): editorOptions.EditorLayoutInfo;
+	getLayoutInfo(): EditorLayoutInfo;
 
 	/**
 	 * Returns the ranges that are currently visible.
@@ -831,6 +835,15 @@ export interface IDiffLineInformation {
 }
 
 /**
+ * @internal
+ */
+export const enum DiffEditorState {
+	Idle,
+	ComputingDiff,
+	DiffComputed
+}
+
+/**
  * A rich diff editor.
  */
 export interface IDiffEditor extends editorCommon.IEditor {
@@ -850,6 +863,11 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly renderIndicators: boolean;
+	/**
+	 * Timeout in milliseconds after which diff computation is cancelled.
+	 * @internal
+	 */
+	readonly maxComputationTime: number;
 
 	/**
 	 * @see ICodeEditor.getDomNode
@@ -903,6 +921,12 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	getLineChanges(): editorCommon.ILineChange[] | null;
 
 	/**
+	 * Get the computed diff information.
+	 * @internal
+	 */
+	getDiffComputationResult(): IDiffComputationResult | null;
+
+	/**
 	 * Get information based on computed diff about a line number from the original model.
 	 * If the diff computation is not finished or the model is missing, will return null.
 	 */
@@ -913,6 +937,11 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * If the diff computation is not finished or the model is missing, will return null.
 	 */
 	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation | null;
+
+	/**
+	 * Update the editor's options after the editor has been created.
+	 */
+	updateOptions(newOptions: IDiffEditorOptions): void;
 }
 
 /**

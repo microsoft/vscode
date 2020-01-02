@@ -6,12 +6,12 @@
 import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
+import { IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
+import { IOutputService, OUTPUT_PANEL_ID } from 'vs/workbench/contrib/output/common/output';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -22,6 +22,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -46,7 +47,7 @@ export class ClearOutputAction extends Action {
 		id: string, label: string,
 		@IOutputService private readonly outputService: IOutputService
 	) {
-		super(id, label, 'output-action clear-output');
+		super(id, label, 'output-action codicon-clear-all');
 	}
 
 	public run(): Promise<boolean> {
@@ -67,11 +68,9 @@ export class ToggleOrSetOutputScrollLockAction extends Action {
 	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';
 	public static readonly LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
 
-	private toDispose: IDisposable[] = [];
-
 	constructor(id: string, label: string, @IOutputService private readonly outputService: IOutputService) {
-		super(id, label, 'output-action output-scroll-unlock');
-		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => {
+		super(id, label, 'output-action codicon-unlock');
+		this._register(this.outputService.onActiveOutputChannel(channel => {
 			const activeChannel = this.outputService.getActiveChannel();
 			if (activeChannel) {
 				this.setClassAndLabel(activeChannel.scrollLock);
@@ -97,17 +96,12 @@ export class ToggleOrSetOutputScrollLockAction extends Action {
 
 	private setClassAndLabel(locked: boolean) {
 		if (locked) {
-			this.class = 'output-action output-scroll-lock';
+			this.class = 'output-action codicon-lock';
 			this.label = nls.localize('outputScrollOn', "Turn Auto Scrolling On");
 		} else {
-			this.class = 'output-action output-scroll-unlock';
+			this.class = 'output-action codicon-unlock';
 			this.label = nls.localize('outputScrollOff', "Turn Auto Scrolling Off");
 		}
-	}
-
-	public dispose() {
-		super.dispose();
-		this.toDispose = dispose(this.toDispose);
 	}
 }
 
@@ -130,8 +124,8 @@ export class SwitchOutputActionViewItem extends SelectActionViewItem {
 
 	private static readonly SEPARATOR = '─────────';
 
-	private outputChannels: IOutputChannelDescriptor[];
-	private logChannels: IOutputChannelDescriptor[];
+	private outputChannels: IOutputChannelDescriptor[] = [];
+	private logChannels: IOutputChannelDescriptor[] = [];
 
 	constructor(
 		action: IAction,
@@ -179,7 +173,7 @@ export class SwitchOutputActionViewItem extends SelectActionViewItem {
 				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
 			}
 		}
-		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : undefined) }), Math.max(0, selected));
+		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : false) }), Math.max(0, selected));
 	}
 }
 
@@ -188,15 +182,13 @@ export class OpenLogOutputFile extends Action {
 	public static readonly ID = 'workbench.output.action.openLogOutputFile';
 	public static readonly LABEL = nls.localize('openInLogViewer', "Open Log File");
 
-	private disposables: IDisposable[] = [];
-
 	constructor(
 		@IOutputService private readonly outputService: IOutputService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
-		this.outputService.onActiveOutputChannel(this.update, this, this.disposables);
+		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action codicon-go-to-file');
+		this._register(this.outputService.onActiveOutputChannel(this.update, this));
 		this.update();
 	}
 
@@ -223,8 +215,8 @@ export class OpenLogOutputFile extends Action {
 
 export class ShowLogsOutputChannelAction extends Action {
 
-	static ID = 'workbench.action.showLogs';
-	static LABEL = nls.localize('showLogs', "Show Logs...");
+	static readonly ID = 'workbench.action.showLogs';
+	static readonly LABEL = nls.localize('showLogs', "Show Logs...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -253,8 +245,8 @@ interface IOutputChannelQuickPickItem extends IQuickPickItem {
 
 export class OpenOutputLogFileAction extends Action {
 
-	static ID = 'workbench.action.openLogFile';
-	static LABEL = nls.localize('openLogFile', "Open Log File...");
+	static readonly ID = 'workbench.action.openLogFile';
+	static readonly LABEL = nls.localize('openLogFile', "Open Log File...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -272,7 +264,8 @@ export class OpenOutputLogFileAction extends Action {
 		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") })
 			.then(entry => {
 				if (entry) {
-					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel)).then(() => undefined);
+					assertIsDefined(entry.channel.file);
+					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel as IFileOutputChannelDescriptor)).then(() => undefined);
 				}
 				return undefined;
 			});

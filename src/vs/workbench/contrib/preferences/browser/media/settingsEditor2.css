@@ -12,6 +12,14 @@
 	overflow: hidden;
 }
 
+.settings-editor .codicon {
+	color: inherit !important;
+}
+
+.settings-editor:focus {
+	outline: none !important;
+}
+
 /* header styling */
 .settings-editor > .settings-header {
 	box-sizing: border-box;
@@ -36,7 +44,16 @@
 	padding: 0px 8px;
 	border-radius: 2px;
 	position: absolute;
-	right: 10px;
+	right: 35px;
+	top: 0;
+}
+
+.settings-editor > .settings-header > .search-container > .settings-clear-widget {
+	margin: 6px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+	position: absolute;
+	right: 0px;
 	top: 0;
 }
 
@@ -88,7 +105,6 @@
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: none;
 	font-size: 13px;
-
 	padding-bottom: 7px;
 	padding-top: 7px;
 	padding-left: 8px;
@@ -143,7 +159,7 @@
 	max-width: 952px;
 	/* 1000 - 24*2 padding */
 	margin-left: -476px;
-	z-index: 1000;
+	z-index: 11;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
@@ -154,35 +170,27 @@
 	width: 26px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .toolbar-toggle-more,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .toolbar-toggle-more {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-item-contents.focused .setting-toolbar-container > .monaco-toolbar .codicon-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .codicon-more,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .codicon-more {
 	opacity: 1;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more {
+.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon-more {
 	opacity: 0;
 	transition: opacity .3s;
 	width: 22px;
 	height: 22px;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 16px;
-}
-
-.vs .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
-	background-image: url('configure-light.svg');
-}
-
-.vs-dark .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
-	background-image: url('configure-dark.svg');
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .settings-editor > .settings-body .settings-toc-container {
 	width: 100%;
 	pointer-events: none;
-	z-index: 100;
+	z-index: 10;
 	position: absolute;
 }
 
@@ -208,14 +216,13 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
-	opacity: 0.9;
 	flex-shrink: 1;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
 	display: none;
 	line-height: 22px;
-	opacity: 0.7;
+	opacity: 0.8;
 	margin-left: 3px;
 }
 
@@ -223,17 +230,8 @@
 	display: block;
 }
 
-.settings-editor > .settings-body .settings-toc-container .monaco-list-row .monaco-tl-twistie {
-	opacity: 0.9;
-}
-
-.settings-editor > .settings-body .settings-toc-container .monaco-list-row.selected .monaco-tl-twistie {
-	opacity: 1;
-}
-
 .settings-editor > .settings-body .settings-toc-container .monaco-list-row.selected .settings-toc-entry {
 	font-weight: bold;
-	opacity: 1;
 }
 
 .settings-editor > .settings-body .settings-tree-container {
@@ -274,7 +272,7 @@
 	max-width: 1000px;
 	margin: auto;
 	box-sizing: border-box;
-	padding-left: 217px;
+	padding-left: 219px;
 	padding-right: 20px;
 	overflow: visible;
 }
@@ -337,6 +335,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-category {
 	font-weight: 600;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-category {
@@ -346,15 +345,18 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message {
 	margin-top: 3px;
 	user-select: text;
+	-webkit-user-select: text;
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message {
+	display: block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description {
 	margin-top: -1px;
 	user-select: text;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message {
-	position: absolute;
+	-webkit-user-select: text;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message {
@@ -369,6 +371,10 @@
 	margin-top: -1px;
 	z-index: 1;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-item-contents.invalid-input .setting-item-validation-message {
+	position: static;
+	margin-top: 1rem;
+}
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-validation-message {
 	width: 500px;
@@ -381,6 +387,11 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number input[type=number]::-webkit-inner-spin-button {
 	/* Hide arrow button that shows in type=number fields */
 	-webkit-appearance: none !important;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number input[type=number] {
+	/* Hide arrow button that shows in type=number fields */
+	-moz-appearance: textfield !important;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown * {
@@ -428,16 +439,10 @@
 	margin-right: 9px;
 	margin-left: 0px;
 	padding: 0px;
-	background-size: 16px !important;
 }
 
-.vs .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
-	background: url('check-light.svg') center center no-repeat;
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked,
-.hc-black .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
-	background: url('check-dark.svg') center center no-repeat;
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.codicon:not(.checked)::before  {
+	opacity: 0;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-value {
@@ -474,6 +479,7 @@
 	width: initial;
 	font: inherit;
 	height: 26px;
+	padding: 2px 8px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions {
@@ -482,6 +488,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions .settings-new-extensions-button {
 	margin: auto;
+	margin-bottom: 15px;
 	width: initial;
 	padding: 4px 10px;
 }

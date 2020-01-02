@@ -109,7 +109,7 @@
 				}
 			]
 		},
-		"text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js - (meta.embedded.block.php | meta.embedded.line.php))": {
+		"text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.css - (meta.embedded.block.php | meta.embedded.line.php))": {
 			"patterns": [
 				{
 					"include": "#php-tag"
@@ -129,7 +129,7 @@
 			"name": "comment.line.shebang.php"
 		},
 		{
-			"include": "text.html.basic"
+			"include": "text.html.derivative"
 		}
 	],
 	"repository": {

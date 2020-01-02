@@ -8,15 +8,38 @@ import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, SelectionRange } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
+import {
+	languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace,
+	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
+	SemanticTokensProvider, SemanticTokens
+} from 'vscode';
+import {
+	LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange
+} from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
+import { activateMirrorCursor } from './mirrorCursor';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
+}
+namespace MatchingTagPositionRequest {
+	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
+}
+
+// experimental: semantic tokens
+interface SemanticTokenParams {
+	textDocument: TextDocumentIdentifier;
+	ranges?: LspRange[];
+}
+namespace SemanticTokenRequest {
+	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+}
+namespace SemanticTokenLegendRequest {
+	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any, any> = new RequestType0('html/semanticTokenLegend');
 }
 
 interface IPackageInfo {
@@ -50,6 +73,8 @@ export function activate(context: ExtensionContext) {
 	let documentSelector = ['html', 'handlebars'];
 	let embeddedLanguages = { css: true, javascript: true };
 
+	let rangeFormatting: Disposable | undefined = undefined;
+
 	let dataPaths = [
 		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
 		...getCustomDataPathsFromAllExtensions()
@@ -63,7 +88,33 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			embeddedLanguages,
-			dataPaths
+			dataPaths,
+			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
+		},
+		middleware: {
+			// testing the replace / insert mode
+			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				function updateRanges(item: CompletionItem) {
+					const range = item.range;
+					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range2 = { inserting: new Range(range.start, position), replacing: range };
+						item.range = undefined;
+					}
+				}
+				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
+					if (r) {
+						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+					}
+					return r;
+				}
+				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+
+				const r = next(document, position, context, token);
+				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+					return r.then(updateProposals);
+				}
+				return updateProposals(r);
+			}
 		}
 	};
 
@@ -81,6 +132,14 @@ export function activate(context: ExtensionContext) {
 		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags');
 		toDispose.push(disposable);
 
+		const matchingTagPositionRequestor = (document: TextDocument, position: Position) => {
+			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
+			return client.sendRequest(MatchingTagPositionRequest.type, param);
+		};
+
+		disposable = activateMirrorCursor(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.mirrorCursorOnMatchingTag');
+		toDispose.push(disposable);
+
 		disposable = client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
@@ -88,26 +147,54 @@ export function activate(context: ExtensionContext) {
 		});
 		toDispose.push(disposable);
 
-		documentSelector.forEach(selector => {
-			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[]> {
-					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
-					if (Array.isArray(rawResult)) {
-						return rawResult.map(rawSelectionRanges => {
-							return rawSelectionRanges.reduceRight((parent: SelectionRange | undefined, selectionRange: SelectionRange) => {
-								return {
-									range: client.protocol2CodeConverter.asRange(selectionRange.range),
-									parent
-								};
-							}, undefined)!;
+		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
+		updateFormatterRegistration();
+		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
+		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
+
+		client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
+			if (legend) {
+				const provider: SemanticTokensProvider = {
+					provideSemanticTokens(doc, opts) {
+						const params: SemanticTokenParams = {
+							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
+							ranges: opts.ranges?.map(r => client.code2ProtocolConverter.asRange(r))
+						};
+						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
+							return data && new SemanticTokens(new Uint32Array(data));
 						});
 					}
-					return [];
-				}
-			}));
+				};
+				toDispose.push(languages.registerSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
+			}
 		});
+
 	});
+
+	function updateFormatterRegistration() {
+		const formatEnabled = workspace.getConfiguration().get('html.format.enable');
+		if (!formatEnabled && rangeFormatting) {
+			rangeFormatting.dispose();
+			rangeFormatting = undefined;
+		} else if (formatEnabled && !rangeFormatting) {
+			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
+				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+					let params: DocumentRangeFormattingParams = {
+						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+						range: client.code2ProtocolConverter.asRange(range),
+						options: client.code2ProtocolConverter.asFormattingOptions(options)
+					};
+					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
+						client.protocol2CodeConverter.asTextEdits,
+						(error) => {
+							client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
+							return Promise.resolve([]);
+						}
+					);
+				}
+			});
+		}
+	}
 
 	languages.setLanguageConfiguration('html', {
 		indentationRules: {

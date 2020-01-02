@@ -33,7 +33,7 @@ suite('TokenizationSupport2Adapter', () => {
 	}
 
 	class MockThemeService implements IStandaloneThemeService {
-		_serviceBrand = <any>null;
+		_serviceBrand: undefined;
 		public setTheme(themeName: string): string {
 			throw new Error('Not implemented');
 		}
@@ -54,9 +54,16 @@ suite('TokenizationSupport2Adapter', () => {
 
 				defines: (color: ColorIdentifier): boolean => {
 					throw new Error('Not implemented');
-				}
+				},
+
+				getTokenStyleMetadata: (type: string, modifiers: string[]): number | undefined => {
+					return undefined;
+				},
+
+				tokenColorMap: []
 			};
 		}
+
 		public getIconTheme(): IIconTheme {
 			return {
 				hasFileIcons: false,

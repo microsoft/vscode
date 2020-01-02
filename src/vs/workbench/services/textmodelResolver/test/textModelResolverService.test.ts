@@ -16,7 +16,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
@@ -27,7 +27,7 @@ class ServiceAccessor {
 		@IModelService public modelService: IModelService,
 		@IModeService public modeService: IModeService,
 		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledEditorService public untitledEditorService: IUntitledEditorService
+		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService
 	) {
 	}
 }
@@ -50,7 +50,7 @@ suite('Workbench - TextModelResolverService', () => {
 		}
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledEditorService.revertAll();
+		accessor.untitledTextEditorService.revertAll();
 	});
 
 	test('resolve resource', async () => {
@@ -88,11 +88,11 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve file', async function () {
 		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.models).add(textModel.getResource(), textModel);
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(textModel.resource, textModel);
 
 		await textModel.load();
 
-		const ref = await accessor.textModelResolverService.createModelReference(textModel.getResource());
+		const ref = await accessor.textModelResolverService.createModelReference(textModel.resource);
 
 		const model = ref.object;
 		const editorModel = model.textEditorModel;
@@ -111,7 +111,7 @@ suite('Workbench - TextModelResolverService', () => {
 	});
 
 	test('resolve untitled', async () => {
-		const service = accessor.untitledEditorService;
+		const service = accessor.untitledTextEditorService;
 		const input = service.createOrGet();
 
 		await input.resolve();

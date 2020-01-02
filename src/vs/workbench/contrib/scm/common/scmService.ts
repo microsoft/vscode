@@ -22,8 +22,8 @@ class SCMInput implements ISCMInput {
 		this._onDidChange.fire(value);
 	}
 
-	private _onDidChange = new Emitter<string>();
-	get onDidChange(): Event<string> { return this._onDidChange.event; }
+	private readonly _onDidChange = new Emitter<string>();
+	readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private _placeholder = '';
 
@@ -36,8 +36,8 @@ class SCMInput implements ISCMInput {
 		this._onDidChangePlaceholder.fire(placeholder);
 	}
 
-	private _onDidChangePlaceholder = new Emitter<string>();
-	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
+	private readonly _onDidChangePlaceholder = new Emitter<string>();
+	readonly onDidChangePlaceholder: Event<string> = this._onDidChangePlaceholder.event;
 
 	private _visible = true;
 
@@ -50,8 +50,8 @@ class SCMInput implements ISCMInput {
 		this._onDidChangeVisibility.fire(visible);
 	}
 
-	private _onDidChangeVisibility = new Emitter<boolean>();
-	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
+	private readonly _onDidChangeVisibility = new Emitter<boolean>();
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
@@ -64,13 +64,13 @@ class SCMInput implements ISCMInput {
 		this._onDidChangeValidateInput.fire();
 	}
 
-	private _onDidChangeValidateInput = new Emitter<void>();
-	get onDidChangeValidateInput(): Event<void> { return this._onDidChangeValidateInput.event; }
+	private readonly _onDidChangeValidateInput = new Emitter<void>();
+	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 }
 
 class SCMRepository implements ISCMRepository {
 
-	private _onDidFocus = new Emitter<void>();
+	private readonly _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	private _selected = false;
@@ -78,7 +78,7 @@ class SCMRepository implements ISCMRepository {
 		return this._selected;
 	}
 
-	private _onDidChangeSelection = new Emitter<boolean>();
+	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
 	readonly input: ISCMInput = new SCMInput();
@@ -105,7 +105,7 @@ class SCMRepository implements ISCMRepository {
 
 export class SCMService implements ISCMService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _providerIds = new Set<string>();
 	private _repositories: ISCMRepository[] = [];
@@ -114,14 +114,14 @@ export class SCMService implements ISCMService {
 	private _selectedRepositories: ISCMRepository[] = [];
 	get selectedRepositories(): ISCMRepository[] { return [...this._selectedRepositories]; }
 
-	private _onDidChangeSelectedRepositories = new Emitter<ISCMRepository[]>();
+	private readonly _onDidChangeSelectedRepositories = new Emitter<ISCMRepository[]>();
 	readonly onDidChangeSelectedRepositories: Event<ISCMRepository[]> = this._onDidChangeSelectedRepositories.event;
 
-	private _onDidAddProvider = new Emitter<ISCMRepository>();
-	get onDidAddRepository(): Event<ISCMRepository> { return this._onDidAddProvider.event; }
+	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
+	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
 
-	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
-	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
+	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
+	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
 
 	constructor(@ILogService private readonly logService: ILogService) { }
 

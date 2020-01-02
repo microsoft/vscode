@@ -21,6 +21,7 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { IColorMapping } from 'vs/platform/theme/common/styler';
 
 export interface IExtensionTemplateData {
 	icon: HTMLImageElement;
@@ -156,7 +157,7 @@ export class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtens
 
 class OpenExtensionAction extends Action {
 
-	private _extensionData: IExtensionData;
+	private _extensionData: IExtensionData | undefined;
 
 	constructor(@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openExtension', '');
@@ -166,12 +167,11 @@ class OpenExtensionAction extends Action {
 		this._extensionData = extension;
 	}
 
-	public get extensionData(): IExtensionData {
-		return this._extensionData;
-	}
-
 	run(sideByside: boolean): Promise<any> {
-		return this.extensionsWorkdbenchService.open(this.extensionData.extension, sideByside);
+		if (this._extensionData) {
+			return this.extensionsWorkdbenchService.open(this._extensionData.extension, sideByside);
+		}
+		return Promise.resolve();
 	}
 }
 
@@ -180,6 +180,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 	constructor(
 		input: IExtensionData,
 		container: HTMLElement,
+		overrideStyles: IColorMapping,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -199,6 +200,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 		};
 
 		super(
+			'ExtensionsTree',
 			container,
 			delegate,
 			renderers,
@@ -206,14 +208,15 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 			{
 				indent: 40,
 				identityProvider,
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				overrideStyles
 			},
 			contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService
 		);
 
 		this.setInput(input);
 
-		this.disposables.push(this.onDidChangeSelection(event => {
+		this.disposables.add(this.onDidChangeSelection(event => {
 			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
 				extensionsWorkdbenchService.open(event.elements[0].extension, false);
 			}

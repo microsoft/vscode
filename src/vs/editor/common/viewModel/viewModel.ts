@@ -13,11 +13,11 @@ import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IViewWhitespaceViewportData {
-	readonly id: number;
+	readonly id: string;
 	readonly afterLineNumber: number;
 	readonly verticalOffset: number;
 	readonly height: number;
@@ -69,20 +69,8 @@ export interface IViewLayout {
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	// --------------- Begin vertical whitespace management
+	changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T;
 
-	/**
-	 * Reserve rendering space.
-	 * @return an identifier that can be later used to remove or change the whitespace.
-	 */
-	addWhitespace(afterLineNumber: number, ordinal: number, height: number, minWidth: number): number;
-	/**
-	 * Change the properties of a whitespace.
-	 */
-	changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean;
-	/**
-	 * Remove rendering space
-	 */
-	removeWhitespace(id: number): boolean;
 	/**
 	 * Get the layout information for whitespaces currently in the viewport
 	 */
@@ -141,6 +129,7 @@ export interface IViewModel {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations;
 	invalidateOverviewRulerColorCache(): void;
+	invalidateMinimapColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
 	getModelLineMaxColumn(modelLineNumber: number): number;

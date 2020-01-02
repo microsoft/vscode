@@ -31,9 +31,9 @@ export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Sourc
 
 export class Source {
 
-	public readonly uri: uri;
-	public available: boolean;
-	public raw: DebugProtocol.Source;
+	readonly uri: uri;
+	available: boolean;
+	raw: DebugProtocol.Source;
 
 	constructor(raw_: DebugProtocol.Source | undefined, sessionId: string) {
 		let path: string;
@@ -93,8 +93,8 @@ export class Source {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | null> {
-		return !this.available ? Promise.resolve(null) : editorService.openEditor({
+	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | undefined> {
+		return !this.available ? Promise.resolve(undefined) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,
 			options: {

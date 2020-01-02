@@ -4,16 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { ITextFileService, snapshotToString, TextFileOperationResult, TextFileOperationError } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { rimraf, RimRafMode, copy, readFile, exists } from 'vs/base/node/pfs';
@@ -27,7 +22,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename } from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { UTF16be, UTF16le, UTF8_with_bom, UTF8 } from 'vs/base/node/encoding';
-import { NodeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/node/textFileService';
+import { NativeTextFileService, EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isWindows } from 'vs/base/common/platform';
@@ -36,20 +31,15 @@ import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
 
 class ServiceAccessor {
 	constructor(
-		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledEditorService public untitledEditorService: IUntitledEditorService,
-		@IWindowsService public windowsService: TestWindowsService,
-		@IWorkspaceContextService public contextService: TestContextService,
-		@IModelService public modelService: ModelServiceImpl,
-		@IFileService public fileService: TestFileService
+		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService
 	) {
 	}
 }
 
-class TestNodeTextFileService extends NodeTextFileService {
+class TestNativeTextFileService extends NativeTextFileService {
 
-	private _testEncoding: TestEncodingOracle;
+	private _testEncoding: TestEncodingOracle | undefined;
 	get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
 			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
@@ -94,7 +84,7 @@ suite('Files - TextFileService i/o', () => {
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
 
-		service = instantiationService.createChild(collection).createInstance(TestNodeTextFileService);
+		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileService);
 
 		const id = generateUuid();
 		testDir = join(parentDir, id);
@@ -106,7 +96,7 @@ suite('Files - TextFileService i/o', () => {
 	teardown(async () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledEditorService.revertAll();
+		accessor.untitledTextEditorService.revertAll();
 
 		disposables.clear();
 
@@ -182,7 +172,7 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(await exists(resource.fsPath), true);
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('create - UTF 8 BOM - content provided', async () => {
@@ -193,7 +183,7 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(await exists(resource.fsPath), true);
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('create - UTF 8 BOM - empty content - snapshot', async () => {
@@ -204,7 +194,7 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(await exists(resource.fsPath), true);
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('create - UTF 8 BOM - content provided - snapshot', async () => {
@@ -215,7 +205,7 @@ suite('Files - TextFileService i/o', () => {
 		assert.equal(await exists(resource.fsPath), true);
 
 		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('write - use encoding (UTF 16 BE) - small content as string', async () => {
@@ -335,12 +325,12 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, content, { encoding: UTF8_with_bom });
 
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		// ensure BOM preserved
 		await service.write(resource, content, { encoding: UTF8 });
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		// allow to remove BOM
 		await service.write(resource, content, { encoding: UTF8, overwriteEncoding: true });
@@ -363,12 +353,12 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8_with_bom });
 
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		// ensure BOM preserved
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8 });
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		// allow to remove BOM
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8, overwriteEncoding: true });
@@ -385,11 +375,11 @@ suite('Files - TextFileService i/o', () => {
 		const resource = URI.file(join(testDir, 'some_utf8_bom.txt'));
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 
 		await service.write(resource, 'Hello World');
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('write - ensure BOM in empty file - content as string', async () => {
@@ -398,7 +388,7 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, '', { encoding: UTF8_with_bom });
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('write - ensure BOM in empty file - content as snapshot', async () => {
@@ -407,7 +397,7 @@ suite('Files - TextFileService i/o', () => {
 		await service.write(resource, TextModel.createFromString('').createSnapshot(), { encoding: UTF8_with_bom });
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
-		assert.equal(detectedEncoding, UTF8);
+		assert.equal(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('readStream - small text', async () => {

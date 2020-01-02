@@ -127,8 +127,7 @@ export class DisposableStore implements IDisposable {
 
 		markTracked(t);
 		if (this._isDisposed) {
-			console.warn(new Error('Registering disposable on object that has already been disposed of').stack);
-			t.dispose();
+			console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
 		} else {
 			this._toDispose.add(t);
 		}
@@ -139,7 +138,7 @@ export class DisposableStore implements IDisposable {
 
 export abstract class Disposable implements IDisposable {
 
-	static None = Object.freeze<IDisposable>({ dispose() { } });
+	static readonly None = Object.freeze<IDisposable>({ dispose() { } });
 
 	private readonly _store = new DisposableStore();
 
@@ -164,7 +163,7 @@ export abstract class Disposable implements IDisposable {
 /**
  * Manages the lifecycle of a disposable value that may be changed.
  *
- * This ensures that when the the disposable value is changed, the previously held disposable is disposed of. You can
+ * This ensures that when the disposable value is changed, the previously held disposable is disposed of. You can
  * also register a `MutableDisposable` on a `Disposable` to ensure it is automatically cleaned up.
  */
 export class MutableDisposable<T extends IDisposable> implements IDisposable {
@@ -213,9 +212,7 @@ export interface IReference<T> extends IDisposable {
 
 export abstract class ReferenceCollection<T> {
 
-	private references: Map<string, { readonly object: T; counter: number; }> = new Map();
-
-	constructor() { }
+	private readonly references: Map<string, { readonly object: T; counter: number; }> = new Map();
 
 	acquire(key: string): IReference<T> {
 		let reference = this.references.get(key);

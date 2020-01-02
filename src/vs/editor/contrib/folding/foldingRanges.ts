@@ -28,6 +28,7 @@ export class FoldingRegions {
 		this._endIndexes = endIndexes;
 		this._collapseStates = new Uint32Array(Math.ceil(startIndexes.length / 32));
 		this._types = types;
+		this._parentsComputed = false;
 	}
 
 	private ensureParentIndices() {

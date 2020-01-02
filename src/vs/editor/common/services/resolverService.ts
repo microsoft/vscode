@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ITextModelService = createDecorator<ITextModelService>('textModelService');
 
 export interface ITextModelService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	/**
 	 * Provided a resource URI, it will return a model reference
@@ -52,6 +52,9 @@ export interface ITextEditorModel extends IEditorModel {
 	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
 	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
 
+	/**
+	 * Signals if this model is readonly or not. 
+	 */
 	isReadonly(): boolean;
 }
 

@@ -65,7 +65,7 @@ export class MarkdownContentProvider {
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
 			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings(),
-			webviewResourceRoot: resourceProvider.toWebviewResource(markdownDocument.uri).toString(),
+			webviewResourceRoot: resourceProvider.asWebviewUri(markdownDocument.uri).toString(),
 		};
 
 		this.logger.log('provideTextDocumentContent', initialData);
@@ -86,7 +86,7 @@ export class MarkdownContentProvider {
 					data-state="${escapeAttribute(JSON.stringify(state || {}))}">
 				<script src="${this.extensionResourcePath(resourceProvider, 'pre.js')}" nonce="${nonce}"></script>
 				${this.getStyles(resourceProvider, sourceUri, config, state)}
-				<base href="${resourceProvider.toWebviewResource(markdownDocument.uri)}">
+				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${body}
@@ -110,7 +110,7 @@ export class MarkdownContentProvider {
 	}
 
 	private extensionResourcePath(resourceProvider: WebviewResourceProvider, mediaFile: string): string {
-		const webviewResource = resourceProvider.toWebviewResource(
+		const webviewResource = resourceProvider.asWebviewUri(
 			vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))));
 		return webviewResource.toString();
 	}
@@ -126,17 +126,17 @@ export class MarkdownContentProvider {
 
 		// Assume it must be a local file
 		if (path.isAbsolute(href)) {
-			return resourceProvider.toWebviewResource(vscode.Uri.file(href)).toString();
+			return resourceProvider.asWebviewUri(vscode.Uri.file(href)).toString();
 		}
 
 		// Use a workspace relative path if there is a workspace
 		const root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
-			return resourceProvider.toWebviewResource(vscode.Uri.file(path.join(root.uri.fsPath, href))).toString();
+			return resourceProvider.asWebviewUri(vscode.Uri.file(path.join(root.uri.fsPath, href))).toString();
 		}
 
 		// Otherwise look relative to the markdown file
-		return resourceProvider.toWebviewResource(vscode.Uri.file(path.join(path.dirname(resource.fsPath), href))).toString();
+		return resourceProvider.asWebviewUri(vscode.Uri.file(path.join(path.dirname(resource.fsPath), href))).toString();
 	}
 
 	private computeCustomStyleSheetIncludes(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
@@ -176,7 +176,7 @@ export class MarkdownContentProvider {
 	private getStyles(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, config: MarkdownPreviewConfiguration, state?: any): string {
 		const baseStyles: string[] = [];
 		for (const resource of this.contributionProvider.contributions.previewStyles) {
-			baseStyles.push(`<link rel="stylesheet" type="text/css" href="${escapeAttribute(resourceProvider.toWebviewResource(resource))}">`);
+			baseStyles.push(`<link rel="stylesheet" type="text/css" href="${escapeAttribute(resourceProvider.asWebviewUri(resource))}">`);
 		}
 
 		return `${baseStyles.join('\n')}
@@ -188,7 +188,7 @@ export class MarkdownContentProvider {
 		const out: string[] = [];
 		for (const resource of this.contributionProvider.contributions.previewScripts) {
 			out.push(`<script async
-				src="${escapeAttribute(resourceProvider.toWebviewResource(resource))}"
+				src="${escapeAttribute(resourceProvider.asWebviewUri(resource))}"
 				nonce="${nonce}"
 				charset="UTF-8"></script>`);
 		}
@@ -209,7 +209,7 @@ export class MarkdownContentProvider {
 				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' ${rule} https: data: http://localhost:* http://127.0.0.1:*; media-src 'self' ${rule} https: data: http://localhost:* http://127.0.0.1:*; script-src 'nonce-${nonce}'; style-src 'self' ${rule} 'unsafe-inline' https: data: http://localhost:* http://127.0.0.1:*; font-src 'self' ${rule} https: data: http://localhost:* http://127.0.0.1:*;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent:
-				return '';
+				return '<meta http-equiv="Content-Security-Policy" content="">';
 
 			case MarkdownPreviewSecurityLevel.Strict:
 			default:

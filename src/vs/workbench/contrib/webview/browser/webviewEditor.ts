@@ -6,55 +6,53 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions } from 'vs/workbench/common/editor';
-import { WebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview } from 'vs/workbench/contrib/webview/common/webview';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class WebviewEditor extends BaseEditor {
 
-	protected _webview: Webview | undefined;
-	protected findWidgetVisible: IContextKey<boolean>;
-
 	public static readonly ID = 'WebviewEditor';
 
-	private _editorFrame: HTMLElement;
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private _findWidgetVisible: IContextKey<boolean>;
+	private _editorFrame?: HTMLElement;
 	private _content?: HTMLElement;
-	private _webviewContent: HTMLElement | undefined;
+	private _dimension?: DOM.Dimension;
 
-	private readonly _webviewFocusTrackerDisposables = this._register(new DisposableStore());
+	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
 
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
-	private pendingMessages: any[] = [];
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IWebviewService private readonly _webviewService: IWebviewService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWindowService private readonly _windowService: IWindowService,
-		@IStorageService storageService: IStorageService
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
-		if (_contextKeyService) {
-			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
-		}
+
+		this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
+	}
+
+	public get isWebviewEditor() {
+		return true;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -63,77 +61,49 @@ export class WebviewEditor extends BaseEditor {
 		parent.appendChild(this._content);
 	}
 
-	private doUpdateContainer() {
-		const webviewContainer = this.input && (this.input as WebviewEditorInput).container;
-		if (webviewContainer && webviewContainer.parentElement) {
-			const frameRect = this._editorFrame.getBoundingClientRect();
-			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
-
-			webviewContainer.style.position = 'absolute';
-			webviewContainer.style.top = `${frameRect.top - containerRect.top}px`;
-			webviewContainer.style.left = `${frameRect.left - containerRect.left}px`;
-			webviewContainer.style.width = `${frameRect.width}px`;
-			webviewContainer.style.height = `${frameRect.height}px`;
-		}
-	}
-
 	public dispose(): void {
-		this.pendingMessages = [];
-
-		// Let the editor input dispose of the webview.
-		this._webview = undefined;
-		this._webviewContent = undefined;
-
-		if (this._content && this._content.parentElement) {
-			this._content.parentElement.removeChild(this._content);
+		if (this._content) {
+			this._content.remove();
 			this._content = undefined;
 		}
 
 		super.dispose();
 	}
 
-	public sendMessage(data: any): void {
-		if (this._webview) {
-			this._webview.sendMessage(data);
-		} else {
-			this.pendingMessages.push(data);
-		}
-	}
 	public showFind() {
-		if (this._webview) {
-			this._webview.showFind();
-			this.findWidgetVisible.set(true);
-		}
+		this.withWebview(webview => {
+			webview.showFind();
+			this._findWidgetVisible.set(true);
+		});
 	}
 
 	public hideFind() {
-		this.findWidgetVisible.reset();
-		if (this._webview) {
-			this._webview.hideFind();
-		}
+		this._findWidgetVisible.reset();
+		this.withWebview(webview => webview.hideFind());
 	}
 
-	public get isWebviewEditor() {
-		return true;
+	public find(previous: boolean) {
+		this.withWebview(webview => {
+			webview.runFindAction(previous);
+		});
 	}
 
 	public reload() {
 		this.withWebview(webview => webview.reload());
 	}
 
-	public layout(_dimension: DOM.Dimension): void {
-		this.withWebview(webview => {
-			this.doUpdateContainer();
-			webview.layout();
-		});
+	public layout(dimension: DOM.Dimension): void {
+		this._dimension = dimension;
+		if (this.input && this.input instanceof WebviewInput) {
+			this.synchronizeWebviewContainerDimensions(this.input.webview, dimension);
+		}
 	}
 
 	public focus(): void {
 		super.focus();
-		if (!this._onFocusWindowHandler.value) {
-
+		if (!this._onFocusWindowHandler.value && !isWeb) {
 			// Make sure we restore focus when switching back to a VS Code window
-			this._onFocusWindowHandler.value = this._windowService.onDidChangeFocus(focused => {
+			this._onFocusWindowHandler.value = this._hostService.onDidChangeFocus(focused => {
 				if (focused && this._editorService.activeControl === this) {
 					this.focus();
 				}
@@ -143,145 +113,120 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	public withWebview(f: (element: Webview) => void): void {
-		if (this._webview) {
-			f(this._webview);
+		if (this.input && this.input instanceof WebviewInput) {
+			f(this.input.webview);
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
-		if (this.input && this.input instanceof WebviewEditorInput) {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		if (this.input instanceof WebviewInput) {
+			const webview = this.input.webview;
 			if (visible) {
-				this.input.claimWebview(this);
+				webview.claim(this);
 			} else {
-				this.input.releaseWebview(this);
+				webview.release(this);
 			}
-
-			this.updateWebview(this.input as WebviewEditorInput);
+			this.claimWebview(this.input);
 		}
-
-		if (this._webviewContent) {
-			if (visible) {
-				this._webviewContent.style.visibility = 'visible';
-				this.doUpdateContainer();
-			} else {
-				this._webviewContent.style.visibility = 'hidden';
-			}
-		}
-
 		super.setEditorVisible(visible, group);
 	}
 
 	public clearInput() {
-		if (this.input && this.input instanceof WebviewEditorInput) {
-			this.input.releaseWebview(this);
+		if (this.input && this.input instanceof WebviewInput) {
+			this.input.webview.release(this);
+			this._webviewVisibleDisposables.clear();
 		}
-
-		this._webview = undefined;
-		this._webviewContent = undefined;
-		this.pendingMessages = [];
 
 		super.clearInput();
 	}
 
-	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		if (this.input) {
-			(this.input as WebviewEditorInput).releaseWebview(this);
-			this._webview = undefined;
-			this._webviewContent = undefined;
-		}
-		this.pendingMessages = [];
-		return super.setInput(input, options, token)
-			.then(() => input.resolve())
-			.then(() => {
-				if (token.isCancellationRequested) {
-					return;
-				}
-				if (this.group) {
-					input.updateGroup(this.group.id);
-				}
-				this.updateWebview(input);
-			});
-	}
-
-	private updateWebview(input: WebviewEditorInput) {
-		const webview = this.getWebview(input);
-		input.claimWebview(this);
-		webview.update(input.html, {
-			allowScripts: input.options.enableScripts,
-			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots(),
-			portMappings: input.options.portMapping,
-		}, !!input.options.retainContextWhenHidden);
-
-		if (this._webviewContent) {
-			this._webviewContent.style.visibility = 'visible';
+	public async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+		if (input.matches(this.input)) {
+			return;
 		}
 
-		this.doUpdateContainer();
-	}
-
-	private getDefaultLocalResourceRoots(): URI[] {
-		const rootPaths = this._contextService.getWorkspace().folders.map(x => x.uri);
-		const extension = (this.input as WebviewEditorInput).extension;
-		if (extension) {
-			rootPaths.push(extension.location);
-		}
-		return rootPaths;
-	}
-
-	private getWebview(input: WebviewEditorInput): Webview {
-		if (this._webview) {
-			return this._webview;
+		if (this.input && this.input instanceof WebviewInput) {
+			this.input.webview.release(this);
 		}
 
-		this._webviewContent = input.container;
+		await super.setInput(input, options, token);
+		await input.resolve();
+		if (token.isCancellationRequested) {
+			return;
+		}
 
-		if (input.webview) {
-			this._webview = input.webview;
-		} else {
-			if (input.options.enableFindWidget) {
-				this._contextKeyService = this._register(this._contextKeyService.createScoped(this._webviewContent));
-				this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+		if (input instanceof WebviewInput) {
+			if (this.group) {
+				input.updateGroup(this.group.id);
 			}
 
-			this._webview = this._webviewService.createWebview(input.id,
-				{
-					allowSvgs: true,
-					extension: input.extension,
-					enableFindWidget: input.options.enableFindWidget
-				}, {});
-			this._webview.mountTo(this._webviewContent);
-			input.webview = this._webview;
-
-			if (input.options.tryRestoreScrollPosition) {
-				this._webview.initialScrollProgress = input.scrollYPercentage;
+			this.claimWebview(input);
+			if (this._dimension) {
+				this.layout(this._dimension);
 			}
-
-			this._webview.state = input.state ? input.state.state : undefined;
-
-			this._content!.setAttribute('aria-flowto', this._webviewContent.id);
-
-			this.doUpdateContainer();
 		}
-
-		for (const message of this.pendingMessages) {
-			this._webview.sendMessage(message);
-		}
-		this.pendingMessages = [];
-
-		this.trackFocus();
-
-		return this._webview;
 	}
 
-	private trackFocus() {
-		this._webviewFocusTrackerDisposables.clear();
+	private claimWebview(input: WebviewInput): void {
+		input.webview.claim(this);
+
+		if (input.webview.options.enableFindWidget) {
+			this._scopedContextKeyService.value = this._contextKeyService.createScoped(input.webview.container);
+			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._scopedContextKeyService.value);
+		}
+
+		if (this._content) {
+			this._content.setAttribute('aria-flowto', input.webview.container.id);
+		}
+
+		this._webviewVisibleDisposables.clear();
+
+		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
+		if (this._editorGroupsService instanceof EditorPart) {
+			this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
+				groupContainsPredicate: (group) => this.group?.id === group.group.id
+			}));
+		}
+
+		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_START, () => {
+			if (this.input instanceof WebviewInput) {
+				this.input.webview.windowDidDragStart();
+			}
+		}));
+
+		const onDragEnd = () => {
+			if (this.input instanceof WebviewInput) {
+				this.input.webview.windowDidDragEnd();
+			}
+		};
+		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_END, onDragEnd));
+		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.MOUSE_MOVE, currentEvent => {
+			if (currentEvent.buttons === 0) {
+				onDragEnd();
+			}
+		}));
+
+		this.synchronizeWebviewContainerDimensions(input.webview);
+		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
+	}
+
+	private synchronizeWebviewContainerDimensions(webview: WebviewEditorOverlay, dimension?: DOM.Dimension) {
+		if (this._editorFrame) {
+			webview.layoutWebviewOverElement(this._editorFrame, dimension);
+		}
+	}
+
+	private trackFocus(webview: WebviewEditorOverlay): IDisposable {
+		const store = new DisposableStore();
 
 		// Track focus in webview content
-		const webviewContentFocusTracker = DOM.trackFocus(this._webviewContent!);
-		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker);
-		this._webviewFocusTrackerDisposables.add(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
+		const webviewContentFocusTracker = DOM.trackFocus(webview.container);
+		store.add(webviewContentFocusTracker);
+		store.add(webviewContentFocusTracker.onDidFocus(() => this._onDidFocusWebview.fire()));
 
 		// Track focus in webview element
-		this._webviewFocusTrackerDisposables.add(this._webview!.onDidFocus(() => this._onDidFocusWebview.fire()));
+		store.add(webview.onDidFocus(() => this._onDidFocusWebview.fire()));
+
+		return store;
 	}
 }

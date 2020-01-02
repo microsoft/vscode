@@ -16,14 +16,14 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "jsonc-parser": "^2.0.1",
+    "jsonc-parser": "^2.1.1",
     "rimraf": "^2.6.3",
     "semver": "5.5.1",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8",
+    "@types/node": "^12.11.7",
     "@types/semver": "^5.5.0",
     "@types/rimraf": "2.0.2",
     "vscode": "^1.1.10"
@@ -53,6 +53,66 @@
       {
         "fileMatch": "package.json",
         "url": "./schemas/package.schema.json"
+      },
+      {
+        "fileMatch": "tsconfig.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+      },
+      {
+        "fileMatch": "tsconfig.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
+        "fileMatch": "tsconfig.*.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+      },
+      {
+        "fileMatch": "tsconfig-*.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
+        "fileMatch": "tsconfig-*.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+      },
+      {
+        "fileMatch": "tsconfig.*.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
+        "fileMatch": "typings.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
+      },
+      {
+        "fileMatch": ".bowerrc",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/bowerrc.json"
+      },
+      {
+        "fileMatch": ".babelrc",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+      },
+      {
+        "fileMatch": ".babelrc.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+      },
+      {
+        "fileMatch": "babel.config.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+      },
+      {
+        "fileMatch": "jsconfig.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
+      },
+      {
+        "fileMatch": "jsconfig.json",
+        "url": "./schemas/jsconfig.schema.json"
+      },
+      {
+        "fileMatch": "jsconfig.*.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
+      },
+      {
+        "fileMatch": "jsconfig.*.json",
+        "url": "./schemas/jsconfig.schema.json"
       }
     ],
     "configuration": {
@@ -66,7 +126,7 @@
             "null"
           ],
           "default": null,
-          "description": "%typescript.tsdk.desc%",
+          "markdownDescription": "%typescript.tsdk.desc%",
           "scope": "window"
         },
         "typescript.disableAutomaticTypeAcquisition": {
@@ -99,10 +159,22 @@
           "description": "%javascript.referencesCodeLens.enabled%",
           "scope": "window"
         },
+        "javascript.referencesCodeLens.showOnAllFunctions": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.referencesCodeLens.showOnAllFunctions%",
+          "scope": "window"
+        },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
           "description": "%typescript.referencesCodeLens.enabled%",
+          "scope": "window"
+        },
+        "typescript.referencesCodeLens.showOnAllFunctions": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.referencesCodeLens.showOnAllFunctions%",
           "scope": "window"
         },
         "typescript.implementationsCodeLens.enabled": {
@@ -154,6 +226,18 @@
           "type": "boolean",
           "default": false,
           "description": "%configuration.suggest.completeFunctionCalls%",
+          "scope": "resource"
+        },
+        "javascript.suggest.includeAutomaticOptionalChainCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+          "scope": "resource"
+        },
+        "typescript.suggest.includeAutomaticOptionalChainCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {
@@ -264,6 +348,22 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
+        "typescript.format.semicolons": {
+          "type": "string",
+          "default": "ignore",
+          "description": "%format.semicolons%",
+          "scope": "resource",
+          "enum": [
+            "ignore",
+            "insert",
+            "remove"
+          ],
+          "enumDescriptions": [
+            "%format.semicolons.ignore%",
+            "%format.semicolons.insert%",
+            "%format.semicolons.remove%"
+          ]
+        },
         "javascript.validate.enable": {
           "type": "boolean",
           "default": true,
@@ -360,6 +460,22 @@
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
           "scope": "resource"
         },
+        "javascript.format.semicolons": {
+          "type": "string",
+          "default": "ignore",
+          "description": "%format.semicolons%",
+          "scope": "resource",
+          "enum": [
+            "ignore",
+            "insert",
+            "remove"
+          ],
+          "enumDescriptions": [
+            "%format.semicolons.ignore%",
+            "%format.semicolons.insert%",
+            "%format.semicolons.remove%"
+          ]
+        },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
@@ -375,7 +491,7 @@
         "javascript.suggest.names": {
           "type": "boolean",
           "default": true,
-          "description": "%configuration.suggest.names%",
+          "markdownDescription": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
@@ -597,6 +713,12 @@
           "default": true,
           "description": "%configuration.tsserver.useSeparateSyntaxServer%",
           "scope": "window"
+        },
+        "typescript.tsserver.maxTsServerMemory": {
+          "type": "number",
+          "default": 3072,
+          "description": "%configuration.tsserver.maxTsServerMemory%",
+          "scope": "window"
         }
       }
     },
@@ -749,12 +871,77 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\[?\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM| a\\.m\\.| p\\.m\\.)?(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
+            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}:\\d{1,2}:\\d{1,2}\\D*(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\[?\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM| a\\.m\\.| p\\.m\\.)?(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
+            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}:\\d{1,2}:\\d{1,2}\\D*(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
           }
         }
+      }
+    ],
+    "codeActions": [
+      {
+        "languages": [
+          "javascript",
+          "javascriptreact",
+          "typescript",
+          "typescriptreact"
+        ],
+        "actions": [
+          {
+            "kind": "refactor.extract.constant",
+            "title": "%codeActions.refactor.extract.constant.title%",
+            "description": "%codeActions.refactor.extract.constant.description%"
+          },
+          {
+            "kind": "refactor.extract.function",
+            "title": "%codeActions.refactor.extract.function.title%",
+            "description": "%codeActions.refactor.extract.function.description%"
+          },
+          {
+            "kind": "refactor.extract.interface",
+            "title": "%codeActions.refactor.extract.interface.title%",
+            "description": "%codeActions.refactor.extract.interface.description%"
+          },
+          {
+            "kind": "refactor.extract.type",
+            "title": "%codeActions.refactor.extract.type.title%",
+            "description": "%codeActions.refactor.extract.type.description%"
+          },
+          {
+            "kind": "refactor.rewrite.import",
+            "title": "%codeActions.refactor.rewrite.import.title%",
+            "description": "%codeActions.refactor.rewrite.import.description%"
+          },
+          {
+            "kind": "refactor.rewrite.export",
+            "title": "%codeActions.refactor.rewrite.export.title%",
+            "description": "%codeActions.refactor.rewrite.export.description%"
+          },
+          {
+            "kind": "refactor.rewrite.arrow.braces",
+            "title": "%codeActions.refactor.rewrite.arrow.braces.title%",
+            "description": "%codeActions.refactor.rewrite.arrow.braces.description%"
+          },
+          {
+            "kind": "refactor.rewrite.parameters.toDestructured",
+            "title": "%codeActions.refactor.rewrite.parameters.toDestructured.title%"
+          },
+          {
+            "kind": "refactor.rewrite.property.generateAccessors",
+            "title": "%codeActions.refactor.rewrite.property.generateAccessors.title%",
+            "description": "%codeActions.refactor.rewrite.property.generateAccessors.description%"
+          },
+          {
+            "kind": "refactor.move.newFile",
+            "title": "%codeActions.refactor.move.newFile.title%",
+            "description": "%codeActions.refactor.move.newFile.description%"
+          },
+          {
+            "kind": "source.organizeImports",
+            "title": "%codeActions.source.organizeImports.title%"
+          }
+        ]
       }
     ]
   }

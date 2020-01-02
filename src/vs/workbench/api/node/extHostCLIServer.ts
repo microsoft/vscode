@@ -6,10 +6,11 @@
 import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IURIToOpen, IOpenSettings } from 'vs/platform/windows/common/windows';
+import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 
 export interface OpenCommandPipeArgs {
 	type: 'open';
@@ -18,6 +19,7 @@ export interface OpenCommandPipeArgs {
 	forceNewWindow?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	gotoLineMode?: boolean;
 	forceReuseWindow?: boolean;
 	waitMarkerFilePath?: string;
 }
@@ -37,7 +39,7 @@ export class CLIServer {
 	private _server: http.Server;
 	private _ipcHandlePath: string | undefined;
 
-	constructor(private _commands: ExtHostCommands) {
+	constructor(@IExtHostCommands private _commands: IExtHostCommands) {
 		this._server = http.createServer((req, res) => this.onRequest(req, res));
 		this.setup().catch(err => {
 			console.error(err);
@@ -93,15 +95,12 @@ export class CLIServer {
 	}
 
 	private open(data: OpenCommandPipeArgs, res: http.ServerResponse) {
-		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, waitMarkerFilePath } = data;
-		const urisToOpen: IURIToOpen[] = [];
+		let { fileURIs, folderURIs, forceNewWindow, diffMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath } = data;
+		const urisToOpen: IWindowOpenable[] = [];
 		if (Array.isArray(folderURIs)) {
 			for (const s of folderURIs) {
 				try {
 					urisToOpen.push({ folderUri: URI.parse(s) });
-					if (!addMode && !forceReuseWindow) {
-						forceNewWindow = true;
-					}
 				} catch (e) {
 					// ignore
 				}
@@ -112,9 +111,6 @@ export class CLIServer {
 				try {
 					if (hasWorkspaceFileExtension(s)) {
 						urisToOpen.push({ workspaceUri: URI.parse(s) });
-						if (!forceReuseWindow) {
-							forceNewWindow = true;
-						}
 					} else {
 						urisToOpen.push({ fileUri: URI.parse(s) });
 					}
@@ -125,7 +121,8 @@ export class CLIServer {
 		}
 		if (urisToOpen.length) {
 			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
-			const windowOpenArgs: IOpenSettings = { forceNewWindow, diffMode, addMode, forceReuseWindow, waitMarkerFileURI };
+			const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
+			const windowOpenArgs: INativeOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI };
 			this._commands.executeCommand('_files.windowOpen', urisToOpen, windowOpenArgs);
 		}
 		res.writeHead(200);

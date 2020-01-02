@@ -23,6 +23,14 @@ export class TestTheme implements ITheme {
 	defines(color: string): boolean {
 		throw new Error('Method not implemented.');
 	}
+
+	getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
+		return undefined;
+	}
+
+	get tokenColorMap(): string[] {
+		return [];
+	}
 }
 
 export class TestIconTheme implements IIconTheme {
@@ -33,7 +41,7 @@ export class TestIconTheme implements IIconTheme {
 
 export class TestThemeService implements IThemeService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 	_theme: ITheme;
 	_iconTheme: IIconTheme;
 	_onThemeChange = new Emitter<ITheme>();

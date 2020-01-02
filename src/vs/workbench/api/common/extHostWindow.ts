@@ -18,7 +18,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 	private _proxy: MainThreadWindowShape;
 
-	private _onDidChangeWindowState = new Emitter<WindowState>();
+	private readonly _onDidChangeWindowState = new Emitter<WindowState>();
 	readonly onDidChangeWindowState: Event<WindowState> = this._onDidChangeWindowState.event;
 
 	private _state = ExtHostWindow.InitialState;
@@ -39,7 +39,9 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	}
 
 	openUri(stringOrUri: string | URI, options: IOpenUriOptions): Promise<boolean> {
+		let uriAsString: string | undefined;
 		if (typeof stringOrUri === 'string') {
+			uriAsString = stringOrUri;
 			try {
 				stringOrUri = URI.parse(stringOrUri);
 			} catch (e) {
@@ -51,6 +53,17 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		} else if (stringOrUri.scheme === Schemas.command) {
 			return Promise.reject(`Invalid scheme '${stringOrUri.scheme}'`);
 		}
-		return this._proxy.$openUri(stringOrUri, options);
+		return this._proxy.$openUri(stringOrUri, uriAsString, options);
+	}
+
+	async asExternalUri(uri: URI, options: IOpenUriOptions): Promise<URI> {
+		if (isFalsyOrWhitespace(uri.scheme)) {
+			return Promise.reject('Invalid scheme - cannot be empty');
+		} else if (!new Set([Schemas.http, Schemas.https]).has(uri.scheme)) {
+			return Promise.reject(`Invalid scheme '${uri.scheme}'`);
+		}
+
+		const result = await this._proxy.$asExternalUri(uri, options);
+		return URI.from(result);
 	}
 }

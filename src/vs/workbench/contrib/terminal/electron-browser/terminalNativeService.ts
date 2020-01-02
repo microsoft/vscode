@@ -13,11 +13,11 @@ import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/termi
 import { execFile } from 'child_process';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/node/terminalRemote';
+import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-browser/terminalRemote';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class TerminalNativeService implements ITerminalNativeService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
 	public get linuxDistro(): LinuxDistro { return linuxDistro; }
 
@@ -69,9 +69,10 @@ export class TerminalNativeService implements ITerminalNativeService {
 			throw new Error('wslpath does not exist on Windows build < 17063');
 		}
 		return new Promise<string>(c => {
-			execFile('bash.exe', ['-c', 'echo $(wslpath ' + escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
+			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(path)}`], {}, (error, stdout, stderr) => {
 				c(escapeNonWindowsPath(stdout.trim()));
 			});
+			proc.stdin!.end();
 		});
 	}
 

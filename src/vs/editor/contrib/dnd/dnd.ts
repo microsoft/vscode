@@ -8,7 +8,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
@@ -19,6 +19,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	if (isMacintosh) {
@@ -30,14 +31,14 @@ function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 
 export class DragAndDropController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.dragAndDrop';
+	public static readonly ID = 'editor.contrib.dragAndDrop';
 
 	private readonly _editor: ICodeEditor;
 	private _dragSelection: Selection | null;
 	private _dndDecorationIds: string[];
 	private _mouseDown: boolean;
 	private _modifierPressed: boolean;
-	static TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
+	static readonly TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
 	static get(editor: ICodeEditor): DragAndDropController {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
@@ -49,7 +50,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 		this._register(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 		this._register(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
-		this._register(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
+		this._register(this._editor.onMouseDrop((e: IPartialEditorMouseEvent) => this._onEditorMouseDrop(e)));
 		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this._register(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
@@ -67,7 +68,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
-		if (!this._editor.getConfiguration().dragAndDrop) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
 			return;
 		}
 
@@ -83,7 +84,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 	}
 
 	private onEditorKeyUp(e: IKeyboardEvent): void {
-		if (!this._editor.getConfiguration().dragAndDrop) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
 			return;
 		}
 
@@ -142,7 +143,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 		}
 	}
 
-	private _onEditorMouseDrop(mouseEvent: IEditorMouseEvent): void {
+	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {
 		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && mouseEvent.target.position) {
 			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
@@ -218,10 +219,6 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 			target.type === MouseTargetType.GUTTER_LINE_DECORATIONS;
 	}
 
-	public getId(): string {
-		return DragAndDropController.ID;
-	}
-
 	public dispose(): void {
 		this._removeDecoration();
 		this._dragSelection = null;
@@ -231,4 +228,4 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 	}
 }
 
-registerEditorContribution(DragAndDropController);
+registerEditorContribution(DragAndDropController.ID, DragAndDropController);

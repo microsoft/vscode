@@ -53,16 +53,14 @@ export interface ColorThemeChangeEvent {
 export class ColorThemeStore {
 
 	private extensionsColorThemes: ColorThemeData[];
-	private readonly onDidChangeEmitter: Emitter<ColorThemeChangeEvent>;
 
-	public get onDidChange(): Event<ColorThemeChangeEvent> { return this.onDidChangeEmitter.event; }
+	private readonly onDidChangeEmitter = new Emitter<ColorThemeChangeEvent>();
+	public readonly onDidChange: Event<ColorThemeChangeEvent> = this.onDidChangeEmitter.event;
 
-	constructor(@IExtensionService private readonly extensionService: IExtensionService, defaultTheme: ColorThemeData) {
-		this.extensionsColorThemes = [defaultTheme];
-		this.onDidChangeEmitter = new Emitter<ColorThemeChangeEvent>();
+	constructor(@IExtensionService private readonly extensionService: IExtensionService) {
+		this.extensionsColorThemes = [];
 		this.initialize();
 	}
-
 
 	private initialize() {
 		themesExtPoint.setHandler((extensions, delta) => {
@@ -71,7 +69,7 @@ export class ColorThemeStore {
 			for (const theme of this.extensionsColorThemes) {
 				previousIds[theme.id] = true;
 			}
-			this.extensionsColorThemes.length = 1; // remove all but the default theme
+			this.extensionsColorThemes.length = 0;
 			for (let ext of extensions) {
 				let extensionData = {
 					extensionId: ext.description.identifier.value,
@@ -116,11 +114,7 @@ export class ColorThemeStore {
 			}
 
 			let themeData = ColorThemeData.fromExtensionTheme(theme, colorThemeLocation, extensionData);
-			if (themeData.id === this.extensionsColorThemes[0].id) {
-				this.extensionsColorThemes[0] = themeData;
-			} else {
-				this.extensionsColorThemes.push(themeData);
-			}
+			this.extensionsColorThemes.push(themeData);
 		});
 	}
 

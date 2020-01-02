@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IRecentFile, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowService, IURIToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -20,18 +20,18 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isWeb } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, asDomUri } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IRecentFile } from 'vs/platform/history/common/history';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { isStandalone } from 'vs/base/browser/browser';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -39,6 +39,7 @@ export interface IDraggedResource {
 }
 
 export class DraggedEditorIdentifier {
+
 	constructor(private _identifier: IEditorIdentifier) { }
 
 	get identifier(): IEditorIdentifier {
@@ -47,6 +48,7 @@ export class DraggedEditorIdentifier {
 }
 
 export class DraggedEditorGroupIdentifier {
+
 	constructor(private _identifier: GroupIdentifier) { }
 
 	get identifier(): GroupIdentifier {
@@ -56,13 +58,17 @@ export class DraggedEditorGroupIdentifier {
 
 export interface IDraggedEditor extends IDraggedResource {
 	backupResource?: URI;
+	encoding?: string;
+	mode?: string;
 	viewState?: IEditorViewState;
 }
 
 export interface ISerializedDraggedEditor {
 	resource: string;
 	backupResource?: string;
-	viewState: IEditorViewState | null;
+	encoding?: string;
+	mode?: string;
+	viewState?: IEditorViewState;
 }
 
 export const CodeDataTransfers = {
@@ -86,7 +92,9 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 						resources.push({
 							resource: URI.parse(draggedEditor.resource),
 							backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : undefined,
-							viewState: withNullAsUndefined(draggedEditor.viewState),
+							viewState: draggedEditor.viewState,
+							encoding: draggedEditor.encoding,
+							mode: draggedEditor.mode,
 							isExternal: false
 						});
 					});
@@ -113,7 +121,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 		if (e.dataTransfer && e.dataTransfer.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
 				const file = e.dataTransfer.files[i];
-				if (file && file.path && !resources.some(r => r.resource.fsPath === file.path) /* prevent duplicates */) {
+				if (file?.path /* Electron only */ && !resources.some(r => r.resource.fsPath === file.path) /* prevent duplicates */) {
 					try {
 						resources.push({ resource: URI.file(file.path), isExternal: true });
 					} catch (error) {
@@ -160,13 +168,14 @@ export class ResourcesDropHandler {
 	constructor(
 		private options: IResourcesDropHandlerOptions,
 		@IFileService private readonly fileService: IFileService,
-		@IWindowService private readonly windowService: IWindowService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@IUntitledEditorService private readonly untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IHostService private readonly hostService: IHostService
 	) {
 	}
 
@@ -177,7 +186,7 @@ export class ResourcesDropHandler {
 		}
 
 		// Make the window active to handle the drop properly within
-		await this.windowService.focusWindow();
+		await this.hostService.focus();
 
 		// Check for special things being dropped
 		const isWorkspaceOpening = await this.doHandleDrop(untitledOrFileResources);
@@ -187,13 +196,15 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
-		const recents: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
-		if (recents.length) {
-			this.windowService.addRecentlyOpened(recents);
+		const recentFiles: IRecentFile[] = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => ({ fileUri: d.resource }));
+		if (recentFiles.length) {
+			this.workspacesService.addRecentlyOpened(recentFiles);
 		}
 
 		const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
 			resource: untitledOrFileResource.resource,
+			encoding: (untitledOrFileResource as IDraggedEditor).encoding,
+			mode: (untitledOrFileResource as IDraggedEditor).mode,
 			options: {
 				pinned: true,
 				index: targetIndex,
@@ -233,7 +244,7 @@ export class ResourcesDropHandler {
 
 		// Untitled: always ensure that we open a new untitled for each file we drop
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			droppedDirtyEditor.resource = this.untitledEditorService.createOrGet().getResource();
+			droppedDirtyEditor.resource = this.untitledTextEditorService.createOrGet(undefined, droppedDirtyEditor.mode, undefined, droppedDirtyEditor.encoding).getResource();
 		}
 
 		// Return early if the resource is already dirty in target or opened already
@@ -242,11 +253,13 @@ export class ResourcesDropHandler {
 		}
 
 		// Resolve the contents of the dropped dirty resource from source
-		try {
-			const content = await this.backupFileService.resolveBackupContent((droppedDirtyEditor.backupResource!));
-			await this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
-		} catch (e) {
-			// Ignore error
+		if (droppedDirtyEditor.backupResource) {
+			try {
+				const content = await this.backupFileService.resolveBackupContent((droppedDirtyEditor.backupResource));
+				await this.backupFileService.backupResource(droppedDirtyEditor.resource, content.value.create(this.getDefaultEOL()).createSnapshot(true));
+			} catch (e) {
+				// Ignore error
+			}
 		}
 
 		return false;
@@ -262,14 +275,14 @@ export class ResourcesDropHandler {
 	}
 
 	private async handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
-		const urisToOpen: IURIToOpen[] = [];
+		const toOpen: IWindowOpenable[] = [];
 		const folderURIs: IWorkspaceFolderCreationData[] = [];
 
 		await Promise.all(fileOnDiskResources.map(async fileOnDiskResource => {
 
 			// Check for Workspace
 			if (hasWorkspaceFileExtension(fileOnDiskResource)) {
-				urisToOpen.push({ workspaceUri: fileOnDiskResource });
+				toOpen.push({ workspaceUri: fileOnDiskResource });
 
 				return;
 			}
@@ -278,7 +291,7 @@ export class ResourcesDropHandler {
 			try {
 				const stat = await this.fileService.resolve(fileOnDiskResource);
 				if (stat.isDirectory) {
-					urisToOpen.push({ folderUri: stat.resource });
+					toOpen.push({ folderUri: stat.resource });
 					folderURIs.push({ uri: stat.resource });
 				}
 			} catch (error) {
@@ -287,16 +300,16 @@ export class ResourcesDropHandler {
 		}));
 
 		// Return early if no external resource is a folder or workspace
-		if (urisToOpen.length === 0) {
+		if (toOpen.length === 0) {
 			return false;
 		}
 
 		// Pass focus to window
-		this.windowService.focusWindow();
+		this.hostService.focus();
 
 		// Open in separate windows if we drop workspaces or just one folder
-		if (urisToOpen.length > folderURIs.length || folderURIs.length === 1) {
-			await this.windowService.openWindow(urisToOpen, { forceReuseWindow: true });
+		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
+			await this.hostService.openWindow(toOpen, { forceReuseWindow: true });
 		}
 
 		// folders.length > 1: Multiple folders: Create new workspace with folders and open
@@ -321,17 +334,14 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		return obj;
 	});
 
-	const firstSource = sources[0];
-
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
 	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath)) : source.resource.toString()).join(lineDelimiter));
 
-	const envService = accessor.get(IWorkbenchEnvironmentService);
-	if (!(isLinux && envService.configuration.remoteAuthority)) {
-		// Download URL: enables support to drag a tab as file to desktop (only single file supported)
-		// Not supported on linux remote due to chrome limitation https://github.com/microsoft/vscode-remote-release/issues/849
-		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource), firstSource.resource.toString()].join(':'));
+	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
+	// Disabled for PWA web due to: https://github.com/microsoft/vscode/issues/83441
+	if (!sources[0].isDirectory && (!isWeb || !isStandalone)) {
+		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(sources[0].resource), asDomUri(sources[0].resource).toString()].join(':'));
 	}
 
 	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
@@ -342,6 +352,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
+	const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
 	const backupFileService = accessor.get(IBackupFileService);
 	const editorService = accessor.get(IEditorService);
 
@@ -349,24 +360,42 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
-		let viewState: IEditorViewState | null = null;
+		let viewState: IEditorViewState | undefined = undefined;
 		const textEditorWidgets = editorService.visibleTextEditorWidgets;
 		for (const textEditorWidget of textEditorWidgets) {
 			if (isCodeEditor(textEditorWidget)) {
 				const model = textEditorWidget.getModel();
-				if (model && model.uri && model.uri.toString() === file.resource.toString()) {
-					viewState = textEditorWidget.saveViewState();
+				if (model?.uri?.toString() === file.resource.toString()) {
+					viewState = withNullAsUndefined(textEditorWidget.saveViewState());
 					break;
 				}
 			}
 		}
 
+		// Try to find encoding and mode from text model
+		let encoding: string | undefined = undefined;
+		let mode: string | undefined = undefined;
+		if (untitledTextEditorService.exists(file.resource)) {
+			const model = untitledTextEditorService.createOrGet(file.resource);
+			encoding = model.getEncoding();
+			mode = model.getMode();
+		} else {
+			const model = textFileService.models.get(file.resource);
+			if (model) {
+				encoding = model.getEncoding();
+				mode = model.getMode();
+			}
+		}
+
+		// If the resource is dirty, send over its backup
+		// resource to restore dirty state
+		let backupResource: string | undefined = undefined;
+		if (textFileService.isDirty(file.resource)) {
+			backupResource = backupFileService.toBackupResource(file.resource).toString();
+		}
+
 		// Add as dragged editor
-		draggedEditors.push({
-			resource: file.resource.toString(),
-			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : undefined,
-			viewState
-		});
+		draggedEditors.push({ resource: file.resource.toString(), backupResource, viewState, encoding, mode });
 	});
 
 	if (draggedEditors.length) {
@@ -475,4 +504,24 @@ export class DragAndDropObserver extends Disposable {
 			this.callbacks.onDrop(e);
 		}));
 	}
+}
+
+export function containsDragType(event: DragEvent, ...dragTypesToFind: string[]): boolean {
+	if (!event.dataTransfer) {
+		return false;
+	}
+
+	const dragTypes = event.dataTransfer.types;
+	const lowercaseDragTypes: string[] = [];
+	for (let i = 0; i < dragTypes.length; i++) {
+		lowercaseDragTypes.push(dragTypes[i].toLowerCase()); // somehow the types are lowercase
+	}
+
+	for (const dragType of dragTypesToFind) {
+		if (lowercaseDragTypes.indexOf(dragType.toLowerCase()) >= 0) {
+			return true;
+		}
+	}
+
+	return false;
 }

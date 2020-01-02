@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/759a0ac02dc091018a112b25a5a6d894918a0aa8",
+	"version": "https://github.com/atom/language-java/commit/0facf7cbe02cda460db1160fd730f2e57bf15c36",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -209,7 +209,7 @@
 					"name": "keyword.control.new.java"
 				}
 			},
-			"end": "(?=;|\\)|,|:|}|\\+|\\-|\\*|\\/|%|!|&|\\||=)",
+			"end": "(?=;|\\)|\\]|\\.|,|\\?|:|}|\\+|\\-|\\*|\\/(?!\\/|\\*)|%|!|&|\\||\\^|=)",
 			"patterns": [
 				{
 					"include": "#comments"
@@ -269,7 +269,7 @@
 			]
 		},
 		"class": {
-			"begin": "(?=\\w?[\\w\\s]*\\b(?:class|(?<!@)interface|enum)\\s+\\w+)",
+			"begin": "(?=\\w?[\\w\\s]*\\b(?:class|(?<!@)interface|enum)\\s+[\\w$]+)",
 			"end": "}",
 			"endCaptures": {
 				"0": {
@@ -296,7 +296,7 @@
 							"name": "entity.name.type.class.java"
 						}
 					},
-					"match": "(class|(?<!@)interface|enum)\\s+(\\w+)",
+					"match": "(class|(?<!@)interface|enum)\\s+([\\w$]+)",
 					"name": "meta.class.identifier.java"
 				},
 				{
@@ -379,10 +379,10 @@
 					"include": "#annotations"
 				},
 				{
-					"include": "#member-variables"
+					"include": "#storage-modifiers"
 				},
 				{
-					"include": "#storage-modifiers"
+					"include": "#member-variables"
 				},
 				{
 					"include": "#code"
@@ -582,7 +582,7 @@
 							}
 						},
 						{
-							"match": "{(@link)\\s+(\\S+)?#([\\w$]+\\s*\\([^\\(\\)]*\\)).*}",
+							"match": "{(@link)\\s+(\\S+)?#([\\w$]+\\s*\\([^\\(\\)]*\\)).*?}",
 							"captures": {
 								"1": {
 									"name": "keyword.other.documentation.javadoc.java"
@@ -696,52 +696,64 @@
 									"include": "#comments"
 								},
 								{
-									"begin": "(\\w+)\\s*({)",
+									"begin": "\\b(\\w+)\\b",
 									"beginCaptures": {
 										"1": {
 											"name": "constant.other.enum.java"
-										},
-										"2": {
-											"name": "punctuation.bracket.curly.java"
 										}
 									},
-									"end": "\\}",
+									"end": "(,)|(?=;|})",
 									"endCaptures": {
-										"0": {
-											"name": "punctuation.bracket.curly.java"
+										"1": {
+											"name": "punctuation.separator.delimiter.java"
 										}
 									},
 									"patterns": [
 										{
-											"include": "#class-body"
-										}
-									]
-								},
-								{
-									"begin": "(\\w+)\\s*(\\()",
-									"beginCaptures": {
-										"1": {
-											"name": "constant.other.enum.java"
+											"include": "#comments-javadoc"
 										},
-										"2": {
-											"name": "punctuation.bracket.round.java"
-										}
-									},
-									"end": "\\)",
-									"endCaptures": {
-										"0": {
-											"name": "punctuation.bracket.round.java"
-										}
-									},
-									"patterns": [
 										{
-											"include": "#code"
+											"include": "#comments"
+										},
+										{
+											"begin": "\\(",
+											"beginCaptures": {
+												"0": {
+													"name": "punctuation.bracket.round.java"
+												}
+											},
+											"end": "\\)",
+											"endCaptures": {
+												"0": {
+													"name": "punctuation.bracket.round.java"
+												}
+											},
+											"patterns": [
+												{
+													"include": "#code"
+												}
+											]
+										},
+										{
+											"begin": "{",
+											"beginCaptures": {
+												"0": {
+													"name": "punctuation.bracket.curly.java"
+												}
+											},
+											"end": "}",
+											"endCaptures": {
+												"0": {
+													"name": "punctuation.bracket.curly.java"
+												}
+											},
+											"patterns": [
+												{
+													"include": "#class-body"
+												}
+											]
 										}
 									]
-								},
-								{
-									"match": "\\b\\w+\\b",
-									"name": "constant.other.enum.java"
 								}
 							]
 						},
@@ -1472,7 +1484,7 @@
 					]
 				},
 				{
-					"begin": "\\b(catch)\\b\\s*(?=\\(\\s*[^\\s]+\\s*[^)]+\\))",
+					"begin": "\\b(catch)\\b",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.catch.java"
@@ -1486,6 +1498,9 @@
 					},
 					"name": "meta.catch.java",
 					"patterns": [
+						{
+							"include": "#comments"
+						},
 						{
 							"begin": "\\(",
 							"beginCaptures": {
@@ -1508,19 +1523,31 @@
 									"include": "#storage-modifiers"
 								},
 								{
-									"match": "\\|",
-									"name": "punctuation.catch.separator.java"
-								},
-								{
-									"match": "([a-zA-Z$_][\\.a-zA-Z0-9$_]*)\\s*(\\w+)?",
-									"captures": {
-										"1": {
+									"begin": "[a-zA-Z$_][\\.a-zA-Z0-9$_]*",
+									"beginCaptures": {
+										"0": {
 											"name": "storage.type.java"
-										},
-										"2": {
-											"name": "variable.parameter.java"
 										}
-									}
+									},
+									"end": "(\\|)|(?=\\))",
+									"endCaptures": {
+										"1": {
+											"name": "punctuation.catch.separator.java"
+										}
+									},
+									"patterns": [
+										{
+											"include": "#comments"
+										},
+										{
+											"match": "\\w+",
+											"captures": {
+												"0": {
+													"name": "variable.parameter.java"
+												}
+											}
+										}
+									]
 								}
 							]
 						},

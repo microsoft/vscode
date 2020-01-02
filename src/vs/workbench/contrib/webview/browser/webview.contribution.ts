@@ -15,23 +15,23 @@ import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } fro
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/common/webview';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand } from '../browser/webviewCommands';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from '../browser/webviewEditor';
-import { WebviewEditorInput } from '../browser/webviewEditorInput';
-import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
+import { WebviewInput } from '../browser/webviewEditorInput';
+import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
 
-(Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
+(Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(EditorDescriptor.create(
 	WebviewEditor,
 	WebviewEditor.ID,
 	localize('webview.editor.label', "webview editor")),
-	[new SyncDescriptor(WebviewEditorInput)]);
+	[new SyncDescriptor(WebviewInput)]);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
 	WebviewEditorInputFactory.ID,
 	WebviewEditorInputFactory);
 
-registerSingleton(IWebviewEditorService, WebviewEditorService, true);
+registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
@@ -58,11 +58,33 @@ function registerWebViewCommands(editorId: string): void {
 			weight: KeybindingWeight.EditorContrib
 		}
 	})).register();
+
+	(new WebViewEditorFindNextCommand({
+		id: WebViewEditorFindNextCommand.ID,
+		precondition: ContextKeyExpr.and(
+			contextKeyExpr,
+			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+		kbOpts: {
+			primary: KeyCode.Enter,
+			weight: KeybindingWeight.EditorContrib
+		}
+	})).register();
+
+	(new WebViewEditorFindPreviousCommand({
+		id: WebViewEditorFindPreviousCommand.ID,
+		precondition: ContextKeyExpr.and(
+			contextKeyExpr,
+			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
+		kbOpts: {
+			primary: KeyMod.Shift | KeyCode.Enter,
+			weight: KeybindingWeight.EditorContrib
+		}
+	})).register();
 }
 
 registerWebViewCommands(WebviewEditor.ID);
 
 actionRegistry.registerWorkbenchAction(
-	new SyncActionDescriptor(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
+	SyncActionDescriptor.create(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
 	'Reload Webviews',
 	webviewDeveloperCategory);

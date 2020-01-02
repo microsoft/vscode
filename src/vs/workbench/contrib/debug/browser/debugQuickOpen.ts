@@ -21,19 +21,19 @@ class AddConfigEntry extends QuickOpenEntry {
 		super(highlights);
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.label;
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.name : '';
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, debug", this.getLabel());
 	}
 
-	public run(mode: Mode): boolean {
+	run(mode: Mode): boolean {
 		if (mode === Mode.PREVIEW) {
 			return false;
 		}
@@ -49,19 +49,19 @@ class StartDebugEntry extends QuickOpenEntry {
 		super(highlights);
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.configurationName;
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.name : '';
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, debug", this.getLabel());
 	}
 
-	public run(mode: Mode): boolean {
+	run(mode: Mode): boolean {
 		if (mode === Mode.PREVIEW || !StartAction.isEnabled(this.debugService)) {
 			return false;
 		}
@@ -75,9 +75,9 @@ class StartDebugEntry extends QuickOpenEntry {
 
 export class DebugQuickOpenHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.launch';
+	static readonly ID = 'workbench.picker.launch';
 
-	private autoFocusIndex: number;
+	private autoFocusIndex: number | undefined;
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
@@ -88,26 +88,32 @@ export class DebugQuickOpenHandler extends QuickOpenHandler {
 		super();
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('debugAriaLabel', "Type a name of a launch configuration to run.");
 	}
 
-	public getResults(input: string, token: CancellationToken): Promise<QuickOpenModel> {
+	getResults(input: string, token: CancellationToken): Promise<QuickOpenModel> {
 		const configurations: QuickOpenEntry[] = [];
 
 		const configManager = this.debugService.getConfigurationManager();
-		const launches = configManager.getLaunches();
-		for (let launch of launches) {
-			launch.getConfigurationNames().map(config => ({ config: config, highlights: matchesFuzzy(input, config, true) || undefined }))
-				.filter(({ highlights }) => !!highlights)
-				.forEach(({ config, highlights }) => {
-					if (launch === configManager.selectedConfiguration.launch && config === configManager.selectedConfiguration.name) {
-						this.autoFocusIndex = configurations.length;
-					}
-					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.notificationService, launch, config, highlights));
-				});
+		const allConfigurations = configManager.getAllConfigurations();
+		let lastGroup: string | undefined;
+		for (let config of allConfigurations) {
+			const highlights = matchesFuzzy(input, config.name, true);
+			if (highlights) {
+				if (config.launch === configManager.selectedConfiguration.launch && config.name === configManager.selectedConfiguration.name) {
+					this.autoFocusIndex = configurations.length;
+				}
+				let entry: QuickOpenEntry = new StartDebugEntry(this.debugService, this.contextService, this.notificationService, config.launch, config.name, highlights);
+				if (lastGroup !== config.presentation?.group) {
+					entry = new QuickOpenEntryGroup(entry, undefined, true);
+					lastGroup = config.presentation?.group;
+				}
+				configurations.push(entry);
+			}
 		}
-		launches.filter(l => !l.hidden).forEach((l, index) => {
+
+		configManager.getLaunches().filter(l => !l.hidden).forEach((l, index) => {
 
 			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, matchesFuzzy(input, label, true) || undefined);
@@ -122,14 +128,14 @@ export class DebugQuickOpenHandler extends QuickOpenHandler {
 		return Promise.resolve(new QuickOpenModel(configurations));
 	}
 
-	public getAutoFocus(input: string): IAutoFocus {
+	getAutoFocus(input: string): IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!input,
 			autoFocusIndex: this.autoFocusIndex
 		};
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString.length > 0) {
 			return nls.localize('noConfigurationsMatching', "No debug configurations matching");
 		}

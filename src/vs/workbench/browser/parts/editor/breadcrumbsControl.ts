@@ -17,7 +17,7 @@ import 'vs/css!./media/breadcrumbscontrol';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { symbolKindToCssClass } from 'vs/editor/common/modes';
+import { SymbolKinds } from 'vs/editor/common/modes';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -47,6 +47,7 @@ import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 
 class Item extends BreadcrumbsItem {
 
@@ -69,7 +70,9 @@ class Item extends BreadcrumbsItem {
 			return false;
 		}
 		if (this.element instanceof FileElement && other.element instanceof FileElement) {
-			return isEqual(this.element.uri, other.element.uri, false);
+			return (isEqual(this.element.uri, other.element.uri, false) &&
+				this.options.showFileIcons === other.options.showFileIcons &&
+				this.options.showSymbolIcons === other.options.showSymbolIcons);
 		}
 		if (this.element instanceof TreeElement && other.element instanceof TreeElement) {
 			return this.element.id === other.element.id;
@@ -100,14 +103,14 @@ class Item extends BreadcrumbsItem {
 		} else if (this.element instanceof OutlineGroup) {
 			// provider
 			let label = new IconLabel(container);
-			label.setLabel(this.element.provider.displayName);
+			label.setLabel(this.element.provider.displayName || '');
 			this._disposables.add(label);
 
 		} else if (this.element instanceof OutlineElement) {
 			// symbol
 			if (this.options.showSymbolIcons) {
 				let icon = document.createElement('div');
-				icon.className = symbolKindToCssClass(this.element.symbol.kind);
+				icon.className = SymbolKinds.toCssClassName(this.element.symbol.kind);
 				container.appendChild(icon);
 				dom.addClass(container, 'shows-symbol-icon');
 			}
@@ -128,21 +131,22 @@ export interface IBreadcrumbsControlOptions {
 
 export class BreadcrumbsControl {
 
-	static HEIGHT = 22;
+	static readonly HEIGHT = 22;
 
 	static readonly Payload_Reveal = {};
 	static readonly Payload_RevealAside = {};
 	static readonly Payload_Pick = {};
 
-	static CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false);
-	static CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
-	static CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false);
+	static readonly CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false);
+	static readonly CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
+	static readonly CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false);
 
 	private readonly _ckBreadcrumbsPossible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsActive: IContextKey<boolean>;
 
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
+	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
@@ -165,6 +169,7 @@ export class BreadcrumbsControl {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -185,6 +190,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
+		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
 	}
@@ -196,6 +202,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
 		this._cfUseQuickPick.dispose();
+		this._cfShowIcons.dispose();
 		this._widget.dispose();
 		this.domNode.remove();
 	}
@@ -241,20 +248,33 @@ export class BreadcrumbsControl {
 
 		const uri = input.getResource()!;
 		const editor = this._getActiveCodeEditor();
-		const model = new EditorBreadcrumbsModel(uri, editor, this._workspaceService, this._configurationService);
+		const model = new EditorBreadcrumbsModel(
+			uri, editor,
+			this._configurationService,
+			this._textResourceConfigurationService,
+			this._workspaceService
+		);
 		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
 		dom.toggleClass(this.domNode, 'backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
 
 		const updateBreadcrumbs = () => {
-			const items = model.getElements().map(element => new Item(element, this._options, this._instantiationService));
+			const showIcons = this._cfShowIcons.getValue();
+			const options: IBreadcrumbsControlOptions = {
+				...this._options,
+				showFileIcons: this._options.showFileIcons && showIcons,
+				showSymbolIcons: this._options.showSymbolIcons && showIcons
+			};
+			const items = model.getElements().map(element => new Item(element, options, this._instantiationService));
 			this._widget.setItems(items);
 			this._widget.reveal(items[items.length - 1]);
 		};
 		const listener = model.onDidUpdate(updateBreadcrumbs);
+		const configListener = this._cfShowIcons.onDidChange(updateBreadcrumbs);
 		updateBreadcrumbs();
 		this._breadcrumbsDisposables.clear();
 		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(listener);
+		this._breadcrumbsDisposables.add(configListener);
 
 		// close picker on hide/update
 		this._breadcrumbsDisposables.add({
@@ -304,12 +324,10 @@ export class BreadcrumbsControl {
 		const { element } = event.item as Item;
 		this._editorGroup.focus();
 
-		/* __GDPR__
-			"breadcrumbs/select" : {
-				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._telemetryService.publicLog('breadcrumbs/select', { type: element instanceof TreeElement ? 'symbol' : 'file' });
+		type BreadcrumbSelectClassification = {
+			type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+		this._telemetryService.publicLog2<{ type: string }, BreadcrumbSelectClassification>('breadcrumbs/select', { type: element instanceof TreeElement ? 'symbol' : 'file' });
 
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
@@ -364,7 +382,7 @@ export class BreadcrumbsControl {
 						editorViewState = withNullAsUndefined(editor.saveViewState());
 					}
 					const { symbol } = data.target;
-					editor.revealRangeInCenter(symbol.range, ScrollType.Smooth);
+					editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
 					editorDecorations = editor.deltaDecorations(editorDecorations, [{
 						range: symbol.range,
 						options: {

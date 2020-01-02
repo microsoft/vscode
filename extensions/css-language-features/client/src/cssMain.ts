@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as fs from 'fs';
-
+import * as path from 'path';
+import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, workspace, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList } from 'vscode';
+import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, ProvideCompletionItemsSignature } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+import { getCustomDataPathsFromAllExtensions, getCustomDataPathsInAllWorkspaces } from './customData';
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString, workspace, TextDocument, SelectionRange } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
-import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
+const localize = nls.loadMessageBundle();
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -44,6 +43,31 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			dataPaths
+		},
+		middleware: {
+			// testing the replace / insert mode
+			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				function updateRanges(item: CompletionItem) {
+					const range = item.range;
+					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range2 = { inserting: new Range(range.start, position), replacing: range };
+						item.range = undefined;
+					}
+				}
+				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
+					if (r) {
+						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+					}
+					return r;
+				}
+				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+
+				const r = next(document, position, context, token);
+				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+					return r.then(updateProposals);
+				}
+				return updateProposals(r);
+			}
 		}
 	};
 
@@ -78,26 +102,6 @@ export function activate(context: ExtensionContext) {
 
 	client.onReady().then(() => {
 		context.subscriptions.push(initCompletionProvider());
-
-		documentSelector.forEach(selector => {
-			context.subscriptions.push(languages.registerSelectionRangeProvider(selector, {
-				async provideSelectionRanges(document: TextDocument, positions: Position[]): Promise<SelectionRange[]> {
-					const textDocument = client.code2ProtocolConverter.asTextDocumentIdentifier(document);
-					const rawResult = await client.sendRequest<SelectionRange[][]>('$/textDocument/selectionRanges', { textDocument, positions: positions.map(client.code2ProtocolConverter.asPosition) });
-					if (Array.isArray(rawResult)) {
-						return rawResult.map(rawSelectionRanges => {
-							return rawSelectionRanges.reduceRight((parent: SelectionRange | undefined, selectionRange: SelectionRange) => {
-								return {
-									range: client.protocol2CodeConverter.asRange(selectionRange.range),
-									parent
-								};
-							}, undefined)!;
-						});
-					}
-					return [];
-				}
-			}));
-		});
 	});
 
 	function initCompletionProvider(): Disposable {

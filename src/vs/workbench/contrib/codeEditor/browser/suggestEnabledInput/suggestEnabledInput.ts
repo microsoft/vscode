@@ -9,7 +9,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
@@ -27,11 +27,13 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IStyleOverrides, IThemable, attachStyler } from 'vs/platform/theme/common/styler';
+import { IStyleOverrides, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { IThemable } from 'vs/base/common/styler';
 
 interface SuggestResultsProvider {
 	/**
@@ -80,7 +82,7 @@ export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
 }
 
 type ISuggestEnabledInputStyles = {
-	[P in keyof ISuggestEnabledInputStyleOverrides]: Color;
+	[P in keyof ISuggestEnabledInputStyleOverrides]: Color | undefined;
 };
 
 export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
@@ -94,16 +96,15 @@ export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeServi
 
 export class SuggestEnabledInput extends Widget implements IThemable {
 
-	private _onShouldFocusResults = new Emitter<void>();
+	private readonly _onShouldFocusResults = new Emitter<void>();
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
 
-	private _onEnter = new Emitter<void>();
+	private readonly _onEnter = new Emitter<void>();
 	readonly onEnter: Event<void> = this._onEnter.event;
 
-	private _onInputDidChange = new Emitter<string | undefined>();
+	private readonly _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
-	private disposables: IDisposable[] = [];
 	private readonly inputWidget: CodeEditorWidget;
 	private readonly inputModel: ITextModel;
 	private stylingContainer: HTMLDivElement;
@@ -131,34 +132,40 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
 			{
-				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
+				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+					SuggestController.ID,
+					SnippetController2.ID,
+					ContextMenuController.ID,
+					MenuPreventer.ID,
+					SelectionClipboardContributionID,
+				]),
 				isSimpleWidget: true,
 			});
-		this.disposables.push(this.inputWidget);
+		this._register(this.inputWidget);
 
 		let scopeHandle = uri.parse(resourceHandle);
 		this.inputModel = modelService.createModel('', null, scopeHandle, true);
 		this.inputWidget.setModel(this.inputModel);
 
-		this.disposables.push(this.inputWidget.onDidPaste(() => this.setValue(this.getValue()))); // setter cleanses
+		this._register(this.inputWidget.onDidPaste(() => this.setValue(this.getValue()))); // setter cleanses
 
-		this.disposables.push((this.inputWidget.onDidFocusEditorText(() => {
+		this._register((this.inputWidget.onDidFocusEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(true); }
 			addClass(this.stylingContainer, 'synthetic-focus');
 		})));
-		this.disposables.push((this.inputWidget.onDidBlurEditorText(() => {
+		this._register((this.inputWidget.onDidBlurEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(false); }
 			removeClass(this.stylingContainer, 'synthetic-focus');
 		})));
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this, this.disposables);
-		onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this, this.disposables);
+		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this));
+		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this));
 
 		let preexistingContent = this.getValue();
 		const inputWidgetModel = this.inputWidget.getModel();
 		if (inputWidgetModel) {
-			this.disposables.push(inputWidgetModel.onDidChangeContent(() => {
+			this._register(inputWidgetModel.onDidChangeContent(() => {
 				let content = this.getValue();
 				this.placeholderText.style.visibility = content ? 'hidden' : 'visible';
 				if (preexistingContent.trim() === content.trim()) { return; }
@@ -175,7 +182,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		this.setValue(options.value || '');
 
-		this.disposables.push(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+		this._register(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
@@ -217,7 +224,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 
 	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+		this.placeholderText.style.backgroundColor =
+			this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
 		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
 		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
 
@@ -229,7 +237,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : null;
+			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : '';
 		}
 	}
 
@@ -241,18 +249,17 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}
 	}
 
+	public onHide(): void {
+		this.inputWidget.onHide();
+	}
+
 	public layout(dimension: Dimension): void {
 		this.inputWidget.layout(dimension);
-		this.placeholderText.style.width = `${dimension.width}px`;
+		this.placeholderText.style.width = `${dimension.width - 2}px`;
 	}
 
 	private selectAll(): void {
 		this.inputWidget.setSelection(new Range(1, 1, 1, this.getValue().length + 1));
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		super.dispose();
 	}
 }
 
@@ -280,6 +287,12 @@ registerThemingParticipant((theme, collector) => {
 	if (inputForegroundColor) {
 		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
 	}
+
+	const backgroundColor = theme.getColor(inputBackground);
+	if (backgroundColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+		collector.addRule(`.suggest-input-container .monaco-editor { background-color: ${backgroundColor}; } `);
+	}
 });
 
 
@@ -296,6 +309,7 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		ariaLabel: ariaLabel || '',
 
 		snippetSuggestions: 'none',
-		suggest: { filterGraceful: false, showIcons: false }
+		suggest: { filterGraceful: false, showIcons: false },
+		autoClosingBrackets: 'never'
 	};
 }

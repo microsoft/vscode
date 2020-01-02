@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClasses, createCSSRule, removeClasses, asDomUri } from 'vs/base/browser/dom';
+import { addClasses, createCSSRule, removeClasses, asCSSUrl } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
@@ -16,12 +16,13 @@ import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemA
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {
 
 	private readonly _subscriptions = new DisposableStore();
-	private _isPressed: boolean;
+	private _isPressed: boolean = false;
 	private static instance: AlternativeKeyEmitter;
 	private _suppressAltKeyUp: boolean = false;
 
@@ -137,7 +138,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
 
-	private _wantsAltCommand: boolean;
+	private _wantsAltCommand: boolean = false;
 	private readonly _itemClassDispose = this._register(new MutableDisposable());
 	private readonly _altKey: AlternativeKeyEmitter;
 
@@ -147,7 +148,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation), label: !_action.class && !_action.item.iconLocation });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
 		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 
@@ -205,19 +206,20 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	}
 
 	updateLabel(): void {
-		if (this.options.label) {
+		if (this.options.label && this.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
 	updateTooltip(): void {
-		const element = this.label;
-		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
-		const keybindingLabel = keybinding && keybinding.getLabel();
+		if (this.label) {
+			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
+			const keybindingLabel = keybinding && keybinding.getLabel();
 
-		element.title = keybindingLabel
-			? localize('titleAndKb', "{0} ({1})", this._commandAction.label, keybindingLabel)
-			: this._commandAction.label;
+			this.label.title = keybindingLabel
+				? localize('titleAndKb', "{0} ({1})", this._commandAction.label, keybindingLabel)
+				: this._commandAction.label;
+		}
 	}
 
 	updateClass(): void {
@@ -235,22 +237,45 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	_updateItemClass(item: ICommandAction): void {
 		this._itemClassDispose.value = undefined;
 
-		if (item.iconLocation) {
-			let iconClass: string;
-
-			const iconPathMapKey = item.iconLocation.dark.toString();
-
-			if (MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-				iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
-			} else {
-				iconClass = ids.nextId();
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${asDomUri(item.iconLocation.light || item.iconLocation.dark).toString()}")`);
-				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${asDomUri(item.iconLocation.dark).toString()}")`);
-				MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
+		if (ThemeIcon.isThemeIcon(item.icon)) {
+			// theme icons
+			const iconClass = ThemeIcon.asClassName(item.icon);
+			if (this.label && iconClass) {
+				addClasses(this.label, iconClass);
+				this._itemClassDispose.value = toDisposable(() => {
+					if (this.label) {
+						removeClasses(this.label, iconClass);
+					}
+				});
 			}
 
-			addClasses(this.label, 'icon', iconClass);
-			this._itemClassDispose.value = toDisposable(() => removeClasses(this.label, 'icon', iconClass));
+		} else if (item.icon) {
+			// icon path
+			let iconClass: string;
+
+			if (item.icon?.dark?.scheme) {
+
+				const iconPathMapKey = item.icon.dark.toString();
+
+				if (MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
+					iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
+				} else {
+					iconClass = ids.nextId();
+					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.icon.light || item.icon.dark)}`);
+					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.icon.dark)}`);
+					MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
+				}
+
+				if (this.label) {
+
+					addClasses(this.label, 'icon', iconClass);
+					this._itemClassDispose.value = toDisposable(() => {
+						if (this.label) {
+							removeClasses(this.label, 'icon', iconClass);
+						}
+					});
+				}
+			}
 		}
 	}
 }

@@ -10,6 +10,7 @@
 	flex-direction: column;
 	background-color: transparent!important;
 	user-select: initial;
+	-webkit-user-select: initial;
 	position: relative;
 }
 
@@ -72,8 +73,6 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .split-view-view {
-	/* Make relative as terminal absolute positioning needs it deeper in the tree */
-	position: relative;
 	box-sizing: border-box;
 }
 
@@ -106,6 +105,7 @@
 	bottom: 0;
 	left: 0;
 	user-select: none;
+	-webkit-user-select: none;
 }
 .monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(:last-child) .xterm {
 	/* When vertical and NOT the bottom terminal, align to the top instead to prevent the output jumping around erratically */
@@ -146,27 +146,14 @@
 	opacity: 0 !important;
 }
 
-/* Light theme */
-.monaco-workbench .terminal-action.kill { background: url('kill-light.svg') center center no-repeat; }
-.monaco-workbench .terminal-action.new { background: url('new-light.svg') center center no-repeat; }
-.monaco-workbench .terminal-action.split { background: url('split-editor-horizontal-light.svg') center center no-repeat; }
-.monaco-workbench .panel.right .terminal-action.split { background: url('split-editor-vertical-light.svg') center center no-repeat; }
-
-/* Dark theme */
-.vs-dark .monaco-workbench .terminal-action.kill, .hc-black .monaco-workbench .terminal-action.kill { background: url('kill-dark.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .terminal-action.new, .hc-black .monaco-workbench .terminal-action.new { background: url('new-dark.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .terminal-action.split, .hc-black .monaco-workbench .terminal-action.split { background: url('split-editor-horizontal-dark.svg') center center no-repeat; }
-.vs-dark .monaco-workbench .panel.right .terminal-action.split, .hc-black .monaco-workbench .panel.right .terminal-action.split { background: url('split-editor-vertical-dark.svg') center center no-repeat; }
-
-/* HC theme */
-.hc-black .monaco-workbench .terminal-action.kill, .hc-black .monaco-workbench .terminal-action.kill { background: url('kill-hc.svg') center center no-repeat; }
-.hc-black .monaco-workbench .terminal-action.new, .hc-black .monaco-workbench .terminal-action.new { background: url('new-hc.svg') center center no-repeat; }
-.hc-black .monaco-workbench .terminal-action.split, .hc-black .monaco-workbench .terminal-action.split { background: url('split-editor-horizontal-hc.svg') center center no-repeat; }
-.hc-black .monaco-workbench .panel.right .terminal-action.split, .hc-black .monaco-workbench .panel.right .terminal-action.split { background: url('split-editor-vertical-hc.svg') center center no-repeat; }
-
 .vs-dark .monaco-workbench.mac .panel.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events),
 .hc-black .monaco-workbench.mac .panel.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events) {
 	cursor: -webkit-image-set(url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAL0lEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVORK5CYII=') 1x, url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0lEQVRIx2NgYGBY/R8I/vx5eelX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSARckrNBRvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhRA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KrtYcx/CTIy0e+rC7R1Z4KMICVTQQ14feVXIbR695u14+Ir4gwAAD49E54wc1kWAAAAAElFTkSuQmCC') 2x) 5 8, text;
+}
+
+/* Override default xterm style to make !important so it takes precedence over custom mac cursor */
+.xterm.xterm-cursor-pointer {
+	cursor: pointer!important;
 }
 
 .monaco-workbench .quick-open-terminal-configure {

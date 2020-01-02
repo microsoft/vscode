@@ -7,7 +7,8 @@
 
 
 export enum MarkerTag {
-	Unnecessary = 1
+	Unnecessary = 1,
+	Deprecated = 2
 }
 
 export enum MarkerSeverity {
@@ -232,7 +233,8 @@ export enum OverviewRulerLane {
  * Position in the minimap to render the decoration.
  */
 export enum MinimapPosition {
-	Inline = 1
+	Inline = 1,
+	Gutter = 2
 }
 
 /**
@@ -333,100 +335,8 @@ export enum CursorChangeReason {
 
 export enum RenderMinimap {
 	None = 0,
-	Small = 1,
-	Large = 2,
-	SmallBlocks = 3,
-	LargeBlocks = 4
-}
-
-/**
- * Describes how to indent wrapped lines.
- */
-export enum WrappingIndent {
-	/**
-	 * No indentation => wrapped lines begin at column 1.
-	 */
-	None = 0,
-	/**
-	 * Same => wrapped lines get the same indentation as the parent.
-	 */
-	Same = 1,
-	/**
-	 * Indent => wrapped lines get +1 indentation toward the parent.
-	 */
-	Indent = 2,
-	/**
-	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
-	 */
-	DeepIndent = 3
-}
-
-/**
- * The kind of animation in which the editor's cursor should be rendered.
- */
-export enum TextEditorCursorBlinkingStyle {
-	/**
-	 * Hidden
-	 */
-	Hidden = 0,
-	/**
-	 * Blinking
-	 */
-	Blink = 1,
-	/**
-	 * Blinking with smooth fading
-	 */
-	Smooth = 2,
-	/**
-	 * Blinking with prolonged filled state and smooth fading
-	 */
-	Phase = 3,
-	/**
-	 * Expand collapse animation on the y axis
-	 */
-	Expand = 4,
-	/**
-	 * No-Blinking
-	 */
-	Solid = 5
-}
-
-/**
- * The style in which the editor's cursor should be rendered.
- */
-export enum TextEditorCursorStyle {
-	/**
-	 * As a vertical line (sitting between two characters).
-	 */
-	Line = 1,
-	/**
-	 * As a block (sitting on top of a character).
-	 */
-	Block = 2,
-	/**
-	 * As a horizontal line (sitting under a character).
-	 */
-	Underline = 3,
-	/**
-	 * As a thin vertical line (sitting between two characters).
-	 */
-	LineThin = 4,
-	/**
-	 * As an outlined block (sitting on top of a character).
-	 */
-	BlockOutline = 5,
-	/**
-	 * As a thin horizontal line (sitting under a character).
-	 */
-	UnderlineThin = 6
-}
-
-export enum RenderLineNumbersType {
-	Off = 0,
-	On = 1,
-	Relative = 2,
-	Interval = 3,
-	Custom = 4
+	Text = 1,
+	Blocks = 2
 }
 
 /**
@@ -580,6 +490,10 @@ export enum CompletionItemKind {
 	Snippet = 25
 }
 
+export enum CompletionItemTag {
+	Deprecated = 1
+}
+
 export enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
@@ -655,4 +569,8 @@ export enum SymbolKind {
 	Event = 23,
 	Operator = 24,
 	TypeParameter = 25
+}
+
+export enum SymbolTag {
+	Deprecated = 1
 }

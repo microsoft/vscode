@@ -71,6 +71,7 @@ class DomCharWidthReader {
 		regularDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
 		regularDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		regularDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
+		regularDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
 		regularDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
 		regularDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		container.appendChild(regularDomNode);
@@ -79,6 +80,7 @@ class DomCharWidthReader {
 		boldDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
 		boldDomNode.style.fontWeight = 'bold';
 		boldDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
+		boldDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
 		boldDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
 		boldDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		container.appendChild(boldDomNode);
@@ -87,14 +89,14 @@ class DomCharWidthReader {
 		italicDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
 		italicDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		italicDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
+		italicDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
 		italicDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
 		italicDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		italicDomNode.style.fontStyle = 'italic';
 		container.appendChild(italicDomNode);
 
 		const testElements: HTMLSpanElement[] = [];
-		for (let i = 0, len = this._requests.length; i < len; i++) {
-			const request = this._requests[i];
+		for (const request of this._requests) {
 
 			let parent: HTMLElement;
 			if (request.type === CharWidthRequestType.Regular) {
@@ -113,7 +115,7 @@ class DomCharWidthReader {
 			DomCharWidthReader._render(testElement, request);
 			parent!.appendChild(testElement);
 
-			testElements[i] = testElement;
+			testElements.push(testElement);
 		}
 
 		this._container = container;
@@ -122,7 +124,7 @@ class DomCharWidthReader {
 
 	private static _render(testElement: HTMLElement, request: CharWidthRequest): void {
 		if (request.chr === ' ') {
-			let htmlString = '&nbsp;';
+			let htmlString = '&#160;';
 			// Repeat character 256 (2^8) times
 			for (let i = 0; i < 8; i++) {
 				htmlString += htmlString;

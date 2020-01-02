@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/output';
 import * as nls from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -11,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -20,18 +19,16 @@ import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/te
 import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/contrib/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionViewItem, ClearOutputAction, ToggleOrSetOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/contrib/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export class OutputPanel extends AbstractTextResourceEditor {
-	private actions: IAction[];
+	private actions: IAction[] | undefined;
 	private scopedInstantiationService: IInstantiationService;
-	private _focus: boolean;
+	private _focus = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -43,11 +40,9 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@IOutputService private readonly outputService: IOutputService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService
+		@IEditorService editorService: IEditorService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 
 		this.scopedInstantiationService = instantiationService;
 	}
@@ -114,8 +109,8 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		this._focus = !options.preserveFocus;
+	public setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+		this._focus = !(options && options.preserveFocus);
 		if (input.matches(this.input)) {
 			return Promise.resolve(undefined);
 		}
@@ -155,7 +150,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			}
 
 			const model = codeEditor.getModel();
-			if (model) {
+			if (model && this.actions) {
 				const newPositionLine = e.position.lineNumber;
 				const lastLine = model.getLineCount();
 				const newLockState = lastLine !== newPositionLine;

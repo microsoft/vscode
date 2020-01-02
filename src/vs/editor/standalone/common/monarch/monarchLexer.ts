@@ -228,8 +228,6 @@ class MonarchLineState implements modes.IState {
 	}
 }
 
-const hasOwnProperty = Object.hasOwnProperty;
-
 interface IMonarchTokensCollector {
 	enterMode(startOffset: number, modeId: string): void;
 	emit(startOffset: number, type: string): void;
@@ -490,11 +488,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		let popOffset = -1;
 		let hasEmbeddedPopRule = false;
 
-		for (let idx in rules) {
-			if (!hasOwnProperty.call(rules, idx)) {
-				continue;
-			}
-			let rule: monarchCommon.IRule = rules[idx];
+		for (const rule of rules) {
 			if (!monarchCommon.isIAction(rule.action) || rule.action.nextEmbedded !== '@pop') {
 				continue;
 			}
@@ -619,16 +613,13 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 
 				// try each rule until we match
 				let restOfLine = line.substr(pos);
-				for (let idx in rules) {
-					if (hasOwnProperty.call(rules, idx)) {
-						let rule: monarchCommon.IRule = rules[idx];
-						if (pos === 0 || !rule.matchOnlyAtLineStart) {
-							matches = restOfLine.match(rule.regex);
-							if (matches) {
-								matched = matches[0];
-								action = rule.action;
-								break;
-							}
+				for (const rule of rules) {
+					if (pos === 0 || !rule.matchOnlyAtLineStart) {
+						matches = restOfLine.match(rule.regex);
+						if (matches) {
+							matched = matches[0];
+							action = rule.action;
+							break;
 						}
 					}
 				}
@@ -855,6 +846,11 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	private _locateMode(mimetypeOrModeId: string): string | null {
 		if (!mimetypeOrModeId || !this._modeService.isRegisteredMode(mimetypeOrModeId)) {
 			return null;
+		}
+
+		if (mimetypeOrModeId === this._modeId) {
+			// embedding myself...
+			return mimetypeOrModeId;
 		}
 
 		let modeId = this._modeService.getModeId(mimetypeOrModeId);

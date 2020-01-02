@@ -17,12 +17,12 @@
 		"inputOption.activeBorder": "#a57a4c",
 		"selection.background": "#84613daa",
 		"editor.selectionBackground": "#84613daa",
+		"minimap.selectionHighlight": "#84613daa",
 		"editorWidget.background": "#131510",
 		"editorHoverWidget.background": "#221a14",
 		"editorGroupHeader.tabsBackground": "#131510",
 		"editorLineNumber.activeForeground": "#adadad",
 		"tab.inactiveBackground": "#131510",
-		"tab.modifiedBorder": "#cd9731",
 		"titleBar.activeBackground": "#423523",
 		"statusBar.background": "#423523",
 		"statusBar.debuggingBackground": "#423523",
@@ -54,14 +54,12 @@
 	"tokenColors": [
 		{
 			"settings": {
-				"background": "#221a0f",
 				"foreground": "#d3af86"
 			}
 		},
 		{
 			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
-				"background": "#221a0f",
 				"foreground": "#d3af86"
 			}
 		},
@@ -334,7 +332,6 @@
 			"name": "Separator",
 			"scope": "meta.separator",
 			"settings": {
-				"background": "#84613d",
 				"foreground": "#d3af86"
 			}
 		},

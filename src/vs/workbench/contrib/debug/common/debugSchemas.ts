@@ -132,11 +132,40 @@ export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registe
 });
 
 // debug general schema
+
+export const presentationSchema: IJSONSchema = {
+	type: 'object',
+	description: nls.localize('presentation', "Presentation options on how to show this configuration in the debug configuration dropdown and the command palette."),
+	properties: {
+		hidden: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('presentation.hidden', "Controls if this configuration should be shown in the configuration dropdown and the command palette.")
+		},
+		group: {
+			type: 'string',
+			default: '',
+			description: nls.localize('presentation.group', "Group that this configuration belongs to. Used for grouping and sorting in the configuration dropdown and the command palette.")
+		},
+		order: {
+			type: 'number',
+			default: 1,
+			description: nls.localize('presentation.order', "Order of this configuration within a group. Used for grouping and sorting in the configuration dropdown and the command palette.")
+		}
+	},
+	default: {
+		hidden: false,
+		group: '',
+		order: 1
+	}
+};
 const defaultCompound: ICompound = { name: 'Compound', configurations: [] };
 export const launchSchema: IJSONSchema = {
 	id: launchSchemaId,
 	type: 'object',
 	title: nls.localize('app.launch.json.title', "Launch"),
+	allowTrailingCommas: true,
+	allowComments: true,
 	required: [],
 	default: { version: '0.2.0', configurations: [], compounds: [] },
 	properties: {
@@ -165,6 +194,7 @@ export const launchSchema: IJSONSchema = {
 						type: 'string',
 						description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
 					},
+					presentation: presentationSchema,
 					configurations: {
 						type: 'array',
 						default: [],
@@ -188,6 +218,11 @@ export const launchSchema: IJSONSchema = {
 							}]
 						},
 						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
+					},
+					preLaunchTask: {
+						type: 'string',
+						default: '',
+						description: nls.localize('compoundPrelaunchTask', "Task to run before any of the compound configurations start.")
 					}
 				},
 				default: defaultCompound

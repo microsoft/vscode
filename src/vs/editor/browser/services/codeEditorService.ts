@@ -13,7 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 
 export interface ICodeEditorService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly onCodeEditorAdd: Event<ICodeEditor>;
 	readonly onCodeEditorRemove: Event<ICodeEditor>;
@@ -26,11 +26,11 @@ export interface ICodeEditorService {
 
 	addCodeEditor(editor: ICodeEditor): void;
 	removeCodeEditor(editor: ICodeEditor): void;
-	listCodeEditors(): ICodeEditor[];
+	listCodeEditors(): readonly ICodeEditor[];
 
 	addDiffEditor(editor: IDiffEditor): void;
 	removeDiffEditor(editor: IDiffEditor): void;
-	listDiffEditors(): IDiffEditor[];
+	listDiffEditors(): readonly IDiffEditor[];
 
 	/**
 	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.

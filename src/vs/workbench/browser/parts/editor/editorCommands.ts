@@ -46,8 +46,9 @@ export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
-export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
-export const NAVIGATE_IN_ACTIVE_GROUP_PREFIX = 'edt active ';
+export const NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX = 'edt ';
+export const NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX = 'edt mru ';
+export const NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX = 'edt active ';
 
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
@@ -263,7 +264,10 @@ function registerDiffEditorCommands(): void {
 		const candidates = [editorService.activeControl, ...editorService.visibleControls].filter(e => e instanceof TextDiffEditor);
 
 		if (candidates.length > 0) {
-			next ? (<TextDiffEditor>candidates[0]).getDiffNavigator().next() : (<TextDiffEditor>candidates[0]).getDiffNavigator().previous();
+			const navigator = (<TextDiffEditor>candidates[0]).getDiffNavigator();
+			if (navigator) {
+				next ? navigator.next() : navigator.previous();
+			}
 		}
 	}
 
@@ -315,7 +319,7 @@ function registerOpenEditorAtIndexCommands(): void {
 		const editorService = accessor.get(IEditorService);
 		const activeControl = editorService.activeControl;
 		if (activeControl) {
-			const editor = activeControl.group.getEditor(editorIndex);
+			const editor = activeControl.group.getEditorByIndex(editorIndex);
 			if (editor) {
 				editorService.openEditor(editor);
 			}
@@ -443,11 +447,11 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
 
 	// Split editor (if it can be split)
-	let editorToCopy: IEditorInput | null;
+	let editorToCopy: IEditorInput | undefined;
 	if (context && typeof context.editorIndex === 'number') {
-		editorToCopy = sourceGroup.getEditor(context.editorIndex);
+		editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
 	} else {
-		editorToCopy = sourceGroup.activeEditor;
+		editorToCopy = types.withNullAsUndefined(sourceGroup.activeEditor);
 	}
 
 	if (editorToCopy && (editorToCopy as EditorInput).supportsSplitEditor()) {
@@ -545,7 +549,7 @@ function registerCloseEditorCommands() {
 				if (group) {
 					const editors = coalesce(contexts
 						.filter(context => context.groupId === groupId)
-						.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor));
+						.map(context => typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) : group.activeEditor));
 
 					return group.closeEditors(editors);
 				}
@@ -600,8 +604,12 @@ function registerCloseEditorCommands() {
 				if (group) {
 					const editors = contexts
 						.filter(context => context.groupId === groupId)
-						.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor);
+						.map(context => typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) : group.activeEditor);
 					const editorsToClose = group.editors.filter(e => editors.indexOf(e) === -1);
+
+					if (group.activeEditor) {
+						group.pinEditor(group.activeEditor);
+					}
 
 					return group.closeEditors(editorsToClose);
 				}
@@ -621,6 +629,10 @@ function registerCloseEditorCommands() {
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 			if (group && editor) {
+				if (group.activeEditor) {
+					group.pinEditor(group.activeEditor);
+				}
+
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor });
 			}
 
@@ -654,10 +666,6 @@ function registerCloseEditorCommands() {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const quickOpenService = accessor.get(IQuickOpenService);
 
-			if (editorGroupService.count <= 1) {
-				return quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
-			}
-
 			const commandsContext = getCommandsContext(resourceOrContext, context);
 			if (commandsContext && typeof commandsContext.groupId === 'number') {
 				const group = editorGroupService.getGroup(commandsContext.groupId);
@@ -666,7 +674,7 @@ function registerCloseEditorCommands() {
 				}
 			}
 
-			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX);
+			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX);
 		}
 	});
 
@@ -704,7 +712,7 @@ function resolveCommandsContext(editorGroupService: IEditorGroupsService, contex
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
-	let editor = group && context && typeof context.editorIndex === 'number' ? types.withNullAsUndefined(group.getEditor(context.editorIndex)) : undefined;
+	let editor = group && context && typeof context.editorIndex === 'number' ? types.withNullAsUndefined(group.getEditorByIndex(context.editorIndex)) : undefined;
 	let control = group ? group.activeControl : undefined;
 
 	// Fallback to active group as needed
@@ -741,7 +749,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 			const selection: Array<IEditorIdentifier | IEditorGroup> = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 
 			// Only respect selection if it contains focused element
-			if (selection && selection.some(s => {
+			if (selection?.some(s => {
 				if (isEditorGroup(s)) {
 					return s.id === focus.groupId;
 				}

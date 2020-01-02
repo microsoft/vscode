@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemLabelKind, IStatusMessageChangeEvent, StatusMessageChangeType } from 'vs/workbench/common/notifications';
 import { Action } from 'vs/base/common/actions';
-import { INotification, Severity } from 'vs/platform/notification/common/notification';
+import { INotification, Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 
 suite('Notifications', () => {
@@ -103,7 +103,7 @@ suite('Notifications', () => {
 
 		// Error with Action
 		let item6 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) })!;
-		assert.equal(item6.actions.primary!.length, 1);
+		assert.equal(item6.actions!.primary!.length, 1);
 
 		// Links
 		let item7 = NotificationViewItem.create({ severity: Severity.Info, message: 'Unable to [Link 1](http://link1.com) open [Link 2](command:open.me "Open This") and [Link 3](command:without.title) and [Invalid Link4](ftp://link4.com)' })!;
@@ -127,6 +127,19 @@ suite('Notifications', () => {
 		assert.equal(links[2].title, 'Click to execute command \'without.title\'');
 		assert.equal(links[2].length, '[Link 3](command:without.title)'.length);
 		assert.equal(links[2].offset, 'Unable to [Link 1](http://link1.com) open [Link 2](command:open.me "Open This") and '.length);
+
+		// Filter
+		let item8 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.SILENT)!;
+		assert.equal(item8.silent, true);
+
+		let item9 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.OFF)!;
+		assert.equal(item9.silent, false);
+
+		let item10 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.ERROR)!;
+		assert.equal(item10.silent, false);
+
+		let item11 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message' }, NotificationsFilter.ERROR)!;
+		assert.equal(item11.silent, true);
 	});
 
 	test('Model', () => {

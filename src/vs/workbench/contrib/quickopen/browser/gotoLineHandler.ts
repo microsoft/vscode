@@ -16,7 +16,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IRange } from 'vs/editor/common/core/range';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -50,8 +50,9 @@ export class GotoLineAction extends QuickOpenAction {
 		let restoreOptions: IEditorOptions | null = null;
 
 		if (isCodeEditor(activeTextEditorWidget)) {
-			const config = activeTextEditorWidget.getConfiguration();
-			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
+			const options = activeTextEditorWidget.getOptions();
+			const lineNumbers = options.get(EditorOption.lineNumbers);
+			if (lineNumbers.renderType === RenderLineNumbersType.Relative) {
 				activeTextEditorWidget.updateOptions({
 					lineNumbers: 'on'
 				});
@@ -87,8 +88,10 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 
 	private parseInput(line: string) {
 		const numbers = line.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
-		this.line = numbers[0];
+		const endLine = this.getMaxLineNumber() + 1;
+
 		this.column = numbers[1];
+		this.line = numbers[0] > 0 ? numbers[0] : endLine + numbers[0];
 	}
 
 	getLabel(): string {
@@ -99,22 +102,21 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		if (this.editorService.activeTextEditorWidget && this.invalidRange(maxLineNumber)) {
 			const position = this.editorService.activeTextEditorWidget.getPosition();
 			if (position) {
-				const currentLine = position.lineNumber;
 
 				if (maxLineNumber > 0) {
-					return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}. Type a line number between 1 and {1} to navigate to.", currentLine, maxLineNumber);
+					return nls.localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Column: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, maxLineNumber);
 				}
 
-				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
+				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}, Column: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
 			}
 		}
 
 		// Input valid, indicate action
-		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and character {1}.", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}.", this.line);
+		return this.column ? nls.localize('gotoLineColumnLabel', "Go to line {0} and column {1}.", this.line, this.column) : nls.localize('gotoLineLabel', "Go to line {0}.", this.line);
 	}
 
 	private invalidRange(maxLineNumber: number = this.getMaxLineNumber()): boolean {
-		return !this.line || !types.isNumber(this.line) || (maxLineNumber > 0 && types.isNumber(this.line) && this.line > maxLineNumber);
+		return !this.line || !types.isNumber(this.line) || (maxLineNumber > 0 && types.isNumber(this.line) && this.line > maxLineNumber) || this.line < 0;
 	}
 
 	private getMaxLineNumber(): number {
@@ -229,8 +231,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		if (this.editorService.activeTextEditorWidget) {
 			const position = this.editorService.activeTextEditorWidget.getPosition();
 			if (position) {
-				const currentLine = position.lineNumber;
-				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}. Type a line number to navigate to.", currentLine);
+				return nls.localize('gotoLineLabelEmpty', "Current Line: {0}, Column: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
 			}
 		}
 
