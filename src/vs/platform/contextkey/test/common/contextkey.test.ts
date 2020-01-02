@@ -70,6 +70,7 @@ suite('ContextKeyExpr', () => {
 			assert.equal(rules!.evaluate(context), expected, expr);
 		}
 		function testBatch(expr: string, value: any): void {
+			/* eslint-disable eqeqeq */
 			testExpression(expr, !!value);
 			testExpression(expr + ' == true', !!value);
 			testExpression(expr + ' != true', !value);
@@ -80,6 +81,7 @@ suite('ContextKeyExpr', () => {
 			testExpression('!' + expr, !value);
 			testExpression(expr + ' =~ /d.*/', /d.*/.test(value));
 			testExpression(expr + ' =~ /D/i', /D/i.test(value));
+			/* eslint-enable eqeqeq */
 		}
 
 		testBatch('a', true);
@@ -90,7 +92,7 @@ suite('ContextKeyExpr', () => {
 
 		testExpression('a && !b', true && !false);
 		testExpression('a && b', true && false);
-		testExpression('a && !b && c == 5', true && !false && '5' == '5');
+		testExpression('a && !b && c == 5', true && !false && '5' === '5');
 		testExpression('d =~ /e.*/', false);
 		/* tslint:enable:triple-equals */
 
