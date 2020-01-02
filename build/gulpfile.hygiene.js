@@ -321,16 +321,6 @@ function hygiene(some) {
 		});
 	});
 
-	const tslintConfiguration = tslint.Configuration.findConfiguration('tslint.json', '.');
-	const tslintOptions = { fix: false, formatter: 'json' };
-	const tsLinter = new tslint.Linter(tslintOptions);
-
-	const tsl = es.through(function (file) {
-		const contents = file.contents.toString('utf8');
-		tsLinter.lint(file.relative, contents, tslintConfiguration.results);
-		this.emit('data', file);
-	});
-
 	let input;
 
 	if (Array.isArray(some) || typeof some === 'string' || !some) {
@@ -356,13 +346,9 @@ function hygiene(some) {
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights);
 
-	let typescript = result
+	const typescript = result
 		.pipe(filter(tslintHygieneFilter))
 		.pipe(formatting);
-
-	if (!process.argv.some(arg => arg === '--skip-tslint')) {
-		typescript = typescript.pipe(tsl);
-	}
 
 	const javascript = result
 		.pipe(filter(eslintFilter.concat(tslintHygieneFilter)))
@@ -386,20 +372,6 @@ function hygiene(some) {
 			this.emit('data', data);
 		}, function () {
 			process.stdout.write('\n');
-
-			const tslintResult = tsLinter.getResult();
-			if (tslintResult.failures.length > 0) {
-				for (const failure of tslintResult.failures) {
-					const name = failure.getFileName();
-					const position = failure.getStartPosition();
-					const line = position.getLineAndCharacter().line;
-					const character = position.getLineAndCharacter().character;
-
-					console.error(`${name}:${line + 1}:${character + 1}:${failure.getFailure()}`);
-				}
-				errorCount += tslintResult.failures.length;
-			}
-
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
 			} else {
