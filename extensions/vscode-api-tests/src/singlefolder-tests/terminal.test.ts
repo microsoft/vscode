@@ -14,9 +14,11 @@ suite('window namespace tests', () => {
 	suite('Terminal', () => {
 		let disposables: Disposable[] = [];
 
-		teardown(() => {
+		teardown(async () => {
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
+			// Wait a bit to ensure all API events are flushed
+			await new Promise(r => setTimeout(r, 50));
 		});
 
 		test('sendText immediately after createTerminal should not throw', (done) => {
