@@ -19,7 +19,7 @@
         "no-duplicate-case": "warn",
         "no-duplicate-imports": "warn",
         "no-eval": "warn",
-        "no-extra-semi": "off",
+        "no-extra-semi": "warn",
         "no-new-wrappers": "warn",
         "no-redeclare": "off",
         "no-sparse-arrays": "warn",
