@@ -59,7 +59,7 @@
 
 .monaco-workbench .part.titlebar > .menubar {
 	/* move menubar above drag region as negative z-index on drag region cause greyscale AA */
-	z-index: 2000;
+	z-index: 2500;
 }
 
 .monaco-workbench.linux .part.titlebar > .window-title {

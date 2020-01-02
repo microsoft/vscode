@@ -48,6 +48,8 @@ class MultiCursorModifierContextKeyController implements IWorkbenchContribution 
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._multiCursorModifier = multiCursorModifier.bindTo(contextKeyService);
+
+		this._update();
 		configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('editor.multiCursorModifier')) {
 				this._update();

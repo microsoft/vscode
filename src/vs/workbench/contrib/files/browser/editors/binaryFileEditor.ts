@@ -16,7 +16,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 /**
- * An implementation of editor for binary files like images.
+ * An implementation of editor for binary files that cannot be displayed.
  */
 export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
@@ -39,7 +39,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			telemetryService,
 			themeService,
 			environmentService,
-			storageService,
+			storageService
 		);
 	}
 

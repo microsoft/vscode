@@ -104,5 +104,5 @@ function containsResource(root: URI, resource: URI): boolean {
 		resourceFsPath = resourceFsPath.toLowerCase();
 	}
 
-	return startsWith(resource.fsPath, rootPath);
+	return startsWith(resourceFsPath, rootPath);
 }

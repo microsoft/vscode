@@ -346,9 +346,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		remeasureFonts: remeasureFonts,
 
 		// enums
-		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
 		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
-		WrappingIndent: standaloneEnums.WrappingIndent,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
 		MinimapPosition: standaloneEnums.MinimapPosition,
 		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
@@ -357,13 +355,10 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
 		CursorChangeReason: standaloneEnums.CursorChangeReason,
 		MouseTargetType: standaloneEnums.MouseTargetType,
-		TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
-		TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
 		RenderMinimap: standaloneEnums.RenderMinimap,
 		ScrollType: standaloneEnums.ScrollType,
-		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,

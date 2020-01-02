@@ -59,7 +59,7 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
 		const localResults = this.getLocalResults(query);
 
@@ -83,7 +83,11 @@ export class SearchService extends Disposable implements ISearchService {
 			}
 		};
 
-		return this.doSearch(query, token, onProviderProgress);
+		const otherResults = await this.doSearch(query, token, onProviderProgress);
+		return {
+			...otherResults,
+			results: [...otherResults.results, ...arrays.coalesce(localResults.values())]
+		};
 	}
 
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {

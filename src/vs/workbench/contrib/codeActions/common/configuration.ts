@@ -34,7 +34,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	},
 	default: {},
 	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save."),
-	scope: ConfigurationScope.RESOURCE
+	scope: ConfigurationScope.RESOURCE_LANGUAGE,
 };
 
 export const editorConfiguration = Object.freeze<IConfigurationNode>({
@@ -45,7 +45,7 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 			type: 'number',
 			default: 750,
 			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled."),
-			scope: ConfigurationScope.RESOURCE
+			scope: ConfigurationScope.RESOURCE_LANGUAGE,
 		},
 	}
 });

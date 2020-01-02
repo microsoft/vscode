@@ -467,6 +467,16 @@ suite('Disk File Service', function () {
 		assert.ok(event!);
 		assert.equal(event!.resource.fsPath, resource.fsPath);
 		assert.equal(event!.operation, FileOperation.DELETE);
+
+		let error: Error | undefined = undefined;
+		try {
+			await service.del(source.resource);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.equal((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 	});
 
 	test('deleteFolder (recursive)', async () => {

@@ -5,7 +5,7 @@
 
 import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
+import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground, inputValidationErrorBackground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -86,6 +86,8 @@ export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
 		inputBorder: getColor(theme, inputBorder),
 		inputActiveBorder: getColor(theme, inputActiveOptionBorder),
 		inputErrorBorder: getColor(theme, inputValidationErrorBorder),
+		inputErrorBackground: getColor(theme, inputValidationErrorBackground),
+		inputErrorForeground: getColor(theme, inputValidationErrorForeground),
 		buttonBackground: getColor(theme, buttonBackground),
 		buttonForeground: getColor(theme, buttonForeground),
 		buttonHoverBackground: getColor(theme, buttonHoverBackground),

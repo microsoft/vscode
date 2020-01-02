@@ -41,6 +41,8 @@ jobs:
       name: Run TSLint Checks
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
+    - run: yarn valid-globals-check
+      name: Run Valid Globals Checks
     - run: yarn compile
       name: Compile Sources
     - run: yarn download-builtin-extensions
@@ -73,6 +75,8 @@ jobs:
       name: Run TSLint Checks
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
+    - run: yarn valid-globals-check
+      name: Run Valid Globals Checks
     - run: yarn compile
       name: Compile Sources
     - run: yarn download-builtin-extensions
@@ -102,6 +106,8 @@ jobs:
       name: Run TSLint Checks
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
+    - run: yarn valid-globals-check
+      name: Run Valid Globals Checks
     - run: yarn compile
       name: Compile Sources
     - run: yarn download-builtin-extensions

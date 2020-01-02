@@ -16,11 +16,13 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { defaultEditorId } from 'vs/workbench/contrib/customEditor/browser/customEditors';
 import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
+import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
@@ -170,5 +172,54 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		}
 
 		model.redo();
+	}
+}).register();
+
+(new class ToggleCustomEditorCommand extends Command {
+	public static readonly ID = 'editor.action.customEditor.toggle';
+
+	constructor() {
+		super({
+			id: ToggleCustomEditorCommand.ID,
+			precondition: CONTEXT_HAS_CUSTOM_EDITORS,
+		});
+	}
+
+	public runCommand(accessor: ServicesAccessor): void {
+		const editorService = accessor.get<IEditorService>(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (!activeControl) {
+			return;
+		}
+
+		const activeGroup = activeControl.group;
+		const activeEditor = activeControl.input;
+		const targetResource = activeEditor.getResource();
+
+		if (!targetResource) {
+			return;
+		}
+
+		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
+
+		let toggleView = defaultEditorId;
+		if (!(activeEditor instanceof CustomFileEditorInput)) {
+			const bestAvailableEditor = customEditorService.getContributedCustomEditors(targetResource).bestAvailableEditor;
+			if (bestAvailableEditor) {
+				toggleView = bestAvailableEditor.id;
+			} else {
+				return;
+			}
+		}
+
+		const newEditorInput = customEditorService.createInput(targetResource, toggleView, activeGroup);
+
+		editorService.replaceEditors([{
+			editor: activeEditor,
+			replacement: newEditorInput,
+			options: {
+				ignoreOverrides: true,
+			}
+		}], activeGroup);
 	}
 }).register();

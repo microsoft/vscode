@@ -15,7 +15,6 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { join } from 'path';
 
 const chunkSize = 64 * 1024;
 const readError = 'Error while reading';
@@ -379,12 +378,12 @@ suite('PFS', function () {
 		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
 			const id = uuid.generateUuid();
 			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-			const testDir = join(parentDir, 'pfs', id);
+			const testDir = path.join(parentDir, 'pfs', id);
 
 			const newDir = path.join(testDir, 'öäü');
 			await pfs.mkdirp(newDir, 493);
 
-			await pfs.writeFile(join(testDir, 'somefile.txt'), 'contents');
+			await pfs.writeFile(path.join(testDir, 'somefile.txt'), 'contents');
 
 			assert.ok(fs.existsSync(newDir));
 

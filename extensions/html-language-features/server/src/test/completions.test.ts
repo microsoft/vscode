@@ -6,10 +6,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { getLanguageModes } from '../modes/languageModes';
-import { WorkspaceFolder } from 'vscode-languageserver';
-import { TextDocument, CompletionList, CompletionItemKind, ClientCapabilities } from 'vscode-html-languageservice';
-
+import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities} from '../modes/languageModes';
 export interface ItemDescription {
 	label: string;
 	documentation?: string;

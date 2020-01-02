@@ -438,5 +438,13 @@ suite('SnippetsService', function () {
 		[first] = result.suggestions;
 		assert.equal((first.range as any).insert.endColumn, 3);
 		assert.equal((first.range as any).replace.endColumn, 3);
+
+		model = TextModel.createFromString('not word', undefined, modeService.getLanguageIdentifier('fooLang'));
+		result = await provider.provideCompletionItems(model, new Position(1, 1), context)!;
+
+		assert.equal(result.suggestions.length, 1);
+		[first] = result.suggestions;
+		assert.equal((first.range as any).insert.endColumn, 1);
+		assert.equal((first.range as any).replace.endColumn, 9);
 	});
 });

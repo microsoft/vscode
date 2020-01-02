@@ -13,6 +13,8 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
+		className: 'folded-background',
+		isWholeLine: true,
 		linesDecorationsClassName: 'codicon codicon-chevron-right'
 	});
 

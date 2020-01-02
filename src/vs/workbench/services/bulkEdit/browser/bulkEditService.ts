@@ -24,6 +24,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 
 abstract class Recording {
 
@@ -60,7 +61,7 @@ class ModelEditTask implements IDisposable {
 	}
 
 	dispose() {
-		dispose(this._modelReference);
+		this._modelReference.dispose();
 	}
 
 	addEdit(resourceEdit: ResourceTextEdit): void {
@@ -140,30 +141,26 @@ class EditorEditTask extends ModelEditTask {
 
 class BulkEditModel implements IDisposable {
 
-	private _textModelResolverService: ITextModelService;
 	private _edits = new Map<string, ResourceTextEdit[]>();
-	private _editor: ICodeEditor | undefined;
 	private _tasks: ModelEditTask[] | undefined;
-	private _progress: IProgress<void>;
 
 	constructor(
-		textModelResolverService: ITextModelService,
-		editor: ICodeEditor | undefined,
+		private readonly _editor: ICodeEditor | undefined,
+		private readonly _progress: IProgress<void>,
 		edits: ResourceTextEdit[],
-		progress: IProgress<void>
+		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 	) {
-		this._textModelResolverService = textModelResolverService;
-		this._editor = editor;
-		this._progress = progress;
-
-		edits.forEach(this.addEdit, this);
+		edits.forEach(this._addEdit, this);
 	}
 
 	dispose(): void {
-		this._tasks = dispose(this._tasks!);
+		if (this._tasks) {
+			dispose(this._tasks);
+		}
 	}
 
-	addEdit(edit: ResourceTextEdit): void {
+	private _addEdit(edit: ResourceTextEdit): void {
 		let array = this._edits.get(edit.resource.toString());
 		if (!array) {
 			array = [];
@@ -182,7 +179,7 @@ class BulkEditModel implements IDisposable {
 		const promises: Promise<any>[] = [];
 
 		this._edits.forEach((value, key) => {
-			const promise = this._textModelResolverService.createModelReference(URI.parse(key)).then(ref => {
+			const promise = this._textModelResolverService.createModelReference(URI.parse(key)).then(async ref => {
 				const model = ref.object;
 
 				if (!model || !model.textEditorModel) {
@@ -190,13 +187,24 @@ class BulkEditModel implements IDisposable {
 				}
 
 				let task: ModelEditTask;
+				let makeMinimal = false;
 				if (this._editor && this._editor.hasModel() && this._editor.getModel().uri.toString() === model.textEditorModel.uri.toString()) {
 					task = new EditorEditTask(ref, this._editor);
+					makeMinimal = true;
 				} else {
 					task = new ModelEditTask(ref);
 				}
 
-				value.forEach(edit => task.addEdit(edit));
+				for (const edit of value) {
+					if (makeMinimal) {
+						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, edit.edits);
+						task.addEdit({ ...edit, edits: newEdits! });
+
+					} else {
+						task.addEdit(edit);
+					}
+				}
+
 				this._tasks!.push(task);
 				this._progress.report(undefined);
 			});
@@ -241,6 +249,7 @@ class BulkEdit {
 		@ILogService private readonly _logService: ILogService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
+		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILabelService private readonly _uriLabelServie: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -342,7 +351,7 @@ class BulkEdit {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
 		const recording = Recording.start(this._fileService);
-		const model = new BulkEditModel(this._textModelService, this._editor, edits, progress);
+		const model = new BulkEditModel(this._editor, progress, edits, this._workerService, this._textModelService);
 
 		await model.prepare();
 
@@ -359,10 +368,11 @@ class BulkEdit {
 
 		const validationResult = model.validate();
 		if (validationResult.canApply === false) {
+			model.dispose();
 			throw new Error(`${validationResult.reason.toString()} has changed in the meantime`);
 		}
 
-		await model.apply();
+		model.apply();
 		model.dispose();
 	}
 }
@@ -375,14 +385,13 @@ export class BulkEditService implements IBulkEditService {
 		@ILogService private readonly _logService: ILogService,
 		@IModelService private readonly _modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
-	) {
-
-	}
+	) { }
 
 	apply(edit: WorkspaceEdit, options: IBulkEditOptions = {}): Promise<IBulkEditResult> {
 
@@ -401,7 +410,7 @@ export class BulkEditService implements IBulkEditService {
 		}
 
 		// try to find code editor
-		// todo@joh, prefer edit that gets edited
+		// todo@joh, prefer editor that gets edited
 		if (!codeEditor) {
 			let candidate = this._editorService.activeTextEditorWidget;
 			if (isCodeEditor(candidate)) {
@@ -415,10 +424,8 @@ export class BulkEditService implements IBulkEditService {
 		}
 		const bulkEdit = new BulkEdit(
 			codeEditor, options.progress, edits,
-			this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService
+			this._logService, this._textModelService, this._fileService, this._workerService, this._textFileService, this._labelService, this._configurationService
 		);
-
-
 		return bulkEdit.perform().then(() => {
 			return { ariaSummary: bulkEdit.ariaMessage() };
 		}).catch(err => {

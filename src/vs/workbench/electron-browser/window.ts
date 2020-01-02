@@ -283,6 +283,7 @@ export class ElectronWindow extends Disposable {
 			}));
 		}
 
+		// Detect minimize / maximize
 		this._register(Event.any(
 			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronEnvironmentService.windowId), () => true),
 			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronEnvironmentService.windowId), () => false)
@@ -452,7 +453,7 @@ export class ElectronWindow extends Disposable {
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
-						const tunnel = await this.tunnelService.openTunnel(portMappingRequest.port);
+						const tunnel = await this.tunnelService.openTunnel(undefined, portMappingRequest.port);
 						if (tunnel) {
 							return {
 								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),
@@ -609,11 +610,18 @@ export class ElectronWindow extends Disposable {
 	}
 
 	private trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): IDisposable {
-		const listener = this.editorService.onDidCloseEditor(async () => {
+		const listener = this.editorService.onDidCloseEditor(async event => {
+			const closedResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
+
 			// In wait mode, listen to changes to the editors and wait until the files
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
-			if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
+			if (
+				// for https://github.com/microsoft/vscode/issues/75861
+				(resourcesToWaitFor.length === 1 && isEqual(closedResource, resourcesToWaitFor[0])) ||
+				// any other case we simply check for all resources to wait for
+				resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))
+			) {
 				// If auto save is configured with the default delay (1s) it is possible
 				// to close the editor while the save still continues in the background. As such
 				// we have to also check if the files to wait for are dirty and if so wait

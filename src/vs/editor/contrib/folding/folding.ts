@@ -421,9 +421,18 @@ export class FoldingController extends Disposable implements IEditorContribution
 				if (region && region.startLineNumber === lineNumber) {
 					let isCollapsed = region.isCollapsed;
 					if (iconClicked || isCollapsed) {
-						let toToggle = [region];
-						if (e.event.middleButton || e.event.shiftKey) {
-							toToggle.push(...foldingModel.getRegionsInside(region, (r: FoldingRegion) => r.isCollapsed === isCollapsed));
+						let toToggle = [];
+						let recursive = e.event.middleButton || e.event.shiftKey;
+						if (recursive) {
+							for (const r of foldingModel.getRegionsInside(region)) {
+								if (r.isCollapsed === isCollapsed) {
+									toToggle.push(r);
+								}
+							}
+						}
+						// when recursive, first only collapse all children. If all are already folded or there are no children, also fold parent.
+						if (isCollapsed || !recursive || toToggle.length === 0) {
+							toToggle.push(region);
 						}
 						foldingModel.toggleCollapseState(toToggle);
 						this.reveal({ lineNumber, column: 1 });
