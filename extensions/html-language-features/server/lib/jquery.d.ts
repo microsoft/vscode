@@ -74,7 +74,7 @@ interface JQueryAjaxSettings {
      */
     dataFilter? (data: any, ty: any): any;
     /**
-     * The type of data that you're expecting back from the server. If none is specified, jQuery will try to infer it based on the MIME type of the response (an XML MIME type will yield XML, in 1.4 JSON will yield a JavaScript object, in 1.4 script will execute the script, and anything else will be returned as a string). 
+     * The type of data that you're expecting back from the server. If none is specified, jQuery will try to infer it based on the MIME type of the response (an XML MIME type will yield XML, in 1.4 JSON will yield a JavaScript object, in 1.4 script will execute the script, and anything else will be returned as a string).
      */
     dataType?: string;
     /**
@@ -168,11 +168,11 @@ interface JQueryAjaxSettings {
  */
 interface JQueryXHR extends XMLHttpRequest, JQueryPromise<any> {
     /**
-     * The .overrideMimeType() method may be used in the beforeSend() callback function, for example, to modify the response content-type header. As of jQuery 1.5.1, the jqXHR object also contains the overrideMimeType() method (it was available in jQuery 1.4.x, as well, but was temporarily removed in jQuery 1.5). 
+     * The .overrideMimeType() method may be used in the beforeSend() callback function, for example, to modify the response content-type header. As of jQuery 1.5.1, the jqXHR object also contains the overrideMimeType() method (it was available in jQuery 1.4.x, as well, but was temporarily removed in jQuery 1.5).
      */
     overrideMimeType(mimeType: string): any;
     /**
-     * Cancel the request. 
+     * Cancel the request.
      *
      * @param statusText A string passed as the textStatus parameter for the done callback. Default value: "canceled"
      */
@@ -197,13 +197,13 @@ interface JQueryXHR extends XMLHttpRequest, JQueryPromise<any> {
 interface JQueryCallback {
     /**
      * Add a callback or a collection of callbacks to a callback list.
-     * 
+     *
      * @param callbacks A function, or array of functions, that are to be added to the callback list.
      */
     add(callbacks: Function): JQueryCallback;
     /**
      * Add a callback or a collection of callbacks to a callback list.
-     * 
+     *
      * @param callbacks A function, or array of functions, that are to be added to the callback list.
      */
     add(callbacks: Function[]): JQueryCallback;
@@ -225,7 +225,7 @@ interface JQueryCallback {
 
     /**
      * Call all of the callbacks with the given arguments
-     * 
+     *
      * @param arguments The argument or list of arguments to pass back to the callback list.
      */
     fire(...arguments: any[]): JQueryCallback;
@@ -237,7 +237,7 @@ interface JQueryCallback {
 
     /**
      * Call all callbacks in a list with the given context and arguments.
-     * 
+     *
      * @param context A reference to the context in which the callbacks in the list should be fired.
      * @param arguments An argument, or array of arguments, to pass to the callbacks in the list.
      */
@@ -245,7 +245,7 @@ interface JQueryCallback {
 
     /**
      * Determine whether a supplied callback is in a list
-     * 
+     *
      * @param callback The callback to search for.
      */
     has(callback: Function): boolean;
@@ -262,13 +262,13 @@ interface JQueryCallback {
 
     /**
      * Remove a callback or a collection of callbacks from a callback list.
-     * 
+     *
      * @param callbacks A function, or array of functions, that are to be removed from the callback list.
      */
     remove(callbacks: Function): JQueryCallback;
     /**
      * Remove a callback or a collection of callbacks from a callback list.
-     * 
+     *
      * @param callbacks A function, or array of functions, that are to be removed from the callback list.
      */
     remove(callbacks: Function[]): JQueryCallback;
@@ -280,7 +280,7 @@ interface JQueryCallback {
 interface JQueryGenericPromise<T> {
     /**
      * Add handlers to be called when the Deferred object is resolved, rejected, or still in progress.
-     * 
+     *
      * @param doneFilter A function that is called when the Deferred is resolved.
      * @param failFilter An optional function that is called when the Deferred is rejected.
      */
@@ -288,7 +288,7 @@ interface JQueryGenericPromise<T> {
 
     /**
      * Add handlers to be called when the Deferred object is resolved, rejected, or still in progress.
-     * 
+     *
      * @param doneFilter A function that is called when the Deferred is resolved.
      * @param failFilter An optional function that is called when the Deferred is rejected.
      */
@@ -316,38 +316,38 @@ interface JQueryPromise<T> extends JQueryGenericPromise<T> {
     state(): string;
     /**
      * Add handlers to be called when the Deferred object is either resolved or rejected.
-     * 
+     *
      * @param alwaysCallbacks1 A function, or array of functions, that is called when the Deferred is resolved or rejected.
      * @param alwaysCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is resolved or rejected.
      */
     always(alwaysCallback1?: JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[], ...alwaysCallbacksN: Array<JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[]>): JQueryPromise<T>;
     /**
      * Add handlers to be called when the Deferred object is resolved.
-     * 
+     *
      * @param doneCallbacks1 A function, or array of functions, that are called when the Deferred is resolved.
      * @param doneCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is resolved.
      */
     done(doneCallback1?: JQueryPromiseCallback<T>|JQueryPromiseCallback<T>[], ...doneCallbackN: Array<JQueryPromiseCallback<T>|JQueryPromiseCallback<T>[]>): JQueryPromise<T>;
     /**
      * Add handlers to be called when the Deferred object is rejected.
-     * 
+     *
      * @param failCallbacks1 A function, or array of functions, that are called when the Deferred is rejected.
      * @param failCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is rejected.
      */
     fail(failCallback1?: JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[], ...failCallbacksN: Array<JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[]>): JQueryPromise<T>;
     /**
      * Add handlers to be called when the Deferred object generates progress notifications.
-     * 
+     *
      * @param progressCallbacks A function, or array of functions, to be called when the Deferred generates progress notifications.
      */
     progress(progressCallback1?: JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[], ...progressCallbackN: Array<JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[]>): JQueryPromise<T>;
 
     // Deprecated - given no typings
     pipe(doneFilter?: (x: any) => any, failFilter?: (x: any) => any, progressFilter?: (x: any) => any): JQueryPromise<any>;
-    
+
     /**
      * Return a Deferred's Promise object.
-     * 
+     *
      * @param target Object onto which the promise methods have to be attached
      */
     promise(target?: any): JQueryPromise<T>;
@@ -363,42 +363,42 @@ interface JQueryDeferred<T> extends JQueryGenericPromise<T> {
     state(): string;
     /**
      * Add handlers to be called when the Deferred object is either resolved or rejected.
-     * 
+     *
      * @param alwaysCallbacks1 A function, or array of functions, that is called when the Deferred is resolved or rejected.
      * @param alwaysCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is resolved or rejected.
      */
     always(alwaysCallback1?: JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[], ...alwaysCallbacksN: Array<JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[]>): JQueryDeferred<T>;
     /**
      * Add handlers to be called when the Deferred object is resolved.
-     * 
+     *
      * @param doneCallbacks1 A function, or array of functions, that are called when the Deferred is resolved.
      * @param doneCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is resolved.
      */
     done(doneCallback1?: JQueryPromiseCallback<T>|JQueryPromiseCallback<T>[], ...doneCallbackN: Array<JQueryPromiseCallback<T>|JQueryPromiseCallback<T>[]>): JQueryDeferred<T>;
     /**
      * Add handlers to be called when the Deferred object is rejected.
-     * 
+     *
      * @param failCallbacks1 A function, or array of functions, that are called when the Deferred is rejected.
      * @param failCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is rejected.
      */
     fail(failCallback1?: JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[], ...failCallbacksN: Array<JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[]>): JQueryDeferred<T>;
     /**
      * Add handlers to be called when the Deferred object generates progress notifications.
-     * 
+     *
      * @param progressCallbacks A function, or array of functions, to be called when the Deferred generates progress notifications.
      */
     progress(progressCallback1?: JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[], ...progressCallbackN: Array<JQueryPromiseCallback<any>|JQueryPromiseCallback<any>[]>): JQueryDeferred<T>;
 
     /**
      * Call the progressCallbacks on a Deferred object with the given args.
-     * 
+     *
      * @param args Optional arguments that are passed to the progressCallbacks.
      */
     notify(value?: any, ...args: any[]): JQueryDeferred<T>;
 
     /**
      * Call the progressCallbacks on a Deferred object with the given context and args.
-     * 
+     *
      * @param context Context passed to the progressCallbacks as the this object.
      * @param args Optional arguments that are passed to the progressCallbacks.
      */
@@ -406,13 +406,13 @@ interface JQueryDeferred<T> extends JQueryGenericPromise<T> {
 
     /**
      * Reject a Deferred object and call any failCallbacks with the given args.
-     * 
+     *
      * @param args Optional arguments that are passed to the failCallbacks.
      */
     reject(value?: any, ...args: any[]): JQueryDeferred<T>;
     /**
      * Reject a Deferred object and call any failCallbacks with the given context and args.
-     * 
+     *
      * @param context Context passed to the failCallbacks as the this object.
      * @param args An optional array of arguments that are passed to the failCallbacks.
      */
@@ -420,7 +420,7 @@ interface JQueryDeferred<T> extends JQueryGenericPromise<T> {
 
     /**
      * Resolve a Deferred object and call any doneCallbacks with the given args.
-     * 
+     *
      * @param value First argument passed to doneCallbacks.
      * @param args Optional subsequent arguments that are passed to the doneCallbacks.
      */
@@ -428,7 +428,7 @@ interface JQueryDeferred<T> extends JQueryGenericPromise<T> {
 
     /**
      * Resolve a Deferred object and call any doneCallbacks with the given context and args.
-     * 
+     *
      * @param context Context passed to the doneCallbacks as the this object.
      * @param args An optional array of arguments that are passed to the doneCallbacks.
      */
@@ -436,7 +436,7 @@ interface JQueryDeferred<T> extends JQueryGenericPromise<T> {
 
     /**
      * Return a Deferred's Promise object.
-     * 
+     *
      * @param target Object onto which the promise methods have to be attached
      */
     promise(target?: any): JQueryPromise<T>;
@@ -527,14 +527,14 @@ interface JQuerySupport {
 interface JQueryParam {
     /**
      * Create a serialized representation of an array or object, suitable for use in a URL query string or Ajax request.
-     * 
+     *
      * @param obj An array or object to serialize.
      */
     (obj: any): string;
 
     /**
      * Create a serialized representation of an array or object, suitable for use in a URL query string or Ajax request.
-     * 
+     *
      * @param obj An array or object to serialize.
      * @param traditional A Boolean indicating whether to perform a traditional "shallow" serialization.
      */
@@ -568,47 +568,47 @@ interface JQuerySerializeArrayElement {
     value: string;
 }
 
-interface JQueryAnimationOptions { 
+interface JQueryAnimationOptions {
     /**
      * A string or number determining how long the animation will run.
      */
-    duration?: any; 
+    duration?: any;
     /**
      * A string indicating which easing function to use for the transition.
      */
-    easing?: string; 
+    easing?: string;
     /**
      * A function to call once the animation is complete.
      */
-    complete?: Function; 
+    complete?: Function;
     /**
      * A function to be called for each animated property of each animated element. This function provides an opportunity to modify the Tween object to change the value of the property before it is set.
      */
-    step?: (now: number, tween: any) => any; 
+    step?: (now: number, tween: any) => any;
     /**
      * A function to be called after each step of the animation, only once per animated element regardless of the number of animated properties. (version added: 1.8)
      */
-    progress?: (animation: JQueryPromise<any>, progress: number, remainingMs: number) => any; 
+    progress?: (animation: JQueryPromise<any>, progress: number, remainingMs: number) => any;
     /**
      * A function to call when the animation begins. (version added: 1.8)
      */
-    start?: (animation: JQueryPromise<any>) => any; 
+    start?: (animation: JQueryPromise<any>) => any;
     /**
      * A function to be called when the animation completes (its Promise object is resolved). (version added: 1.8)
      */
-    done?: (animation: JQueryPromise<any>, jumpedToEnd: boolean) => any; 
+    done?: (animation: JQueryPromise<any>, jumpedToEnd: boolean) => any;
     /**
      * A function to be called when the animation fails to complete (its Promise object is rejected). (version added: 1.8)
      */
-    fail?: (animation: JQueryPromise<any>, jumpedToEnd: boolean) => any; 
+    fail?: (animation: JQueryPromise<any>, jumpedToEnd: boolean) => any;
     /**
      * A function to be called when the animation completes or stops without completing (its Promise object is either resolved or rejected). (version added: 1.8)
      */
-    always?: (animation: JQueryPromise<any>, jumpedToEnd: boolean) => any; 
+    always?: (animation: JQueryPromise<any>, jumpedToEnd: boolean) => any;
     /**
      * A Boolean indicating whether to place the animation in the effects queue. If false, the animation will begin immediately. As of jQuery 1.7, the queue option can also accept a string, in which case the animation is added to the queue represented by that string. When a custom queue name is used the animation does not automatically start; you must call .dequeue("queuename") to start it.
      */
-    queue?: any; 
+    queue?: any;
     /**
      * A map of one or more of the CSS properties defined by the properties argument and their corresponding easing functions. (version added: 1.4)
      */
@@ -972,7 +972,7 @@ interface JQueryStatic {
 
     /**
      * Check to see if a DOM element is a descendant of another DOM element.
-     * 
+     *
      * @param container The DOM element that may contain the other element.
      * @param contained The DOM element that may be contained by (a descendant of) the other element.
      */
@@ -980,7 +980,7 @@ interface JQueryStatic {
 
     /**
      * A generic iterator function, which can be used to seamlessly iterate over both objects and arrays. Arrays and array-like objects with a length property (such as a function's arguments object) are iterated by numeric index, from 0 to length-1. Other objects are iterated via their named properties.
-     * 
+     *
      * @param collection The object or array to iterate over.
      * @param callback The function that will be executed on every object.
      */
@@ -991,7 +991,7 @@ interface JQueryStatic {
 
     /**
      * A generic iterator function, which can be used to seamlessly iterate over both objects and arrays. Arrays and array-like objects with a length property (such as a function's arguments object) are iterated by numeric index, from 0 to length-1. Other objects are iterated via their named properties.
-     * 
+     *
      * @param collection The object or array to iterate over.
      * @param callback The function that will be executed on every object.
      */
@@ -1088,21 +1088,21 @@ interface JQueryStatic {
 
     /**
      * Convert an array-like object into a true JavaScript array.
-     * 
+     *
      * @param obj Any object to turn into a native Array.
      */
     makeArray(obj: any): any[];
 
     /**
      * Translate all items in an array or object to new array of items.
-     * 
+     *
      * @param array The Array to translate.
      * @param callback The function to process each item against. The first argument to the function is the array item, the second argument is the index in array The function can return any value. Within the function, this refers to the global (window) object.
      */
     map<T, U>(array: T[], callback: (elementOfArray?: T, indexInArray?: number) => U): U[];
     /**
      * Translate all items in an array or object to new array of items.
-     * 
+     *
      * @param arrayOrObject The Array or Object to translate.
      * @param callback The function to process each item against. The first argument to the function is the value; the second argument is the index or key of the array or object property. The function can return any value to add to the array. A returned array will be flattened into the resulting array. Within the function, this refers to the global (window) object.
      */
@@ -1110,7 +1110,7 @@ interface JQueryStatic {
 
     /**
      * Merge the contents of two arrays together into the first array.
-     * 
+     *
      * @param first The first array to merge, the elements of second added.
      * @param second The second array to merge into the first, unaltered.
      */
@@ -1128,7 +1128,7 @@ interface JQueryStatic {
 
     /**
      * Takes a well-formed JSON string and returns the resulting JavaScript object.
-     * 
+     *
      * @param json The JSON string to parse.
      */
     parseJSON(json: string): any;
@@ -1142,21 +1142,21 @@ interface JQueryStatic {
 
     /**
      * Remove the whitespace from the beginning and end of a string.
-     * 
+     *
      * @param str Remove the whitespace from the beginning and end of a string.
      */
     trim(str: string): string;
 
     /**
      * Determine the internal JavaScript [[Class]] of an object.
-     * 
+     *
      * @param obj Object to get the internal JavaScript [[Class]] of.
      */
     type(obj: any): string;
 
     /**
      * Sorts an array of DOM elements, in place, with the duplicates removed. Note that this only works on arrays of DOM elements, not strings or numbers.
-     * 
+     *
      * @param array The Array of DOM elements.
      */
     unique(array: Element[]): Element[];
@@ -1283,7 +1283,7 @@ interface JQuery {
      * @param attributes An object of attribute-value pairs to set.
      */
     attr(attributes: Object): JQuery;
-    
+
     /**
      * Determine whether any of the matched elements are assigned the given class.
      *
@@ -1461,7 +1461,7 @@ interface JQuery {
      * @param value An integer representing the number of pixels, or an integer along with an optional unit of measure appended (as a string).
      */
     innerHeight(height: number|string): JQuery;
-    
+
     /**
      * Get the current computed width for the first element in the set of matched elements, including padding but not border.
      */
@@ -1473,7 +1473,7 @@ interface JQuery {
      * @param value An integer representing the number of pixels, or an integer along with an optional unit of measure appended (as a string).
      */
     innerWidth(width: number|string): JQuery;
-    
+
     /**
      * Get the current coordinates of the first element in the set of matched elements, relative to the document.
      */
@@ -1906,7 +1906,7 @@ interface JQuery {
 
     /**
      * Attach a handler to an event for the elements.
-     * 
+     *
      * @param eventType A string containing one or more DOM event types, such as "click" or "submit," or custom event names.
      * @param eventData An object containing data that will be passed to the event handler.
      * @param handler A function to execute each time the event is triggered.
@@ -1914,14 +1914,14 @@ interface JQuery {
     bind(eventType: string, eventData: any, handler: (eventObject: JQueryEventObject) => any): JQuery;
     /**
      * Attach a handler to an event for the elements.
-     * 
+     *
      * @param eventType A string containing one or more DOM event types, such as "click" or "submit," or custom event names.
      * @param handler A function to execute each time the event is triggered.
      */
     bind(eventType: string, handler: (eventObject: JQueryEventObject) => any): JQuery;
     /**
      * Attach a handler to an event for the elements.
-     * 
+     *
      * @param eventType A string containing one or more DOM event types, such as "click" or "submit," or custom event names.
      * @param eventData An object containing data that will be passed to the event handler.
      * @param preventBubble Setting the third argument to false will attach a function that prevents the default action from occurring and stops the event from bubbling. The default is true.
@@ -1929,14 +1929,14 @@ interface JQuery {
     bind(eventType: string, eventData: any, preventBubble: boolean): JQuery;
     /**
      * Attach a handler to an event for the elements.
-     * 
+     *
      * @param eventType A string containing one or more DOM event types, such as "click" or "submit," or custom event names.
      * @param preventBubble Setting the third argument to false will attach a function that prevents the default action from occurring and stops the event from bubbling. The default is true.
      */
     bind(eventType: string, preventBubble: boolean): JQuery;
     /**
      * Attach a handler to an event for the elements.
-     * 
+     *
      * @param events An object containing one or more DOM event types and functions to execute for them.
      */
     bind(events: any): JQuery;
@@ -2511,14 +2511,14 @@ interface JQuery {
 
     /**
      * Execute all handlers and behaviors attached to the matched elements for the given event type.
-     * 
+     *
      * @param eventType A string containing a JavaScript event type, such as click or submit.
      * @param extraParameters Additional parameters to pass along to the event handler.
      */
     trigger(eventType: string, extraParameters?: any[]|Object): JQuery;
     /**
      * Execute all handlers and behaviors attached to the matched elements for the given event type.
-     * 
+     *
      * @param event A jQuery.Event object.
      * @param extraParameters Additional parameters to pass along to the event handler.
      */
@@ -2526,7 +2526,7 @@ interface JQuery {
 
     /**
      * Execute all handlers attached to an element for an event.
-     * 
+     *
      * @param eventType A string containing a JavaScript event type, such as click or submit.
      * @param extraParameters An array of additional parameters to pass along to the event handler.
      */
@@ -2534,7 +2534,7 @@ interface JQuery {
 
     /**
      * Execute all handlers attached to an element for an event.
-     * 
+     *
      * @param event A jQuery.Event object.
      * @param extraParameters An array of additional parameters to pass along to the event handler.
      */
@@ -2542,21 +2542,21 @@ interface JQuery {
 
     /**
      * Remove a previously-attached event handler from the elements.
-     * 
+     *
      * @param eventType A string containing a JavaScript event type, such as click or submit.
      * @param handler The function that is to be no longer executed.
      */
     unbind(eventType?: string, handler?: (eventObject: JQueryEventObject) => any): JQuery;
     /**
      * Remove a previously-attached event handler from the elements.
-     * 
+     *
      * @param eventType A string containing a JavaScript event type, such as click or submit.
      * @param fls Unbinds the corresponding 'return false' function that was bound using .bind( eventType, false ).
      */
     unbind(eventType: string, fls: boolean): JQuery;
     /**
      * Remove a previously-attached event handler from the elements.
-     * 
+     *
      * @param evt A JavaScript event object as passed to an event handler.
      */
     unbind(evt: any): JQuery;
@@ -2567,7 +2567,7 @@ interface JQuery {
     undelegate(): JQuery;
     /**
      * Remove a handler from the event for all elements which match the current selector, based upon a specific set of root elements.
-     * 
+     *
      * @param selector A selector which will be used to filter the event results.
      * @param eventType A string containing a JavaScript event type, such as "click" or "keydown"
      * @param handler A function to execute at the time the event is triggered.
@@ -2575,27 +2575,27 @@ interface JQuery {
     undelegate(selector: string, eventType: string, handler?: (eventObject: JQueryEventObject) => any): JQuery;
     /**
      * Remove a handler from the event for all elements which match the current selector, based upon a specific set of root elements.
-     * 
+     *
      * @param selector A selector which will be used to filter the event results.
      * @param events An object of one or more event types and previously bound functions to unbind from them.
      */
     undelegate(selector: string, events: Object): JQuery;
     /**
      * Remove a handler from the event for all elements which match the current selector, based upon a specific set of root elements.
-     * 
+     *
      * @param namespace A string containing a namespace to unbind all events from.
      */
     undelegate(namespace: string): JQuery;
 
     /**
      * Bind an event handler to the "unload" JavaScript event. (DEPRECATED from v1.8)
-     * 
+     *
      * @param handler A function to execute when the event is triggered.
      */
     unload(handler: (eventObject: JQueryEventObject) => any): JQuery;
     /**
      * Bind an event handler to the "unload" JavaScript event. (DEPRECATED from v1.8)
-     * 
+     *
      * @param eventData A plain object of data that will be passed to the event handler.
      * @param handler A function to execute when the event is triggered.
      */
@@ -2610,13 +2610,13 @@ interface JQuery {
 
     /**
      * Bind an event handler to the "error" JavaScript event. (DEPRECATED from v1.8)
-     * 
+     *
      * @param handler A function to execute when the event is triggered.
      */
     error(handler: (eventObject: JQueryEventObject) => any): JQuery;
     /**
      * Bind an event handler to the "error" JavaScript event. (DEPRECATED from v1.8)
-     * 
+     *
      * @param eventData A plain object of data that will be passed to the event handler.
      * @param handler A function to execute when the event is triggered.
      */
@@ -2624,13 +2624,13 @@ interface JQuery {
 
     /**
      * Add a collection of DOM elements onto the jQuery stack.
-     * 
+     *
      * @param elements An array of elements to push onto the stack and make into a new jQuery object.
      */
     pushStack(elements: any[]): JQuery;
     /**
      * Add a collection of DOM elements onto the jQuery stack.
-     * 
+     *
      * @param elements An array of elements to push onto the stack and make into a new jQuery object.
      * @param name The name of a jQuery method that generated the array of elements.
      * @param arguments The arguments that were passed in to the jQuery method (for serialization).
@@ -2639,56 +2639,56 @@ interface JQuery {
 
     /**
      * Insert content, specified by the parameter, after each element in the set of matched elements.
-     * 
+     *
      * param content1 HTML string, DOM element, DocumentFragment, array of elements, or jQuery object to insert after each element in the set of matched elements.
      * param content2 One or more additional DOM elements, arrays of elements, HTML strings, or jQuery objects to insert after each element in the set of matched elements.
      */
     after(content1: JQuery|any[]|Element|DocumentFragment|Text|string, ...content2: any[]): JQuery;
     /**
      * Insert content, specified by the parameter, after each element in the set of matched elements.
-     * 
+     *
      * param func A function that returns an HTML string, DOM element(s), or jQuery object to insert after each element in the set of matched elements. Receives the index position of the element in the set as an argument. Within the function, this refers to the current element in the set.
      */
     after(func: (index: number, html: string) => string|Element|JQuery): JQuery;
 
     /**
      * Insert content, specified by the parameter, to the end of each element in the set of matched elements.
-     * 
+     *
      * param content1 DOM element, DocumentFragment, array of elements, HTML string, or jQuery object to insert at the end of each element in the set of matched elements.
      * param content2 One or more additional DOM elements, arrays of elements, HTML strings, or jQuery objects to insert at the end of each element in the set of matched elements.
      */
     append(content1: JQuery|any[]|Element|DocumentFragment|Text|string, ...content2: any[]): JQuery;
     /**
      * Insert content, specified by the parameter, to the end of each element in the set of matched elements.
-     * 
+     *
      * param func A function that returns an HTML string, DOM element(s), or jQuery object to insert at the end of each element in the set of matched elements. Receives the index position of the element in the set and the old HTML value of the element as arguments. Within the function, this refers to the current element in the set.
      */
     append(func: (index: number, html: string) => string|Element|JQuery): JQuery;
 
     /**
      * Insert every element in the set of matched elements to the end of the target.
-     * 
+     *
      * @param target A selector, element, HTML string, array of elements, or jQuery object; the matched set of elements will be inserted at the end of the element(s) specified by this parameter.
      */
     appendTo(target: JQuery|any[]|Element|string): JQuery;
 
     /**
      * Insert content, specified by the parameter, before each element in the set of matched elements.
-     * 
+     *
      * param content1 HTML string, DOM element, DocumentFragment, array of elements, or jQuery object to insert before each element in the set of matched elements.
      * param content2 One or more additional DOM elements, arrays of elements, HTML strings, or jQuery objects to insert before each element in the set of matched elements.
      */
     before(content1: JQuery|any[]|Element|DocumentFragment|Text|string, ...content2: any[]): JQuery;
     /**
      * Insert content, specified by the parameter, before each element in the set of matched elements.
-     * 
+     *
      * param func A function that returns an HTML string, DOM element(s), or jQuery object to insert before each element in the set of matched elements. Receives the index position of the element in the set as an argument. Within the function, this refers to the current element in the set.
      */
     before(func: (index: number, html: string) => string|Element|JQuery): JQuery;
 
     /**
      * Create a deep copy of the set of matched elements.
-     * 
+     *
      * param withDataAndEvents A Boolean indicating whether event handlers and data should be copied along with the elements. The default value is false.
      * param deepWithDataAndEvents A Boolean indicating whether event handlers and data for all children of the cloned element should be copied. By default its value matches the first argument's value (which defaults to false).
      */
@@ -2696,7 +2696,7 @@ interface JQuery {
 
     /**
      * Remove the set of matched elements from the DOM.
-     * 
+     *
      * param selector A selector expression that filters the set of matched elements to be removed.
      */
     detach(selector?: string): JQuery;
@@ -2708,62 +2708,62 @@ interface JQuery {
 
     /**
      * Insert every element in the set of matched elements after the target.
-     * 
+     *
      * param target A selector, element, array of elements, HTML string, or jQuery object; the matched set of elements will be inserted after the element(s) specified by this parameter.
      */
     insertAfter(target: JQuery|any[]|Element|Text|string): JQuery;
 
     /**
      * Insert every element in the set of matched elements before the target.
-     * 
+     *
      * param target A selector, element, array of elements, HTML string, or jQuery object; the matched set of elements will be inserted before the element(s) specified by this parameter.
      */
     insertBefore(target: JQuery|any[]|Element|Text|string): JQuery;
 
     /**
      * Insert content, specified by the parameter, to the beginning of each element in the set of matched elements.
-     * 
+     *
      * param content1 DOM element, DocumentFragment, array of elements, HTML string, or jQuery object to insert at the beginning of each element in the set of matched elements.
      * param content2 One or more additional DOM elements, arrays of elements, HTML strings, or jQuery objects to insert at the beginning of each element in the set of matched elements.
      */
     prepend(content1: JQuery|any[]|Element|DocumentFragment|Text|string, ...content2: any[]): JQuery;
     /**
      * Insert content, specified by the parameter, to the beginning of each element in the set of matched elements.
-     * 
+     *
      * param func A function that returns an HTML string, DOM element(s), or jQuery object to insert at the beginning of each element in the set of matched elements. Receives the index position of the element in the set and the old HTML value of the element as arguments. Within the function, this refers to the current element in the set.
      */
     prepend(func: (index: number, html: string) => string|Element|JQuery): JQuery;
 
     /**
      * Insert every element in the set of matched elements to the beginning of the target.
-     * 
+     *
      * @param target A selector, element, HTML string, array of elements, or jQuery object; the matched set of elements will be inserted at the beginning of the element(s) specified by this parameter.
      */
     prependTo(target: JQuery|any[]|Element|string): JQuery;
 
     /**
      * Remove the set of matched elements from the DOM.
-     * 
+     *
      * @param selector A selector expression that filters the set of matched elements to be removed.
      */
     remove(selector?: string): JQuery;
 
     /**
      * Replace each target element with the set of matched elements.
-     * 
+     *
      * @param target A selector string, jQuery object, DOM element, or array of elements indicating which element(s) to replace.
      */
     replaceAll(target: JQuery|any[]|Element|string): JQuery;
 
     /**
      * Replace each element in the set of matched elements with the provided new content and return the set of elements that was removed.
-     * 
+     *
      * param newContent The content to insert. May be an HTML string, DOM element, array of DOM elements, or jQuery object.
      */
     replaceWith(newContent: JQuery|any[]|Element|Text|string): JQuery;
     /**
      * Replace each element in the set of matched elements with the provided new content and return the set of elements that was removed.
-     * 
+     *
      * param func A function that returns content with which to replace the set of matched elements.
      */
     replaceWith(func: () => Element|JQuery): JQuery;
@@ -2774,13 +2774,13 @@ interface JQuery {
     text(): string;
     /**
      * Set the content of each element in the set of matched elements to the specified text.
-     * 
+     *
      * @param text The text to set as the content of each matched element. When Number or Boolean is supplied, it will be converted to a String representation.
      */
     text(text: string|number|boolean): JQuery;
     /**
      * Set the content of each element in the set of matched elements to the specified text.
-     * 
+     *
      * @param func A function returning the text content to set. Receives the index position of the element in the set and the old text value as arguments.
      */
     text(func: (index: number, text: string) => string): JQuery;
@@ -2798,20 +2798,20 @@ interface JQuery {
 
     /**
      * Wrap an HTML structure around each element in the set of matched elements.
-     * 
+     *
      * @param wrappingElement A selector, element, HTML string, or jQuery object specifying the structure to wrap around the matched elements.
      */
     wrap(wrappingElement: JQuery|Element|string): JQuery;
     /**
      * Wrap an HTML structure around each element in the set of matched elements.
-     * 
+     *
      * @param func A callback function returning the HTML content or jQuery object to wrap around the matched elements. Receives the index position of the element in the set as an argument. Within the function, this refers to the current element in the set.
      */
     wrap(func: (index: number) => string|JQuery): JQuery;
 
     /**
      * Wrap an HTML structure around all elements in the set of matched elements.
-     * 
+     *
      * @param wrappingElement A selector, element, HTML string, or jQuery object specifying the structure to wrap around the matched elements.
      */
     wrapAll(wrappingElement: JQuery|Element|string): JQuery;
@@ -2819,27 +2819,27 @@ interface JQuery {
 
     /**
      * Wrap an HTML structure around the content of each element in the set of matched elements.
-     * 
+     *
      * @param wrappingElement An HTML snippet, selector expression, jQuery object, or DOM element specifying the structure to wrap around the content of the matched elements.
      */
     wrapInner(wrappingElement: JQuery|Element|string): JQuery;
     /**
      * Wrap an HTML structure around the content of each element in the set of matched elements.
-     * 
+     *
      * @param func A callback function which generates a structure to wrap around the content of the matched elements. Receives the index position of the element in the set as an argument. Within the function, this refers to the current element in the set.
      */
     wrapInner(func: (index: number) => string): JQuery;
 
     /**
      * Iterate over a jQuery object, executing a function for each matched element.
-     * 
+     *
      * @param func A function to execute for each matched element.
      */
     each(func: (index: number, elem: Element) => any): JQuery;
 
     /**
      * Retrieve one of the elements matched by the jQuery object.
-     * 
+     *
      * @param index A zero-based integer indicating which element to retrieve.
      */
     get(index: number): HTMLElement;
@@ -2855,7 +2855,7 @@ interface JQuery {
     index(): number;
     /**
      * Search for a given element from among the matched elements.
-     * 
+     *
      * @param selector A selector representing a jQuery collection in which to look for an element.
      */
     index(selector: string|JQuery|Element): number;
@@ -2874,66 +2874,66 @@ interface JQuery {
 
     /**
      * Add elements to the set of matched elements.
-     * 
+     *
      * @param selector A string representing a selector expression to find additional elements to add to the set of matched elements.
      * @param context The point in the document at which the selector should begin matching; similar to the context argument of the $(selector, context) method.
      */
     add(selector: string, context?: Element): JQuery;
     /**
      * Add elements to the set of matched elements.
-     * 
+     *
      * @param elements One or more elements to add to the set of matched elements.
      */
     add(...elements: Element[]): JQuery;
     /**
      * Add elements to the set of matched elements.
-     * 
+     *
      * @param html An HTML fragment to add to the set of matched elements.
      */
     add(html: string): JQuery;
     /**
      * Add elements to the set of matched elements.
-     * 
+     *
      * @param obj An existing jQuery object to add to the set of matched elements.
      */
     add(obj: JQuery): JQuery;
 
     /**
      * Get the children of each element in the set of matched elements, optionally filtered by a selector.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     children(selector?: string): JQuery;
 
     /**
      * For each element in the set, get the first element that matches the selector by testing the element itself and traversing up through its ancestors in the DOM tree.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     closest(selector: string): JQuery;
     /**
      * For each element in the set, get the first element that matches the selector by testing the element itself and traversing up through its ancestors in the DOM tree.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      * @param context A DOM element within which a matching element may be found. If no context is passed in then the context of the jQuery set will be used instead.
      */
     closest(selector: string, context?: Element): JQuery;
     /**
      * For each element in the set, get the first element that matches the selector by testing the element itself and traversing up through its ancestors in the DOM tree.
-     * 
+     *
      * @param obj A jQuery object to match elements against.
      */
     closest(obj: JQuery): JQuery;
     /**
      * For each element in the set, get the first element that matches the selector by testing the element itself and traversing up through its ancestors in the DOM tree.
-     * 
+     *
      * @param element An element to match elements against.
      */
     closest(element: Element): JQuery;
 
     /**
      * Get an array of all the elements and selectors matched against the current element up through the DOM tree.
-     * 
+     *
      * @param selectors An array or string containing a selector expression to match elements against (can also be a jQuery object).
      * @param context A DOM element within which a matching element may be found. If no context is passed in then the context of the jQuery set will be used instead.
      */
@@ -2951,52 +2951,52 @@ interface JQuery {
 
     /**
      * Reduce the set of matched elements to the one at the specified index.
-     * 
+     *
      * @param index An integer indicating the 0-based position of the element. OR An integer indicating the position of the element, counting backwards from the last element in the set.
-     *  
+     *
      */
     eq(index: number): JQuery;
 
     /**
      * Reduce the set of matched elements to those that match the selector or pass the function's test.
-     * 
+     *
      * @param selector A string containing a selector expression to match the current set of elements against.
      */
     filter(selector: string): JQuery;
     /**
      * Reduce the set of matched elements to those that match the selector or pass the function's test.
-     * 
+     *
      * @param func A function used as a test for each element in the set. this is the current DOM element.
      */
     filter(func: (index: number, element: Element) => any): JQuery;
     /**
      * Reduce the set of matched elements to those that match the selector or pass the function's test.
-     * 
+     *
      * @param element An element to match the current set of elements against.
      */
     filter(element: Element): JQuery;
     /**
      * Reduce the set of matched elements to those that match the selector or pass the function's test.
-     * 
+     *
      * @param obj An existing jQuery object to match the current set of elements against.
      */
     filter(obj: JQuery): JQuery;
 
     /**
      * Get the descendants of each element in the current set of matched elements, filtered by a selector, jQuery object, or element.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     find(selector: string): JQuery;
     /**
      * Get the descendants of each element in the current set of matched elements, filtered by a selector, jQuery object, or element.
-     * 
+     *
      * @param element An element to match elements against.
      */
     find(element: Element): JQuery;
     /**
      * Get the descendants of each element in the current set of matched elements, filtered by a selector, jQuery object, or element.
-     * 
+     *
      * @param obj A jQuery object to match elements against.
      */
     find(obj: JQuery): JQuery;
@@ -3008,38 +3008,38 @@ interface JQuery {
 
     /**
      * Reduce the set of matched elements to those that have a descendant that matches the selector or DOM element.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     has(selector: string): JQuery;
     /**
      * Reduce the set of matched elements to those that have a descendant that matches the selector or DOM element.
-     * 
+     *
      * @param contained A DOM element to match elements against.
      */
     has(contained: Element): JQuery;
 
     /**
      * Check the current matched set of elements against a selector, element, or jQuery object and return true if at least one of these elements matches the given arguments.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     is(selector: string): boolean;
     /**
      * Check the current matched set of elements against a selector, element, or jQuery object and return true if at least one of these elements matches the given arguments.
-     * 
+     *
      * @param func A function used as a test for the set of elements. It accepts one argument, index, which is the element's index in the jQuery collection.Within the function, this refers to the current DOM element.
      */
     is(func: (index: number, element: Element) => boolean): boolean;
     /**
      * Check the current matched set of elements against a selector, element, or jQuery object and return true if at least one of these elements matches the given arguments.
-     * 
+     *
      * @param obj An existing jQuery object to match the current set of elements against.
      */
     is(obj: JQuery): boolean;
     /**
      * Check the current matched set of elements against a selector, element, or jQuery object and return true if at least one of these elements matches the given arguments.
-     * 
+     *
      * @param elements One or more elements to match the current set of elements against.
      */
     is(elements: any): boolean;
@@ -3051,42 +3051,42 @@ interface JQuery {
 
     /**
      * Pass each element in the current matched set through a function, producing a new jQuery object containing the return values.
-     * 
+     *
      * @param callback A function object that will be invoked for each element in the current set.
      */
     map(callback: (index: number, domElement: Element) => any): JQuery;
 
     /**
      * Get the immediately following sibling of each element in the set of matched elements. If a selector is provided, it retrieves the next sibling only if it matches that selector.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     next(selector?: string): JQuery;
 
     /**
      * Get all following siblings of each element in the set of matched elements, optionally filtered by a selector.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     nextAll(selector?: string): JQuery;
 
     /**
      * Get all following siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object passed.
-     * 
+     *
      * @param selector A string containing a selector expression to indicate where to stop matching following sibling elements.
      * @param filter A string containing a selector expression to match elements against.
      */
     nextUntil(selector?: string, filter?: string): JQuery;
     /**
      * Get all following siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object passed.
-     * 
+     *
      * @param element A DOM node or jQuery object indicating where to stop matching following sibling elements.
      * @param filter A string containing a selector expression to match elements against.
      */
     nextUntil(element?: Element, filter?: string): JQuery;
     /**
      * Get all following siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object passed.
-     * 
+     *
      * @param obj A DOM node or jQuery object indicating where to stop matching following sibling elements.
      * @param filter A string containing a selector expression to match elements against.
      */
@@ -3094,25 +3094,25 @@ interface JQuery {
 
     /**
      * Remove elements from the set of matched elements.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     not(selector: string): JQuery;
     /**
      * Remove elements from the set of matched elements.
-     * 
+     *
      * @param func A function used as a test for each element in the set. this is the current DOM element.
      */
     not(func: (index: number, element: Element) => boolean): JQuery;
     /**
      * Remove elements from the set of matched elements.
-     * 
+     *
      * @param elements One or more DOM elements to remove from the matched set.
      */
     not(elements: Element|Element[]): JQuery;
     /**
      * Remove elements from the set of matched elements.
-     * 
+     *
      * @param obj An existing jQuery object to match the current set of elements against.
      */
     not(obj: JQuery): JQuery;
@@ -3124,35 +3124,35 @@ interface JQuery {
 
     /**
      * Get the parent of each element in the current set of matched elements, optionally filtered by a selector.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     parent(selector?: string): JQuery;
 
     /**
      * Get the ancestors of each element in the current set of matched elements, optionally filtered by a selector.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     parents(selector?: string): JQuery;
 
     /**
      * Get the ancestors of each element in the current set of matched elements, up to but not including the element matched by the selector, DOM node, or jQuery object.
-     * 
+     *
      * @param selector A string containing a selector expression to indicate where to stop matching ancestor elements.
      * @param filter A string containing a selector expression to match elements against.
      */
     parentsUntil(selector?: string, filter?: string): JQuery;
     /**
      * Get the ancestors of each element in the current set of matched elements, up to but not including the element matched by the selector, DOM node, or jQuery object.
-     * 
+     *
      * @param element A DOM node or jQuery object indicating where to stop matching ancestor elements.
      * @param filter A string containing a selector expression to match elements against.
      */
     parentsUntil(element?: Element, filter?: string): JQuery;
     /**
      * Get the ancestors of each element in the current set of matched elements, up to but not including the element matched by the selector, DOM node, or jQuery object.
-     * 
+     *
      * @param obj A DOM node or jQuery object indicating where to stop matching ancestor elements.
      * @param filter A string containing a selector expression to match elements against.
      */
@@ -3160,35 +3160,35 @@ interface JQuery {
 
     /**
      * Get the immediately preceding sibling of each element in the set of matched elements, optionally filtered by a selector.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     prev(selector?: string): JQuery;
 
     /**
      * Get all preceding siblings of each element in the set of matched elements, optionally filtered by a selector.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     prevAll(selector?: string): JQuery;
 
     /**
      * Get all preceding siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object.
-     * 
+     *
      * @param selector A string containing a selector expression to indicate where to stop matching preceding sibling elements.
      * @param filter A string containing a selector expression to match elements against.
      */
     prevUntil(selector?: string, filter?: string): JQuery;
     /**
      * Get all preceding siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object.
-     * 
+     *
      * @param element A DOM node or jQuery object indicating where to stop matching preceding sibling elements.
      * @param filter A string containing a selector expression to match elements against.
      */
     prevUntil(element?: Element, filter?: string): JQuery;
     /**
      * Get all preceding siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object.
-     * 
+     *
      * @param obj A DOM node or jQuery object indicating where to stop matching preceding sibling elements.
      * @param filter A string containing a selector expression to match elements against.
      */
@@ -3196,14 +3196,14 @@ interface JQuery {
 
     /**
      * Get the siblings of each element in the set of matched elements, optionally filtered by a selector.
-     * 
+     *
      * @param selector A string containing a selector expression to match elements against.
      */
     siblings(selector?: string): JQuery;
 
     /**
      * Reduce the set of matched elements to a subset specified by a range of indices.
-     * 
+     *
      * @param start An integer indicating the 0-based position at which the elements begin to be selected. If negative, it indicates an offset from the end of the set.
      * @param end An integer indicating the 0-based position at which the elements stop being selected. If negative, it indicates an offset from the end of the set. If omitted, the range continues until the end of the set.
      */
@@ -3211,32 +3211,32 @@ interface JQuery {
 
     /**
      * Show the queue of functions to be executed on the matched elements.
-     * 
+     *
      * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
      */
     queue(queueName?: string): any[];
     /**
      * Manipulate the queue of functions to be executed, once for each matched element.
-     * 
+     *
      * @param newQueue An array of functions to replace the current queue contents.
      */
     queue(newQueue: Function[]): JQuery;
     /**
      * Manipulate the queue of functions to be executed, once for each matched element.
-     * 
+     *
      * @param callback The new function to add to the queue, with a function to call that will dequeue the next item.
      */
     queue(callback: Function): JQuery;
     /**
      * Manipulate the queue of functions to be executed, once for each matched element.
-     * 
+     *
      * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
      * @param newQueue An array of functions to replace the current queue contents.
      */
     queue(queueName: string, newQueue: Function[]): JQuery;
     /**
      * Manipulate the queue of functions to be executed, once for each matched element.
-     * 
+     *
      * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
      * @param callback The new function to add to the queue, with a function to call that will dequeue the next item.
      */
@@ -3245,5 +3245,5 @@ interface JQuery {
 declare module "jquery" {
     export = $;
 }
-declare var jQuery: JQueryStatic;
-declare var $: JQueryStatic;
+declare const jQuery: JQueryStatic;
+declare const $: JQueryStatic;

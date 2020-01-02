@@ -39,6 +39,7 @@ import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addon
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -286,7 +287,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 
@@ -666,7 +668,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._refreshSelectionContextKey();
 			}));
 
-			const widgetManager = new TerminalWidgetManager(this._wrapperElement);
+			const widgetManager = new TerminalWidgetManager(this._wrapperElement, this._openerService);
 			this._widgetManager = widgetManager;
 			this._processManager.onProcessReady(() => this._linkHandler?.setWidgetManager(widgetManager));
 
@@ -700,7 +702,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Discard first frame time as it's normal to take longer
 			frameTimes.shift();
 
-			const medianTime = frameTimes.sort()[Math.floor(frameTimes.length / 2)];
+			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
 			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
 				const promptChoices: IPromptChoice[] = [
 					{
@@ -1227,10 +1229,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const config = this._configHelper.config;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
+		this._setCursorWidth(config.cursorWidth);
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
 		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
 		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
+		this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
+		this._safeSetOption('scrollSensitivity', config.mouseWheelScrollSensitivity);
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
@@ -1238,10 +1243,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Never set webgl as it's an addon not a rendererType
 			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 		}
-
-		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
-		this._safeSetOption('fastScrollSensitivity', editorOptions.fastScrollSensitivity);
-		this._safeSetOption('scrollSensitivity', editorOptions.mouseWheelScrollSensitivity);
 	}
 
 	public updateAccessibilitySupport(): void {
@@ -1268,6 +1269,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
 			const xtermOption = style === 'line' ? 'bar' : style;
 			this._xterm.setOption('cursorStyle', xtermOption);
+		}
+	}
+
+	private _setCursorWidth(width: number): void {
+		if (this._xterm && this._xterm.getOption('cursorWidth') !== width) {
+			this._xterm.setOption('cursorWidth', width);
 		}
 	}
 

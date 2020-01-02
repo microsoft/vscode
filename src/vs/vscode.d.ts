@@ -4855,6 +4855,13 @@ declare module 'vscode' {
 		readonly processId: Thenable<number | undefined>;
 
 		/**
+		 * The object used to initialize the terminal, this is useful for example to detecting the
+		 * shell type of when the terminal was not launched by this extension or for detecting what
+		 * folder the shell was launched in.
+		 */
+		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+
+		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
 		 * (shell) of the terminal.
 		 *

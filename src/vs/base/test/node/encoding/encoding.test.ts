@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as encoding from 'vs/base/node/encoding';
+import * as terminalEncoding from 'vs/base/node/terminalEncoding';
 import { Readable } from 'stream';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
@@ -118,14 +119,14 @@ suite('Encoding', () => {
 	});
 
 	test('resolve terminal encoding (detect)', async function () {
-		const enc = await encoding.resolveTerminalEncoding();
-		assert.ok(encoding.encodingExists(enc));
+		const enc = await terminalEncoding.resolveTerminalEncoding();
+		assert.ok(enc.length > 0);
 	});
 
 	test('resolve terminal encoding (environment)', async function () {
 		process.env['VSCODE_CLI_ENCODING'] = 'utf16le';
 
-		const enc = await encoding.resolveTerminalEncoding();
+		const enc = await terminalEncoding.resolveTerminalEncoding();
 		assert.ok(encoding.encodingExists(enc));
 		assert.equal(enc, 'utf16le');
 	});
