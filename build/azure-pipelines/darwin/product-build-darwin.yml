@@ -121,7 +121,7 @@ steps:
     cd -
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
     yarn smoketest --web --headless
-  continueOnError: true
+  # continueOnError: true
   displayName: Run web smoke tests
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
