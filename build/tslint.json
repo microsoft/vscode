@@ -10,5 +10,5 @@
 		],
 		"triple-equals": true
 	},
-	"defaultSeverity": "warning"
+	"defaultSeverity": "off"
 }
