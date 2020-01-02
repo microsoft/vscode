@@ -370,6 +370,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them."),
 			'default': true
 		},
+		'explorer.enableFileNesting': {
+			'type': 'boolean',
+			'description': nls.localize('enableFileNesting', "Enables file nesting based on naming"),
+			'default': false
+		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
 			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop."),

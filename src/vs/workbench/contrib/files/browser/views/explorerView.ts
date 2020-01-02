@@ -102,6 +102,7 @@ export class ExplorerView extends ViewPane {
 	private shouldRefresh = true;
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal = false;
+	private fileNesting = false;
 	private actions: IAction[] | undefined;
 
 	constructor(
@@ -460,11 +461,18 @@ export class ExplorerView extends ViewPane {
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		this.autoReveal = configuration?.explorer?.autoReveal;
+		let fileNesting = configuration?.explorer?.enableFileNesting;
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
 		if (this.filter) {
 			needsRefresh = this.filter.updateConfiguration();
+		}
+
+		// When file nesting configuration changes
+		if (this.fileNesting !== fileNesting) {
+			this.fileNesting = fileNesting;
+			needsRefresh = true;
 		}
 
 		if (event && !needsRefresh) {
