@@ -57,7 +57,6 @@ suite('ContextKeyExpr', () => {
 	});
 
 	test('evaluate', () => {
-		/* tslint:disable:triple-equals */
 		let context = createContext({
 			'a': true,
 			'b': false,
@@ -94,7 +93,6 @@ suite('ContextKeyExpr', () => {
 		testExpression('a && b', true && false);
 		testExpression('a && !b && c == 5', true && !false && '5' === '5');
 		testExpression('d =~ /e.*/', false);
-		/* tslint:enable:triple-equals */
 
 		// precedence test: false && true || true === true because && is evaluated first
 		testExpression('b && a || a', true);
