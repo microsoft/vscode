@@ -46,14 +46,6 @@
 			}
 		},
 		{
-			"type": "gulp",
-			"task": "tslint",
-			"label": "Run tslint",
-			"problemMatcher": [
-				"$tslint5"
-			]
-		},
-		{
 			"label": "Run tests",
 			"type": "shell",
 			"command": "./scripts/test.sh",

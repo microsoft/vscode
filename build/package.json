@@ -42,7 +42,6 @@
     "minimist": "^1.2.0",
     "request": "^2.85.0",
     "terser": "4.3.8",
-    "tslint": "^5.9.1",
     "typescript": "3.7.3",
     "vsce": "1.48.0",
     "vscode-telemetry-extractor": "^1.5.4",

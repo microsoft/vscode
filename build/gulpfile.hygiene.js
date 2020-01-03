@@ -8,10 +8,8 @@
 const gulp = require('gulp');
 const filter = require('gulp-filter');
 const es = require('event-stream');
-const gulptslint = require('gulp-tslint');
 const gulpeslint = require('gulp-eslint');
 const tsfmt = require('typescript-formatter');
-const tslint = require('tslint');
 const VinylFile = require('vinyl');
 const vfs = require('vinyl-fs');
 const path = require('path');
@@ -85,7 +83,7 @@ const indentationFilter = [
 	'!src/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns}',
-	'!build/{lib,tslintRules,download}/**/*.js',
+	'!build/{lib,download}/**/*.js',
 	'!build/**/*.sh',
 	'!build/azure-pipelines/**/*.js',
 	'!build/azure-pipelines/**/*.config',
@@ -128,7 +126,7 @@ const copyrightFilter = [
 	'!scripts/code-web.js'
 ];
 
-const eslintFilter = [
+const jsHygieneFilter = [
 	'src/**/*.js',
 	'build/gulpfile.*.js',
 	'!src/vs/loader.js',
@@ -141,7 +139,10 @@ const eslintFilter = [
 	'!**/test/**'
 ];
 
-const tslintBaseFilter = [
+const tsHygieneFilter = [
+	'src/**/*.ts',
+	'test/**/*.ts',
+	'extensions/**/*.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
@@ -150,30 +151,6 @@ const tslintBaseFilter = [
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',
 	'!extensions/html-language-features/server/lib/jquery.d.ts'
-];
-
-const tslintCoreFilter = [
-	'src/**/*.ts',
-	'test/**/*.ts',
-	'!extensions/**/*.ts',
-	'!test/automation/**',
-	'!test/smoke/**',
-	...tslintBaseFilter
-];
-
-const tslintExtensionsFilter = [
-	'extensions/**/*.ts',
-	'!src/**/*.ts',
-	'!test/**/*.ts',
-	'test/automation/**/*.ts',
-	...tslintBaseFilter
-];
-
-const tslintHygieneFilter = [
-	'src/**/*.ts',
-	'test/**/*.ts',
-	'extensions/**/*.ts',
-	...tslintBaseFilter
 ];
 
 const copyrightHeaderLines = [
@@ -185,7 +162,7 @@ const copyrightHeaderLines = [
 
 gulp.task('eslint', () => {
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
-		.pipe(filter(eslintFilter.concat(tslintHygieneFilter)))
+		.pipe(filter(jsHygieneFilter.concat(tsHygieneFilter)))
 		.pipe(gulpeslint({
 			configFile: '.eslintrc.json',
 			rulePaths: ['./build/lib/eslint']
@@ -196,23 +173,6 @@ gulp.task('eslint', () => {
 				throw new Error('eslint failed with warnings and/or errors');
 			}
 		}));
-});
-
-gulp.task('tslint', () => {
-	return es.merge([
-
-		// Core: include type information (required by certain rules like no-nodejs-globals)
-		vfs.src(all, { base: '.', follow: true, allowEmpty: true })
-			.pipe(filter(tslintCoreFilter))
-			.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint', program: tslint.Linter.createProgram('src/tsconfig.json') }))
-			.pipe(gulptslint.default.report({ emitError: true })),
-
-		// Exenstions: do not include type information
-		vfs.src(all, { base: '.', follow: true, allowEmpty: true })
-			.pipe(filter(tslintExtensionsFilter))
-			.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
-			.pipe(gulptslint.default.report({ emitError: true }))
-	]).pipe(es.through());
 });
 
 function checkPackageJSON(actualPath) {
@@ -301,8 +261,6 @@ function hygiene(some) {
 			replace: undefined,
 			tsconfig: undefined,
 			tsconfigFile: undefined,
-			tslint: undefined,
-			tslintFile: undefined,
 			tsfmtFile: undefined,
 			vscode: undefined,
 			vscodeFile: undefined
@@ -347,11 +305,11 @@ function hygiene(some) {
 		.pipe(copyrights);
 
 	const typescript = result
-		.pipe(filter(tslintHygieneFilter))
+		.pipe(filter(tsHygieneFilter))
 		.pipe(formatting);
 
 	const javascript = result
-		.pipe(filter(eslintFilter.concat(tslintHygieneFilter)))
+		.pipe(filter(jsHygieneFilter.concat(tsHygieneFilter)))
 		.pipe(gulpeslint({
 			configFile: '.eslintrc.json',
 			rulePaths: ['./build/lib/eslint']
