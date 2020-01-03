@@ -61,7 +61,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			onAfterOperation = Event.None;
 		};
 
-		/* tslint:disable */
 		new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
@@ -86,7 +85,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			},
 			TestEnvironmentService
 		);
-		/* tslint:enable */
 	});
 
 

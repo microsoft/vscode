@@ -99,7 +99,6 @@ function lazilyActivateClient(
 		if (!hasActivated && isSupportedDocument(supportedLanguage, textDocument)) {
 			hasActivated = true;
 			// Force activation
-			// tslint:disable-next-line:no-unused-expression
 			void lazyClientHost.value;
 
 			disposables.push(new ManagedFileContextManager(resource => {

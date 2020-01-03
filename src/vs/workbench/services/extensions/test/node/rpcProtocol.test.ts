@@ -190,6 +190,7 @@ suite('RPCProtocol', () => {
 
 	test('issue #72798: null errors are hard to digest', function (done) {
 		delegate = (a1: number, a2: number) => {
+			// eslint-disable-next-line no-throw-literal
 			throw { 'what': 'what' };
 		};
 		bProxy.$m(4, 1).then((res) => {

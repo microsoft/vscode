@@ -35,10 +35,8 @@ jobs:
       name: Install Dependencies
     - run: yarn electron x64
       name: Download Electron
-    - run: yarn gulp hygiene --skip-tslint
+    - run: yarn gulp hygiene
       name: Run Hygiene Checks
-    - run: yarn gulp tslint
-      name: Run TSLint Checks
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
     - run: yarn valid-globals-check
@@ -69,10 +67,8 @@ jobs:
       name: Install Dependencies
     - run: yarn electron
       name: Download Electron
-    - run: yarn gulp hygiene --skip-tslint
+    - run: yarn gulp hygiene
       name: Run Hygiene Checks
-    - run: yarn gulp tslint
-      name: Run TSLint Checks
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
     - run: yarn valid-globals-check
@@ -100,10 +96,8 @@ jobs:
       name: Install Dependencies
     - run: yarn electron x64
       name: Download Electron
-    - run: yarn gulp hygiene --skip-tslint
+    - run: yarn gulp hygiene
       name: Run Hygiene Checks
-    - run: yarn gulp tslint
-      name: Run TSLint Checks
     - run: yarn monaco-compile-check
       name: Run Monaco Editor Checks
     - run: yarn valid-globals-check
