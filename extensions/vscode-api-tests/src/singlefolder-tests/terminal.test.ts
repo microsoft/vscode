@@ -17,8 +17,23 @@ suite('window namespace tests', () => {
 		teardown(async () => {
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
-			// Wait a bit to ensure all API events are flushed
-			await new Promise(r => setTimeout(r, 50));
+			// Dispose all terminals and wait for their close events before continuing on
+			const terminals = window.terminals.slice();
+			if (terminals.length > 0) {
+				await new Promise(r => {
+					const closeListener = window.onDidCloseTerminal(t => {
+						const i = terminals.indexOf(t);
+						if (i >= 0) {
+							terminals.splice(i, 1);
+						}
+						if (terminals.length === 0) {
+							closeListener.dispose();
+							r();
+						}
+					});
+					terminals.forEach(t => t.dispose());
+				});
+			}
 		});
 
 		test('sendText immediately after createTerminal should not throw', (done) => {
