@@ -244,8 +244,66 @@
 		};
 	</script>
 	<script src="./static/out/vs/loader.js"></script>
-	<script>
+	<!-- <script>
 		// NOTE: Changes to inline scripts require update of content security policy
 		require(['vs/code/browser/workbench/workbench'], function() {});
+	</script> -->
+	<script>
+		if (location.hostname === 'localhost') {
+			require(['vs/code/browser/workbench/workbench'], function() {});
+		} else {
+			(async () => {
+				const loaderElement = document.createElement('div');
+				loaderElement.innerHTML = `<div style="width:100vw;height:100vh;display:flex; background: #444; justify-content: center; align-items: center;">
+				<style>
+					html, body {
+						margin: 0;
+						padding: 0
+					}
+					.spinner {
+						pointer-events: none;
+						width: 2.5em;
+						height: 2.5em;
+						border: 0.4em solid transparent;
+						border-color: #eee;
+						border-top-color: #3E67EC;
+						border-radius: 50%;
+						animation: loadingspin 1s linear infinite;
+					}
+					@keyframes loadingspin {
+						100% { transform: rotate(360deg) }
+					}
+				</style>
+				<div >
+					<div class="spinner"></div>
+				</div>
+			</div>`;
+				document.body.appendChild(loaderElement);
+
+				let installed = !!navigator.serviceWorker.controller;
+				navigator.serviceWorker.addEventListener('controllerchange', () => {
+					if (installed) {
+						const modal = document.createElement('div');
+						modal.innerHTML = `
+        <div style='position: absolute; outline: 1px solid black; right: 10px; bottom: 10px; width: 350px; height: 80px'>
+          <div>New version available!</div>
+          <span>It will be applied from the next</span> - <button onclick="location.reload()">Reload</button>
+        </div>
+      `;
+						document.body.appendChild(modal);
+					}
+				});
+				const reg = await navigator.serviceWorker.register('/sw.js');
+				await navigator.serviceWorker.ready;
+				installed = true;
+				setInterval(() => {
+					reg.update();
+				}, 60 * 1000);
+
+				require(['vs/code/browser/workbench/workbench'], function() {
+					loaderElement.remove();
+				});
+			})();
+		}
 	</script>
 </html>
