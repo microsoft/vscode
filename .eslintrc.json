@@ -25,13 +25,18 @@
         "no-sparse-arrays": "warn",
         "no-throw-literal": "warn",
         "no-unsafe-finally": "warn",
-        "no-unused-expressions": "off",
         "no-unused-labels": "warn",
         "no-var": "warn",
         "jsdoc/no-types": "warn",
         "semi": "off",
         "@typescript-eslint/semi": "warn",
         "@typescript-eslint/class-name-casing": "warn",
+        "code-no-unused-expressions": [
+            "warn",
+            {
+                "allowTernary": true
+            }
+        ],
         "code-translation-remind": "warn",
         "code-no-nls-in-standalone-editor": "warn",
         "code-no-standalone-editor": "warn",
