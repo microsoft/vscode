@@ -43,7 +43,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 // TODO@sbatten https://github.com/microsoft/vscode/issues/81360
-// tslint:disable-next-line: import-patterns layering
+// eslint-disable-next-line code-layering, code-import-patterns
 import { IElectronService } from 'vs/platform/electron/node/electron';
 
 export class TitlebarPart extends Part implements ITitleService {
