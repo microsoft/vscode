@@ -28,10 +28,16 @@ suite('window namespace tests', () => {
 						}
 						if (terminals.length === 0) {
 							closeListener.dispose();
+							clearTimeout(timeout);
 							r();
 						}
 					});
 					terminals.forEach(t => t.dispose());
+					// Only try clean up for 500ms
+					const timeout = setTimeout(() => {
+						closeListener.dispose();
+						r();
+					}, 500);
 				});
 			}
 		});
