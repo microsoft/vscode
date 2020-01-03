@@ -182,9 +182,11 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 
 		elements.forEach(x => x.setVirtualDirectoryConfig('NONE', ''));
 
+		const possibleParrentElements = elements.filter(x => !x.isVirtualDirectoryMember);
+
 		let virtualChildren = elements
 			.filter(x => !x.isDirectory)
-			.filter(x => elements.some(virtualDir => this.checkVirtualDirectoryNaming(virtualDir.name, x.name)))
+			.filter(x => possibleParrentElements.some(virtualDir => this.checkVirtualDirectoryNaming(virtualDir.name, x.name)))
 			.map(x => {
 				return {
 					newParent: elements.filter(virtualDir => this.checkVirtualDirectoryNaming(virtualDir.name, x.name))[0],
@@ -466,7 +468,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
 
 		// Use a file label only for the icon next to the input box
-		const label = this.labels.create(container);
+		const label = this.
+			labels.create(container);
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE;
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };
