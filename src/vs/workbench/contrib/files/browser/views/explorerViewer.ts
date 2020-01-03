@@ -74,10 +74,6 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 
 	private disposeList: IDisposable[];
 	private enableFileNesting: boolean;
-	private virtualDirectoryPatterns: string[] = [
-		'{{filename}}\\.{{ext}}\\..+',
-		'{{filename}}\\.(.+)\\.{{ext}}'
-	];
 
 	constructor(
 		@IProgressService private readonly progressService: IProgressService,
@@ -218,8 +214,13 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return false;
 		}
 
-		return this.virtualDirectoryPatterns.some(pattern => {
-			let expression = pattern.replace('{{filename}}', name).replace('{{ext}}', ext);
+		const virtualDirectoryPatterns = this.configurationService.getValue<IFilesConfiguration>().explorer.fileNestingPatterns
+			.filter(x => x.includes('{filename}') && x.includes('{ext}'));
+
+		return virtualDirectoryPatterns.some(pattern => {
+			let expression = pattern
+				.replace('{filename}', name)
+				.replace('{ext}', ext);
 
 			return new RegExp(expression).test(fileName);
 		});

@@ -375,6 +375,17 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('enableFileNesting', "Enables file nesting based on naming"),
 			'default': false
 		},
+		'explorer.fileNestingPatterns': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'description': nls.localize('fileNestingPatterns', "Patterns will be applied to the file tree, use {filename} and {ext} as placeholders"),
+			'default': [
+				'{filename}\\.{ext}\\..+',
+				'{filename}\\.(.+)\\.{ext}'
+			]
+		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
 			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop."),
