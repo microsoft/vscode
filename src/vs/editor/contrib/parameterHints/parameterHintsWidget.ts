@@ -78,9 +78,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		wrapper.tabIndex = -1;
 
 		const controls = dom.append(wrapper, $('.controls'));
-		const previous = dom.append(controls, $('.button.previous'));
+		const previous = dom.append(controls, $('.button.codicon.codicon-chevron-up'));
 		const overloads = dom.append(controls, $('.overloads'));
-		const next = dom.append(controls, $('.button.next'));
+		const next = dom.append(controls, $('.button.codicon.codicon-chevron-down'));
 
 		const onPreviousClick = stop(domEvent(previous, 'click'));
 		this._register(onPreviousClick(this.previous, this));
