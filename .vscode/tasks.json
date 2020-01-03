@@ -82,7 +82,6 @@
 			"command": "yarn web -- --no-launch",
 			"label": "Run web",
 			"isBackground": true,
-			// This section to make error go away when launching the debug config
 			"problemMatcher": {
 				"pattern": {
 					"regexp": ""
@@ -96,5 +95,13 @@
 				"reveal": "never"
 			}
 		},
+		{
+			"type": "npm",
+			"script": "eslint",
+			"problemMatcher": {
+				"source": "eslint",
+				"base": "$eslint-stylish"
+			}
+		}
 	]
 }
