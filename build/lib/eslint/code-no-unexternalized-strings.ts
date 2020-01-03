@@ -117,7 +117,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 		return {
 			['Literal']: (node: any) => collectDoubleQuotedStrings(node),
 			['ExpressionStatement[directive] Literal:exit']: (node: any) => doubleQuotedStringLiterals.delete(node),
-			['CallExpression[callee.type="MemberExpression"][callee.property.name="localize"]:exit']: (node: any) => visitLocalizeCall(node),
+			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize"]:exit']: (node: any) => visitLocalizeCall(node),
 			['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node: any) => visitLocalizeCall(node),
 			['Program:exit']: reportBadStringsAndBadKeys,
 		};

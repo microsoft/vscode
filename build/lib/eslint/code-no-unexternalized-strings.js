@@ -101,7 +101,7 @@ module.exports = new (_a = class NoUnexternalizedStrings {
             return {
                 ['Literal']: (node) => collectDoubleQuotedStrings(node),
                 ['ExpressionStatement[directive] Literal:exit']: (node) => doubleQuotedStringLiterals.delete(node),
-                ['CallExpression[callee.type="MemberExpression"][callee.property.name="localize"]:exit']: (node) => visitLocalizeCall(node),
+                ['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize"]:exit']: (node) => visitLocalizeCall(node),
                 ['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node) => visitLocalizeCall(node),
                 ['Program:exit']: reportBadStringsAndBadKeys,
             };
