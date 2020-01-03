@@ -1,0 +1,251 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+
+		<!-- Disable pinch zooming -->
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no"
+		/>
+
+		<!-- Workbench Configuration -->
+		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}" />
+
+		<!-- Workarounds/Hacks (remote user data uri) -->
+		<meta id="vscode-remote-user-data-uri" data-settings="" />
+
+		<!-- Workbench Icon/Manifest/CSS -->
+		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+		<link rel="manifest" href="/manifest.json" />
+	</head>
+
+	<body aria-label=""></body>
+
+	<script>
+		const staticExtensions = [
+			{
+				packageJSON: {
+					name: 'vscode-api-tests',
+					description: 'API tests for VS Code',
+					version: '0.0.1',
+					publisher: 'vscode',
+					license: 'MIT',
+					enableProposedApi: true,
+					private: true,
+					activationEvents: ['onFileSystem:memfs', 'onDebug'],
+					main: './out/extension',
+					engines: {
+						vscode: '^1.25.0'
+					},
+					contributes: {
+						configuration: {
+							type: 'object',
+							title: 'Test Config',
+							properties: {
+								'farboo.config0': {
+									type: 'boolean',
+									default: true
+								},
+								'farboo.nested.config1': {
+									type: 'number',
+									default: 42
+								},
+								'farboo.nested.config2': {
+									type: 'string',
+									default: 'Das Pferd frisst kein Reis.'
+								},
+								'farboo.config4': {
+									type: 'string'
+								},
+								'farboo.get': {
+									type: 'string',
+									default: 'get-prop'
+								}
+							}
+						},
+						configurationDefaults: {
+							'[abcLang]': {
+								'editor.lineNumbers': 'off',
+								'editor.tabSize': 2
+							}
+						},
+						taskDefinitions: [
+							{
+								type: 'custombuildscript',
+								required: ['flavor'],
+								properties: {
+									flavor: {
+										type: 'string',
+										description: "The build flavor. Should be either '32' or '64'."
+									},
+									flags: {
+										type: 'array',
+										description: 'Additional build flags.'
+									}
+								}
+							}
+						],
+						breakpoints: [
+							{
+								language: 'markdown'
+							}
+						],
+						debuggers: [
+							{
+								type: 'mock',
+								label: 'Mock Debug',
+								languages: ['markdown'],
+								configurationAttributes: {
+									launch: {
+										required: ['program'],
+										properties: {
+											program: {
+												type: 'string',
+												description: 'Absolute path to a text file.',
+												default: '${workspaceFolder}/file.md'
+											},
+											stopOnEntry: {
+												type: 'boolean',
+												description: 'Automatically stop after launch.',
+												default: true
+											},
+											trace: {
+												type: 'boolean',
+												description: 'Enable logging of the Debug Adapter Protocol.',
+												default: true
+											}
+										}
+									}
+								},
+								initialConfigurations: [
+									{
+										type: 'mock',
+										request: 'launch',
+										name: 'Debug file.md',
+										program: '${workspaceFolder}/file.md'
+									}
+								]
+							}
+						]
+					},
+					scripts: {
+						compile: 'node ./node_modules/vscode/bin/compile -watch -p ./',
+						'vscode:prepublish':
+							'node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json'
+					},
+					devDependencies: {
+						'@types/mocha': '2.2.43',
+						'@types/node': '^12.11.7',
+						'mocha-junit-reporter': '^1.17.0',
+						'mocha-multi-reporters': '^1.1.7',
+						typescript: '^1.6.2',
+						vscode: '1.1.5'
+					},
+					extensionKind: ['web']
+				},
+				extensionLocation: {
+					scheme: 'http',
+					authority: 'localhost:8080',
+					path: '/static-extension/vscode-api-tests'
+				}
+			},
+			{
+				packageJSON: {
+					name: 'theme-defaults',
+					displayName: '%displayName%',
+					description: '%description%',
+					categories: ['Themes'],
+					version: '1.0.0',
+					publisher: 'vscode',
+					license: 'MIT',
+					engines: {
+						vscode: '*'
+					},
+					contributes: {
+						themes: [
+							{
+								id: 'Default Dark+',
+								label: 'Dark+ (default dark)',
+								uiTheme: 'vs-dark',
+								path: './themes/dark_plus.json'
+							},
+							{
+								id: 'Default Light+',
+								label: 'Light+ (default light)',
+								uiTheme: 'vs',
+								path: './themes/light_plus.json'
+							},
+							{
+								id: 'Visual Studio Dark',
+								label: 'Dark (Visual Studio)',
+								uiTheme: 'vs-dark',
+								path: './themes/dark_vs.json'
+							},
+							{
+								id: 'Visual Studio Light',
+								label: 'Light (Visual Studio)',
+								uiTheme: 'vs',
+								path: './themes/light_vs.json'
+							},
+							{
+								id: 'Default High Contrast',
+								label: 'High Contrast',
+								uiTheme: 'hc-black',
+								path: './themes/hc_black.json'
+							}
+						],
+						iconThemes: [
+							{
+								id: 'vs-minimal',
+								label: 'Minimal (Visual Studio Code)',
+								path: './fileicons/vs_minimal-icon-theme.json'
+							}
+						]
+					},
+					extensionKind: ['web']
+				},
+				extensionLocation: {
+					scheme: 'http',
+					authority: 'localhost:8080',
+					path: '/static-extension/theme-defaults'
+				}
+			}
+		];
+		staticExtensions.forEach(ext => {
+			ext.extensionLocation.scheme = location.protocol.replace(/\:$/, '');
+			ext.extensionLocation.authority = location.host;
+		});
+		const configElement = document.querySelector('#vscode-workbench-web-configuration');
+		configElement.setAttribute(
+			'data-settings',
+			JSON.stringify({
+				staticExtensions,
+				folderUri: { scheme: 'memfs', path: `/sample-folder` }
+			})
+		);
+	</script>
+
+	<!-- Startup (do not modify order of script tags!) -->
+	<script>
+		// NOTE: Changes to inline scripts require update of content security policy
+		self.require = {
+			baseUrl: `${window.location.origin}/static/out`,
+			paths: {
+				'vscode-textmate': `${window.location.origin}/static/remote/web/modules/vscode-textmate/release/main`,
+				'onigasm-umd': `${window.location.origin}/static/remote/web/modules/onigasm-umd/release/main`,
+				xterm: `${window.location.origin}/static/remote/web/modules/xterm/lib/xterm.js`,
+				'xterm-addon-search': `${window.location.origin}/static/remote/web/modules/xterm-addon-search/lib/xterm-addon-search.js`,
+				'xterm-addon-web-links': `${window.location.origin}/static/remote/web/modules/xterm-addon-web-links/lib/xterm-addon-web-links.js`,
+				'xterm-addon-webgl': `${window.location.origin}/static/remote/web/modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+				'semver-umd': `${window.location.origin}/static/remote/web/modules/semver-umd/lib/semver-umd.js`
+			}
+		};
+	</script>
+	<script src="./static/out/vs/loader.js"></script>
+	<script>
+		// NOTE: Changes to inline scripts require update of content security policy
+		require(['vs/code/browser/workbench/workbench'], function() {});
+	</script>
+</html>
