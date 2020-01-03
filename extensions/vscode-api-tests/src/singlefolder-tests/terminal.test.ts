@@ -223,10 +223,13 @@ suite('window namespace tests', () => {
 						equal(t.name, 'bg');
 						ok(window.terminals.indexOf(terminal) !== -1);
 					} catch (e) {
-						done(e);
+						disposables.push(window.onDidCloseTerminal(() => {
+							done(e);
+						}));
+						terminal.dispose();
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(() => {
-						// reg3.dispose();
 						done();
 					}));
 					terminal.dispose();
