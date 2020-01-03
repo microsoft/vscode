@@ -163,9 +163,11 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	}
 
 	private registerListeners(): void {
-		const disposeAction = this.configurationService.onDidChangeConfiguration(e =>
-			this.onConfigurationUpdated(e.sourceConfig)
-		);
+		const disposeAction = this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.includes('explorer.enableFileNesting')) {
+				this.onConfigurationUpdated(e.sourceConfig);
+			}
+		});
 
 		this.disposeList.push(disposeAction);
 	}
