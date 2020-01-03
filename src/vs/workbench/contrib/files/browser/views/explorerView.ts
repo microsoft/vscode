@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, OnReveal } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -102,6 +102,7 @@ export class ExplorerView extends ViewPane {
 	private shouldRefresh = true;
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal = false;
+	private onReveal: OnReveal = 'focusAndSelect';
 	private actions: IAction[] | undefined;
 
 	constructor(
@@ -460,6 +461,7 @@ export class ExplorerView extends ViewPane {
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		this.autoReveal = configuration?.explorer?.autoReveal;
+		this.onReveal = configuration.explorer.onReveal;
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
@@ -679,8 +681,12 @@ export class ExplorerView extends ViewPane {
 				this.tree.reveal(item, 0.5);
 			}
 
-			this.tree.setFocus([item]);
-			this.tree.setSelection([item]);
+			if (this.onReveal === 'focus' || this.onReveal === 'focusAndSelect') {
+				this.tree.setFocus([item]);
+			}
+			if (this.onReveal === 'select' || this.onReveal === 'focusAndSelect') {
+				this.tree.setSelection([item]);
+			}
 		}
 	}
 

@@ -367,8 +367,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.autoReveal': {
 			'type': 'boolean',
-			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them."),
+			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them. explorer.onReveal further customizes this."),
 			'default': true
+		},
+		'explorer.onReveal': {
+			'type': 'string',
+			'enum': ['focus', 'select', 'focusAndSelect', 'none'],
+			'description': nls.localize('onReveal', "Controls if the item should get focused or selected in the explorer when it is automatically revealed."),
+			'default': 'focusAndSelect'
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
