@@ -59,7 +59,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
-	private _autoHideFoldingControls: boolean;
 	private _useFoldingProviders: boolean;
 
 	private readonly foldingDecorationProvider: FoldingDecorationProvider;
@@ -89,7 +88,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.editor = editor;
 		const options = this.editor.getOptions();
 		this._isEnabled = options.get(EditorOption.folding);
-		this._autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
 		this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
 
 		this.foldingModel = null;
@@ -103,32 +101,30 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.mouseDownInfo = null;
 
 		this.foldingDecorationProvider = new FoldingDecorationProvider(editor);
-		this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
+		this.foldingDecorationProvider.autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
+		this.foldingDecorationProvider.showFoldingHighlights = options.get(EditorOption.foldingHighlight);
 		this.foldingEnabled = CONTEXT_FOLDING_ENABLED.bindTo(this.contextKeyService);
 		this.foldingEnabled.set(this._isEnabled);
 
 		this._register(this.editor.onDidChangeModel(() => this.onModelChanged()));
 
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.folding) || e.hasChanged(EditorOption.showFoldingControls) || e.hasChanged(EditorOption.foldingStrategy)) {
-				let oldIsEnabled = this._isEnabled;
+			if (e.hasChanged(EditorOption.folding)) {
 				const options = this.editor.getOptions();
 				this._isEnabled = options.get(EditorOption.folding);
 				this.foldingEnabled.set(this._isEnabled);
-				if (oldIsEnabled !== this._isEnabled) {
-					this.onModelChanged();
-				}
-				let oldShowFoldingControls = this._autoHideFoldingControls;
-				this._autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
-				if (oldShowFoldingControls !== this._autoHideFoldingControls) {
-					this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
-					this.onModelContentChanged();
-				}
-				let oldUseFoldingProviders = this._useFoldingProviders;
+				this.onModelChanged();
+			}
+			if (e.hasChanged(EditorOption.showFoldingControls) || e.hasChanged(EditorOption.foldingHighlight)) {
+				const options = this.editor.getOptions();
+				this.foldingDecorationProvider.autoHideFoldingControls = options.get(EditorOption.showFoldingControls) === 'mouseover';
+				this.foldingDecorationProvider.showFoldingHighlights = options.get(EditorOption.foldingHighlight);
+				this.onModelContentChanged();
+			}
+			if (e.hasChanged(EditorOption.foldingStrategy)) {
+				const options = this.editor.getOptions();
 				this._useFoldingProviders = options.get(EditorOption.foldingStrategy) !== 'indentation';
-				if (oldUseFoldingProviders !== this._useFoldingProviders) {
-					this.onFoldingStrategyChanged();
-				}
+				this.onFoldingStrategyChanged();
 			}
 		}));
 		this.onModelChanged();
