@@ -32,6 +32,8 @@ import { InitializingRangeProvider, ID_INIT_PROVIDER } from 'vs/editor/contrib/f
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor, editorSelectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
@@ -884,3 +886,12 @@ for (let i = 1; i <= 7; i++) {
 		})
 	);
 }
+
+export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('editorSelectionBackground', "Color of the editor selection."));
+
+registerThemingParticipant((theme, collector) => {
+	const foldBackground = theme.getColor(foldBackgroundBackground);
+	if (foldBackground) {
+		collector.addRule(`.monaco-editor .folded-background { background-color: ${foldBackground}; }`);
+	}
+});
