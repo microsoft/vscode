@@ -806,16 +806,14 @@ InlineLexer.prototype.output = function(src) {
     // autolink
     if (cap = this.rules.autolink.exec(src)) {
       src = src.substring(cap[0].length);
-      title = null;
       if (cap[2] === '@') {
         text = escape(this.mangle(cap[1]));
         href = 'mailto:' + text;
-        title = 'mailto:' + cap[1];
       } else {
         text = escape(cap[1]);
         href = text;
       }
-      out += this.renderer.link(href, title, text);
+      out += this.renderer.link(href, null, text);
       continue;
     }
 
