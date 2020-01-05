@@ -14,7 +14,7 @@ import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType, toggleCollapseState } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType, toggleCollapseState, setCollapseStateUp } from 'vs/editor/contrib/folding/foldingModel';
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { FoldingRegions, FoldingRegion } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -617,9 +617,10 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 					{
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
-							* 'levels': Number of levels to fold. Defaults to 1.
+							* 'levels': Number of levels to fold.
 							* 'direction': If 'up', folds given number of levels up otherwise folds down.
 							* 'selectionLines': The start lines (0-based) of the editor selections to apply the fold action to. If not set, the active selection(s) will be used.
+							If no levels or direction is set, folds the region at the locations or if already collapsed, the first uncollapsed parent instead.
 						`,
 						constraint: foldingArgumentsConstraint,
 						schema: {
@@ -627,12 +628,10 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 							'properties': {
 								'levels': {
 									'type': 'number',
-									'default': 1
 								},
 								'direction': {
 									'type': 'string',
 									'enum': ['up', 'down'],
-									'default': 'down'
 								},
 								'selectionLines': {
 									'type': 'array',
@@ -649,12 +648,20 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: FoldingArguments): void {
-		let levels = args && args.levels || 1;
 		let lineNumbers = this.getLineNumbers(args, editor);
-		if (args && args.direction === 'up') {
-			setCollapseStateLevelsUp(foldingModel, true, levels, lineNumbers);
+
+		const levels = args && args.levels;
+		const direction = args && args.direction;
+
+		if (typeof levels !== 'number' && typeof direction !== 'string') {
+			// fold the region at the location or if already collapsed, the first uncollapsed parent instead.
+			setCollapseStateUp(foldingModel, true, lineNumbers);
 		} else {
-			setCollapseStateLevelsDown(foldingModel, true, levels, lineNumbers);
+			if (direction === 'up') {
+				setCollapseStateLevelsUp(foldingModel, true, levels || 1, lineNumbers);
+			} else {
+				setCollapseStateLevelsDown(foldingModel, true, levels || 1, lineNumbers);
+			}
 		}
 	}
 }
