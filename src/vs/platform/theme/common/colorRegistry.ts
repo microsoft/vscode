@@ -374,6 +374,7 @@ export const menuSelectionForeground = registerColor('menu.selectionForeground',
 export const menuSelectionBackground = registerColor('menu.selectionBackground', { dark: listActiveSelectionBackground, light: listActiveSelectionBackground, hc: listActiveSelectionBackground }, nls.localize('menuSelectionBackground', "Background color of the selected menu item in menus."));
 export const menuSelectionBorder = registerColor('menu.selectionBorder', { dark: null, light: null, hc: activeContrastBorder }, nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
 export const menuSeparatorBackground = registerColor('menu.separatorBackground', { dark: '#BBBBBB', light: '#888888', hc: contrastBorder }, nls.localize('menuSeparatorBackground', "Color of a separator menu item in menus."));
+export const menuKeyboardShortcutOpacity = registerColor('menu.keyboardShortcutOpacity', { dark: foreground, light: foreground, hc: foreground }, nls.localize('menuKeyboardShortcutOpacity', "Opacity of keyboard shortcuts in menus. For example, \"#000000c0\" will render the code with 75% opacity."));
 
 /**
  * Snippet placeholder colors

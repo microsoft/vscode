@@ -44,6 +44,7 @@ import { optional } from 'vs/platform/instantiation/common/instantiation';
 // eslint-disable-next-line code-layering, code-import-patterns
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { menuKeyboardShortcutOpacity } from 'vs/platform/theme/common/colorRegistry';
 
 export abstract class MenubarControl extends Disposable {
 
@@ -414,6 +415,15 @@ export class CustomMenubarControl extends MenubarControl {
 					.monaco-workbench .menubar > .menubar-menu-button:hover {
 						outline-offset: -1px;
 						outline-color: ${menubarSelectedBorderColor};
+					}
+				`);
+			}
+
+			const menubarKeyboardShortcut = theme.getColor(menuKeyboardShortcutOpacity);
+			if (menubarKeyboardShortcut) {
+				collector.addRule(`
+					.monaco-menu .keybinding {
+						opacity: ${menubarKeyboardShortcut.rgba.a};
 					}
 				`);
 			}
