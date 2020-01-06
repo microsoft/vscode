@@ -879,7 +879,7 @@ export class SearchView extends ViewPane {
 				}
 				this.searchWidget.setValue(selectedText, true);
 				updatedText = true;
-				this.onQueryChanged(false);
+				if (this.searchConfig.searchOnType) { this.onQueryChanged(false); }
 			}
 		}
 
