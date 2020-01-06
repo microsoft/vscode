@@ -128,7 +128,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				const childStat = fs.statSync(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
 					const cwd = fs.readlinkSync(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8').replace(/\0/g, ' ');
+					const rawCmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const nullIndex = rawCmd.indexOf('\0');
+					const cmd = rawCmd.substr(0, nullIndex > 0 ? nullIndex : rawCmd.length);
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {
@@ -178,12 +180,23 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 						const address = row.local_address.split(':');
 						return {
 							socket: parseInt(row.inode, 10),
-							ip: address[0],
+							ip: this.parseIpAddress(address[0]),
 							port: parseInt(address[1], 16)
 						};
 					}).map(port => [port.port, port])
 			).values()
 		];
+	}
+
+	private parseIpAddress(hex: string): string {
+		let result = '';
+		for (let i = hex.length - 2; (i >= 0); i -= 2) {
+			result += parseInt(hex.substr(i, 2), 16);
+			if (i !== 0) {
+				result += '.';
+			}
+		}
+		return result;
 	}
 
 	private loadConnectionTable(stdout: string): Record<string, string>[] {

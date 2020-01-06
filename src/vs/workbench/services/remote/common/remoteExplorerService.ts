@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -18,6 +15,24 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
 const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
+
+export enum TunnelType {
+	Candidate = 'Candidate',
+	Detected = 'Detected',
+	Forwarded = 'Forwarded',
+	Add = 'Add'
+}
+
+export interface ITunnelItem {
+	tunnelType: TunnelType;
+	remoteHost: string;
+	remotePort: number;
+	localAddress?: string;
+	name?: string;
+	closeable?: boolean;
+	readonly description?: string;
+	readonly label: string;
+}
 
 export interface Tunnel {
 	remoteHost: string;
@@ -45,7 +60,10 @@ export class TunnelModel extends Disposable {
 	public onClosePort: Event<{ host: string, port: number }> = this._onClosePort.event;
 	private _onPortName: Emitter<{ host: string, port: number }> = new Emitter();
 	public onPortName: Event<{ host: string, port: number }> = this._onPortName.event;
+	private _candidates: { host: string, port: number, detail: string }[] = [];
 	private _candidateFinder: (() => Promise<{ host: string, port: number, detail: string }[]>) | undefined;
+	private _onCandidatesChanged: Emitter<void> = new Emitter();
+	public onCandidatesChanged: Event<void> = this._onCandidatesChanged.event;
 
 	constructor(
 		@ITunnelService private readonly tunnelService: ITunnelService,
@@ -168,10 +186,18 @@ export class TunnelModel extends Disposable {
 	}
 
 	get candidates(): Promise<{ host: string, port: number, detail: string }[]> {
+		return this.updateCandidates().then(() => this._candidates);
+	}
+
+	private async updateCandidates(): Promise<void> {
 		if (this._candidateFinder) {
-			return this._candidateFinder();
+			this._candidates = await this._candidateFinder();
 		}
-		return Promise.resolve([]);
+	}
+
+	async refresh(): Promise<void> {
+		await this.updateCandidates();
+		this._onCandidatesChanged.fire();
 	}
 }
 
@@ -179,62 +205,26 @@ export interface IRemoteExplorerService {
 	_serviceBrand: undefined;
 	onDidChangeTargetType: Event<string>;
 	targetType: string;
-	readonly helpInformation: HelpInformation[];
 	readonly tunnelModel: TunnelModel;
-	onDidChangeEditable: Event<{ host: string, port: number | undefined }>;
-	setEditable(remoteHost: string | undefined, remotePort: number | undefined, data: IEditableData | null): void;
-	getEditableData(remoteHost: string | undefined, remotePort: number | undefined): IEditableData | undefined;
+	onDidChangeEditable: Event<ITunnelItem | undefined>;
+	setEditable(tunnelItem: ITunnelItem | undefined, data: IEditableData | null): void;
+	getEditableData(tunnelItem: ITunnelItem | undefined): IEditableData | undefined;
 	forward(remote: { host: string, port: number }, localPort?: number, name?: string): Promise<RemoteTunnel | void>;
 	close(remote: { host: string, port: number }): Promise<void>;
 	addEnvironmentTunnels(tunnels: { remoteAddress: { port: number, host: string }, localAddress: string }[] | undefined): void;
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void;
+	refresh(): Promise<void>;
 }
-
-export interface HelpInformation {
-	extensionDescription: IExtensionDescription;
-	getStarted?: string;
-	documentation?: string;
-	feedback?: string;
-	issues?: string;
-	remoteName?: string[] | string;
-}
-
-const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInformation>({
-	extensionPoint: 'remoteHelp',
-	jsonSchema: {
-		description: nls.localize('RemoteHelpInformationExtPoint', 'Contributes help information for Remote'),
-		type: 'object',
-		properties: {
-			'getStarted': {
-				description: nls.localize('RemoteHelpInformationExtPoint.getStarted', "The url to your project's Getting Started page"),
-				type: 'string'
-			},
-			'documentation': {
-				description: nls.localize('RemoteHelpInformationExtPoint.documentation', "The url to your project's documentation page"),
-				type: 'string'
-			},
-			'feedback': {
-				description: nls.localize('RemoteHelpInformationExtPoint.feedback', "The url to your project's feedback reporter"),
-				type: 'string'
-			},
-			'issues': {
-				description: nls.localize('RemoteHelpInformationExtPoint.issues', "The url to your project's issues list"),
-				type: 'string'
-			}
-		}
-	}
-});
 
 class RemoteExplorerService implements IRemoteExplorerService {
 	public _serviceBrand: undefined;
 	private _targetType: string = '';
 	private readonly _onDidChangeTargetType: Emitter<string> = new Emitter<string>();
 	public readonly onDidChangeTargetType: Event<string> = this._onDidChangeTargetType.event;
-	private _helpInformation: HelpInformation[] = [];
 	private _tunnelModel: TunnelModel;
-	private _editable: { remoteHost: string, remotePort: number | undefined, data: IEditableData } | undefined;
-	private readonly _onDidChangeEditable: Emitter<{ host: string, port: number | undefined }> = new Emitter();
-	public readonly onDidChangeEditable: Event<{ host: string, port: number | undefined }> = this._onDidChangeEditable.event;
+	private _editable: { tunnelItem: ITunnelItem | undefined, data: IEditableData } | undefined;
+	private readonly _onDidChangeEditable: Emitter<ITunnelItem | undefined> = new Emitter();
+	public readonly onDidChangeEditable: Event<ITunnelItem | undefined> = this._onDidChangeEditable.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -242,14 +232,6 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		this._tunnelModel = new TunnelModel(tunnelService, storageService, configurationService);
-		remoteHelpExtPoint.setHandler((extensions) => {
-			let helpInformation: HelpInformation[] = [];
-			for (let extension of extensions) {
-				this._handleRemoteInfoExtensionPoint(extension, helpInformation);
-			}
-
-			this._helpInformation = helpInformation;
-		});
 	}
 
 	set targetType(name: string) {
@@ -262,29 +244,6 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	}
 	get targetType(): string {
 		return this._targetType;
-	}
-
-	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
-		if (!extension.description.enableProposedApi) {
-			return;
-		}
-
-		if (!extension.value.documentation && !extension.value.feedback && !extension.value.getStarted && !extension.value.issues) {
-			return;
-		}
-
-		helpInformation.push({
-			extensionDescription: extension.description,
-			getStarted: extension.value.getStarted,
-			documentation: extension.value.documentation,
-			feedback: extension.value.feedback,
-			issues: extension.value.issues,
-			remoteName: extension.value.remoteName
-		});
-	}
-
-	get helpInformation(): HelpInformation[] {
-		return this._helpInformation;
 	}
 
 	get tunnelModel(): TunnelModel {
@@ -305,17 +264,17 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		}
 	}
 
-	setEditable(remoteHost: string, remotePort: number | undefined, data: IEditableData | null): void {
+	setEditable(tunnelItem: ITunnelItem | undefined, data: IEditableData | null): void {
 		if (!data) {
 			this._editable = undefined;
 		} else {
-			this._editable = { remoteHost, remotePort, data };
+			this._editable = { tunnelItem, data };
 		}
-		this._onDidChangeEditable.fire({ host: remoteHost, port: remotePort });
+		this._onDidChangeEditable.fire(tunnelItem);
 	}
 
-	getEditableData(remoteHost: string | undefined, remotePort: number | undefined): IEditableData | undefined {
-		return (this._editable && (this._editable.remotePort === remotePort) && this._editable.remoteHost === remoteHost) ?
+	getEditableData(tunnelItem: ITunnelItem | undefined): IEditableData | undefined {
+		return (this._editable && (!tunnelItem || (this._editable.tunnelItem?.remotePort === tunnelItem.remotePort) && (this._editable.tunnelItem.remoteHost === tunnelItem.remoteHost))) ?
 			this._editable.data : undefined;
 	}
 
@@ -323,6 +282,9 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		this.tunnelModel.registerCandidateFinder(finder);
 	}
 
+	refresh(): Promise<void> {
+		return this.tunnelModel.refresh();
+	}
 }
 
 registerSingleton(IRemoteExplorerService, RemoteExplorerService, true);

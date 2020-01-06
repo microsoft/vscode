@@ -13,7 +13,7 @@ import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { ActivityAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ActivePanelContext, PanelPositionContext } from 'vs/workbench/common/panel';
@@ -149,7 +149,7 @@ function createPositionPanelActionConfig(id: string, alias: string, label: strin
 	};
 }
 
-export const PositionPanelActionConfigs = [
+export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
 	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Panel Position Left', nls.localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
 	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Panel Position Right', nls.localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
 	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Panel Position Bottom', nls.localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
@@ -187,7 +187,33 @@ export class PanelActivityAction extends ActivityAction {
 		this.activate();
 		return Promise.resolve();
 	}
+
+	setActivity(activity: IActivity): void {
+		this.activity = activity;
+	}
 }
+
+export class PlaceHolderPanelActivityAction extends PanelActivityAction {
+
+	constructor(
+		id: string,
+		@IPanelService panelService: IPanelService
+	) {
+		super({ id, name: id }, panelService);
+	}
+}
+
+export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
+
+	constructor(id: string, compositeBar: ICompositeBar) {
+		super({ id, name: id, cssClass: undefined }, compositeBar);
+	}
+
+	setActivity(activity: IActivity): void {
+		this.label = activity.name;
+	}
+}
+
 
 export class SwitchPanelViewAction extends Action {
 

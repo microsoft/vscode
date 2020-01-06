@@ -103,7 +103,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	}
 }
 
-export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
+function isStatusbarInDebugMode(debugService: IDebugService): boolean {
 	if (debugService.state === State.Inactive || debugService.state === State.Initializing) {
 		return false;
 	}

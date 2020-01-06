@@ -1171,6 +1171,11 @@ interface IEditorPartConfiguration {
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 	splitSizing?: 'split' | 'distribute';
+	limit?: {
+		enabled?: boolean;
+		value?: number;
+		perEditorGroup?: boolean;
+	};
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
@@ -1321,4 +1326,17 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 	}));
 
 	return coalesce(editors);
+}
+
+export const enum EditorsOrder {
+
+	/**
+	 * Editors sorted by most recent activity (most recent active first)
+	 */
+	MOST_RECENTLY_ACTIVE,
+
+	/**
+	 * Editors sorted by sequential order
+	 */
+	SEQUENTIAL
 }

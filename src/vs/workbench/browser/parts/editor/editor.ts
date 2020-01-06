@@ -151,4 +151,9 @@ export interface EditorServiceImpl extends IEditorService {
 	 * Emitted when an editor failed to open.
 	 */
 	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;
+
+	/**
+	 * Emitted when the list of most recently active editors change.
+	 */
+	readonly onDidMostRecentlyActiveEditorsChange: Event<void>;
 }

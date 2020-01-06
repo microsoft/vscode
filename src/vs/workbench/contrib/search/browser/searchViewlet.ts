@@ -14,25 +14,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
-
-export class SearchViewlet extends Viewlet {
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService protected storageService: IStorageService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IExtensionService protected extensionService: IExtensionService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
-		@IConfigurationService protected configurationService: IConfigurationService
-	) {
-		super(VIEWLET_ID, instantiationService.createInstance(SearchViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
-	}
-}
 
 export class SearchViewPaneContainer extends ViewPaneContainer {
 

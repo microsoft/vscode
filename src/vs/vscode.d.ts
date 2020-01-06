@@ -2318,7 +2318,7 @@ declare module 'vscode' {
 
 	/**
 	 * The declaration of a symbol representation as one or many [locations](#Location)
-	 * or [location links][#LocationLink].
+	 * or [location links](#LocationLink).
 	 */
 	export type Declaration = Location | Location[] | LocationLink[];
 
@@ -4298,7 +4298,7 @@ declare module 'vscode' {
 		 *
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
 		 * is computed like this: `defaultValue` overridden by `globalValue`,
-		 * `globalValue` overridden by `workspaceValue`. `workspaceValue` overwridden by `workspaceFolderValue`.
+		 * `globalValue` overridden by `workspaceValue`. `workspaceValue` overridden by `workspaceFolderValue`.
 		 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
@@ -4853,6 +4853,13 @@ declare module 'vscode' {
 		 * The process ID of the shell process.
 		 */
 		readonly processId: Thenable<number | undefined>;
+
+		/**
+		 * The object used to initialize the terminal, this is useful for example to detecting the
+		 * shell type of when the terminal was not launched by this extension or for detecting what
+		 * folder the shell was launched in.
+		 */
+		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
 
 		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process

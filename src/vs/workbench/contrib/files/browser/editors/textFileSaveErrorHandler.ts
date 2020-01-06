@@ -180,7 +180,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		// Show message and keep function to hide in case the file gets saved/reverted
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
 		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
-		Event.once(handle.onDidClose)(() => { dispose(primaryActions), dispose(secondaryActions); });
+		Event.once(handle.onDidClose)(() => { dispose(primaryActions); dispose(secondaryActions); });
 		this.messages.set(model.resource, handle);
 	}
 

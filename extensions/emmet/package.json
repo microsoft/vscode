@@ -80,7 +80,10 @@
                     "description": "%emmetExclude%"
                 },
                 "emmet.extensionsPath": {
-                    "type": "string",
+                    "type": [
+                        "string",
+                        "null"
+                      ],
                     "default": null,
                     "description": "%emmetExtensionsPath%"
                 },

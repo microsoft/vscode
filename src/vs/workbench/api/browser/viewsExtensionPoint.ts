@@ -22,14 +22,13 @@ import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
 import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction, Viewlet } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -313,7 +312,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 		if (!viewContainer) {
 
-			viewContainer = this.viewContainersRegistry.registerViewContainer({ id, hideIfEmpty: true, name: title, extensionId }, ViewContainerLocation.Sidebar);
 
 			class CustomViewPaneContainer extends ViewPaneContainer {
 				constructor(
@@ -331,34 +329,13 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				}
 			}
 
-			// Register a viewlet
-			class CustomViewlet extends Viewlet {
-				constructor(
-					@IConfigurationService configurationService: IConfigurationService,
-					@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-					@ITelemetryService telemetryService: ITelemetryService,
-					@IWorkspaceContextService contextService: IWorkspaceContextService,
-					@IStorageService storageService: IStorageService,
-					@IEditorService editorService: IEditorService,
-					@IInstantiationService instantiationService: IInstantiationService,
-					@IThemeService themeService: IThemeService,
-					@IContextMenuService contextMenuService: IContextMenuService,
-					@IExtensionService extensionService: IExtensionService
-				) {
-					super(id, instantiationService.createInstance(CustomViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
-				}
-			}
-
-			const viewletDescriptor = ViewletDescriptor.create(
-				CustomViewlet,
+			viewContainer = this.viewContainersRegistry.registerViewContainer({
 				id,
-				title,
-				undefined,
-				order,
-				icon
-			);
-
-			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
+				name: title, extensionId,
+				ctorDescriptor: { ctor: CustomViewPaneContainer },
+				hideIfEmpty: true,
+				icon,
+			}, ViewContainerLocation.Sidebar);
 
 			// Register Action to Open Viewlet
 			class OpenCustomViewletAction extends ShowViewletAction {
@@ -432,8 +409,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 					const order = ExtensionIdentifier.equals(extension.description.identifier, container.extensionId)
 						? index + 1
-						: container.orderDelegate
-							? container.orderDelegate.getOrder(item.group)
+						: container.viewOrderDelegate
+							? container.viewOrderDelegate.getOrder(item.group)
 							: undefined;
 
 					const viewDescriptor = <ICustomViewDescriptor>{

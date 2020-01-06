@@ -88,7 +88,7 @@ export class TerminalPanel extends Panel {
 						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
 						run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
 					}];
-					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts."), choices);
+					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts. Be sure to restart VS Code if this is a newly installed font."), choices);
 				}
 			}
 		}));

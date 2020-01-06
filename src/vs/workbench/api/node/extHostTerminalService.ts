@@ -156,7 +156,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		}
 
 		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
-		let lastActiveWorkspace: IWorkspaceFolder | null = null;
+		let lastActiveWorkspace: IWorkspaceFolder | undefined;
 		if (activeWorkspaceRootUriComponents && activeWorkspaceRootUri) {
 			// Get the environment
 			const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
@@ -175,7 +175,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// Get the initial cwd
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), lastActiveWorkspace ? lastActiveWorkspace : undefined, this._variableResolver, activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), lastActiveWorkspace, this._variableResolver, activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
 		shellLaunchConfig.cwd = initialCwd;
 
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));

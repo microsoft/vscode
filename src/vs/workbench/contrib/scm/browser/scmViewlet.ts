@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { append, $, toggleClass, addClasses } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { VIEWLET_ID, ISCMService, ISCMRepository, VIEW_CONTAINER } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -31,7 +31,6 @@ import { nextTick } from 'vs/base/common/process';
 import { RepositoryPane, RepositoryViewDescriptor } from 'vs/workbench/contrib/scm/browser/repositoryPane';
 import { MainPaneDescriptor, MainPane } from 'vs/workbench/contrib/scm/browser/mainPane';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Viewlet } from 'vs/workbench/browser/viewlet';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -49,22 +48,6 @@ export interface IViewModel {
 
 	isVisible(): boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
-}
-
-export class SCMViewlet extends Viewlet {
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService protected storageService: IStorageService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IExtensionService protected extensionService: IExtensionService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
-		@IConfigurationService protected configurationService: IConfigurationService
-	) {
-		super(VIEWLET_ID, instantiationService.createInstance(SCMViewPaneContainer), telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
-	}
 }
 
 export class SCMViewPaneContainer extends ViewPaneContainer implements IViewModel {
@@ -124,7 +107,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		this.message = $('.empty-message', { tabIndex: 0 }, localize('no open repo', "No source control providers registered."));
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([new MainPaneDescriptor(this)], VIEW_CONTAINER);
+		viewsRegistry.registerViews([new MainPaneDescriptor(this)], this.viewContainer);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.alwaysShowProviders') && configurationService.getValue<boolean>('scm.alwaysShowProviders')) {
@@ -153,7 +136,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		this._repositories.push(repository);
 
 		const viewDescriptor = new RepositoryViewDescriptor(repository, false);
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews([viewDescriptor], VIEW_CONTAINER);
+		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews([viewDescriptor], this.viewContainer);
 		this.viewDescriptors.push(viewDescriptor);
 
 		this._onDidSplice.fire({ index, deleteCount: 0, elements: [repository] });
@@ -169,7 +152,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 			return;
 		}
 
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews([this.viewDescriptors[index]], VIEW_CONTAINER);
+		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews([this.viewDescriptors[index]], this.viewContainer);
 
 		this._repositories.splice(index, 1);
 		this.viewDescriptors.splice(index, 1);
