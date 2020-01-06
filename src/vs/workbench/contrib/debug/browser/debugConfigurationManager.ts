@@ -38,6 +38,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { sequence } from 'vs/base/common/async';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { first } from 'vs/base/common/arrays';
+import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -207,6 +208,22 @@ export class ConfigurationManager implements IConfigurationManager {
 		return result;
 	}
 
+	async resolveDebugConfigurationWithSubstitutedVariables(folderUri: uri | undefined, type: string | undefined, config: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
+		// pipe the config through the promises sequentially. Append at the end the '*' types
+		const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfigurationWithSubstitutedVariables)
+			.concat(this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfigurationWithSubstitutedVariables));
+
+		let result: IConfig | null | undefined = config;
+		await sequence(providers.map(provider => async () => {
+			// If any provider returned undefined or null make sure to respect that and do not pass the result to more resolver
+			if (result) {
+				result = await provider.resolveDebugConfigurationWithSubstitutedVariables!(folderUri, result, token);
+			}
+		}));
+
+		return result;
+	}
+
 	async provideDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
 		await this.activateDebuggers('onDebugInitialConfigurations');
 		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));
@@ -219,36 +236,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		for (let l of this.launches) {
 			for (let name of l.getConfigurationNames()) {
 				const config = l.getConfiguration(name) || l.getCompound(name);
-				if (config && !config.presentation?.hidden) {
+				if (config) {
 					all.push({ launch: l, name, presentation: config.presentation });
 				}
 			}
 		}
 
-		return all.sort((first, second) => {
-			if (!first.presentation) {
-				return 1;
-			}
-			if (!second.presentation) {
-				return -1;
-			}
-			if (!first.presentation.group) {
-				return 1;
-			}
-			if (!second.presentation.group) {
-				return -1;
-			}
-			if (first.presentation.group !== second.presentation.group) {
-				return first.presentation.group.localeCompare(second.presentation.group);
-			}
-			if (typeof first.presentation.order !== 'number') {
-				return 1;
-			}
-			if (typeof second.presentation.order !== 'number') {
-				return -1;
-			}
-			return first.presentation.order - second.presentation.order;
-		});
+		return getVisibleAndSorted(all);
 	}
 
 	private registerListeners(): void {

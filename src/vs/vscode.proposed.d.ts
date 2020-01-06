@@ -788,7 +788,25 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Debug
+	//#region Debug:
+
+	export interface DebugConfigurationProvider {
+
+		/**
+		 * This hook is directly called after 'resolveDebugConfiguration' but with all variables substituted.
+		 * It can be used to resolve or verify a [debug configuration](#DebugConfiguration) by filling in missing values or by adding/changing/removing attributes.
+		 * If more than one debug configuration provider is registered for the same type, the 'resolveDebugConfigurationWithSubstitutedVariables' calls are chained
+		 * in arbitrary order and the initial debug configuration is piped through the chain.
+		 * Returning the value 'undefined' prevents the debug session from starting.
+		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
+		 *
+		 * @param folder The workspace folder from which the configuration originates from or `undefined` for a folderless setup.
+		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
+		 * @param token A cancellation token.
+		 * @return The resolved debug configuration or undefined or null.
+		 */
+		resolveDebugConfigurationWithSubstitutedVariables?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
+	}
 
 	// deprecated
 
@@ -944,7 +962,7 @@ declare module 'vscode' {
 		 * The exit code that a terminal exited with, it can have the following values:
 		 * - Zero: the terminal process or custom execution succeeded.
 		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcefully closed the terminal or a custom execution exited
+		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
 		 *   without providing an exit code.
 		 */
 		readonly code: number | undefined;
@@ -965,19 +983,6 @@ declare module 'vscode' {
 		 * ```
 		 */
 		readonly exitStatus: TerminalExitStatus | undefined;
-	}
-
-	//#endregion
-
-	//#region Terminal creation options https://github.com/microsoft/vscode/issues/63052
-
-	export interface Terminal {
-		/**
-		 * The object used to initialize the terminal, this is useful for things like detecting the
-		 * shell type of shells not launched by the extension or detecting what folder the shell was
-		 * launched in.
-		 */
-		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
 	}
 
 	//#endregion

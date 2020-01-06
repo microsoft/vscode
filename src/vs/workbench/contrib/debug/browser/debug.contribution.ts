@@ -81,7 +81,7 @@ class OpenDebugPanelAction extends TogglePanelAction {
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	name: nls.localize('debugAndRun', "Debug and Run"),
+	name: nls.localize('runAndDebug', "Run and Debug"),
 	ctorDescriptor: { ctor: DebugViewPaneContainer },
 	icon: 'codicon-debug-alt',
 	order: 3
@@ -212,6 +212,11 @@ configurationRegistry.registerConfiguration({
 			default: 'onFirstSessionStart'
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+		'debug.console.closeOnEnd': {
+			type: 'boolean',
+			description: nls.localize('debug.console.closeOnEnd', "Controls if the debug console should be automatically closed when the debug session ends."),
+			default: false
+		},
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnSessionStart',

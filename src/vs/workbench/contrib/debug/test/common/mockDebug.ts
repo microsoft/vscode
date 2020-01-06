@@ -9,7 +9,6 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { CompletionItem } from 'vs/editor/common/modes';
 import Severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 
@@ -237,8 +236,8 @@ export class MockSession implements IDebugSession {
 		return Promise.resolve([]);
 	}
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<CompletionItem[]> {
-		return Promise.resolve([]);
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): Promise<DebugProtocol.CompletionsResponse> {
+		throw new Error('not implemented');
 	}
 
 	clearThreads(removeThreads: boolean, reference?: number): void { }

@@ -237,6 +237,7 @@ class DebugEditorContribution implements IDebugEditorContribution {
 		if (targetType === MouseTargetType.CONTENT_TEXT) {
 			if (mouseEvent.target.range && !mouseEvent.target.range.equalsRange(this.hoverRange)) {
 				this.hoverRange = mouseEvent.target.range;
+				this.hideHoverScheduler.cancel();
 				this.showHoverScheduler.schedule();
 			}
 		} else if (!this.mouseDown) {

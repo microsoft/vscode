@@ -121,7 +121,7 @@ export class SuggestController implements IEditorContribution {
 		this.editor = editor;
 		this.model = new SuggestModel(this.editor, editorWorker);
 
-		this.widget = new IdleValue(() => {
+		this.widget = this._toDispose.add(new IdleValue(() => {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
 
@@ -168,11 +168,11 @@ export class SuggestController implements IEditorContribution {
 
 
 			return widget;
-		});
+		}));
 
-		this._alternatives = new IdleValue(() => {
+		this._alternatives = this._toDispose.add(new IdleValue(() => {
 			return this._toDispose.add(new SuggestAlternatives(this.editor, this._contextKeyService));
-		});
+		}));
 
 		this._toDispose.add(_instantiationService.createInstance(WordContextKey, editor));
 

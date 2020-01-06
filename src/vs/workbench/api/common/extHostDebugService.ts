@@ -315,6 +315,7 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 		this._debugServiceProxy.$registerDebugConfigurationProvider(type,
 			!!provider.provideDebugConfigurations,
 			!!provider.resolveDebugConfiguration,
+			!!provider.resolveDebugConfigurationWithSubstitutedVariables,
 			!!provider.debugAdapterExecutable,		// TODO@AW: deprecated
 			handle);
 
@@ -625,6 +626,20 @@ export class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDeb
 			}
 			const folder = await this.getFolder(folderUri);
 			return provider.resolveDebugConfiguration(folder, debugConfiguration, token);
+		});
+	}
+
+	public $resolveDebugConfigurationWithSubstitutedVariables(configProviderHandle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration, token: CancellationToken): Promise<vscode.DebugConfiguration | null | undefined> {
+		return asPromise(async () => {
+			const provider = this.getConfigProviderByHandle(configProviderHandle);
+			if (!provider) {
+				throw new Error('no DebugConfigurationProvider found');
+			}
+			if (!provider.resolveDebugConfigurationWithSubstitutedVariables) {
+				throw new Error('DebugConfigurationProvider has no method resolveDebugConfigurationWithSubstitutedVariables');
+			}
+			const folder = await this.getFolder(folderUri);
+			return provider.resolveDebugConfigurationWithSubstitutedVariables(folder, debugConfiguration, token);
 		});
 	}
 

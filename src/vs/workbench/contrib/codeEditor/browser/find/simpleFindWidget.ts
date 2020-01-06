@@ -54,7 +54,6 @@ export abstract class SimpleFindWidget extends Widget {
 					return null;
 				}
 				try {
-					/* tslint:disable-next-line:no-unused-expression */
 					new RegExp(value);
 					return null;
 				} catch (e) {

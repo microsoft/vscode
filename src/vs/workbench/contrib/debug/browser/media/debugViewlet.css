@@ -387,13 +387,3 @@
 	overflow: hidden;
 	text-overflow: ellipsis
 }
-
-/* No workspace view */
-
-.debug-viewlet > .noworkspace-view {
-	padding: 0 20px 0 20px;
-}
-
-.debug-viewlet > .noworkspace-view > p {
-	line-height: 1.5em;
-}

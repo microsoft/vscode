@@ -17,9 +17,9 @@ function toOSPath(p: string): string {
 	return p;
 }
 
-suite('Workbench - OutputWorker', () => {
+suite('OutputLinkProvider', () => {
 
-	test('OutputWorker - Link detection', function () {
+	test('OutputLinkProvider - Link detection', function () {
 		const rootFolder = isWindows ? URI.file('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala') :
 			URI.file('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala');
 
@@ -106,7 +106,6 @@ suite('Workbench - OutputWorker', () => {
 		assert.equal(result[0].url, contextService.toResource('/Game.ts').toString() + '#8,13');
 		assert.equal(result[0].range.startColumn, 1);
 		assert.equal(result[0].range.endColumn, 101);
-
 
 		// Example: C:\Users\someone\AppData\Local\Temp\_monacodata_9888\workspaces\express\server.js:line 8
 		line = toOSPath('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts:line 8');

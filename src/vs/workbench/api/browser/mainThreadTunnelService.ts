@@ -22,7 +22,7 @@ export class MainThreadTunnelService implements MainThreadTunnelServiceShape {
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions): Promise<TunnelDto | undefined> {
-		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remoteAddress, tunnelOptions.localPort, tunnelOptions.label);
+		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remoteAddress, tunnelOptions.localAddressPort, tunnelOptions.label);
 		if (tunnel) {
 			return TunnelDto.fromServiceTunnel(tunnel);
 		}

@@ -160,10 +160,6 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.session = session;
 		try {
 			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
-			if (response && response.success === false) {
-				this.value = response.message || '';
-				return false;
-			}
 
 			if (response && response.body) {
 				this.value = response.body.result || '';
@@ -1186,8 +1182,8 @@ export class DebugModel implements IDebugModel {
 		return this.watchExpressions;
 	}
 
-	addWatchExpression(name: string): IExpression {
-		const we = new Expression(name);
+	addWatchExpression(name?: string): IExpression {
+		const we = new Expression(name || '');
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 

@@ -31,7 +31,7 @@ import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledText
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { CancellationToken } from 'vscode';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
@@ -131,8 +131,8 @@ suite('EditorService', () => {
 
 		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
 
-		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-basics'));
-		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-basics'));
+		let input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-basics'));
+		let otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-basics'));
 
 		let activeEditorChangeEventCounter = 0;
 		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
@@ -163,6 +163,7 @@ suite('EditorService', () => {
 		assert.equal(service.visibleControls.length, 1);
 		assert.equal(service.visibleControls[0], editor);
 		assert.ok(!service.activeTextEditorWidget);
+		assert.ok(!service.activeTextEditorMode);
 		assert.equal(service.visibleTextEditorWidgets.length, 0);
 		assert.equal(service.isOpen(input), true);
 		assert.equal(service.getOpened({ resource: input.getResource() }), input);
@@ -180,7 +181,14 @@ suite('EditorService', () => {
 		assert.equal(visibleEditorChangeEventCounter, 2);
 		assert.ok(input.gotDisposed);
 
-		// Open again 2 inputs
+		// Open again 2 inputs (disposed editors are ignored!)
+		await service.openEditor(input, { pinned: true });
+		assert.equal(0, service.count);
+
+		// Open again 2 inputs (recreate because disposed)
+		input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-basics'));
+		otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-basics'));
+
 		await service.openEditor(input, { pinned: true });
 		editor = await service.openEditor(otherInput, { pinned: true });
 
@@ -511,8 +519,8 @@ suite('EditorService', () => {
 
 		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
 
-		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
-		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
+		let input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		let otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 
 		let activeEditorChangeEventFired = false;
 		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
@@ -563,7 +571,9 @@ suite('EditorService', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		// 2.) open, open same (forced open)
+		// 2.) open, open same (forced open) (recreate inputs that got disposed)
+		input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 		editor = await service.openEditor(input);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
@@ -574,7 +584,9 @@ suite('EditorService', () => {
 
 		await closeEditorAndWaitForNextToOpen(group, input);
 
-		// 3.) open, open inactive, close
+		// 3.) open, open inactive, close (recreate inputs that got disposed)
+		input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 		editor = await service.openEditor(input, { pinned: true });
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
@@ -587,7 +599,9 @@ suite('EditorService', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		// 4.) open, open inactive, close inactive
+		// 4.) open, open inactive, close inactive (recreate inputs that got disposed)
+		input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 		editor = await service.openEditor(input, { pinned: true });
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
@@ -604,7 +618,9 @@ suite('EditorService', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		// 5.) add group, remove group
+		// 5.) add group, remove group (recreate inputs that got disposed)
+		input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 		editor = await service.openEditor(input, { pinned: true });
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
@@ -625,7 +641,9 @@ suite('EditorService', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		// 6.) open editor in inactive group
+		// 6.) open editor in inactive group (recreate inputs that got disposed)
+		input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 		editor = await service.openEditor(input, { pinned: true });
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
@@ -646,7 +664,9 @@ suite('EditorService', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		// 7.) activate group
+		// 7.) activate group (recreate inputs that got disposed)
+		input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 		editor = await service.openEditor(input, { pinned: true });
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
@@ -671,7 +691,9 @@ suite('EditorService', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		// 8.) move editor
+		// 8.) move editor (recreate inputs that got disposed)
+		input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 		editor = await service.openEditor(input, { pinned: true });
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
@@ -688,7 +710,9 @@ suite('EditorService', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		// 9.) close editor in inactive group
+		// 9.) close editor in inactive group (recreate inputs that got disposed)
+		input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 		editor = await service.openEditor(input, { pinned: true });
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
@@ -708,6 +732,74 @@ suite('EditorService', () => {
 		// cleanup
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
+
+		part.dispose();
+	});
+
+	test('two active editor change events when opening editor to the side', async function () {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart);
+		part.create(document.createElement('div'));
+		part.layout(400, 300);
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
+
+		let input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+
+		let activeEditorChangeEvents = 0;
+		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
+			activeEditorChangeEvents++;
+		});
+
+		function assertActiveEditorChangedEvent(expected: number) {
+			assert.equal(activeEditorChangeEvents, expected, `Unexpected active editor change state (got ${activeEditorChangeEvents}, expected ${expected})`);
+			activeEditorChangeEvents = 0;
+		}
+
+		await part.whenRestored;
+
+		await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(1);
+
+		await service.openEditor(input, { pinned: true }, SIDE_GROUP);
+
+		// we expect 2 active editor change events: one for the fact that the
+		// active editor is now in the side group but also one for when the
+		// editor has finished loading. we used to ignore that second change
+		// event, however many listeners are interested on the active editor
+		// when it has fully loaded (e.g. a model is set). as such, we cannot
+		// simply ignore that second event from the editor service, even though
+		// the actual editor input is the same
+		assertActiveEditorChangedEvent(2);
+
+		// cleanup
+		activeEditorChangeListener.dispose();
+
+		part.dispose();
+	});
+
+	test('activeTextEditorWidget / activeTextEditorMode', async () => {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart);
+		part.create(document.createElement('div'));
+		part.layout(400, 300);
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
+
+		await part.whenRestored;
+
+		// Open untitled input
+		let editor = await service.openEditor({});
+
+		assert.equal(service.activeControl, editor);
+		assert.equal(service.activeTextEditorWidget, editor?.getControl());
+		assert.equal(service.activeTextEditorMode, 'plaintext');
 
 		part.dispose();
 	});

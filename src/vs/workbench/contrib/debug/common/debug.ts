@@ -13,7 +13,6 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor, ITextEditor } from 'vs/workbench/common/editor';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { CompletionItem } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -234,7 +233,7 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): Promise<void>;
 	terminateThreads(threadIds: number[]): Promise<void>;
 
-	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<CompletionItem[]>;
+	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse>;
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): Promise<Source[]>;
@@ -463,6 +462,7 @@ export interface IDebugConfiguration {
 		fontFamily: string;
 		lineHeight: number;
 		wordWrap: boolean;
+		closeOnEnd: boolean;
 	};
 	focusWindowOnBreak: boolean;
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt';
@@ -598,6 +598,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 export interface IDebugConfigurationProvider {
 	readonly type: string;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
+	resolveDebugConfigurationWithSubstitutedVariables?(folderUri: uri | undefined, debugConfiguration: IConfig, token: CancellationToken): Promise<IConfig | null | undefined>;
 	provideDebugConfigurations?(folderUri: uri | undefined, token: CancellationToken): Promise<IConfig[]>;
 	debugAdapterExecutable?(folderUri: uri | undefined): Promise<IAdapterDescriptor>;		// TODO@AW legacy
 }

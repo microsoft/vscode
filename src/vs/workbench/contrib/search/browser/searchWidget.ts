@@ -103,7 +103,7 @@ export class SearchWidget extends Widget {
 	private static readonly REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
 		const kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
 		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
-	}
+	};
 
 	domNode!: HTMLElement;
 
@@ -439,7 +439,6 @@ export class SearchWidget extends Widget {
 			return null;
 		}
 		try {
-			// tslint:disable-next-line: no-unused-expression
 			new RegExp(value, 'u');
 		} catch (e) {
 			return { content: e.message };

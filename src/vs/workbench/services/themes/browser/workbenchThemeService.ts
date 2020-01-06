@@ -40,7 +40,7 @@ import { IExtensionResourceLoaderService } from 'vs/workbench/services/extension
 const PREFERRED_DARK_THEME_SETTING = 'workbench.preferredDarkColorTheme';
 const PREFERRED_LIGHT_THEME_SETTING = 'workbench.preferredLightColorTheme';
 const PREFERRED_HC_THEME_SETTING = 'workbench.preferredHighContrastColorTheme';
-const DETECT_COLOR_SCHEME_SETTING = 'workbench.autoDetectColorScheme';
+const DETECT_COLOR_SCHEME_SETTING = 'window.autoDetectColorScheme';
 const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 
 // implementation
@@ -741,7 +741,7 @@ const preferredHCThemeSettingSchema: IConfigurationPropertySchema = {
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	description: nls.localize('detectColorScheme', 'If set, automatically switch to the preferred color theme based on the OS appearance.'),
-	default: true
+	default: false
 };
 
 const iconThemeSettingSchema: IConfigurationPropertySchema = {
