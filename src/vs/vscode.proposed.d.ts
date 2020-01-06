@@ -1286,4 +1286,62 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Peng: Notebook
+
+	export interface IStreamOutput {
+		output_type: 'stream';
+		text: string;
+	}
+
+	export interface IErrorOutput {
+		output_type: 'error';
+		evalue: string;
+		traceback: string[];
+	}
+
+	export interface IDisplayOutput {
+		output_type: 'display_data';
+		data: { string: string };
+	}
+
+	export interface IGenericOutput {
+		output_type: string;
+	}
+
+	export type IOutput = IStreamOutput | any;
+
+	export interface ICell {
+		source: string[];
+		cell_type: 'markdown' | 'code';
+		outputs: IOutput[];
+	}
+
+	export interface LanguageInfo {
+		file_extension: string;
+	}
+
+	export interface IMetadata {
+		language_info: LanguageInfo;
+	}
+
+	export interface INotebook {
+		metadata: IMetadata;
+		cells: ICell[];
+	}
+
+	export interface NotebookProvider {
+		onDidChangeNotebook?: Event<{ resource: Uri, notebook: INotebook }>;
+		resolveNotebook(resource: Uri): Promise<INotebook | undefined>;
+		executeNotebook(resource: Uri): Promise<void>;
+	}
+
+	namespace window {
+		export function registerNotebookProvider(
+			notebookType: string,
+			provider: NotebookProvider
+		): Disposable;
+	}
+
+	//#endregion
 }

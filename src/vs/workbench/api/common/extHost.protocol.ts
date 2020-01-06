@@ -556,6 +556,11 @@ export interface WebviewExtensionDescription {
 	readonly location: UriComponents;
 }
 
+export interface NotebookExtensionDescription {
+	readonly id: ExtensionIdentifier;
+	readonly location: UriComponents;
+}
+
 export enum WebviewEditorCapabilities {
 	Editable,
 }
@@ -604,6 +609,12 @@ export interface ExtHostWebviewsShape {
 
 	$onSave(handle: WebviewPanelHandle): Promise<void>;
 	$onSaveAs(handle: WebviewPanelHandle, resource: UriComponents, targetResource: UriComponents): Promise<void>;
+}
+
+export interface MainThreadNotebookShape extends IDisposable {
+	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): void;
+	$unregisterNotebookProvider(viewType: string): void;
+	$updateNotebook(viewType: string, resource: UriComponents, notebook: modes.INotebook): void;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1387,6 +1398,11 @@ export interface ExtHostCommentsShape {
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void>;
 }
 
+export interface ExtHostNotebookShape {
+	$resolveNotebook(viewType: string, uri: URI): Promise<modes.INotebook | undefined>;
+	$executeNotebook(viewType: string, uri: URI): Promise<void>;
+}
+
 export interface ExtHostStorageShape {
 	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
 }
@@ -1431,7 +1447,8 @@ export const MainContext = {
 	MainThreadSearch: createMainId<MainThreadSearchShape>('MainThreadSearch'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
-	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService')
+	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService'),
+	MainThreadNotebook: createMainId<MainThreadNotebookShape>('MainThreadNotebook')
 };
 
 export const ExtHostContext = {
@@ -1465,5 +1482,6 @@ export const ExtHostContext = {
 	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
-	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService')
+	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
+	ExtHostNotebook: createMainId<ExtHostNotebookShape>('ExtHostNotebook')
 };

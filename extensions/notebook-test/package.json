@@ -1,0 +1,46 @@
+{
+  "name": "notebook-test",
+  "displayName": "Notebook Test",
+  "description": "Notebook test for execution and outputs",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "icon": "icon.png",
+  "enableProposedApi": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.40.0"
+  },
+  "main": "./out/extension",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "contributes": {
+    "notebookProvider": [
+      {
+        "viewType": "jupyter",
+        "displayName": "Jupyter",
+        "selector": [
+          {
+            "filenamePattern": "*.test.ipynb"
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-extension-telemetry": "0.1.1",
+    "vscode-nls": "^4.0.0",
+    "typescript": "^3.6.4"
+  }
+}

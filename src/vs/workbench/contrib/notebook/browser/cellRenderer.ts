@@ -6,7 +6,6 @@
 import 'vs/css!./notebook';
 import * as DOM from 'vs/base/browser/dom';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICell } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -34,6 +33,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import * as UUID from 'vs/base/common/uuid';
+import { ICell } from 'vs/editor/common/modes';
 
 export class ViewCell {
 	private _textModel: ITextModel | null = null;
@@ -46,6 +46,9 @@ export class ViewCell {
 
 	protected readonly _onDidChangeEditingState = new Emitter<void>();
 	readonly onDidChangeEditingState = this._onDidChangeEditingState.event;
+
+	protected readonly _onDidChangeOutputs = new Emitter<void>();
+	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 
 	get cellType() {
 		return this.cell.cell_type;
@@ -77,6 +80,11 @@ export class ViewCell {
 		private readonly modeService: IModeService
 	) {
 		this.id = UUID.generateUuid();
+		if (this.cell.onDidChangeOutputs) {
+			this.cell.onDidChangeOutputs(() => {
+				this._onDidChangeOutputs.fire();
+			});
+		}
 	}
 
 	hasDynamicHeight() {
@@ -563,7 +571,54 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.showContextMenu(element, e.posx, top + height);
 		});
 
-		this.disposables.set(templateData.cellContainer, listener);
+		let rerenderOutput = element.onDidChangeOutputs(() => {
+			if (element.outputs.length > 0) {
+				let hasDynamicHeight = true;
+				for (let i = 0; i < element.outputs.length; i++) {
+					let result = MimeTypeRenderer.render(element.outputs[i], this.themeService, this.webviewService);
+					if (result) {
+						hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
+						templateData.outputContainer?.appendChild(result.element);
+						if (result.shadowContent) {
+							this.handler.createContentWidget(element, result.shadowContent, totalHeight + 8);
+						}
+					}
+				}
+
+				if (height !== undefined && hasDynamicHeight) {
+					let dimensions = DOM.getClientArea(templateData.outputContainer!);
+					const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
+						if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
+							let height = elementSizeObserver.getHeight();
+							if (dimensions.height !== height) {
+								element.setDynamicHeight(totalHeight + 32 + height);
+								this.handler.layoutElement(element, totalHeight + 32 + height);
+							}
+
+							elementSizeObserver.dispose();
+						}
+					});
+					elementSizeObserver.startObserving();
+					if (!hasDynamicHeight && dimensions.height !== 0) {
+						element.setDynamicHeight(totalHeight + 32 + dimensions.height);
+						this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
+					}
+
+					this.disposables.set(templateData.cellContainer, {
+						dispose: () => {
+							elementSizeObserver.dispose();
+						}
+					});
+				}
+			}
+		});
+
+		this.disposables.set(templateData.cellContainer, {
+			dispose: () => {
+				listener.dispose();
+				rerenderOutput.dispose();
+			}
+		});
 
 		if (templateData.outputContainer) {
 			templateData.outputContainer!.innerHTML = '';

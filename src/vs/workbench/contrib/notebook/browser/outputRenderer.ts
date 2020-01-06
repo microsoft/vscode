@@ -7,10 +7,10 @@ import * as DOM from 'vs/base/browser/dom';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { IOutput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { isArray } from 'vs/base/common/types';
 import { NotebookHandler } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
+import { IOutput } from 'vs/editor/common/modes';
 
 export function registerMineTypeRenderer(types: string[], renderer: IMimeRenderer) {
 	types.forEach(type => {

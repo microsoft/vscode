@@ -1447,6 +1447,85 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
+/**
+ * @internal
+ */
+
+export interface INotebookSelectors {
+	readonly filenamePattern?: string;
+}
+
+/**
+ * @internal
+ */
+export interface IStreamOutput {
+	output_type: 'stream';
+	text: string;
+}
+
+/**
+ * @internal
+ */
+export interface IErrorOutput {
+	output_type: 'error';
+	evalue: string;
+	traceback: string[];
+}
+
+/**
+ * @internal
+ */
+export interface IDisplayOutput {
+	output_type: 'display_data';
+	data: { string: string };
+}
+
+/**
+ * @internal
+ */
+export interface IGenericOutput {
+	output_type: string;
+}
+
+/**
+ * @internal
+ */
+export type IOutput = IStreamOutput | any;
+
+/**
+ * @internal
+ */
+export interface ICell {
+	handle: number;
+	source: string[];
+	cell_type: 'markdown' | 'code';
+	outputs: IOutput[];
+	onDidChangeOutputs?: Event<void>;
+}
+
+/**
+ * @internal
+ */
+export interface LanguageInfo {
+	file_extension: string;
+}
+
+/**
+ * @internal
+ */
+export interface IMetadata {
+	language_info: LanguageInfo;
+}
+
+/**
+ * @internal
+ */
+export interface INotebook {
+	handle: number;
+	metadata: IMetadata;
+	cells: ICell[];
+	onDidChangeCells?: Event<void>;
+}
 
 export interface CodeLens {
 	range: IRange;

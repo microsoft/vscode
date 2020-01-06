@@ -191,6 +191,10 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				}
 
 				this.model = model;
+				this.localStore.add(this.model.onDidChangeCells(() => {
+					this.updateViewCells();
+				}));
+
 				this.viewCells = model.getNotebook().cells.map(cell => {
 					return new ViewCell(cell, false, this.modelService, this.modeService);
 				});
@@ -243,8 +247,13 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		}, 0);
 	}
 
+	updateViewCells() {
+		this.list?.rerender();
+	}
+
 	insertEmptyNotebookCell(cell: ViewCell, type: 'code' | 'markdown', direction: 'above' | 'below') {
 		let newCell = new ViewCell({
+			handle: -1,
 			cell_type: type,
 			source: [],
 			outputs: []

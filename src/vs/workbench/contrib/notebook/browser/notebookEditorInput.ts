@@ -9,59 +9,30 @@ import { ITextModel } from 'vs/editor/common/model';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { Emitter } from 'vs/base/common/event';
-
-export interface IStreamOutput {
-	output_type: 'stream';
-	text: string;
-}
-
-export interface IErrorOutput {
-	output_type: 'error';
-	evalue: string;
-	traceback: string[];
-}
-
-export interface IDisplayOutput {
-	output_type: 'display_data';
-	data: { string: string };
-}
-
-export interface IGenericOutput {
-	output_type: string;
-}
-
-export type IOutput = IStreamOutput | any;
-
-export interface ICell {
-	source: string[];
-	cell_type: 'markdown' | 'code';
-	outputs: IOutput[];
-}
-
-export interface LanguageInfo {
-	file_extension: string;
-}
-export interface IMetadata {
-	language_info: LanguageInfo;
-}
-export interface INotebook {
-	metadata: IMetadata;
-	cells: ICell[];
-}
-
+import { Emitter, Event } from 'vs/base/common/event';
+import { INotebook, ICell } from 'vs/editor/common/modes';
+import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 
 export class NotebookEditorModel extends EditorModel {
-	private _notebook: INotebook | undefined;
 	private _dirty = false;
 
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
+	private readonly _onDidChangeCells = new Emitter<void>();
+	get onDidChangeCells(): Event<void> { return this._onDidChangeCells.event; }
+
 	constructor(
-		public readonly textModel: ITextModel
+		public readonly textModel: ITextModel,
+		private _notebook: INotebook | undefined
 	) {
 		super();
+
+		if (_notebook && _notebook.onDidChangeCells) {
+			this._register(_notebook.onDidChangeCells(() => {
+				this._onDidChangeCells.fire();
+			}));
+		}
 	}
 
 	isDirty() {
@@ -115,6 +86,8 @@ export class NotebookEditorInput extends EditorInput {
 
 	constructor(
 		public readonly editorInput: IEditorInput,
+		public readonly viewType: string | undefined,
+		@INotebookService private readonly notebookService: INotebookService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
@@ -142,13 +115,22 @@ export class NotebookEditorInput extends EditorInput {
 		return Promise.resolve(true);
 	}
 
+	getResource() {
+		return this.editorInput.getResource();
+	}
+
 	resolve(): Promise<NotebookEditorModel> {
 		if (!this.promise) {
 			this.promise = this.textModelResolverService.createModelReference(this.editorInput.getResource()!)
-				.then(ref => {
+				.then(async ref => {
 					const textModel = ref.object.textEditorModel;
 
-					this.textModel = new NotebookEditorModel(textModel);
+					let notebook: INotebook | undefined = undefined;
+					if (this.viewType !== undefined) {
+						notebook = await this.notebookService.resolveNotebook(this.viewType, this.editorInput.getResource()!);
+					}
+
+					this.textModel = new NotebookEditorModel(textModel, notebook);
 					this.textModel.onDidChangeDirty(() => this._onDidChangeDirty.fire());
 					return this.textModel;
 				});
