@@ -119,7 +119,7 @@ steps:
     cd test/smoke
     yarn compile
     cd -
-    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
+    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
     yarn smoketest --web --headless
   # continueOnError: true
   displayName: Run web smoke tests
