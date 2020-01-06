@@ -186,6 +186,19 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
+	get activeTextEditorMode(): string | undefined {
+		let activeCodeEditor: ICodeEditor | undefined = undefined;
+
+		const activeTextEditorWidget = this.activeTextEditorWidget;
+		if (isDiffEditor(activeTextEditorWidget)) {
+			activeCodeEditor = activeTextEditorWidget.getModifiedEditor();
+		} else {
+			activeCodeEditor = activeTextEditorWidget;
+		}
+
+		return activeCodeEditor?.getModel()?.getLanguageIdentifier().language;
+	}
+
 	get count(): number {
 		return this.editorsObserver.count;
 	}
@@ -839,6 +852,7 @@ export class DelegatingEditorService implements IEditorService {
 	get activeEditor(): IEditorInput | undefined { return this.editorService.activeEditor; }
 	get activeControl(): IVisibleEditor | undefined { return this.editorService.activeControl; }
 	get activeTextEditorWidget(): ICodeEditor | IDiffEditor | undefined { return this.editorService.activeTextEditorWidget; }
+	get activeTextEditorMode(): string | undefined { return this.editorService.activeTextEditorMode; }
 	get visibleEditors(): ReadonlyArray<IEditorInput> { return this.editorService.visibleEditors; }
 	get visibleControls(): ReadonlyArray<IVisibleEditor> { return this.editorService.visibleControls; }
 	get visibleTextEditorWidgets(): ReadonlyArray<ICodeEditor | IDiffEditor> { return this.editorService.visibleTextEditorWidgets; }

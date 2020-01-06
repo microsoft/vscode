@@ -31,7 +31,7 @@ import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledText
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { CancellationToken } from 'vscode';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
@@ -163,6 +163,7 @@ suite('EditorService', () => {
 		assert.equal(service.visibleControls.length, 1);
 		assert.equal(service.visibleControls[0], editor);
 		assert.ok(!service.activeTextEditorWidget);
+		assert.ok(!service.activeTextEditorMode);
 		assert.equal(service.visibleTextEditorWidgets.length, 0);
 		assert.equal(service.isOpen(input), true);
 		assert.equal(service.getOpened({ resource: input.getResource() }), input);
