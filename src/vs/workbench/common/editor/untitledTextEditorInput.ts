@@ -232,8 +232,8 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 
 	setMode(mode: string): void {
 		let actualMode: string | undefined = undefined;
-		if (mode === 'active-editor') {
-			// support the special 'active-editor' mode by
+		if (mode === '${activeEditorLanguage}') {
+			// support the special '${activeEditorLanguage}' mode by
 			// looking up the language mode from the currently
 			// active text editor if any
 			actualMode = this.editorService.activeTextEditorMode;
