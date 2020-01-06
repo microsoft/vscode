@@ -5,7 +5,7 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
+import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { toUint32Array } from 'vs/base/common/uint';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -55,6 +55,14 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 }
 
 export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactory {
+
+	public static create(options: IComputedEditorOptions): CharacterHardWrappingLineMapperFactory {
+		return new CharacterHardWrappingLineMapperFactory(
+			options.get(EditorOption.wordWrapBreakBeforeCharacters),
+			options.get(EditorOption.wordWrapBreakAfterCharacters),
+			options.get(EditorOption.wordWrapBreakObtrusiveCharacters)
+		);
+	}
 
 	private readonly classifier: WrappingCharacterClassifier;
 

@@ -18,8 +18,7 @@ import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
-import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineMapperFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ITheme } from 'vs/platform/theme/common/themeService';
@@ -43,7 +42,13 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	public readonly viewLayout: ViewLayout;
 	private readonly decorations: ViewModelDecorations;
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: ITextModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(
+		editorId: number,
+		configuration: editorCommon.IConfiguration,
+		model: ITextModel,
+		lineMapperFactory: ILineMapperFactory,
+		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable
+	) {
 		super();
 
 		this.editorId = editorId;
@@ -63,20 +68,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			const options = this.configuration.options;
 			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const fontInfo = options.get(EditorOption.fontInfo);
-			const wordWrapBreakAfterCharacters = options.get(EditorOption.wordWrapBreakAfterCharacters);
-			const wordWrapBreakBeforeCharacters = options.get(EditorOption.wordWrapBreakBeforeCharacters);
-			const wordWrapBreakObtrusiveCharacters = options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
-
-			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				wordWrapBreakBeforeCharacters,
-				wordWrapBreakAfterCharacters,
-				wordWrapBreakObtrusiveCharacters
-			);
 
 			this.lines = new SplitLinesCollection(
 				this.model,
-				hardWrappingLineMapperFactory,
+				lineMapperFactory,
 				this.model.getOptions().tabSize,
 				wrappingInfo.wrappingColumn,
 				fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
