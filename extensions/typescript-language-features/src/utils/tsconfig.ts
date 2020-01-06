@@ -24,6 +24,9 @@ export function inferredProjectCompilerOptions(
 
 	if (serviceConfig.checkJs) {
 		projectConfig.checkJs = true;
+		if (isTypeScriptProject) {
+			projectConfig.allowJs = true;
+		}
 	}
 
 	if (serviceConfig.experimentalDecorators) {
