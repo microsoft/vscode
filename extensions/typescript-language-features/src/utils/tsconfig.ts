@@ -12,7 +12,8 @@ export function isImplicitProjectConfigFile(configFileName: string) {
 	return configFileName.startsWith('/dev/null/');
 }
 
-export function inferredProjectConfig(
+export function inferredProjectCompilerOptions(
+	isTypeScriptProject: boolean,
 	serviceConfig: TypeScriptServiceConfiguration,
 ): Proto.ExternalProjectCompilerOptions {
 	const projectConfig: Proto.ExternalProjectCompilerOptions = {
@@ -29,13 +30,18 @@ export function inferredProjectConfig(
 		projectConfig.experimentalDecorators = true;
 	}
 
+	if (isTypeScriptProject) {
+		projectConfig.sourceMap = true;
+	}
+
 	return projectConfig;
 }
 
 function inferredProjectConfigSnippet(
+	isTypeScriptProject: boolean,
 	config: TypeScriptServiceConfiguration
 ) {
-	const baseConfig = inferredProjectConfig(config);
+	const baseConfig = inferredProjectCompilerOptions(isTypeScriptProject, config);
 	const compilerOptions = Object.keys(baseConfig).map(key => `"${key}": ${JSON.stringify(baseConfig[key])}`);
 	return new vscode.SnippetString(`{
 	"compilerOptions": {
@@ -62,7 +68,7 @@ export async function openOrCreateConfigFile(
 		const doc = await vscode.workspace.openTextDocument(configFile.with({ scheme: 'untitled' }));
 		const editor = await vscode.window.showTextDocument(doc, col);
 		if (editor.document.getText().length === 0) {
-			await editor.insertSnippet(inferredProjectConfigSnippet(config));
+			await editor.insertSnippet(inferredProjectConfigSnippet(isTypeScriptProject, config));
 		}
 		return editor;
 	}
