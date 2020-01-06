@@ -364,3 +364,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 	}
 });
+
+CommandsRegistry.registerCommand('openReference', (accessor) => {
+	const listService = accessor.get(IListService);
+	const focus = <any[]>listService.lastFocusedList?.getFocus();
+	if (Array.isArray(focus) && focus[0] instanceof OneReference) {
+		withController(accessor, controller => controller.openReference(focus[0], false));
+	}
+});
