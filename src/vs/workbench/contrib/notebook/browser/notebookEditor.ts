@@ -237,18 +237,20 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	}
 
 	layoutElement(cell: ViewCell, height: number) {
-		setTimeout(() => {
+		DOM.scheduleAtNextAnimationFrame(() => {
 			// list.splice -> renderElement -> resize -> layoutElement
 			// above flow will actually break how list view renders it self as it messes up with the internal state
 			// instead we run the layout update in next tick
 			//. @TODO @rebornix, it should be batched.
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			this.list?.updateDynamicHeight(index, cell, height);
-		}, 0);
+		});
 	}
 
 	updateViewCells() {
-		this.list?.rerender();
+		DOM.scheduleAtNextAnimationFrame(() => {
+			this.list?.rerender();
+		});
 	}
 
 	insertEmptyNotebookCell(cell: ViewCell, type: 'code' | 'markdown', direction: 'above' | 'below') {
