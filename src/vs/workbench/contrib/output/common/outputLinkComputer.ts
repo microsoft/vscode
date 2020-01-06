@@ -50,7 +50,7 @@ export class OutputLinkComputer {
 		return find(models, model => model.uri.toString() === uri);
 	}
 
-	public computeLinks(uri: string): Promise<ILink[]> {
+	computeLinks(uri: string): Promise<ILink[]> {
 		const model = this.getModel(uri);
 		if (!model) {
 			return Promise.resolve([]);
@@ -79,7 +79,7 @@ export class OutputLinkComputer {
 		return Promise.resolve(links);
 	}
 
-	public static createPatterns(workspaceFolder: URI): RegExp[] {
+	static createPatterns(workspaceFolder: URI): RegExp[] {
 		const patterns: RegExp[] = [];
 
 		const workspaceFolderPath = workspaceFolder.scheme === Schemas.file ? workspaceFolder.fsPath : workspaceFolder.path;
@@ -117,9 +117,9 @@ export class OutputLinkComputer {
 	}
 
 	/**
-	 * Detect links. Made public static to allow for tests.
+	 * Detect links. Made static to allow for tests.
 	 */
-	public static detectLinks(line: string, lineIndex: number, patterns: RegExp[], resourceCreator: IResourceCreator): ILink[] {
+	static detectLinks(line: string, lineIndex: number, patterns: RegExp[], resourceCreator: IResourceCreator): ILink[] {
 		const links: ILink[] = [];
 
 		patterns.forEach(pattern => {
