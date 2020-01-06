@@ -61,7 +61,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
 	private lastActiveEditor: IEditorInput | undefined = undefined;
-	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
 
 	private readonly editorsObserver = this._register(this.instantiationService.createInstance(EditorsObserver));
 
@@ -110,10 +109,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return; // ignore if we still have no active editor
 		}
 
-		if (this.lastActiveGroupId === group.id && this.lastActiveEditor === group.activeEditor) {
-			return; // ignore if the editor actually did not change
-		}
-
 		this.doHandleActiveEditorChangeEvent();
 	}
 
@@ -121,7 +116,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
-		this.lastActiveGroupId = activeGroup.id;
 		this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
 
 		// Fire event to outside parties
