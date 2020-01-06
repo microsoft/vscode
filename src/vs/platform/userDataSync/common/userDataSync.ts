@@ -49,15 +49,21 @@ export function registerConfiguration(): IDisposable {
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
-			'sync.enableExtensions': {
-				type: 'boolean',
-				description: localize('sync.enableExtensions', "Enable synchronizing extensions."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-			},
 			'sync.enableKeybindings': {
 				type: 'boolean',
 				description: localize('sync.enableKeybindings', "Enable synchronizing keybindings."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'sync.enableUIState': {
+				type: 'boolean',
+				description: localize('sync.enableUIState', "Enable synchronizing UI state."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'sync.enableExtensions': {
+				type: 'boolean',
+				description: localize('sync.enableExtensions', "Enable synchronizing extensions."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},

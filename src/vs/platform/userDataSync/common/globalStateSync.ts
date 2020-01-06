@@ -14,6 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const argvProperties: string[] = ['locale'];
 
@@ -36,6 +37,7 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.lastSyncGlobalStateResource = joinPath(environmentService.userRoamingDataHome, '.lastSyncGlobalState');
@@ -51,24 +53,29 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 	}
 
 	async sync(): Promise<boolean> {
-		if (this.status !== SyncStatus.Idle) {
-			this.logService.trace('Global State: Skipping synchronizing global state as it is running already.');
+		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
+			this.logService.trace('UI State: Skipping synchronizing UI state as it is disabled.');
 			return false;
 		}
 
-		this.logService.trace('Global State: Started synchronizing global state...');
+		if (this.status !== SyncStatus.Idle) {
+			this.logService.trace('UI State: Skipping synchronizing ui state as it is running already.');
+			return false;
+		}
+
+		this.logService.trace('UI State: Started synchronizing ui state...');
 		this.setStatus(SyncStatus.Syncing);
 
 		try {
 			await this.doSync();
-			this.logService.trace('Global State: Finised synchronizing global state.');
+			this.logService.trace('UI State: Finised synchronizing ui state.');
 			this.setStatus(SyncStatus.Idle);
 			return true;
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
 			if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Rejected) {
 				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('Global State: Failed to synchronise global state as there is a new remote version available. Synchronizing again...');
+				this.logService.info('UI State: Failed to synchronise ui state as there is a new remote version available. Synchronizing again...');
 				return this.sync();
 			}
 			throw e;
@@ -90,13 +97,13 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 
 		if (local) {
 			// update local
-			this.logService.info('Global State: Updating local global state...');
+			this.logService.info('UI State: Updating local ui state...');
 			await this.writeLocalGlobalState(local);
 		}
 
 		if (remote) {
 			// update remote
-			this.logService.info('Global State: Updating remote global state...');
+			this.logService.info('UI State: Updating remote ui state...');
 			remoteData = await this.writeToRemote(remote, remoteData.ref);
 		}
 
@@ -104,7 +111,7 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 			&& (!lastSyncData || lastSyncData.ref !== remoteData.ref)
 		) {
 			// update last sync
-			this.logService.info('Global State: Updating last synchronised global state...');
+			this.logService.info('UI State: Updating last synchronised ui state...');
 			await this.updateLastSyncValue(remoteData);
 		}
 	}

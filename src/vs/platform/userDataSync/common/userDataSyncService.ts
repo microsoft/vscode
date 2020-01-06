@@ -12,6 +12,7 @@ import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensio
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
+import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -32,6 +33,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private readonly settingsSynchroniser: SettingsSynchroniser;
 	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
 	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
+	private readonly globalStateSynchroniser: GlobalStateSynchroniser;
 
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
@@ -41,8 +43,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		super();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
 		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
+		this.globalStateSynchroniser = this._register(this.instantiationService.createInstance(GlobalStateSynchroniser));
 		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));
-		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.extensionsSynchroniser];
+		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.globalStateSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
 
 		if (this.userDataSyncStoreService.userDataSyncStore) {
