@@ -409,6 +409,7 @@ class SuggestionDetails {
 
 		this.el.style.fontSize = fontSizePx;
 		this.el.style.fontWeight = fontWeight;
+		this.el.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		this.type.style.fontFamily = fontFamily;
 		this.close.style.height = lineHeightPx;
 		this.close.style.width = lineHeightPx;
