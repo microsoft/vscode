@@ -6,8 +6,11 @@
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
+import API from '../utils/api';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 
 class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
+	public static readonly minVersion = API.v380;
 	public constructor(
 		private readonly client: ITypeScriptServiceClient) { }
 
@@ -67,6 +70,7 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient
 ) {
-	return vscode.languages.registerCallHierarchyProvider(selector,
-		new TypeScriptCallHierarchySupport(client));
+	return new VersionDependentRegistration(client, TypeScriptCallHierarchySupport.minVersion,
+		() => vscode.languages.registerCallHierarchyProvider(selector,
+			new TypeScriptCallHierarchySupport(client)));
 }
