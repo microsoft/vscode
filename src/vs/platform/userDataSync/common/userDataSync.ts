@@ -145,6 +145,11 @@ export interface ISyncExtension {
 	enabled: boolean;
 }
 
+export interface IGlobalState {
+	argv: IStringDictionary<any>;
+	storage: IStringDictionary<any>;
+}
+
 export const enum SyncSource {
 	Settings = 1,
 	Keybindings,
