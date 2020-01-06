@@ -60,7 +60,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 
 export class OutputService extends Disposable implements IOutputService, ITextModelContentProvider {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 	private activeChannelIdInStorage: string;
@@ -114,24 +114,21 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return null;
 	}
 
-	showChannel(id: string, preserveFocus?: boolean): Promise<void> {
+	async showChannel(id: string, preserveFocus?: boolean): Promise<void> {
 		const channel = this.getChannel(id);
 		if (!channel || this.isChannelShown(channel)) {
 			if (this._outputPanel && !preserveFocus) {
 				this._outputPanel.focus();
 			}
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		this.setActiveChannel(channel);
-		let promise: Promise<void>;
-		if (this.isPanelShown()) {
-			promise = this.doShowChannel(channel, !!preserveFocus);
-		} else {
+		if (!this.isPanelShown()) {
 			this.panelService.openPanel(OUTPUT_PANEL_ID);
-			promise = this.doShowChannel(channel, !!preserveFocus);
 		}
-		return promise.then(() => this._onActiveOutputChannel.fire(id));
+		await this.doShowChannel(channel, !!preserveFocus);
+		this._onActiveOutputChannel.fire(id);
 	}
 
 	getChannel(id: string): OutputChannel | undefined {
@@ -146,13 +143,13 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return this.activeChannel;
 	}
 
-	private onDidRegisterChannel(channelId: string): void {
+	private async onDidRegisterChannel(channelId: string): Promise<void> {
 		const channel = this.createChannel(channelId);
 		this.channels.set(channelId, channel);
 		if (!this.activeChannel || this.activeChannelIdInStorage === channelId) {
 			this.setActiveChannel(channel);
-			this.onDidPanelOpen(this.panelService.getActivePanel(), true)
-				.then(() => this._onActiveOutputChannel.fire(channelId));
+			await this.onDidPanelOpen(this.panelService.getActivePanel(), true);
+			this._onActiveOutputChannel.fire(channelId);
 		}
 	}
 
@@ -214,17 +211,14 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return this.instantiationService.createInstance(OutputChannel, channelData);
 	}
 
-	private doShowChannel(channel: OutputChannel, preserveFocus: boolean): Promise<void> {
+	private async doShowChannel(channel: OutputChannel, preserveFocus: boolean): Promise<void> {
 		if (this._outputPanel) {
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!channel.outputChannelDescriptor.file && channel.outputChannelDescriptor.log);
-			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus }), CancellationToken.None)
-				.then(() => {
-					if (!preserveFocus && this._outputPanel) {
-						this._outputPanel.focus();
-					}
-				});
+			await this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus }), CancellationToken.None);
+			if (!preserveFocus && this._outputPanel) {
+				this._outputPanel.focus();
+			}
 		}
-		return Promise.resolve(undefined);
 	}
 
 	private isChannelShown(channel: IOutputChannel): boolean {

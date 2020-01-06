@@ -26,6 +26,7 @@
         "no-throw-literal": "warn",
         "no-unsafe-finally": "warn",
         "no-unused-labels": "warn",
+        "no-restricted-globals": ["warn", "name", "length", "event", "closed", "external", "status", "origin", "orientation"], // non-complete list of globals that are easy to access unintentionally
         "no-var": "warn",
         "jsdoc/no-types": "warn",
         "semi": "off",
