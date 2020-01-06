@@ -102,7 +102,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 		if (this._resourceMapping.has(resource!.path)) {
 			const input = this._resourceMapping.get(resource!.path);
 
-			return { override: this.editorService.openEditor(input!, options, group) };
+			return { override: this.editorService.openEditor(input!, { ...options, ignoreOverrides: true }, group) };
 		}
 
 
