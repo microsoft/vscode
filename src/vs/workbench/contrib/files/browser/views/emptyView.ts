@@ -130,7 +130,7 @@ export class EmptyView extends ViewPane {
 		}
 	}
 
-	layoutBody(size: number): void {
+	layoutBody(_size: number): void {
 		// no-op
 	}
 

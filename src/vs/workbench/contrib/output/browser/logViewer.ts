@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 export class LogViewerInput extends ResourceEditorInput {
 
-	public static readonly ID = 'workbench.editorinputs.output';
+	static readonly ID = 'workbench.editorinputs.output';
 
 	constructor(private readonly outputChannelDescriptor: IFileOutputChannelDescriptor,
 		@ITextModelService textModelResolverService: ITextModelService
@@ -29,11 +29,11 @@ export class LogViewerInput extends ResourceEditorInput {
 		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), undefined, textModelResolverService);
 	}
 
-	public getTypeId(): string {
+	getTypeId(): string {
 		return LogViewerInput.ID;
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return this.outputChannelDescriptor.file;
 	}
 }

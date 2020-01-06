@@ -700,7 +700,7 @@ export class ExplorerView extends ViewPane {
 		if (Array.isArray(treeInput)) {
 			if (hasExpandedRootChild(this.tree, treeInput)) {
 				treeInput.forEach(folder => {
-					folder.children.forEach(child => this.tree.hasNode(child) && this.tree.collapse(child));
+					folder.children.forEach(child => this.tree.hasNode(child) && this.tree.collapse(child, true));
 				});
 
 				return;

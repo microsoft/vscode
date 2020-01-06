@@ -128,7 +128,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				const childStat = fs.statSync(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
 					const cwd = fs.readlinkSync(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8').replace(/\0/g, ' ');
+					const rawCmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const nullIndex = rawCmd.indexOf('\0');
+					const cmd = rawCmd.substr(0, nullIndex > 0 ? nullIndex : rawCmd.length);
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {

@@ -21,69 +21,69 @@ const minimatch_1 = require("minimatch");
 // #############################################################################################
 //
 const RULES = {
-    "no-nodejs-globals": [
+    'no-nodejs-globals': [
         {
-            "target": "**/vs/**/test/{common,browser}/**",
-            "allowed": [
-                "process",
-                "Buffer",
-                "__filename",
-                "__dirname"
+            'target': '**/vs/**/test/{common,browser}/**',
+            'allowed': [
+                'process',
+                'Buffer',
+                '__filename',
+                '__dirname'
             ]
         },
         {
-            "target": "**/vs/workbench/api/common/extHostExtensionService.ts",
-            "allowed": [
-                "global" // -> safe access to 'global'
+            'target': '**/vs/workbench/api/common/extHostExtensionService.ts',
+            'allowed': [
+                'global' // -> safe access to 'global'
             ]
         },
         {
-            "target": "**/vs/**/{common,browser}/**",
-            "allowed": [ /* none */]
+            'target': '**/vs/**/{common,browser}/**',
+            'allowed': [ /* none */]
         }
     ],
-    "no-dom-globals": [
+    'no-dom-globals': [
         {
-            "target": "**/vs/base/parts/quickopen/common/quickOpen.ts",
-            "allowed": [
-                "HTMLElement" // quick open will be replaced with a different widget soon
+            'target': '**/vs/base/parts/quickopen/common/quickOpen.ts',
+            'allowed': [
+                'HTMLElement' // quick open will be replaced with a different widget soon
             ]
         },
         {
-            "target": "**/vs/**/test/{common,node,electron-main}/**",
-            "allowed": [
-                "document",
-                "HTMLElement",
-                "createElement"
+            'target': '**/vs/**/test/{common,node,electron-main}/**',
+            'allowed': [
+                'document',
+                'HTMLElement',
+                'createElement'
             ]
         },
         {
-            "target": "**/vs/**/{common,node,electron-main}/**",
-            "allowed": [ /* none */]
+            'target': '**/vs/**/{common,node,electron-main}/**',
+            'allowed': [ /* none */]
         }
     ]
 };
 const TS_CONFIG_PATH = path_1.join(__dirname, '../../', 'src', 'tsconfig.json');
 const DOM_GLOBALS_DEFINITION = 'lib.dom.d.ts';
 const DISALLOWED_DOM_GLOBALS = [
-    "window",
-    "document",
-    "HTMLElement",
-    "createElement"
+    'window',
+    'document',
+    'HTMLElement',
+    'createElement'
 ];
 const NODE_GLOBALS_DEFINITION = '@types/node';
 const DISALLOWED_NODE_GLOBALS = [
     // https://nodejs.org/api/globals.html#globals_global_objects
-    "NodeJS",
-    "Buffer",
-    "__dirname",
-    "__filename",
-    "clearImmediate",
-    "exports",
-    "global",
-    "module",
-    "process",
-    "setImmediate"
+    'NodeJS',
+    'Buffer',
+    '__dirname',
+    '__filename',
+    'clearImmediate',
+    'exports',
+    'global',
+    'module',
+    'process',
+    'setImmediate'
 ];
 let hasErrors = false;
 function checkFile(program, sourceFile, rule) {
@@ -127,7 +127,7 @@ function checkFile(program, sourceFile, rule) {
 }
 function createProgram(tsconfigPath) {
     const tsConfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
-    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: ts.sys.readDirectory, readFile: file => fs_1.readFileSync(file, "utf8"), useCaseSensitiveFileNames: process.platform === 'linux' };
+    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: ts.sys.readDirectory, readFile: file => fs_1.readFileSync(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
     const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, path_1.resolve(path_1.dirname(tsconfigPath)), { noEmit: true });
     const compilerHost = ts.createCompilerHost(tsConfigParsed.options, true);
     return ts.createProgram(tsConfigParsed.fileNames, tsConfigParsed.options, compilerHost);
@@ -139,13 +139,13 @@ const program = createProgram(TS_CONFIG_PATH);
 for (const sourceFile of program.getSourceFiles()) {
     let noDomGlobalsLinter = undefined;
     let noNodeJSGlobalsLinter = undefined;
-    for (const rules of RULES["no-dom-globals"]) {
+    for (const rules of RULES['no-dom-globals']) {
         if (minimatch_1.match([sourceFile.fileName], rules.target).length > 0) {
             noDomGlobalsLinter = { allowed: rules.allowed };
             break;
         }
     }
-    for (const rules of RULES["no-nodejs-globals"]) {
+    for (const rules of RULES['no-nodejs-globals']) {
         if (minimatch_1.match([sourceFile.fileName], rules.target).length > 0) {
             noNodeJSGlobalsLinter = { allowed: rules.allowed };
             break;

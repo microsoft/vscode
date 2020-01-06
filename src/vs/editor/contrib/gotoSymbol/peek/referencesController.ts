@@ -24,6 +24,7 @@ import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -307,20 +308,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.F4,
 	secondary: [KeyCode.F12],
-	when: ctxReferenceSearchVisible,
-	handler(accessor) {
-		withController(accessor, controller => {
-			controller.goToNextOrPreviousReference(true);
-		});
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'goToNextReferenceFromEmbeddedEditor',
-	weight: KeybindingWeight.EditorContrib + 50,
-	primary: KeyCode.F4,
-	secondary: [KeyCode.F12],
-	when: PeekContext.inPeekEditor,
+	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
 	handler(accessor) {
 		withController(accessor, controller => {
 			controller.goToNextOrPreviousReference(true);
@@ -333,20 +321,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
 	secondary: [KeyMod.Shift | KeyCode.F12],
-	when: ctxReferenceSearchVisible,
-	handler(accessor) {
-		withController(accessor, controller => {
-			controller.goToNextOrPreviousReference(false);
-		});
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'goToPreviousReferenceFromEmbeddedEditor',
-	weight: KeybindingWeight.EditorContrib + 50,
-	primary: KeyMod.Shift | KeyCode.F4,
-	secondary: [KeyMod.Shift | KeyCode.F12],
-	when: PeekContext.inPeekEditor,
+	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
 	handler(accessor) {
 		withController(accessor, controller => {
 			controller.goToNextOrPreviousReference(false);
@@ -356,25 +331,22 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingWeight.WorkbenchContrib + 50,
+	weight: KeybindingWeight.EditorContrib - 101,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
+		ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek'))
+	),
 	handler(accessor: ServicesAccessor) {
 		withController(accessor, controller => controller.closeWidget());
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'closeReferenceSearchEditor',
-	weight: KeybindingWeight.EditorContrib - 101,
-	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek')),
-	handler(accessor: ServicesAccessor) {
-		withController(accessor, controller => controller.closeWidget());
-	}
-});
+// commands that aren't needed anymore because there is now ContextKeyExpr.OR
+CommandsRegistry.registerCommandAlias('goToNextReferenceFromEmbeddedEditor', 'goToNextReference');
+CommandsRegistry.registerCommandAlias('goToPreviousReferenceFromEmbeddedEditor', 'goToPreviousReference');
+CommandsRegistry.registerCommandAlias('closeReferenceSearchEditor', 'closeReferenceSearch');
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',
@@ -390,5 +362,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
 			withController(accessor, controller => controller.openReference(focus[0], true));
 		}
+	}
+});
+
+CommandsRegistry.registerCommand('openReference', (accessor) => {
+	const listService = accessor.get(IListService);
+	const focus = <any[]>listService.lastFocusedList?.getFocus();
+	if (Array.isArray(focus) && focus[0] instanceof OneReference) {
+		withController(accessor, controller => controller.openReference(focus[0], false));
 	}
 });
