@@ -1515,13 +1515,13 @@ export class SearchView extends ViewPane {
 				event.stopPropagation();
 			}
 		}));
-	}
+	};
 
 	private onOpenSettings = (e: dom.EventLike): void => {
 		dom.EventHelper.stop(e, false);
 
 		this.openSettings('.exclude');
-	}
+	};
 
 	private openSettings(query: string): Promise<IEditor | undefined> {
 		const options: ISettingsEditorOptions = { query };
@@ -1534,7 +1534,7 @@ export class SearchView extends ViewPane {
 		dom.EventHelper.stop(e, false);
 
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=853977'));
-	}
+	};
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean): void {
 		const fileCount = this.viewModel.searchResult.fileCount();

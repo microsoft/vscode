@@ -88,11 +88,10 @@ steps:
 
 - script: |
     set -e
-    yarn gulp hygiene --skip-tslint
-    yarn gulp tslint
+    yarn gulp hygiene
     yarn monaco-compile-check
     yarn valid-globals-check
-  displayName: Run hygiene, tslint, monaco compile & valid globals checks
+  displayName: Run hygiene, monaco compile & valid globals checks
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |

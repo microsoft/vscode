@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.42.0",
-  "distro": "53e32cc87942bff5525453faaa8a831355c4dabb",
+  "distro": "57c315cb98e064a152bcc6a599ed459d67d933e2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -28,7 +28,8 @@
     "valid-globals-check": "node build/lib/globalsLinter.js",
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
-    "web": "node scripts/code-web.js"
+    "web": "node scripts/code-web.js",
+    "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -81,6 +82,8 @@
     "@types/winreg": "^1.2.30",
     "@types/yauzl": "^2.9.1",
     "@types/yazl": "^2.4.2",
+    "@typescript-eslint/eslint-plugin": "2.3.2",
+    "@typescript-eslint/parser": "^2.12.0",
     "ansi-colors": "^3.2.3",
     "asar": "^0.14.0",
     "chromium-pickle-js": "^0.2.0",
@@ -89,6 +92,8 @@
     "cson-parser": "^1.3.3",
     "debounce": "^1.0.0",
     "electron": "6.1.6",
+    "eslint": "6.8.0",
+    "eslint-plugin-jsdoc": "^19.1.0",
     "event-stream": "3.3.4",
     "express": "^4.13.1",
     "fancy-log": "^1.3.3",
@@ -111,7 +116,6 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
     "gulp-tsb": "4.0.5",
-    "gulp-tslint": "^8.1.3",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
     "husky": "^0.13.1",
@@ -140,8 +144,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
-    "tslint": "^5.16.0",
-    "typescript": "3.7.3",
+    "typescript": "^3.8.0-dev.20200104",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",

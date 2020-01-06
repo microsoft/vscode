@@ -106,6 +106,13 @@ export interface IEditorService {
 	readonly activeTextEditorWidget: ICodeEditor | IDiffEditor | undefined;
 
 	/**
+	 * The currently active text editor mode or `undefined` if there is currently no active
+	 * editor or the active editor widget is neither a text nor a diff editor. If the active
+	 * editor is a diff editor, the modified side's mode will be taken.
+	 */
+	readonly activeTextEditorMode: string | undefined;
+
+	/**
 	 * All editors that are currently visible. An editor is visible when it is opened in an
 	 * editor group and active in that group. Multiple editor groups can be opened at the same time.
 	 */

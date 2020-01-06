@@ -762,7 +762,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	}
 
 	getIcon(): string {
-		return this.dirty ? 'dirty' : '';
+		return this.dirty ? 'codicon codicon-circle-filled' : '';
 	}
 
 	getLabel(): string {
