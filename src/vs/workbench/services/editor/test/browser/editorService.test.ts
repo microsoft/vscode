@@ -31,7 +31,7 @@ import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledText
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { CancellationToken } from 'vscode';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
@@ -163,6 +163,7 @@ suite('EditorService', () => {
 		assert.equal(service.visibleControls.length, 1);
 		assert.equal(service.visibleControls[0], editor);
 		assert.ok(!service.activeTextEditorWidget);
+		assert.ok(!service.activeTextEditorMode);
 		assert.equal(service.visibleTextEditorWidgets.length, 0);
 		assert.equal(service.isOpen(input), true);
 		assert.equal(service.getOpened({ resource: input.getResource() }), input);
@@ -731,6 +732,74 @@ suite('EditorService', () => {
 		// cleanup
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
+
+		part.dispose();
+	});
+
+	test('two active editor change events when opening editor to the side', async function () {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart);
+		part.create(document.createElement('div'));
+		part.layout(400, 300);
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
+
+		let input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+
+		let activeEditorChangeEvents = 0;
+		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
+			activeEditorChangeEvents++;
+		});
+
+		function assertActiveEditorChangedEvent(expected: number) {
+			assert.equal(activeEditorChangeEvents, expected, `Unexpected active editor change state (got ${activeEditorChangeEvents}, expected ${expected})`);
+			activeEditorChangeEvents = 0;
+		}
+
+		await part.whenRestored;
+
+		await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(1);
+
+		await service.openEditor(input, { pinned: true }, SIDE_GROUP);
+
+		// we expect 2 active editor change events: one for the fact that the
+		// active editor is now in the side group but also one for when the
+		// editor has finished loading. we used to ignore that second change
+		// event, however many listeners are interested on the active editor
+		// when it has fully loaded (e.g. a model is set). as such, we cannot
+		// simply ignore that second event from the editor service, even though
+		// the actual editor input is the same
+		assertActiveEditorChangedEvent(2);
+
+		// cleanup
+		activeEditorChangeListener.dispose();
+
+		part.dispose();
+	});
+
+	test('activeTextEditorWidget / activeTextEditorMode', async () => {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart);
+		part.create(document.createElement('div'));
+		part.layout(400, 300);
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
+
+		await part.whenRestored;
+
+		// Open untitled input
+		let editor = await service.openEditor({});
+
+		assert.equal(service.activeControl, editor);
+		assert.equal(service.activeTextEditorWidget, editor?.getControl());
+		assert.equal(service.activeTextEditorMode, 'plaintext');
 
 		part.dispose();
 	});
