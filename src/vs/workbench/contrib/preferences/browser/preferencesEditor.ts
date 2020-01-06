@@ -441,8 +441,7 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 		if (this._remoteFilterCancelToken) {
-			this._remoteFilterCancelToken.cancel();
-			this._remoteFilterCancelToken.dispose();
+			this._remoteFilterCancelToken.dispose(true);
 			this._remoteFilterCancelToken = null;
 		}
 

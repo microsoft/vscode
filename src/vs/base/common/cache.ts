@@ -27,8 +27,7 @@ export class Cache<T> {
 			promise,
 			dispose: () => {
 				this.result = null;
-				cts.cancel();
-				cts.dispose();
+				cts.dispose(true);
 			}
 		};
 

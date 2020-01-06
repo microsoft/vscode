@@ -549,8 +549,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 	private clearOutlineRequest(): void {
 		if (this.pendingOutlineRequest) {
-			this.pendingOutlineRequest.cancel();
-			this.pendingOutlineRequest.dispose();
+			this.pendingOutlineRequest.dispose(true);
 			this.pendingOutlineRequest = undefined;
 		}
 

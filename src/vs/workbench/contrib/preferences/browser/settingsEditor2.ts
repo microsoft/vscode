@@ -1122,8 +1122,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.localSearchDelayer.cancel();
 			this.remoteSearchThrottle.cancel();
 			if (this.searchInProgress) {
-				this.searchInProgress.cancel();
-				this.searchInProgress.dispose();
+				this.searchInProgress.dispose(true);
 				this.searchInProgress = null;
 			}
 

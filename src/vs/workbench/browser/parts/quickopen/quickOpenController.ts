@@ -287,8 +287,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	private cancelPendingGetResultsInvocation(): void {
 		if (this.pendingGetResultsInvocation) {
-			this.pendingGetResultsInvocation.cancel();
-			this.pendingGetResultsInvocation.dispose();
+			this.pendingGetResultsInvocation.dispose(true);
 			this.pendingGetResultsInvocation = null;
 		}
 	}
