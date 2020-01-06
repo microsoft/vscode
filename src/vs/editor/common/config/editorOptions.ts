@@ -656,7 +656,7 @@ export interface IEnvironmentalOptions {
 export interface IEditorOption<K1 extends EditorOption, V> {
 	readonly id: K1;
 	readonly name: string;
-	readonly defaultValue: V;
+	defaultValue: V;
 	/**
 	 * @internal
 	 */
