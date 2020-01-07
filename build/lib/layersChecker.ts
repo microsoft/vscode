@@ -196,7 +196,7 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 									for (const disallowedDefinition of rule.disallowedDefinitions) {
 										if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
 											const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-											console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' from '${disallowedDefinition}' violates layers (${sourceFile.fileName} (${line + 1},${character + 1})`);
+											console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
 
 											hasErrors = true;
 											return;
