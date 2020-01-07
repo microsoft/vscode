@@ -13,8 +13,8 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { CharacterHardWrappingLineMapperFactory, CharacterHardWrappingLineMapping } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { ILineMapping, ISimpleModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import { LineBreakingData, ISimpleModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -776,12 +776,12 @@ function createSplitLine(splitLengths: number[], wrappedLinesPrefix: string, isV
 	return new SplitLine(createLineMapping(splitLengths, wrappedLinesPrefix), isVisible);
 }
 
-function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string): ILineMapping {
+function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string): LineBreakingData {
 	let sums: number[] = [];
 	for (let i = 0; i < breakingLengths.length; i++) {
 		sums[i] = (i > 0 ? sums[i - 1] : 0) + breakingLengths[i];
 	}
-	return new CharacterHardWrappingLineMapping(sums, wrappedLinesPrefix);
+	return new LineBreakingData(sums, wrappedLinesPrefix);
 }
 
 function createModel(text: string): ISimpleModel {

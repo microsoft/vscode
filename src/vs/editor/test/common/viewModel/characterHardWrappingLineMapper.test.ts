@@ -5,9 +5,9 @@
 import * as assert from 'assert';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { ILineMapperFactory, ILineMapping } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ILineMapperFactory, LineBreakingData } from 'vs/editor/common/viewModel/splitLinesCollection';
 
-function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): ILineMapping | null {
+function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): LineBreakingData | null {
 	// Create version of `annotatedText` with line break markers removed
 	let rawText = '';
 	let currentLineIndex = 0;
@@ -31,7 +31,7 @@ function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAf
 	if (mapper) {
 		let previousLineIndex = 0;
 		for (let i = 0, len = rawText.length; i < len; i++) {
-			let r = mapper.getOutputPositionOfInputOffset(i);
+			let r = LineBreakingData.getOutputPositionOfInputOffset(mapper.breakOffsets, i);
 			if (previousLineIndex !== r.outputLineIndex) {
 				previousLineIndex = r.outputLineIndex;
 				actualAnnotatedText += '|';
@@ -114,7 +114,7 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	test('issue #35162: wrappingIndent not consistently working', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('', '\t ');
 		let mapper = assertLineMapping(factory, 4, 24, '                t h i s |i s |a l |o n |g l |i n |e', WrappingIndent.Indent);
-		assert.equal(mapper!.getWrappedLinesIndent(), '                \t');
+		assert.equal(mapper!.wrappedLinesIndent, '                \t');
 	});
 
 	test('issue #75494: surrogate pairs', () => {
@@ -125,6 +125,6 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	test('CharacterHardWrappingLineMapper - WrappingIndent.DeepIndent', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('', '\t ');
 		let mapper = assertLineMapping(factory, 4, 26, '        W e A r e T e s t |i n g D e |e p I n d |e n t a t |i o n', WrappingIndent.DeepIndent);
-		assert.equal(mapper!.getWrappedLinesIndent(), '        \t\t');
+		assert.equal(mapper!.wrappedLinesIndent, '        \t\t');
 	});
 });

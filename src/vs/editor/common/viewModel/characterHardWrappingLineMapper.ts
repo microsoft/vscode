@@ -7,7 +7,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { ILineMapperFactory, ILineMapping, OutputPosition, ILineMappingComputer } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ILineMapperFactory, LineBreakingData, ILineMappingComputer } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -85,7 +85,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				requests.push(lineText);
 			},
 			finalize: () => {
-				let result: (ILineMapping | null)[] = [];
+				let result: (LineBreakingData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
 					result[i] = this._createLineMapping(requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 				}
@@ -94,7 +94,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		};
 	}
 
-	private _createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): ILineMapping | null {
+	private _createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
 		if (breakingColumn === -1) {
 			return null;
 		}
@@ -233,61 +233,6 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		// Add last segment
 		breakingOffsets[breakingOffsetsIndex++] = len;
 
-		return new CharacterHardWrappingLineMapping(breakingOffsets, wrappedTextIndent);
-	}
-}
-
-export class CharacterHardWrappingLineMapping implements ILineMapping {
-
-	private readonly _breakingOffsets: number[];
-	private readonly _wrappedLinesIndent: string;
-
-	constructor(breakingOffsets: number[], wrappedLinesIndent: string) {
-		this._breakingOffsets = breakingOffsets;
-		this._wrappedLinesIndent = wrappedLinesIndent;
-	}
-
-	public getOutputLineCount(): number {
-		return this._breakingOffsets.length;
-	}
-
-	public getWrappedLinesIndent(): string {
-		return this._wrappedLinesIndent;
-	}
-
-	public getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number {
-		if (outputLineIndex === 0) {
-			return outputOffset;
-		} else {
-			return this._breakingOffsets[outputLineIndex - 1] + outputOffset;
-		}
-	}
-
-	public getOutputPositionOfInputOffset(inputOffset: number): OutputPosition {
-		inputOffset = inputOffset | 0; //@perf
-		const breakingOffsets = this._breakingOffsets;
-
-		let low = 0;
-		let high = breakingOffsets.length - 1;
-		let mid = 0;
-		let midStop = 0;
-		let midStart = 0;
-
-		while (low <= high) {
-			mid = low + ((high - low) / 2) | 0;
-
-			midStop = breakingOffsets[mid];
-			midStart = mid > 0 ? breakingOffsets[mid - 1] : 0;
-
-			if (inputOffset < midStart) {
-				high = mid - 1;
-			} else if (inputOffset >= midStop) {
-				low = mid + 1;
-			} else {
-				break;
-			}
-		}
-
-		return new OutputPosition(mid, inputOffset - midStart);
+		return new LineBreakingData(breakingOffsets, wrappedTextIndent);
 	}
 }

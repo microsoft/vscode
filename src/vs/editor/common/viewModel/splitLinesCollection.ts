@@ -16,7 +16,6 @@ import { ITheme } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class OutputPosition {
-	_outputPositionBrand: void;
 	outputLineIndex: number;
 	outputOffset: number;
 
@@ -26,16 +25,49 @@ export class OutputPosition {
 	}
 }
 
-export interface ILineMapping {
-	getOutputLineCount(): number;
-	getWrappedLinesIndent(): string;
-	getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number;
-	getOutputPositionOfInputOffset(inputOffset: number): OutputPosition;
+export class LineBreakingData {
+	constructor(
+		public readonly breakOffsets: number[],
+		public readonly wrappedLinesIndent: string
+	) { }
+
+	public static getInputOffsetOfOutputPosition(breakOffsets: number[], outputLineIndex: number, outputOffset: number): number {
+		if (outputLineIndex === 0) {
+			return outputOffset;
+		} else {
+			return breakOffsets[outputLineIndex - 1] + outputOffset;
+		}
+	}
+
+	public static getOutputPositionOfInputOffset(breakOffsets: number[], inputOffset: number): OutputPosition {
+		let low = 0;
+		let high = breakOffsets.length - 1;
+		let mid = 0;
+		let midStop = 0;
+		let midStart = 0;
+
+		while (low <= high) {
+			mid = low + ((high - low) / 2) | 0;
+
+			midStop = breakOffsets[mid];
+			midStart = mid > 0 ? breakOffsets[mid - 1] : 0;
+
+			if (inputOffset < midStart) {
+				high = mid - 1;
+			} else if (inputOffset >= midStop) {
+				low = mid + 1;
+			} else {
+				break;
+			}
+		}
+
+		return new OutputPosition(mid, inputOffset - midStart);
+	}
 }
 
 export interface ILineMappingComputer {
 	addRequest(lineText: string): void;
-	finalize(): (ILineMapping | null)[];
+	finalize(): (LineBreakingData | null)[];
 }
 
 export interface ILineMapperFactory {
@@ -79,8 +111,8 @@ export interface IViewModelLinesCollection extends IDisposable {
 	createLineMappingComputer(): ILineMappingComputer;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
-	onModelLinesInserted(versionId: number, fromLineNumber: number, toLineNumber: number, linesMappings: (ILineMapping | null)[]): viewEvents.ViewLinesInsertedEvent | null;
-	onModelLineChanged(versionId: number, lineNumber: number, lineMapping: ILineMapping | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
+	onModelLinesInserted(versionId: number, fromLineNumber: number, toLineNumber: number, linesMappings: (LineBreakingData | null)[]): viewEvents.ViewLinesInsertedEvent | null;
+	onModelLineChanged(versionId: number, lineNumber: number, lineMapping: LineBreakingData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
 	acceptVersionId(versionId: number): void;
 
 	getViewLineCount(): number;
@@ -406,7 +438,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return new viewEvents.ViewLinesDeletedEvent(outputFromLineNumber, outputToLineNumber);
 	}
 
-	public onModelLinesInserted(versionId: number, fromLineNumber: number, _toLineNumber: number, linesMappings: (ILineMapping | null)[]): viewEvents.ViewLinesInsertedEvent | null {
+	public onModelLinesInserted(versionId: number, fromLineNumber: number, _toLineNumber: number, linesMappings: (LineBreakingData | null)[]): viewEvents.ViewLinesInsertedEvent | null {
 		if (versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
@@ -446,7 +478,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1);
 	}
 
-	public onModelLineChanged(versionId: number, lineNumber: number, lineMapping: ILineMapping | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
+	public onModelLineChanged(versionId: number, lineNumber: number, lineMapping: LineBreakingData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
 		if (versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
@@ -1027,18 +1059,13 @@ class InvisibleIdentitySplitLine implements ISplitLine {
 
 export class SplitLine implements ISplitLine {
 
-	private readonly positionMapper: ILineMapping;
-	private readonly outputLineCount: number;
-
-	private readonly wrappedIndent: string;
-	private readonly wrappedIndentLength: number;
+	private readonly _breakOffsets: number[];
+	private readonly _wrappedIndent: string;
 	private _isVisible: boolean;
 
-	constructor(positionMapper: ILineMapping, isVisible: boolean) {
-		this.positionMapper = positionMapper;
-		this.wrappedIndent = this.positionMapper.getWrappedLinesIndent();
-		this.wrappedIndentLength = this.wrappedIndent.length;
-		this.outputLineCount = this.positionMapper.getOutputLineCount();
+	constructor(lineBreaking: LineBreakingData, isVisible: boolean) {
+		this._breakOffsets = lineBreaking.breakOffsets;
+		this._wrappedIndent = lineBreaking.wrappedLinesIndent;
 		this._isVisible = isVisible;
 	}
 
@@ -1055,18 +1082,18 @@ export class SplitLine implements ISplitLine {
 		if (!this._isVisible) {
 			return 0;
 		}
-		return this.outputLineCount;
+		return this._breakOffsets.length;
 	}
 
 	private getInputStartOffsetOfOutputLineIndex(outputLineIndex: number): number {
-		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex, 0);
+		return LineBreakingData.getInputOffsetOfOutputPosition(this._breakOffsets, outputLineIndex, 0);
 	}
 
 	private getInputEndOffsetOfOutputLineIndex(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
-		if (outputLineIndex + 1 === this.outputLineCount) {
+		if (outputLineIndex + 1 === this._breakOffsets.length) {
 			return model.getLineMaxColumn(modelLineNumber) - 1;
 		}
-		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex + 1, 0);
+		return LineBreakingData.getInputOffsetOfOutputPosition(this._breakOffsets, outputLineIndex + 1, 0);
 	}
 
 	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string {
@@ -1083,7 +1110,7 @@ export class SplitLine implements ISplitLine {
 		});
 
 		if (outputLineIndex > 0) {
-			r = this.wrappedIndent + r;
+			r = this._wrappedIndent + r;
 		}
 
 		return r;
@@ -1098,7 +1125,7 @@ export class SplitLine implements ISplitLine {
 		let r = endOffset - startOffset;
 
 		if (outputLineIndex > 0) {
-			r = this.wrappedIndent.length + r;
+			r = this._wrappedIndent.length + r;
 		}
 
 		return r;
@@ -1109,7 +1136,7 @@ export class SplitLine implements ISplitLine {
 			throw new Error('Not supported');
 		}
 		if (outputLineIndex > 0) {
-			return this.wrappedIndentLength + 1;
+			return this._wrappedIndent.length + 1;
 		}
 		return 1;
 	}
@@ -1137,17 +1164,17 @@ export class SplitLine implements ISplitLine {
 		});
 
 		if (outputLineIndex > 0) {
-			lineContent = this.wrappedIndent + lineContent;
+			lineContent = this._wrappedIndent + lineContent;
 		}
 
-		let minColumn = (outputLineIndex > 0 ? this.wrappedIndentLength + 1 : 1);
+		let minColumn = (outputLineIndex > 0 ? this._wrappedIndent.length + 1 : 1);
 		let maxColumn = lineContent.length + 1;
 
 		let continuesWithWrappedLine = (outputLineIndex + 1 < this.getViewLineCount());
 
 		let deltaStartIndex = 0;
 		if (outputLineIndex > 0) {
-			deltaStartIndex = this.wrappedIndentLength;
+			deltaStartIndex = this._wrappedIndent.length;
 		}
 		let lineTokens = model.getLineTokens(modelLineNumber);
 
@@ -1181,25 +1208,25 @@ export class SplitLine implements ISplitLine {
 		}
 		let adjustedColumn = outputColumn - 1;
 		if (outputLineIndex > 0) {
-			if (adjustedColumn < this.wrappedIndentLength) {
+			if (adjustedColumn < this._wrappedIndent.length) {
 				adjustedColumn = 0;
 			} else {
-				adjustedColumn -= this.wrappedIndentLength;
+				adjustedColumn -= this._wrappedIndent.length;
 			}
 		}
-		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex, adjustedColumn) + 1;
+		return LineBreakingData.getInputOffsetOfOutputPosition(this._breakOffsets, outputLineIndex, adjustedColumn) + 1;
 	}
 
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
-		let r = this.positionMapper.getOutputPositionOfInputOffset(inputColumn - 1);
+		let r = LineBreakingData.getOutputPositionOfInputOffset(this._breakOffsets, inputColumn - 1);
 		let outputLineIndex = r.outputLineIndex;
 		let outputColumn = r.outputOffset + 1;
 
 		if (outputLineIndex > 0) {
-			outputColumn += this.wrappedIndentLength;
+			outputColumn += this._wrappedIndent.length;
 		}
 
 		//		console.log('in -> out ' + deltaLineNumber + ',' + inputColumn + ' ===> ' + (deltaLineNumber+outputLineIndex) + ',' + outputColumn);
@@ -1210,12 +1237,12 @@ export class SplitLine implements ISplitLine {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
-		const r = this.positionMapper.getOutputPositionOfInputOffset(inputColumn - 1);
+		const r = LineBreakingData.getOutputPositionOfInputOffset(this._breakOffsets, inputColumn - 1);
 		return (deltaLineNumber + r.outputLineIndex);
 	}
 }
 
-function createSplitLine(lineMapping: ILineMapping | null, isVisible: boolean): ISplitLine {
+function createSplitLine(lineMapping: LineBreakingData | null, isVisible: boolean): ISplitLine {
 	if (lineMapping === null) {
 		// No mapping needed
 		if (isVisible) {
@@ -1332,11 +1359,11 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		return new viewEvents.ViewLinesDeletedEvent(fromLineNumber, toLineNumber);
 	}
 
-	public onModelLinesInserted(_versionId: number, fromLineNumber: number, toLineNumber: number, linesMappings: (ILineMapping | null)[]): viewEvents.ViewLinesInsertedEvent | null {
+	public onModelLinesInserted(_versionId: number, fromLineNumber: number, toLineNumber: number, linesMappings: (LineBreakingData | null)[]): viewEvents.ViewLinesInsertedEvent | null {
 		return new viewEvents.ViewLinesInsertedEvent(fromLineNumber, toLineNumber);
 	}
 
-	public onModelLineChanged(_versionId: number, lineNumber: number, lineMapping: ILineMapping | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
+	public onModelLineChanged(_versionId: number, lineNumber: number, lineMapping: LineBreakingData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
 		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, lineNumber), null, null];
 	}
 
