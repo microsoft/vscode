@@ -411,7 +411,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			},
 
 			updateStyles: () => {
-				titleLabel.style.color = $this.titleForegroundColor ? $this.getColor($this.titleForegroundColor) : null;
+				titleLabel.style.color = $this.titleForegroundColor ? $this.getColor($this.titleForegroundColor) || '' : '';
 			}
 		};
 	}
