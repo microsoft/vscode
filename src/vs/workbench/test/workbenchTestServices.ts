@@ -905,6 +905,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 	activeControl!: IVisibleEditor;
 	activeTextEditorWidget: any;
+	activeTextEditorMode: any;
 	activeEditor!: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
 	mostRecentlyActiveEditors: ReadonlyArray<IEditorIdentifier> = [];

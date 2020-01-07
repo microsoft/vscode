@@ -90,7 +90,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 		const border = theme.getColor(inputBorder);
 
 		this._inputField.style.backgroundColor = background ? background.toString() : '';
-		this._inputField.style.color = foreground ? foreground.toString() : null;
+		this._inputField.style.color = foreground ? foreground.toString() : '';
 
 		this._inputField.style.borderWidth = border ? '1px' : '0px';
 		this._inputField.style.borderStyle = border ? 'solid' : 'none';

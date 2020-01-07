@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/c9c955af17ed0c86ebce32e0f26c72f0a2925937",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/b7ef0941e38d56292d19ee7706a558dbff6c3a35",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js.jsx",
 	"patterns": [
@@ -1825,7 +1825,7 @@
 		},
 		"access-modifier": {
 			"name": "storage.modifier.js.jsx",
-			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(abstract|public|protected|private|readonly|static)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(abstract|public|protected|private|readonly|static|declare)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"property-accessor": {
 			"name": "storage.type.property.js.jsx",
@@ -2740,6 +2740,39 @@
 									"name": "storage.modifier.async.js.jsx"
 								},
 								"2": {
+									"name": "meta.brace.round.js.jsx"
+								}
+							},
+							"end": "\\)",
+							"endCaptures": {
+								"0": {
+									"name": "meta.brace.round.js.jsx"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#expression-inside-possibly-arrow-parens"
+								}
+							]
+						},
+						{
+							"begin": "(?<=:)\\s*(async)?\\s*(?=\\<\\s*$)",
+							"beginCaptures": {
+								"1": {
+									"name": "storage.modifier.async.js.jsx"
+								}
+							},
+							"end": "(?<=\\>)",
+							"patterns": [
+								{
+									"include": "#type-parameters"
+								}
+							]
+						},
+						{
+							"begin": "(?<=\\>)\\s*(\\()(?=\\s*((([\\{\\[]\\s*)?$)|((\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})\\s*((:\\s*\\{?$)|((\\s*([^<>\\(\\)\\{\\}]|\\<([^<>]|\\<[^<>]+\\>)+\\>|\\([^\\(\\)]+\\)|\\{[^\\{\\}]+\\})+\\s*)?=\\s*)))|((\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\])\\s*((:\\s*\\[?$)|((\\s*([^<>\\(\\)\\{\\}]|\\<([^<>]|\\<[^<>]+\\>)+\\>|\\([^\\(\\)]+\\)|\\{[^\\{\\}]+\\})+\\s*)?=\\s*)))))",
+							"beginCaptures": {
+								"1": {
 									"name": "meta.brace.round.js.jsx"
 								}
 							},
