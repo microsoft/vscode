@@ -17,8 +17,12 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
 
-export class RenameInputField implements IContentWidget, IDisposable {
+export interface RenameInputFieldResult {
+	newName: string;
+	wantsPreview?: boolean;
+}
 
+export class RenameInputField implements IContentWidget, IDisposable {
 
 	private _position?: Position;
 	private _domNode?: HTMLElement;
@@ -111,12 +115,12 @@ export class RenameInputField implements IContentWidget, IDisposable {
 			: null;
 	}
 
-	private _currentAcceptInput: (() => void) | null = null;
-	private _currentCancelInput: ((focusEditor: boolean) => void) | null = null;
+	private _currentAcceptInput?: (wantsPreview: boolean) => void;
+	private _currentCancelInput?: (focusEditor: boolean) => void;
 
-	acceptInput(): void {
+	acceptInput(wantsPreview: boolean): void {
 		if (this._currentAcceptInput) {
-			this._currentAcceptInput();
+			this._currentAcceptInput(wantsPreview);
 		}
 	}
 
@@ -126,7 +130,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 		}
 	}
 
-	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<string | boolean> {
+	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<RenameInputFieldResult | boolean> {
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
 		this._inputField!.value = value;
@@ -136,25 +140,25 @@ export class RenameInputField implements IContentWidget, IDisposable {
 
 		const disposeOnDone = new DisposableStore();
 
-		return new Promise<string | boolean>(resolve => {
+		return new Promise<RenameInputFieldResult | boolean>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
-				this._currentAcceptInput = null;
-				this._currentCancelInput = null;
+				this._currentAcceptInput = undefined;
+				this._currentCancelInput = undefined;
 				resolve(focusEditor);
 				return true;
 			};
 
-			this._currentAcceptInput = () => {
+			this._currentAcceptInput = (wantsPreview) => {
 				if (this._inputField!.value.trim().length === 0 || this._inputField!.value === value) {
 					// empty or whitespace only or not changed
 					this.cancelInput(true);
 					return;
 				}
 
-				this._currentAcceptInput = null;
-				this._currentCancelInput = null;
-				resolve(this._inputField!.value);
+				this._currentAcceptInput = undefined;
+				this._currentCancelInput = undefined;
+				resolve({ newName: this._inputField!.value, wantsPreview });
 			};
 
 			let onCursorChanged = () => {

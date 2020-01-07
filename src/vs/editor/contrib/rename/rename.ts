@@ -176,11 +176,11 @@ class RenameController implements IEditorContribution {
 			selectionEnd = Math.min(loc.range.endColumn, selection.endColumn) - loc.range.startColumn;
 		}
 
-		const newNameOrFocusFlag = await this._renameInputField.getValue().getInput(loc.range, loc.text, selectionStart, selectionEnd);
+		const inputFieldResult = await this._renameInputField.getValue().getInput(loc.range, loc.text, selectionStart, selectionEnd);
 
-
-		if (typeof newNameOrFocusFlag === 'boolean') {
-			if (newNameOrFocusFlag) {
+		// no result, only hint to focus the editor or not
+		if (typeof inputFieldResult === 'boolean') {
+			if (inputFieldResult) {
 				this.editor.focus();
 			}
 			return undefined;
@@ -188,7 +188,7 @@ class RenameController implements IEditorContribution {
 
 		this.editor.focus();
 
-		const renameOperation = raceCancellation(skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], this._cts.token), this._cts.token).then(async renameResult => {
+		const renameOperation = raceCancellation(skeleton.provideRenameEdits(inputFieldResult.newName, 0, [], this._cts.token), this._cts.token).then(async renameResult => {
 
 			if (!renameResult || !this.editor.hasModel()) {
 				return;
@@ -199,9 +199,12 @@ class RenameController implements IEditorContribution {
 				return;
 			}
 
-			this._bulkEditService.apply(renameResult, { editor: this.editor }).then(result => {
+			this._bulkEditService.apply(renameResult, {
+				editor: this.editor,
+				noPreview: !inputFieldResult.wantsPreview
+			}).then(result => {
 				if (result.ariaSummary) {
-					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, newNameOrFocusFlag, result.ariaSummary));
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));
 				}
 			}).catch(err => {
 				this._notificationService.error(nls.localize('rename.failedApply', "Rename failed to apply edits"));
@@ -218,8 +221,8 @@ class RenameController implements IEditorContribution {
 
 	}
 
-	acceptRenameInput(): void {
-		this._renameInputField.getValue().acceptInput();
+	acceptRenameInput(wantsPreview: boolean): void {
+		this._renameInputField.getValue().acceptInput(wantsPreview);
 	}
 
 	cancelRenameInput(): void {
@@ -286,11 +289,22 @@ const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameC
 registerEditorCommand(new RenameCommand({
 	id: 'acceptRenameInput',
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
-	handler: x => x.acceptRenameInput(),
+	handler: x => x.acceptRenameInput(false),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Enter
+	}
+}));
+
+registerEditorCommand(new RenameCommand({
+	id: 'acceptRenameInputWithPreview',
+	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
+	handler: x => x.acceptRenameInput(true),
+	kbOpts: {
+		weight: KeybindingWeight.EditorContrib + 99,
+		kbExpr: EditorContextKeys.focus,
+		primary: KeyMod.Shift + KeyCode.Enter
 	}
 }));
 
