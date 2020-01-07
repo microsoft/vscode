@@ -144,7 +144,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		let breakingLengths: number[] = []; // The length of each broken-up line text
 		let breakingLengthsIndex: number = 0; // The count of breaks already done
 		let visibleColumn = 0; // Visible column since the beginning of the current line
-		let niceBreakOffset = -1; // Last index of a character that indicates a break should happen before it (more desirable)
+		let niceBreakOffset = 0; // Last index of a character that indicates a break should happen before it (more desirable)
 		let niceBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `niceBreakOffset`
 		const len = lineText.length;
 
@@ -156,11 +156,9 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			if (strings.isLowSurrogate(charCode)) {
 				// A surrogate pair must always be considered as a single unit, so it is never to be broken
 
-				// Advance visibleColumn
+				// Advance visibleColumn & niceBreakVisibleColumn
 				visibleColumn = visibleColumn + 1;
-
-				if (niceBreakOffset !== -1) {
-					// Advance niceBreakVisibleColumn
+				if (niceBreakOffset !== 0) {
 					niceBreakVisibleColumn = niceBreakVisibleColumn + 1;
 				}
 				continue;
@@ -168,17 +166,14 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 			const charCodeClass = classifier.get(charCode);
 
-			if (charCodeClass === CharacterClass.BREAK_BEFORE) {
+			if (
+				(charCodeClass === CharacterClass.BREAK_BEFORE)
+				|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i > 0 && classifier.get(lineText.charCodeAt(i - 1)) !== CharacterClass.BREAK_BEFORE)
+			) {
 				// This is a character that indicates that a break should happen before it
+				// (or) CJK breaking : before break : Kinsoku Shori : Don't break after a leading character, like an open bracket
 				// Since we are certain the character before `i` fits, there's no extra checking needed,
 				// just mark it as a nice breaking opportunity
-				niceBreakOffset = i;
-				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
-			}
-
-			// CJK breaking : before break
-			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i > 0 && classifier.get(lineText.charCodeAt(i - 1)) !== CharacterClass.BREAK_BEFORE) {
-				// Kinsoku Shori: Don't break after a leading character, like an open bracket
 				niceBreakOffset = i;
 				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 			}
@@ -195,7 +190,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				//  - otherwise, break before obtrusiveBreakLastOffset if it exists (and re-establish a correct visibleColumn by using obtrusiveBreakVisibleColumn + charAt(i))
 				//  - otherwise, break before i (and re-establish a correct visibleColumn by charAt(i))
 
-				if (niceBreakOffset !== -1 && niceBreakVisibleColumn <= breakingColumn) {
+				if (niceBreakOffset !== 0 && niceBreakVisibleColumn <= breakingColumn) {
 
 					// We will break before `niceBreakLastOffset`
 					breakingLengths[breakingLengthsIndex++] = niceBreakOffset - lastBreakingOffset;
@@ -215,25 +210,22 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				visibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(visibleColumn, tabSize, charCodeIsTab, charColumnSize);
 
 				// Reset markers
-				niceBreakOffset = -1;
+				niceBreakOffset = 0;
 			}
 
 			// At this point, there is a certainty that the character at `i` fits on the current line
 
-			if (niceBreakOffset !== -1) {
+			if (niceBreakOffset !== 0) {
 				// Advance niceBreakVisibleColumn
 				niceBreakVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(niceBreakVisibleColumn, tabSize, charCodeIsTab, charColumnSize);
 			}
 
-			if (charCodeClass === CharacterClass.BREAK_AFTER && (hardWrappingIndent === WrappingIndent.None || i >= firstNonWhitespaceIndex)) {
+			if (
+				(charCodeClass === CharacterClass.BREAK_AFTER && (hardWrappingIndent === WrappingIndent.None || i >= firstNonWhitespaceIndex))
+				|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i + 1 < len && classifier.get(lineText.charCodeAt(i + 1)) !== CharacterClass.BREAK_AFTER)
+			) {
 				// This is a character that indicates that a break should happen after it
-				niceBreakOffset = i + 1;
-				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
-			}
-
-			// CJK breaking : after break
-			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i + 1 < len && classifier.get(lineText.charCodeAt(i + 1)) !== CharacterClass.BREAK_AFTER) {
-				// Kinsoku Shori: Don't break before a trailing character, like a period
+				// (or) CJK breaking : after break : Kinsoku Shori : Don't break before a trailing character, like a period
 				niceBreakOffset = i + 1;
 				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 			}
