@@ -38,19 +38,23 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 	}
 
 	public get(charCode: number): CharacterClass {
-		// Initialize CharacterClass.BREAK_IDEOGRAPHIC for these Unicode ranges:
-		// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
-		// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
-		// 3. Hiragana and Katakana (0x3040 -- 0x30FF)
-		if (
-			(charCode >= 0x3040 && charCode <= 0x30FF)
-			|| (charCode >= 0x3400 && charCode <= 0x4DBF)
-			|| (charCode >= 0x4E00 && charCode <= 0x9FFF)
-		) {
-			return CharacterClass.BREAK_IDEOGRAPHIC;
-		}
+		if (charCode >= 0 && charCode < 256) {
+			return <CharacterClass>this._asciiMap[charCode];
+		} else {
+			// Initialize CharacterClass.BREAK_IDEOGRAPHIC for these Unicode ranges:
+			// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
+			// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
+			// 3. Hiragana and Katakana (0x3040 -- 0x30FF)
+			if (
+				(charCode >= 0x3040 && charCode <= 0x30FF)
+				|| (charCode >= 0x3400 && charCode <= 0x4DBF)
+				|| (charCode >= 0x4E00 && charCode <= 0x9FFF)
+			) {
+				return CharacterClass.BREAK_IDEOGRAPHIC;
+			}
 
-		return super.get(charCode);
+			return <CharacterClass>(this._map.get(charCode) || this._defaultValue);
+		}
 	}
 }
 
