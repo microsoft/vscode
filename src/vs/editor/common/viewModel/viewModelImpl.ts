@@ -196,8 +196,26 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				const changes = e.changes;
 				const versionId = e.versionId;
 
-				for (let j = 0, lenJ = changes.length; j < lenJ; j++) {
-					const change = changes[j];
+				// Do a first pass to compute line mappings, and a second pass to actually interpret them
+				const lineMappingComputer = this.lines.createLineMappingComputer();
+				for (const change of changes) {
+					switch (change.changeType) {
+						case textModelEvents.RawContentChangedType.LinesInserted: {
+							for (const line of change.detail) {
+								lineMappingComputer.addRequest(line);
+							}
+							break;
+						}
+						case textModelEvents.RawContentChangedType.LineChanged: {
+							lineMappingComputer.addRequest(change.detail);
+							break;
+						}
+					}
+				}
+				const lineMappings = lineMappingComputer.finalize();
+				let lineMappingsOffset = 0;
+
+				for (const change of changes) {
 
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.Flush: {
@@ -218,7 +236,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LinesInserted: {
-							const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, change.detail);
+							const insertedLinesMappings = lineMappings.slice(lineMappingsOffset, lineMappingsOffset + change.detail.length);
+							lineMappingsOffset += change.detail.length;
+
+							const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLinesMappings);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emit(linesInsertedEvent);
 								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
@@ -227,7 +248,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this.lines.onModelLineChanged(versionId, change.lineNumber, change.detail);
+							const changedLineMapping = lineMappings[lineMappingsOffset];
+							lineMappingsOffset++;
+
+							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this.lines.onModelLineChanged(versionId, change.lineNumber, changedLineMapping);
 							hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
 							if (linesChangedEvent) {
 								eventsCollector.emit(linesChangedEvent);

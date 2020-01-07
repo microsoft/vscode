@@ -21,7 +21,10 @@ function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAf
 		}
 	}
 
-	const mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 2, wrappingIndent);
+	const lineMappingComputer = factory.createLineMappingComputer(tabSize, breakAfter, 2, wrappingIndent);
+	lineMappingComputer.addRequest(rawText);
+	const lineMappings = lineMappingComputer.finalize();
+	const mapper = lineMappings[0];
 
 	// Insert line break markers again, according to algorithm
 	let actualAnnotatedText = '';

@@ -9,7 +9,7 @@ import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { toUint32Array } from 'vs/base/common/uint';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ILineMapperFactory, ILineMapping, OutputPosition, ILineMappingComputer } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -82,7 +82,23 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		return currentVisibleColumn + columnSize;
 	}
 
-	public createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): ILineMapping | null {
+	public createLineMappingComputer(tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineMappingComputer {
+		let requests: string[] = [];
+		return {
+			addRequest: (lineText: string) => {
+				requests.push(lineText);
+			},
+			finalize: () => {
+				let result: (ILineMapping | null)[] = [];
+				for (let i = 0, len = requests.length; i < len; i++) {
+					result[i] = this._createLineMapping(requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
+				}
+				return result;
+			}
+		};
+	}
+
+	private _createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): ILineMapping | null {
 		if (breakingColumn === -1) {
 			return null;
 		}

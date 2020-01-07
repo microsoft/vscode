@@ -33,8 +33,13 @@ export interface ILineMapping {
 	getOutputPositionOfInputOffset(inputOffset: number): OutputPosition;
 }
 
+export interface ILineMappingComputer {
+	addRequest(lineText: string): void;
+	finalize(): (ILineMapping | null)[];
+}
+
 export interface ILineMapperFactory {
-	createLineMapping(lineText: string, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineMapping | null;
+	createLineMappingComputer(tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineMappingComputer;
 }
 
 export interface ISimpleModel {
@@ -71,10 +76,11 @@ export interface IViewModelLinesCollection extends IDisposable {
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: Range[]): boolean;
 
+	createLineMappingComputer(): ILineMappingComputer;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
-	onModelLinesInserted(versionId: number, fromLineNumber: number, toLineNumber: number, text: string[]): viewEvents.ViewLinesInsertedEvent | null;
-	onModelLineChanged(versionId: number, lineNumber: number, newText: string): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
+	onModelLinesInserted(versionId: number, fromLineNumber: number, toLineNumber: number, linesMappings: (ILineMapping | null)[]): viewEvents.ViewLinesInsertedEvent | null;
+	onModelLineChanged(versionId: number, lineNumber: number, lineMapping: ILineMapping | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
 	acceptVersionId(versionId: number): void;
 
 	getViewLineCount(): number;
@@ -201,7 +207,13 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		}
 
 		let linesContent = this.model.getLinesContent();
-		let lineCount = linesContent.length;
+		const lineCount = linesContent.length;
+		const lineMappingComputer = this.linePositionMapperFactory.createLineMappingComputer(this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent);
+		for (let i = 0; i < lineCount; i++) {
+			lineMappingComputer.addRequest(linesContent[i]);
+		}
+		const lineMappings = lineMappingComputer.finalize();
+
 		let values = new Uint32Array(lineCount);
 
 		let hiddenAreas = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
@@ -220,7 +232,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			}
 
 			let isInHiddenArea = (lineNumber >= hiddenAreaStart && lineNumber <= hiddenAreaEnd);
-			let line = createSplitLine(this.linePositionMapperFactory, linesContent[i], this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent, !isInHiddenArea);
+			let line = createSplitLine(lineMappings[i], !isInHiddenArea);
 			values[i] = line.getViewLineCount();
 			this.lines[i] = line;
 		}
@@ -370,6 +382,10 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return true;
 	}
 
+	public createLineMappingComputer(): ILineMappingComputer {
+		return this.linePositionMapperFactory.createLineMappingComputer(this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent);
+	}
+
 	public onModelFlushed(): void {
 		this._constructLines(true);
 	}
@@ -390,7 +406,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return new viewEvents.ViewLinesDeletedEvent(outputFromLineNumber, outputToLineNumber);
 	}
 
-	public onModelLinesInserted(versionId: number, fromLineNumber: number, _toLineNumber: number, text: string[]): viewEvents.ViewLinesInsertedEvent | null {
+	public onModelLinesInserted(versionId: number, fromLineNumber: number, _toLineNumber: number, linesMappings: (ILineMapping | null)[]): viewEvents.ViewLinesInsertedEvent | null {
 		if (versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
@@ -411,10 +427,10 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		let totalOutputLineCount = 0;
 		let insertLines: ISplitLine[] = [];
-		let insertPrefixSumValues = new Uint32Array(text.length);
+		let insertPrefixSumValues = new Uint32Array(linesMappings.length);
 
-		for (let i = 0, len = text.length; i < len; i++) {
-			let line = createSplitLine(this.linePositionMapperFactory, text[i], this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent, !isInHiddenArea);
+		for (let i = 0, len = linesMappings.length; i < len; i++) {
+			let line = createSplitLine(linesMappings[i], !isInHiddenArea);
 			insertLines.push(line);
 
 			let outputLineCount = line.getViewLineCount();
@@ -430,7 +446,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1);
 	}
 
-	public onModelLineChanged(versionId: number, lineNumber: number, newText: string): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
+	public onModelLineChanged(versionId: number, lineNumber: number, lineMapping: ILineMapping | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
 		if (versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
@@ -441,7 +457,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		let oldOutputLineCount = this.lines[lineIndex].getViewLineCount();
 		let isVisible = this.lines[lineIndex].isVisible();
-		let line = createSplitLine(this.linePositionMapperFactory, newText, this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent, isVisible);
+		let line = createSplitLine(lineMapping, isVisible);
 		this.lines[lineIndex] = line;
 		let newOutputLineCount = this.lines[lineIndex].getViewLineCount();
 
@@ -1199,16 +1215,15 @@ export class SplitLine implements ISplitLine {
 	}
 }
 
-function createSplitLine(linePositionMapperFactory: ILineMapperFactory, text: string, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, isVisible: boolean): ISplitLine {
-	let positionMapper = linePositionMapperFactory.createLineMapping(text, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
-	if (positionMapper === null) {
+function createSplitLine(lineMapping: ILineMapping | null, isVisible: boolean): ISplitLine {
+	if (lineMapping === null) {
 		// No mapping needed
 		if (isVisible) {
 			return VisibleIdentitySplitLine.INSTANCE;
 		}
 		return InvisibleIdentitySplitLine.INSTANCE;
 	} else {
-		return new SplitLine(positionMapper, isVisible);
+		return new SplitLine(lineMapping, isVisible);
 	}
 }
 
@@ -1298,6 +1313,18 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		return false;
 	}
 
+	public createLineMappingComputer(): ILineMappingComputer {
+		let result: null[] = [];
+		return {
+			addRequest: (lineText: string) => {
+				result.push(null);
+			},
+			finalize: () => {
+				return result;
+			}
+		};
+	}
+
 	public onModelFlushed(): void {
 	}
 
@@ -1305,11 +1332,11 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		return new viewEvents.ViewLinesDeletedEvent(fromLineNumber, toLineNumber);
 	}
 
-	public onModelLinesInserted(_versionId: number, fromLineNumber: number, toLineNumber: number, _text: string[]): viewEvents.ViewLinesInsertedEvent | null {
+	public onModelLinesInserted(_versionId: number, fromLineNumber: number, toLineNumber: number, linesMappings: (ILineMapping | null)[]): viewEvents.ViewLinesInsertedEvent | null {
 		return new viewEvents.ViewLinesInsertedEvent(fromLineNumber, toLineNumber);
 	}
 
-	public onModelLineChanged(_versionId: number, lineNumber: number, _newText: string): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
+	public onModelLineChanged(_versionId: number, lineNumber: number, lineMapping: ILineMapping | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
 		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, lineNumber), null, null];
 	}
 
