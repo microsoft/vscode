@@ -7,8 +7,6 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { toUint32Array } from 'vs/base/common/uint';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ILineMapperFactory, ILineMapping, OutputPosition, ILineMappingComputer } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 const enum CharacterClass {
@@ -140,9 +138,8 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		}
 
 		const classifier = this.classifier;
-		let lastBreakingOffset = 0; // Last 0-based offset in the lineText at which a break happened
-		let breakingLengths: number[] = []; // The length of each broken-up line text
-		let breakingLengthsIndex: number = 0; // The count of breaks already done
+		let breakingOffsets: number[] = []; // The offset where a break occurs
+		let breakingOffsetsIndex: number = 0; // The count of breaks already done
 		let visibleColumn = 0; // Visible column since the beginning of the current line
 		let niceBreakOffset = 0; // Last index of a character that indicates a break should happen before it (more desirable)
 		let niceBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `niceBreakOffset`
@@ -193,15 +190,13 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				if (niceBreakOffset !== 0 && niceBreakVisibleColumn <= breakingColumn) {
 
 					// We will break before `niceBreakLastOffset`
-					breakingLengths[breakingLengthsIndex++] = niceBreakOffset - lastBreakingOffset;
-					lastBreakingOffset = niceBreakOffset;
+					breakingOffsets[breakingOffsetsIndex++] = niceBreakOffset;
 					visibleColumn = niceBreakVisibleColumn;
 
 				} else {
 
 					// We will break before `i`
-					breakingLengths[breakingLengthsIndex++] = i - lastBreakingOffset;
-					lastBreakingOffset = i;
+					breakingOffsets[breakingOffsetsIndex++] = i;
 					visibleColumn = wrappedTextIndentVisibleColumn;
 
 				}
@@ -231,32 +226,29 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			}
 		}
 
-		if (breakingLengthsIndex === 0) {
+		if (breakingOffsetsIndex === 0) {
 			return null;
 		}
 
 		// Add last segment
-		breakingLengths[breakingLengthsIndex++] = len - lastBreakingOffset;
+		breakingOffsets[breakingOffsetsIndex++] = len;
 
-		return new CharacterHardWrappingLineMapping(
-			new PrefixSumComputer(toUint32Array(breakingLengths)),
-			wrappedTextIndent
-		);
+		return new CharacterHardWrappingLineMapping(breakingOffsets, wrappedTextIndent);
 	}
 }
 
 export class CharacterHardWrappingLineMapping implements ILineMapping {
 
-	private readonly _prefixSums: PrefixSumComputer;
+	private readonly _breakingOffsets: number[];
 	private readonly _wrappedLinesIndent: string;
 
-	constructor(prefixSums: PrefixSumComputer, wrappedLinesIndent: string) {
-		this._prefixSums = prefixSums;
+	constructor(breakingOffsets: number[], wrappedLinesIndent: string) {
+		this._breakingOffsets = breakingOffsets;
 		this._wrappedLinesIndent = wrappedLinesIndent;
 	}
 
 	public getOutputLineCount(): number {
-		return this._prefixSums.getCount();
+		return this._breakingOffsets.length;
 	}
 
 	public getWrappedLinesIndent(): string {
@@ -267,12 +259,35 @@ export class CharacterHardWrappingLineMapping implements ILineMapping {
 		if (outputLineIndex === 0) {
 			return outputOffset;
 		} else {
-			return this._prefixSums.getAccumulatedValue(outputLineIndex - 1) + outputOffset;
+			return this._breakingOffsets[outputLineIndex - 1] + outputOffset;
 		}
 	}
 
 	public getOutputPositionOfInputOffset(inputOffset: number): OutputPosition {
-		let r = this._prefixSums.getIndexOf(inputOffset);
-		return new OutputPosition(r.index, r.remainder);
+		inputOffset = inputOffset | 0; //@perf
+		const breakingOffsets = this._breakingOffsets;
+
+		let low = 0;
+		let high = breakingOffsets.length - 1;
+		let mid = 0;
+		let midStop = 0;
+		let midStart = 0;
+
+		while (low <= high) {
+			mid = low + ((high - low) / 2) | 0;
+
+			midStop = breakingOffsets[mid];
+			midStart = mid > 0 ? breakingOffsets[mid - 1] : 0;
+
+			if (inputOffset < midStart) {
+				high = mid - 1;
+			} else if (inputOffset >= midStop) {
+				low = mid + 1;
+			} else {
+				break;
+			}
+		}
+
+		return new OutputPosition(mid, inputOffset - midStart);
 	}
 }
