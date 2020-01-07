@@ -30,6 +30,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IdleValue, raceCancellation } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class RenameSkeleton {
 
@@ -114,6 +115,7 @@ class RenameController implements IEditorContribution {
 		@IEditorProgressService private readonly _progressService: IEditorProgressService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._renameInputField = this._dispoableStore.add(new IdleValue(() => this._dispoableStore.add(new RenameInputField(this.editor, this._themeService, this._contextKeyService))));
 	}
@@ -197,16 +199,18 @@ class RenameController implements IEditorContribution {
 				return;
 			}
 
-			const editResult = await this._bulkEditService.apply(renameResult, { editor: this.editor });
-
-			// alert
-			if (editResult.ariaSummary) {
-				alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, newNameOrFocusFlag, editResult.ariaSummary));
-			}
+			this._bulkEditService.apply(renameResult, { editor: this.editor }).then(result => {
+				if (result.ariaSummary) {
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, newNameOrFocusFlag, result.ariaSummary));
+				}
+			}).catch(err => {
+				this._notificationService.error(nls.localize('rename.failedApply', "Rename failed to apply edits"));
+				this._logService.error(err);
+			});
 
 		}, err => {
-			this._notificationService.error(nls.localize('rename.failed', "Rename failed to execute."));
-			return Promise.reject(err);
+			this._notificationService.error(nls.localize('rename.failed', "Rename failed to compute edits"));
+			this._logService.error(err);
 		});
 
 		this._progressService.showWhile(renameOperation, 250);
