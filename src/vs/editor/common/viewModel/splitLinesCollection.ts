@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as arrays from 'vs/base/common/arrays';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
@@ -10,7 +11,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -43,13 +44,12 @@ export class LineBreakingData {
 		let low = 0;
 		let high = breakOffsets.length - 1;
 		let mid = 0;
-		let midStop = 0;
 		let midStart = 0;
 
 		while (low <= high) {
 			mid = low + ((high - low) / 2) | 0;
 
-			midStop = breakOffsets[mid];
+			const midStop = breakOffsets[mid];
 			midStart = mid > 0 ? breakOffsets[mid - 1] : 0;
 
 			if (inputOffset < midStart) {
@@ -116,7 +116,6 @@ export interface IViewModelLinesCollection extends IDisposable {
 	acceptVersionId(versionId: number): void;
 
 	getViewLineCount(): number;
-	warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void;
 	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
 	getViewLineContent(viewLineNumber: number): string;
@@ -145,9 +144,7 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 	}
 
 	public convertViewRangeToModelRange(viewRange: Range): Range {
-		let start = this._lines.convertViewPositionToModelPosition(viewRange.startLineNumber, viewRange.startColumn);
-		let end = this._lines.convertViewPositionToModelPosition(viewRange.endLineNumber, viewRange.endColumn);
-		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+		return this._lines.convertViewRangeToModelRange(viewRange);
 	}
 
 	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
@@ -155,9 +152,7 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 	}
 
 	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		const validViewStart = this._lines.validateViewPosition(viewRange.startLineNumber, viewRange.startColumn, expectedModelRange.getStartPosition());
-		const validViewEnd = this._lines.validateViewPosition(viewRange.endLineNumber, viewRange.endColumn, expectedModelRange.getEndPosition());
-		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
+		return this._lines.validateViewRange(viewRange, expectedModelRange);
 	}
 
 	// Model -> View conversion and related methods
@@ -173,13 +168,95 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 	public modelPositionIsVisible(modelPosition: Position): boolean {
 		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
 	}
-
 }
 
 const enum IndentGuideRepeatOption {
 	BlockNone = 0,
 	BlockSubsequent = 1,
 	BlockAll = 2
+}
+
+class LineNumberMapper {
+
+	private _counts: number[];
+	private _isValid: boolean;
+	private _validEndIndex: number;
+
+	private _modelToView: number[];
+	private _viewToModel: number[];
+
+	constructor(viewLineCounts: number[]) {
+		this._counts = viewLineCounts;
+		this._isValid = false;
+		this._validEndIndex = -1;
+		this._modelToView = [];
+		this._viewToModel = [];
+	}
+
+	private _invalidate(index: number): void {
+		this._isValid = false;
+		this._validEndIndex = Math.min(this._validEndIndex, index - 1);
+	}
+
+	private _ensureValid(): void {
+		if (this._isValid) {
+			return;
+		}
+
+		for (let i = this._validEndIndex + 1, len = this._counts.length; i < len; i++) {
+			const viewLineCount = this._counts[i];
+			const viewLinesAbove = (i > 0 ? this._modelToView[i - 1] : 0);
+
+			this._modelToView[i] = viewLinesAbove + viewLineCount;
+			for (let j = 0; j < viewLineCount; j++) {
+				this._viewToModel[viewLinesAbove + j] = i;
+			}
+		}
+
+		// trim things
+		this._modelToView.length = this._counts.length;
+		this._viewToModel.length = this._modelToView[this._modelToView.length - 1];
+
+		// mark as valid
+		this._isValid = true;
+		this._validEndIndex = this._counts.length - 1;
+	}
+
+	public changeValue(index: number, value: number): void {
+		if (this._counts[index] === value) {
+			// no change
+			return;
+		}
+		this._counts[index] = value;
+		this._invalidate(index);
+	}
+
+	public removeValues(start: number, deleteCount: number): void {
+		this._counts.splice(start, deleteCount);
+		this._invalidate(start);
+	}
+
+	public insertValues(insertIndex: number, insertArr: number[]): void {
+		this._counts = arrays.arrayInsert(this._counts, insertIndex, insertArr);
+		this._invalidate(insertIndex);
+	}
+
+	public getTotalValue(): number {
+		this._ensureValid();
+		return this._viewToModel.length;
+	}
+
+	public getAccumulatedValue(index: number): number {
+		this._ensureValid();
+		return this._modelToView[index];
+	}
+
+	public getIndexOf(accumulatedValue: number): PrefixSumIndexOfResult {
+		this._ensureValid();
+		const modelLineIndex = this._viewToModel[accumulatedValue];
+		const viewLinesAbove = (modelLineIndex > 0 ? this._modelToView[modelLineIndex - 1] : 0);
+		return new PrefixSumIndexOfResult(modelLineIndex, accumulatedValue - viewLinesAbove);
+	}
 }
 
 export class SplitLinesCollection implements IViewModelLinesCollection {
@@ -193,7 +270,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	private tabSize: number;
 	private lines!: ISplitLine[];
 
-	private prefixSumComputer!: PrefixSumComputerWithCache;
+	private prefixSumComputer!: LineNumberMapper;
 
 	private readonly linePositionMapperFactory: ILineMapperFactory;
 
@@ -219,18 +296,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return new CoordinatesConverter(this);
 	}
 
-	private _ensureValidState(): void {
-		let modelVersion = this.model.getVersionId();
-		if (modelVersion !== this._validModelVersionId) {
-			// This is pretty bad, it means we lost track of the model...
-			throw new Error(`ViewModel is out of sync with Model!`);
-		}
-		if (this.lines.length !== this.model.getLineCount()) {
-			// This is pretty bad, it means we lost track of the model...
-			this._constructLines(false);
-		}
-	}
-
 	private _constructLines(resetHiddenAreas: boolean): void {
 		this.lines = [];
 
@@ -246,7 +311,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		}
 		const lineMappings = lineMappingComputer.finalize();
 
-		let values = new Uint32Array(lineCount);
+		let values: number[] = [];
 
 		let hiddenAreas = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
 		let hiddenAreaStart = 1, hiddenAreaEnd = 0;
@@ -271,7 +336,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		this._validModelVersionId = this.model.getVersionId();
 
-		this.prefixSumComputer = new PrefixSumComputerWithCache(values);
+		this.prefixSumComputer = new LineNumberMapper(values);
 	}
 
 	public getHiddenAreas(): Range[] {
@@ -459,7 +524,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		let totalOutputLineCount = 0;
 		let insertLines: ISplitLine[] = [];
-		let insertPrefixSumValues = new Uint32Array(linesMappings.length);
+		let insertPrefixSumValues: number[] = [];
 
 		for (let i = 0, len = linesMappings.length; i < len; i++) {
 			let line = createSplitLine(linesMappings[i], !isInHiddenArea);
@@ -536,7 +601,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLineCount(): number {
-		this._ensureValidState();
 		return this.prefixSumComputer.getTotalValue();
 	}
 
@@ -544,22 +608,14 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		if (viewLineNumber < 1) {
 			return 1;
 		}
-		let viewLineCount = this.getViewLineCount();
+		const viewLineCount = this.getViewLineCount();
 		if (viewLineNumber > viewLineCount) {
 			return viewLineCount;
 		}
-		return viewLineNumber;
-	}
-
-	/**
-	 * Gives a hint that a lot of requests are about to come in for these line numbers.
-	 */
-	public warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void {
-		this.prefixSumComputer.warmUpCache(viewStartLineNumber - 1, viewEndLineNumber - 1);
+		return viewLineNumber | 0;
 	}
 
 	public getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
-		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 		minLineNumber = this._toValidViewLineNumber(minLineNumber);
 		maxLineNumber = this._toValidViewLineNumber(maxLineNumber);
@@ -579,7 +635,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
-		this._ensureValidState();
 		viewStartLineNumber = this._toValidViewLineNumber(viewStartLineNumber);
 		viewEndLineNumber = this._toValidViewLineNumber(viewEndLineNumber);
 
@@ -650,7 +705,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLineContent(viewLineNumber: number): string {
-		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
 		let lineIndex = r.index;
@@ -660,7 +714,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLineLength(viewLineNumber: number): number {
-		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
 		let lineIndex = r.index;
@@ -670,7 +723,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLineMinColumn(viewLineNumber: number): number {
-		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
 		let lineIndex = r.index;
@@ -680,7 +732,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLineMaxColumn(viewLineNumber: number): number {
-		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
 		let lineIndex = r.index;
@@ -690,7 +741,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
-		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
 		let lineIndex = r.index;
@@ -700,7 +750,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[] {
-		this._ensureValidState();
 
 		viewStartLineNumber = this._toValidViewLineNumber(viewStartLineNumber);
 		viewEndLineNumber = this._toValidViewLineNumber(viewEndLineNumber);
@@ -739,7 +788,6 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public validateViewPosition(viewLineNumber: number, viewColumn: number, expectedModelPosition: Position): Position {
-		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 
 		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
@@ -767,8 +815,13 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return this.convertModelPositionToViewPosition(expectedModelPosition.lineNumber, expectedModelPosition.column);
 	}
 
+	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+		const validViewStart = this.validateViewPosition(viewRange.startLineNumber, viewRange.startColumn, expectedModelRange.getStartPosition());
+		const validViewEnd = this.validateViewPosition(viewRange.endLineNumber, viewRange.endColumn, expectedModelRange.getEndPosition());
+		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
+	}
+
 	public convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
-		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
 
 		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
@@ -780,8 +833,13 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return this.model.validatePosition(new Position(lineIndex + 1, inputColumn));
 	}
 
+	public convertViewRangeToModelRange(viewRange: Range): Range {
+		const start = this.convertViewPositionToModelPosition(viewRange.startLineNumber, viewRange.startColumn);
+		const end = this.convertViewPositionToModelPosition(viewRange.endLineNumber, viewRange.endColumn);
+		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
+
 	public convertModelPositionToViewPosition(_modelLineNumber: number, _modelColumn: number): Position {
-		this._ensureValidState();
 
 		const validPosition = this.model.validatePosition(new Position(_modelLineNumber, _modelColumn));
 		const inputLineNumber = validPosition.lineNumber;
@@ -1372,9 +1430,6 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 
 	public getViewLineCount(): number {
 		return this.model.getLineCount();
-	}
-
-	public warmUpLookupCache(_viewStartLineNumber: number, _viewEndLineNumber: number): void {
 	}
 
 	public getActiveIndentGuide(viewLineNumber: number, _minLineNumber: number, _maxLineNumber: number): IActiveIndentGuideInfo {
