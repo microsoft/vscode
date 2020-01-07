@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -14,7 +14,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { RenameInputField, CONTEXT_RENAME_INPUT_VISIBLE } from './renameInputField';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation, Rejection } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -31,6 +30,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IdleValue, raceCancellation } from 'vs/base/common/async';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class RenameSkeleton {
 
@@ -110,14 +110,13 @@ class RenameController implements IEditorContribution {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorProgressService private readonly _progressService: IEditorProgressService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		this._renameInputField = this._dispoableStore.add(new IdleValue(() => this._dispoableStore.add(new RenameInputField(this.editor, this._themeService, this._contextKeyService))));
+		this._renameInputField = this._dispoableStore.add(new IdleValue(() => this._dispoableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']))));
 	}
 
 	dispose(): void {
