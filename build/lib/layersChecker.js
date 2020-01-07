@@ -69,7 +69,7 @@ const RULES = [
         ],
         disallowedDefinitions: [
             'lib.dom.d.ts',
-            '@types' // no node.js
+            '@types/node' // no node.js
         ]
     },
     // Common: vs/workbench/api/common/extHostExtensionService.ts
@@ -82,7 +82,7 @@ const RULES = [
         ],
         disallowedDefinitions: [
             'lib.dom.d.ts',
-            '@types' // no node.js
+            '@types/node' // no node.js
         ]
     },
     // Common
@@ -91,7 +91,7 @@ const RULES = [
         allowedTypes: CORE_TYPES,
         disallowedDefinitions: [
             'lib.dom.d.ts',
-            '@types' // no node.js
+            '@types/node' // no node.js
         ]
     },
     // Browser
@@ -99,7 +99,7 @@ const RULES = [
         target: '**/vs/**/browser/**',
         allowedTypes: CORE_TYPES,
         disallowedDefinitions: [
-            '@types' // no node.js
+            '@types/node' // no node.js
         ]
     },
     // node.js
@@ -145,7 +145,7 @@ let hasErrors = false;
 function checkFile(program, sourceFile, rule) {
     checkNode(sourceFile);
     function checkNode(node) {
-        var _a, _b;
+        var _a;
         if (node.kind !== ts.SyntaxKind.Identifier) {
             return ts.forEachChild(node, checkNode); // recurse down
         }
@@ -165,11 +165,15 @@ function checkFile(program, sourceFile, rule) {
                             const parentSourceFile = parent.getSourceFile();
                             if (parentSourceFile) {
                                 const definitionFileName = parentSourceFile.fileName;
-                                if ((_b = rule.disallowedDefinitions) === null || _b === void 0 ? void 0 : _b.some(disallowedDefinition => definitionFileName.indexOf(disallowedDefinition) >= 0)) {
-                                    const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-                                    console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' from ${path_1.basename(definitionFileName)} violates layers (${sourceFile.fileName} (${line + 1},${character + 1})`);
-                                    hasErrors = true;
-                                    break;
+                                if (rule.disallowedDefinitions) {
+                                    for (const disallowedDefinition of rule.disallowedDefinitions) {
+                                        if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
+                                            const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+                                            console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' from '${disallowedDefinition}' violates layers (${sourceFile.fileName} (${line + 1},${character + 1})`);
+                                            hasErrors = true;
+                                            return;
+                                        }
+                                    }
                                 }
                             }
                         }

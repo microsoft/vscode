@@ -5,7 +5,7 @@
 
 import * as ts from 'typescript';
 import { readFileSync, existsSync } from 'fs';
-import { resolve, dirname, join, basename } from 'path';
+import { resolve, dirname, join } from 'path';
 import { match } from 'minimatch';
 
 //
@@ -74,7 +74,7 @@ const RULES = [
 		],
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
-			'@types'		// no node.js
+			'@types/node'	// no node.js
 		]
 	},
 
@@ -89,7 +89,7 @@ const RULES = [
 		],
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
-			'@types'		// no node.js
+			'@types/node'	// no node.js
 		]
 	},
 
@@ -99,7 +99,7 @@ const RULES = [
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
-			'@types'		// no node.js
+			'@types/node'	// no node.js
 		]
 	},
 
@@ -108,7 +108,7 @@ const RULES = [
 		target: '**/vs/**/browser/**',
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
-			'@types'		// no node.js
+			'@types/node'	// no node.js
 		]
 	},
 
@@ -192,12 +192,16 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 							const parentSourceFile = parent.getSourceFile();
 							if (parentSourceFile) {
 								const definitionFileName = parentSourceFile.fileName;
-								if (rule.disallowedDefinitions?.some(disallowedDefinition => definitionFileName.indexOf(disallowedDefinition) >= 0)) {
-									const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-									console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' from ${basename(definitionFileName)} violates layers (${sourceFile.fileName} (${line + 1},${character + 1})`);
+								if (rule.disallowedDefinitions) {
+									for (const disallowedDefinition of rule.disallowedDefinitions) {
+										if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
+											const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+											console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' from '${disallowedDefinition}' violates layers (${sourceFile.fileName} (${line + 1},${character + 1})`);
 
-									hasErrors = true;
-									break;
+											hasErrors = true;
+											return;
+										}
+									}
 								}
 							}
 						}
