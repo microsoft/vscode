@@ -580,6 +580,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 						hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
 						templateData.outputContainer?.appendChild(result.element);
 						if (result.shadowContent) {
+							hasDynamicHeight = false;
 							this.handler.createContentWidget(element, result.shadowContent, totalHeight + 8);
 						}
 					}
@@ -632,6 +633,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					hasDynamicHeight = hasDynamicHeight || result?.hasDynamicHeight;
 					templateData.outputContainer?.appendChild(result.element);
 					if (result.shadowContent) {
+						hasDynamicHeight = false;
 						this.handler.createContentWidget(element, result.shadowContent, totalHeight + 8);
 					}
 				}

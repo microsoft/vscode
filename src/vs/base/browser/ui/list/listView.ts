@@ -293,6 +293,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this._onDidChangeContentHeight.fire(this.contentHeight);
+		this.eventuallyUpdateScrollDimensions();
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
