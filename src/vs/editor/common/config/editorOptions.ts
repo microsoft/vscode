@@ -542,6 +542,11 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+	/**
+	 * Controls whether to focus the inline editor in the peek widget by default.
+	 * Defaults to false.
+	 */
+	peekWidgetFocusInlineEditor?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3121,6 +3126,7 @@ export const enum EditorOption {
 	overviewRulerBorder,
 	overviewRulerLanes,
 	parameterHints,
+	peekWidgetFocusInlineEditor,
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
@@ -3485,6 +3491,10 @@ export const EditorOptions = {
 		3, 0, 3
 	)),
 	parameterHints: register(new EditorParameterHints()),
+	peekWidgetFocusInlineEditor: register(new EditorBooleanOption(
+		EditorOption.peekWidgetFocusInlineEditor, 'peekWidgetFocusInlineEditor', false,
+		{ description: nls.localize('peekWidgetFocusInlineEditor', "Controls whether to focus the inline editor in the peek widget by default.") }
+	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(
 		EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay',
