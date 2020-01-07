@@ -47,12 +47,6 @@ type ConfigurationInspect<T> = {
 	workspaceFolderLanguageValue?: T;
 };
 
-function isTextDocument(thing: any): thing is vscode.TextDocument {
-	return thing
-		&& thing.uri instanceof URI
-		&& (!thing.languageId || typeof thing.languageId === 'string');
-}
-
 function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
 	return thing
 		&& thing.uri instanceof URI
@@ -64,9 +58,9 @@ function isUri(thing: any): thing is vscode.Uri {
 	return thing instanceof URI;
 }
 
-function isResourceLanguage(thing: any): thing is { resource: URI, languageId: string } {
+function isResourceLanguage(thing: any): thing is { uri: URI, languageId: string } {
 	return thing
-		&& thing.resource instanceof URI
+		&& thing.uri instanceof URI
 		&& (!thing.languageId || typeof thing.languageId === 'string');
 }
 
@@ -77,11 +71,8 @@ function scopeToOverrides(scope: vscode.ConfigurationScope | undefined | null): 
 	if (isWorkspaceFolder(scope)) {
 		return { resource: scope.uri };
 	}
-	if (isTextDocument(scope)) {
-		return { resource: scope.uri, overrideIdentifier: scope.languageId };
-	}
 	if (isResourceLanguage(scope)) {
-		return scope;
+		return { resource: scope.uri, overrideIdentifier: scope.languageId };
 	}
 	return undefined;
 }
