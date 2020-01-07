@@ -153,15 +153,15 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			// but the character at `i` might not fit
 
 			const charCode = lineText.charCodeAt(i);
-			const charCodeIsTab = (charCode === CharCode.Tab);
-			const charCodeClass = classifier.get(charCode);
-
-			if (strings.isLowSurrogate(charCode)/*  && i + 1 < len */) {
+			if (strings.isLowSurrogate(charCode)) {
 				// A surrogate pair must always be considered as a single unit, so it is never to be broken
 				// => advance visibleColumn by 1 and advance to next char code...
 				visibleColumn = visibleColumn + 1;
 				continue;
 			}
+
+			const charCodeIsTab = (charCode === CharCode.Tab);
+			const charCodeClass = classifier.get(charCode);
 
 			if (charCodeClass === CharacterClass.BREAK_BEFORE) {
 				// This is a character that indicates that a break should happen before it
@@ -191,33 +191,27 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				//  - otherwise, break before obtrusiveBreakLastOffset if it exists (and re-establish a correct visibleColumn by using obtrusiveBreakVisibleColumn + charAt(i))
 				//  - otherwise, break before i (and re-establish a correct visibleColumn by charAt(i))
 
-				let breakBeforeOffset: number;
-				let restoreVisibleColumnFrom: number;
-
 				if (niceBreakOffset !== -1 && niceBreakVisibleColumn <= breakingColumn) {
 
 					// We will break before `niceBreakLastOffset`
-					breakBeforeOffset = niceBreakOffset;
-					restoreVisibleColumnFrom = niceBreakVisibleColumn;
+					breakingLengths[breakingLengthsIndex++] = niceBreakOffset - lastBreakingOffset;
+					lastBreakingOffset = niceBreakOffset;
+					visibleColumn = niceBreakVisibleColumn;
 
 				} else {
 
 					// We will break before `i`
-					breakBeforeOffset = i;
-					restoreVisibleColumnFrom = wrappedTextIndentVisibleColumn;
+					breakingLengths[breakingLengthsIndex++] = i - lastBreakingOffset;
+					lastBreakingOffset = i;
+					visibleColumn = wrappedTextIndentVisibleColumn;
 
 				}
 
-				// Break before character at `breakBeforeOffset`
-				breakingLengths[breakingLengthsIndex++] = breakBeforeOffset - lastBreakingOffset;
-				lastBreakingOffset = breakBeforeOffset;
-
 				// Re-establish visibleColumn by taking character at `i` into account
-				visibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(restoreVisibleColumnFrom, tabSize, charCodeIsTab, charColumnSize);
+				visibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(visibleColumn, tabSize, charCodeIsTab, charColumnSize);
 
 				// Reset markers
 				niceBreakOffset = -1;
-				niceBreakVisibleColumn = 0;
 			}
 
 			// At this point, there is a certainty that the character at `i` fits on the current line
