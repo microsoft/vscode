@@ -5,7 +5,8 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { TextDocument, getLanguageModes, ClientCapabilities, Range, Position } from '../modes/languageModes';
+import { TextDocument, getLanguageModes, ClientCapabilities, Range } from '../modes/languageModes';
+import { newSemanticTokenProvider } from '../modes/semanticTokens';
 
 interface ExpectedToken {
 	startLine: number;
@@ -21,15 +22,10 @@ function assertTokens(lines: string[], expected: ExpectedToken[], range?: Range,
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
+	const semanticTokensProvider = newSemanticTokenProvider(languageModes);
 
-	if (!range) {
-		range = Range.create(Position.create(0, 0), document.positionAt(document.getText().length));
-	}
-
-	const jsMode = languageModes.getMode('javascript')!;
-
-	const legend = jsMode.getSemanticTokenLegend!();
-	const actual = jsMode.getSemanticTokens!(document, [range]);
+	const legend = semanticTokensProvider.legend;
+	const actual = semanticTokensProvider.getSemanticTokens(document, range && [range]);
 
 	let actualRanges = [];
 	let lastLine = 0;
@@ -50,7 +46,7 @@ function t(startLine: number, character: number, length: number, tokenClassifict
 	return { startLine, character, length, tokenClassifiction };
 }
 
-suite('JavaScript Semantic Tokens', () => {
+suite.skip('JavaScript Semantic Tokens', () => {
 
 	test('variables', () => {
 		const input = [
@@ -123,6 +119,33 @@ suite('JavaScript Semantic Tokens', () => {
 			t(8, 11, 1, 'member.declaration.static'), t(8, 28, 1, 'class'), t(8, 32, 1, 'property'),
 		]);
 	});
+
+
+
+});
+
+
+suite('Type Semantic Tokens', () => {
+
+	test('interface', () => {
+		const input = [
+			/*0*/'<html>',
+			/*1*/'<head>',
+			/*2*/'<script type="text/typescript">',
+			/*3*/'  interface Position { x: number, y: number };',
+			/*4*/'  const p = { x: 1, y: 2 }',
+			/*5*/'</script>',
+			/*6*/'</head>',
+			/*7*/'</html>',
+		];
+		assertTokens(input, [
+			t(3, 6, 1, 'variable.declaration'), t(3, 13, 2, 'variable.declaration'), t(3, 19, 1, 'variable'),
+			t(5, 15, 1, 'variable.declaration'), t(5, 20, 2, 'variable'),
+			t(6, 11, 1, 'variable.declaration'),
+			t(7, 10, 2, 'variable')
+		]);
+	});
+
 
 
 
