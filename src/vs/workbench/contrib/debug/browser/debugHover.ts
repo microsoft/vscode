@@ -107,7 +107,7 @@ export class DebugHoverWidget implements IContentWidget {
 			if (colors.editorHoverForeground) {
 				this.domNode.style.color = colors.editorHoverForeground.toString();
 			} else {
-				this.domNode.style.color = null;
+				this.domNode.style.color = '';
 			}
 		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));

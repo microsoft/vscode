@@ -380,16 +380,20 @@ export class DebugService implements IDebugService {
 		if (configByProviders && configByProviders.type) {
 			try {
 				let resolvedConfig = await this.substituteVariables(launch, configByProviders);
-
 				if (!resolvedConfig) {
-					// User canceled resolving of interactive variables, silently return
+					// User cancelled resolving of interactive variables, silently return
+					return false;
+				}
+
+				if (!this.initCancellationToken) {
+					// User cancelled, silently return
 					return false;
 				}
 
 				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, this.initCancellationToken.token);
 				if (!cfg) {
-					if (launch && type && cfg === null) {	// show launch.json only for "config" being "null".
-						await launch.openConfigFile(false, true, type, this.initCancellationToken ? this.initCancellationToken.token : undefined);
+					if (launch && type && cfg === null && this.initCancellationToken) {	// show launch.json only for "config" being "null".
+						await launch.openConfigFile(false, true, type, this.initCancellationToken.token);
 					}
 					return false;
 				}
@@ -422,16 +426,16 @@ export class DebugService implements IDebugService {
 				} else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
 				}
-				if (launch) {
-					await launch.openConfigFile(false, true, undefined, this.initCancellationToken ? this.initCancellationToken.token : undefined);
+				if (launch && this.initCancellationToken) {
+					await launch.openConfigFile(false, true, undefined, this.initCancellationToken.token);
 				}
 
 				return false;
 			}
 		}
 
-		if (launch && type && configByProviders === null) {	// show launch.json only for "config" being "null".
-			await launch.openConfigFile(false, true, type, this.initCancellationToken ? this.initCancellationToken.token : undefined);
+		if (launch && type && configByProviders === null && this.initCancellationToken) {	// show launch.json only for "config" being "null".
+			await launch.openConfigFile(false, true, type, this.initCancellationToken.token);
 		}
 
 		return false;
@@ -648,7 +652,7 @@ export class DebugService implements IDebugService {
 					const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, this.initCancellationToken.token);
 					if (resolvedByProviders) {
 						resolved = await this.substituteVariables(launch, resolvedByProviders);
-						if (resolved) {
+						if (resolved && this.initCancellationToken) {
 							resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, this.initCancellationToken.token);
 						}
 					} else {

@@ -24,7 +24,7 @@ import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
 import TelemetryReporter, { VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
-import { inferredProjectConfig } from './utils/tsconfig';
+import { inferredProjectCompilerOptions } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
 
@@ -498,7 +498,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
 		return {
-			...inferredProjectConfig(configuration),
+			...inferredProjectCompilerOptions(true, configuration),
 			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,

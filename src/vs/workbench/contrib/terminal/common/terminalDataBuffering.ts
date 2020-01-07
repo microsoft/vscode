@@ -14,13 +14,16 @@ interface TerminalDataBuffer extends IDisposable {
 export class TerminalDataBufferer implements IDisposable {
 	private readonly _terminalBufferMap = new Map<number, TerminalDataBuffer>();
 
+	constructor(private readonly _callback: (id: number, data: string) => void) {
+	}
+
 	dispose() {
 		for (const buffer of this._terminalBufferMap.values()) {
 			buffer.dispose();
 		}
 	}
 
-	startBuffering(id: number, event: Event<string>, callback: (id: number, data: string) => void, throttleBy: number = 5): IDisposable {
+	startBuffering(id: number, event: Event<string>, throttleBy: number = 5): IDisposable {
 		let disposable: IDisposable;
 		disposable = event((e: string) => {
 			let buffer = this._terminalBufferMap.get(id);
@@ -30,16 +33,13 @@ export class TerminalDataBufferer implements IDisposable {
 				return;
 			}
 
-			const timeoutId = setTimeout(() => {
-				this._terminalBufferMap.delete(id);
-				callback(id, buffer!.data.join(''));
-			}, throttleBy);
+			const timeoutId = setTimeout(() => this._flushBuffer(id), throttleBy);
 			buffer = {
 				data: [e],
 				timeoutId: timeoutId,
 				dispose: () => {
 					clearTimeout(timeoutId);
-					this._terminalBufferMap.delete(id);
+					this._flushBuffer(id);
 					disposable.dispose();
 				}
 			};
@@ -52,6 +52,14 @@ export class TerminalDataBufferer implements IDisposable {
 		const buffer = this._terminalBufferMap.get(id);
 		if (buffer) {
 			buffer.dispose();
+		}
+	}
+
+	private _flushBuffer(id: number): void {
+		const buffer = this._terminalBufferMap.get(id);
+		if (buffer) {
+			this._terminalBufferMap.delete(id);
+			this._callback(id, buffer.data.join(''));
 		}
 	}
 }
