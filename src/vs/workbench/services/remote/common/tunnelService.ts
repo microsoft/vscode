@@ -21,7 +21,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	public constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService protected readonly logService: ILogService
 	) { }
 
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable {
