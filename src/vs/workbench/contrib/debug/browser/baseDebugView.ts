@@ -42,7 +42,7 @@ export interface IVariableTemplateData {
 }
 
 export function renderViewTree(container: HTMLElement): HTMLElement {
-	const treeContainer = document.createElement('div');
+	const treeContainer = $('.');
 	dom.addClass(treeContainer, 'debug-view-content');
 	container.appendChild(treeContainer);
 	return treeContainer;

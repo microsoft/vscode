@@ -16,6 +16,7 @@ import { IBreakpointUpdateData, IDebugSessionOptions } from 'vs/workbench/contri
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { timeout } from 'vs/base/common/async';
+import { dispose } from 'vs/base/common/lifecycle';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
@@ -34,16 +35,40 @@ suite('Debug - Model', () => {
 
 	test('breakpoints simple', () => {
 		const modelUri = uri.file('/myfolder/myfile.js');
+		let eventCount = 0;
+
+		let toDispose = model.onDidChangeBreakpoints(e => {
+			eventCount++;
+			assert.equal(e?.added?.length, 2);
+			assert.equal(e?.sessionOnly, false);
+			assert.equal(e?.removed, undefined);
+			assert.equal(e?.changed, undefined);
+
+			dispose(toDispose);
+		});
 		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
+		assert.equal(eventCount, 1);
 		assert.equal(model.areBreakpointsActivated(), true);
 		assert.equal(model.getBreakpoints().length, 2);
 
+		toDispose = model.onDidChangeBreakpoints(e => {
+			eventCount++;
+			assert.equal(e?.added, undefined);
+			assert.equal(e?.sessionOnly, false);
+			assert.equal(e?.removed?.length, 2);
+			assert.equal(e?.changed, undefined);
+
+			dispose(toDispose);
+		});
+
 		model.removeBreakpoints(model.getBreakpoints());
+		assert.equal(eventCount, 2);
 		assert.equal(model.getBreakpoints().length, 0);
 	});
 
 	test('breakpoints toggling', () => {
 		const modelUri = uri.file('/myfolder/myfile.js');
+
 		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		model.addBreakpoints(modelUri, [{ lineNumber: 12, enabled: true, condition: 'fake condition' }]);
 		assert.equal(model.getBreakpoints().length, 3);
@@ -66,16 +91,33 @@ suite('Debug - Model', () => {
 		model.addBreakpoints(modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
 
 		assert.equal(model.getBreakpoints().length, 5);
+		assert.equal(model.getBreakpoints({ uri: modelUri1 }).length, 2);
+		assert.equal(model.getBreakpoints({ uri: modelUri2 }).length, 3);
+		assert.equal(model.getBreakpoints({ lineNumber: 5 }).length, 1);
+		assert.equal(model.getBreakpoints({ column: 5 }).length, 0);
+
+
 		const bp = model.getBreakpoints()[0];
 		const update = new Map<string, IBreakpointUpdateData>();
 		update.set(bp.getId(), { lineNumber: 100 });
+		let eventFired = false;
+		model.onDidChangeBreakpoints(e => {
+			eventFired = true;
+			assert.equal(e?.added, undefined);
+			assert.equal(e?.removed, undefined);
+			assert.equal(e?.changed?.length, 1);
+		});
 		model.updateBreakpoints(update);
+		assert.equal(eventFired, true);
 		assert.equal(bp.lineNumber, 100);
 
+		assert.equal(model.getBreakpoints({ enabledOnly: true }).length, 3);
 		model.enableOrDisableAllBreakpoints(false);
 		model.getBreakpoints().forEach(bp => {
 			assert.equal(bp.enabled, false);
 		});
+		assert.equal(model.getBreakpoints({ enabledOnly: true }).length, 0);
+
 		model.setEnablement(bp, true);
 		assert.equal(bp.enabled, true);
 
@@ -148,6 +190,50 @@ suite('Debug - Model', () => {
 		data3.set(breakpoints[0].getId(), { verified: true, line: 500 });
 		model.setBreakpointSessionData(session2.getId(), { supportsConditionalBreakpoints: true }, data2);
 		assert.equal(breakpoints[0].supported, true);
+	});
+
+	test('exception breakpoints', () => {
+		let eventCount = 0;
+		model.onDidChangeBreakpoints(() => eventCount++);
+		model.setExceptionBreakpoints([{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
+		assert.equal(eventCount, 1);
+		let exceptionBreakpoints = model.getExceptionBreakpoints();
+		assert.equal(exceptionBreakpoints.length, 1);
+		assert.equal(exceptionBreakpoints[0].filter, 'uncaught');
+		assert.equal(exceptionBreakpoints[0].enabled, true);
+
+		model.setExceptionBreakpoints([{ filter: 'uncaught', label: 'UNCAUGHT' }, { filter: 'caught', label: 'CAUGHT' }]);
+		assert.equal(eventCount, 2);
+		exceptionBreakpoints = model.getExceptionBreakpoints();
+		assert.equal(exceptionBreakpoints.length, 2);
+		assert.equal(exceptionBreakpoints[0].filter, 'uncaught');
+		assert.equal(exceptionBreakpoints[0].enabled, true);
+		assert.equal(exceptionBreakpoints[1].filter, 'caught');
+		assert.equal(exceptionBreakpoints[1].label, 'CAUGHT');
+		assert.equal(exceptionBreakpoints[1].enabled, false);
+	});
+
+	test('data breakpoints', () => {
+		let eventCount = 0;
+		model.onDidChangeBreakpoints(() => eventCount++);
+
+		model.addDataBreakpoint('label', 'id', true, ['read']);
+		model.addDataBreakpoint('second', 'secondId', false, ['readWrite']);
+		const dataBreakpoints = model.getDataBreakpoints();
+		assert.equal(dataBreakpoints[0].canPersist, true);
+		assert.equal(dataBreakpoints[0].dataId, 'id');
+		assert.equal(dataBreakpoints[1].canPersist, false);
+		assert.equal(dataBreakpoints[1].description, 'second');
+
+		assert.equal(eventCount, 2);
+
+		model.removeDataBreakpoints(dataBreakpoints[0].getId());
+		assert.equal(eventCount, 3);
+		assert.equal(model.getDataBreakpoints().length, 1);
+
+		model.removeDataBreakpoints();
+		assert.equal(model.getDataBreakpoints().length, 0);
+		assert.equal(eventCount, 4);
 	});
 
 	// Threads
