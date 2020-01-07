@@ -15,6 +15,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { parse } from 'vs/base/common/json';
 
 const argvProperties: string[] = ['locale'];
 
@@ -121,7 +122,7 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 		const storage: IStringDictionary<any> = {};
 		try {
 			const content = await this.fileService.readFile(this.environmentService.argvResource);
-			const argvValue: IStringDictionary<any> = JSON.parse(content.value.toString());
+			const argvValue: IStringDictionary<any> = parse(content.value.toString());
 			for (const argvProperty of argvProperties) {
 				if (argvValue[argvProperty] !== undefined) {
 					argv[argvProperty] = argvValue[argvProperty];
