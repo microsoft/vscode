@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction, RemoveBreakpointAction, EnableAllBreakpointsAction, DisableAllBreakpointsAction, ReapplyBreakpointsAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -45,9 +45,14 @@ function createCheckbox(): HTMLInputElement {
 	return checkbox;
 }
 
+const MAX_VISIBLE_BREAKPOINTS = 9;
+function getExpandedBodySize(model: IDebugModel): number {
+	const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length;
+	return Math.min(MAX_VISIBLE_BREAKPOINTS, length) * 22;
+}
+
 export class BreakpointsView extends ViewPane {
 
-	private static readonly MAX_VISIBLE_FILES = 9;
 	private list!: WorkbenchList<IEnablement>;
 	private needsRefresh = false;
 
@@ -65,7 +70,7 @@ export class BreakpointsView extends ViewPane {
 	) {
 		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
 
-		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
+		this.minimumBodySize = this.maximumBodySize = getExpandedBodySize(this.debugService.getModel());
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
@@ -215,7 +220,7 @@ export class BreakpointsView extends ViewPane {
 
 	private onBreakpointsChange(): void {
 		if (this.isBodyVisible()) {
-			this.minimumBodySize = this.getExpandedBodySize();
+			this.minimumBodySize = getExpandedBodySize(this.debugService.getModel());
 			if (this.maximumBodySize < Number.POSITIVE_INFINITY) {
 				this.maximumBodySize = this.minimumBodySize;
 			}
@@ -233,12 +238,6 @@ export class BreakpointsView extends ViewPane {
 		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getDataBreakpoints()).concat(model.getBreakpoints());
 
 		return elements;
-	}
-
-	private getExpandedBodySize(): number {
-		const model = this.debugService.getModel();
-		const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length;
-		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 22;
 	}
 }
 

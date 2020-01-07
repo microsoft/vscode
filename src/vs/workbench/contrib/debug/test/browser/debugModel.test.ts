@@ -6,13 +6,13 @@
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import { DebugModel, Expression, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { DebugModel, Expression, StackFrame, Thread, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import * as sinon from 'sinon';
 import { MockRawSession, MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel, ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
-import { IBreakpointUpdateData, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpointUpdateData, IDebugSessionOptions, IBreakpointData } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { timeout } from 'vs/base/common/async';
@@ -20,6 +20,26 @@ import { dispose } from 'vs/base/common/lifecycle';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
+}
+
+function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]): void {
+	let eventCount = 0;
+	const toDispose = model.onDidChangeBreakpoints(e => {
+		assert.equal(e?.sessionOnly, false);
+		assert.equal(e?.changed, undefined);
+		assert.equal(e?.removed, undefined);
+		const added = e?.added;
+		assert.notEqual(added, undefined);
+		assert.equal(added!.length, data.length);
+		eventCount++;
+		dispose(toDispose);
+		for (let i = 0; i < data.length; i++) {
+			assert.equal(e!.added![i] instanceof Breakpoint, true);
+			assert.equal((e!.added![i] as Breakpoint).lineNumber, data[i].lineNumber);
+		}
+	});
+	model.addBreakpoints(uri, data);
+	assert.equal(eventCount, 1);
 }
 
 suite('Debug - Model', () => {
@@ -35,23 +55,13 @@ suite('Debug - Model', () => {
 
 	test('breakpoints simple', () => {
 		const modelUri = uri.file('/myfolder/myfile.js');
-		let eventCount = 0;
 
-		let toDispose = model.onDidChangeBreakpoints(e => {
-			eventCount++;
-			assert.equal(e?.added?.length, 2);
-			assert.equal(e?.sessionOnly, false);
-			assert.equal(e?.removed, undefined);
-			assert.equal(e?.changed, undefined);
-
-			dispose(toDispose);
-		});
-		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
-		assert.equal(eventCount, 1);
+		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
 		assert.equal(model.areBreakpointsActivated(), true);
 		assert.equal(model.getBreakpoints().length, 2);
 
-		toDispose = model.onDidChangeBreakpoints(e => {
+		let eventCount = 0;
+		const toDispose = model.onDidChangeBreakpoints(e => {
 			eventCount++;
 			assert.equal(e?.added, undefined);
 			assert.equal(e?.sessionOnly, false);
@@ -62,15 +72,15 @@ suite('Debug - Model', () => {
 		});
 
 		model.removeBreakpoints(model.getBreakpoints());
-		assert.equal(eventCount, 2);
+		assert.equal(eventCount, 1);
 		assert.equal(model.getBreakpoints().length, 0);
 	});
 
 	test('breakpoints toggling', () => {
 		const modelUri = uri.file('/myfolder/myfile.js');
 
-		model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
-		model.addBreakpoints(modelUri, [{ lineNumber: 12, enabled: true, condition: 'fake condition' }]);
+		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
+		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 12, enabled: true, condition: 'fake condition' }]);
 		assert.equal(model.getBreakpoints().length, 3);
 		const bp = model.getBreakpoints().pop();
 		if (bp) {
@@ -87,8 +97,8 @@ suite('Debug - Model', () => {
 	test('breakpoints two files', () => {
 		const modelUri1 = uri.file('/myfolder/my file first.js');
 		const modelUri2 = uri.file('/secondfolder/second/second file.js');
-		model.addBreakpoints(modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
-		model.addBreakpoints(modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
+		addBreakpointsAndCheckEvents(model, modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
+		addBreakpointsAndCheckEvents(model, modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
 
 		assert.equal(model.getBreakpoints().length, 5);
 		assert.equal(model.getBreakpoints({ uri: modelUri1 }).length, 2);
@@ -127,7 +137,7 @@ suite('Debug - Model', () => {
 
 	test('breakpoints conditions', () => {
 		const modelUri1 = uri.file('/myfolder/my file first.js');
-		model.addBreakpoints(modelUri1, [{ lineNumber: 5, condition: 'i < 5', hitCondition: '17' }, { lineNumber: 10, condition: 'j < 3' }]);
+		addBreakpointsAndCheckEvents(model, modelUri1, [{ lineNumber: 5, condition: 'i < 5', hitCondition: '17' }, { lineNumber: 10, condition: 'j < 3' }]);
 		const breakpoints = model.getBreakpoints();
 
 		assert.equal(breakpoints[0].condition, 'i < 5');
@@ -156,7 +166,8 @@ suite('Debug - Model', () => {
 
 	test('breakpoints multiple sessions', () => {
 		const modelUri = uri.file('/myfolder/myfile.js');
-		const breakpoints = model.addBreakpoints(modelUri, [{ lineNumber: 5, enabled: true, condition: 'x > 5' }, { lineNumber: 10, enabled: false }]);
+		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 5, enabled: true, condition: 'x > 5' }, { lineNumber: 10, enabled: false }]);
+		const breakpoints = model.getBreakpoints();
 		const session = createMockSession(model);
 		const data = new Map<string, DebugProtocol.Breakpoint>();
 
