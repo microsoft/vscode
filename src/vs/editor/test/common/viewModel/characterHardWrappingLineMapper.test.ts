@@ -51,7 +51,7 @@ function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAf
 suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	test('CharacterHardWrappingLineMapper', () => {
 
-		let factory = new CharacterHardWrappingLineMapperFactory('(', ').');
+		let factory = new CharacterHardWrappingLineMapperFactory('(', '\t).');
 
 		// Empty string
 		assertLineMapping(factory, 4, 5, '');
@@ -73,10 +73,10 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 
 		// Honors tabs when computing wrapping position
 		assertLineMapping(factory, 4, 5, '\t');
-		assertLineMapping(factory, 4, 5, '\ta|aa');
-		assertLineMapping(factory, 4, 5, '\ta|\ta|a');
+		assertLineMapping(factory, 4, 5, '\t|aaa');
+		assertLineMapping(factory, 4, 5, '\t|a\t|aa');
 		assertLineMapping(factory, 4, 5, 'aa\ta');
-		assertLineMapping(factory, 4, 5, 'aa\ta|a');
+		assertLineMapping(factory, 4, 5, 'aa\t|aa');
 
 		// Honors wrapping before characters (& gives it priority)
 		assertLineMapping(factory, 4, 5, 'aaa.|aa');
@@ -92,7 +92,7 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	});
 
 	test('CharacterHardWrappingLineMapper - CJK and Kinsoku Shori', () => {
-		let factory = new CharacterHardWrappingLineMapperFactory('(', ')');
+		let factory = new CharacterHardWrappingLineMapperFactory('(', '\t)');
 		assertLineMapping(factory, 4, 5, 'aa \u5b89|\u5b89');
 		assertLineMapping(factory, 4, 5, '\u3042 \u5b89|\u5b89');
 		assertLineMapping(factory, 4, 5, '\u3042\u3042|\u5b89\u5b89');
@@ -102,28 +102,28 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	});
 
 	test('CharacterHardWrappingLineMapper - WrappingIndent.Same', () => {
-		let factory = new CharacterHardWrappingLineMapperFactory('', ' ');
+		let factory = new CharacterHardWrappingLineMapperFactory('', '\t ');
 		assertLineMapping(factory, 4, 38, ' *123456789012345678901234567890123456|7890', WrappingIndent.Same);
 	});
 
 	test('issue #16332: Scroll bar overlaying on top of text', () => {
-		let factory = new CharacterHardWrappingLineMapperFactory('', ' ');
+		let factory = new CharacterHardWrappingLineMapperFactory('', '\t ');
 		assertLineMapping(factory, 4, 24, 'a/ very/long/line/of/tex|t/that/expands/beyon|d/your/typical/line/|of/code/', WrappingIndent.Indent);
 	});
 
 	test('issue #35162: wrappingIndent not consistently working', () => {
-		let factory = new CharacterHardWrappingLineMapperFactory('', ' ');
+		let factory = new CharacterHardWrappingLineMapperFactory('', '\t ');
 		let mapper = assertLineMapping(factory, 4, 24, '                t h i s |i s |a l |o n |g l |i n |e', WrappingIndent.Indent);
 		assert.equal(mapper!.getWrappedLinesIndent(), '                \t');
 	});
 
 	test('issue #75494: surrogate pairs', () => {
-		let factory = new CharacterHardWrappingLineMapperFactory('', ' ');
+		let factory = new CharacterHardWrappingLineMapperFactory('\t', ' ');
 		assertLineMapping(factory, 4, 49, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇|👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬', WrappingIndent.Same);
 	});
 
 	test('CharacterHardWrappingLineMapper - WrappingIndent.DeepIndent', () => {
-		let factory = new CharacterHardWrappingLineMapperFactory('', ' ');
+		let factory = new CharacterHardWrappingLineMapperFactory('', '\t ');
 		let mapper = assertLineMapping(factory, 4, 26, '        W e A r e T e s t |i n g D e |e p I n d |e n t a t |i o n', WrappingIndent.DeepIndent);
 		assert.equal(mapper!.getWrappedLinesIndent(), '        \t\t');
 	});
