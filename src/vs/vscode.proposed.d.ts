@@ -59,6 +59,8 @@ declare module 'vscode' {
 		 * detected are read-only from the forwarded ports UI.
 		 */
 		environmentTunnels?: { remoteAddress: { port: number, host: string }, localAddress: string }[];
+
+		hideCandidatePorts?: boolean;
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
