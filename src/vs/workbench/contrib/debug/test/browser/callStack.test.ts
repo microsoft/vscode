@@ -9,14 +9,43 @@ import * as sinon from 'sinon';
 import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
+import { Range } from 'vs/editor/common/core/range';
 import { IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
+import { createDecorationsForStackFrame } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
+import { Constants } from 'vs/base/common/uint';
 
 export function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
 }
 
-suite('Debug - CallStack', () => {
+function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {
+	let firstStackFrame: StackFrame;
+	let secondStackFrame: StackFrame;
+	const thread = new class extends Thread {
+		public getCallStack(): StackFrame[] {
+			return [firstStackFrame, secondStackFrame];
+		}
+	}(session, 'mockthread', 1);
+
+	const firstSource = new Source({
+		name: 'internalModule.js',
+		path: 'a/b/c/d/internalModule.js',
+		sourceReference: 10,
+	}, 'aDebugSessionId');
+	const secondSource = new Source({
+		name: 'internalModule.js',
+		path: 'z/x/c/d/internalModule.js',
+		sourceReference: 11,
+	}, 'aDebugSessionId');
+
+	firstStackFrame = new StackFrame(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+
+	return { firstStackFrame, secondStackFrame };
+}
+
+suite.only('Debug - CallStack', () => {
 	let model: DebugModel;
 	let rawSession: MockRawSession;
 
@@ -216,27 +245,7 @@ suite('Debug - CallStack', () => {
 	test('stack frame get specific source name', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
-
-		let firstStackFrame: StackFrame;
-		let secondStackFrame: StackFrame;
-		const thread = new class extends Thread {
-			public getCallStack(): StackFrame[] {
-				return [firstStackFrame, secondStackFrame];
-			}
-		}(session, 'mockthread', 1);
-
-		const firstSource = new Source({
-			name: 'internalModule.js',
-			path: 'a/b/c/d/internalModule.js',
-			sourceReference: 10,
-		}, 'aDebugSessionId');
-		const secondSource = new Source({
-			name: 'internalModule.js',
-			path: 'z/x/c/d/internalModule.js',
-			sourceReference: 11,
-		}, 'aDebugSessionId');
-		firstStackFrame = new StackFrame(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-		secondStackFrame = new StackFrame(thread, 1, secondSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 
 		assert.equal(firstStackFrame.getSpecificSourceName(), '.../b/c/d/internalModule.js');
 		assert.equal(secondStackFrame.getSpecificSourceName(), '.../x/c/d/internalModule.js');
@@ -279,5 +288,37 @@ suite('Debug - CallStack', () => {
 		assert.equal(sessions[3].getId(), secondSession.getId());
 		assert.equal(sessions[4].getId(), anotherChild.getId());
 		assert.equal(sessions[5].getId(), thirdSession.getId());
+	});
+
+	test('decorations', () => {
+		const session = createMockSession(model);
+		model.addSession(session);
+		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
+		let decorations = createDecorationsForStackFrame(firstStackFrame, firstStackFrame.range);
+		assert.equal(decorations.length, 2);
+		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
+		assert.equal(decorations[0].options.glyphMarginClassName, 'codicon-debug-stackframe');
+		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.equal(decorations[1].options.className, 'debug-top-stack-frame-line');
+		assert.equal(decorations[1].options.isWholeLine, true);
+
+		decorations = createDecorationsForStackFrame(secondStackFrame, firstStackFrame.range);
+		assert.equal(decorations.length, 2);
+		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
+		assert.equal(decorations[0].options.glyphMarginClassName, 'codicon-debug-stackframe-focused');
+		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.equal(decorations[1].options.className, 'debug-focused-stack-frame-line');
+		assert.equal(decorations[1].options.isWholeLine, true);
+
+		decorations = createDecorationsForStackFrame(firstStackFrame, new Range(1, 5, 1, 6));
+		assert.equal(decorations.length, 3);
+		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
+		assert.equal(decorations[0].options.glyphMarginClassName, 'codicon-debug-stackframe');
+		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.equal(decorations[1].options.className, 'debug-top-stack-frame-line');
+		assert.equal(decorations[1].options.isWholeLine, true);
+		// Inline decoration gets rendered in this case
+		assert.equal(decorations[2].options.beforeContentClassName, 'debug-top-stack-frame-column');
+		assert.deepEqual(decorations[2].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
 	});
 });
