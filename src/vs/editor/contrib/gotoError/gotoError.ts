@@ -424,7 +424,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 			label: NextMarkerAction.LABEL,
 			alias: 'Go to Next Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
+			kbOpts: { kbExpr: EditorContextKeys.focus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 }
@@ -438,7 +438,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			label: PrevMarkerAction.LABEL,
 			alias: 'Go to Previous Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
+			kbOpts: { kbExpr: EditorContextKeys.focus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 }
