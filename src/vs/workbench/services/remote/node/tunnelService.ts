@@ -101,11 +101,11 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 export class TunnelService extends AbstractTunnelService {
 	public constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@ILogService logService: ILogService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService private readonly signService: ISignService,
-		@ILogService private readonly logService: ILogService,
 	) {
-		super(environmentService);
+		super(environmentService, logService);
 	}
 
 	protected retainOrCreateTunnel(remoteAuthority: string, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined {

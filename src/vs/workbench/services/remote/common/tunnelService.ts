@@ -7,6 +7,7 @@ import { ITunnelService, RemoteTunnel, ITunnelProvider } from 'vs/platform/remot
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export abstract class AbstractTunnelService implements ITunnelService {
 	_serviceBrand: undefined;
@@ -20,6 +21,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	public constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable {
@@ -69,6 +71,9 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 		return resolvedTunnel.then(tunnel => {
 			const newTunnel = this.makeTunnel(tunnel);
+			if (tunnel.tunnelRemoteHost !== remoteHost || tunnel.tunnelRemotePort !== remotePort) {
+				this.logService.warn('Created tunnel does not match requirements of requested tunnel. Host or port mismatch.');
+			}
 			this._onTunnelOpened.fire(newTunnel);
 			return newTunnel;
 		});
