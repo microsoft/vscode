@@ -155,12 +155,17 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			const charCode = lineText.charCodeAt(i);
 			if (strings.isLowSurrogate(charCode)) {
 				// A surrogate pair must always be considered as a single unit, so it is never to be broken
-				// => advance visibleColumn by 1 and advance to next char code...
+
+				// Advance visibleColumn
 				visibleColumn = visibleColumn + 1;
+
+				if (niceBreakOffset !== -1) {
+					// Advance niceBreakVisibleColumn
+					niceBreakVisibleColumn = niceBreakVisibleColumn + 1;
+				}
 				continue;
 			}
 
-			const charCodeIsTab = (charCode === CharCode.Tab);
 			const charCodeClass = classifier.get(charCode);
 
 			if (charCodeClass === CharacterClass.BREAK_BEFORE) {
@@ -172,14 +177,13 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			}
 
 			// CJK breaking : before break
-			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i > 0) {
-				const prevClass = classifier.get(lineText.charCodeAt(i - 1));
-				if (prevClass !== CharacterClass.BREAK_BEFORE) { // Kinsoku Shori: Don't break after a leading character, like an open bracket
-					niceBreakOffset = i;
-					niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
-				}
+			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i > 0 && classifier.get(lineText.charCodeAt(i - 1)) !== CharacterClass.BREAK_BEFORE) {
+				// Kinsoku Shori: Don't break after a leading character, like an open bracket
+				niceBreakOffset = i;
+				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 			}
 
+			const charCodeIsTab = (charCode === CharCode.Tab);
 			const charColumnSize = strings.isFullWidthCharacter(charCode) ? columnsForFullWidthChar : 1;
 
 			// Advance visibleColumn with character at `i`
@@ -228,12 +232,10 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			}
 
 			// CJK breaking : after break
-			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i < len - 1) {
-				const nextClass = classifier.get(lineText.charCodeAt(i + 1));
-				if (nextClass !== CharacterClass.BREAK_AFTER) { // Kinsoku Shori: Don't break before a trailing character, like a period
-					niceBreakOffset = i + 1;
-					niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
-				}
+			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i + 1 < len && classifier.get(lineText.charCodeAt(i + 1)) !== CharacterClass.BREAK_AFTER) {
+				// Kinsoku Shori: Don't break before a trailing character, like a period
+				niceBreakOffset = i + 1;
+				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 			}
 		}
 
