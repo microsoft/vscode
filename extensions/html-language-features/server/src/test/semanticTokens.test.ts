@@ -46,7 +46,7 @@ function t(startLine: number, character: number, length: number, tokenClassifict
 	return { startLine, character, length, tokenClassifiction };
 }
 
-suite.skip('JavaScript Semantic Tokens', () => {
+suite('JavaScript Semantic Tokens', () => {
 
 	test('variables', () => {
 		const input = [
@@ -133,20 +133,39 @@ suite('Type Semantic Tokens', () => {
 			/*1*/'<head>',
 			/*2*/'<script type="text/typescript">',
 			/*3*/'  interface Position { x: number, y: number };',
-			/*4*/'  const p = { x: 1, y: 2 }',
-			/*5*/'</script>',
-			/*6*/'</head>',
-			/*7*/'</html>',
+			/*4*/'  const p = { x: 1, y: 2 } as Position;',
+			/*5*/'  const foo = (o: Position) => o.x + o.y;',
+			/*6*/'</script>',
+			/*7*/'</head>',
+			/*8*/'</html>',
 		];
 		assertTokens(input, [
-			t(3, 6, 1, 'variable.declaration'), t(3, 13, 2, 'variable.declaration'), t(3, 19, 1, 'variable'),
-			t(5, 15, 1, 'variable.declaration'), t(5, 20, 2, 'variable'),
-			t(6, 11, 1, 'variable.declaration'),
-			t(7, 10, 2, 'variable')
+			t(3, 12, 8, 'interface.declaration'), t(3, 23, 1, 'property.declaration'), t(3, 34, 1, 'property.declaration'),
+			t(4, 8, 1, 'variable.declaration'), t(4, 30, 8, 'interface'),
+			t(5, 8, 3, 'variable.declaration'), t(5, 15, 1, 'parameter.declaration'), t(5, 18, 8, 'interface'), t(5, 31, 1, 'parameter'), t(5, 33, 1, 'property'), t(5, 37, 1, 'parameter'), t(5, 39, 1, 'property')
 		]);
 	});
 
 
+	test('type alias', () => {
+		const input = [
+			/*0*/'<html>',
+			/*1*/'<head>',
+			/*2*/'<script type="text/typescript">',
+			/*3*/'  type MyMap = Map<string, number>;',
+			/*4*/'  function f<T extends MyMap>(t: T | number) : T { ',
+			/*5*/'    return <T> <unknown> new Map<string, MyMap>();',
+			/*6*/'  }',
+			/*7*/'</script>',
+			/*8*/'</head>',
+			/*9*/'</html>',
+		];
+		assertTokens(input, [
+			t(3, 7, 5, 'type.declaration'), t(3, 15, 3, 'variable') /* to investiagte */,
+			t(4, 11, 1, 'function.declaration'), t(4, 13, 1, 'typeParameter.declaration'), t(4, 23, 5, 'type'), t(4, 30, 1, 'parameter.declaration'), t(4, 33, 1, 'typeParameter'), t(4, 47, 1, 'typeParameter'),
+			t(5, 12, 1, 'typeParameter'), t(5, 29, 3, 'variable'), t(5, 41, 5, 'type'),
+		]);
+	});
 
 
 });

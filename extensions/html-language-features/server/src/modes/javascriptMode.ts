@@ -24,10 +24,10 @@ if (!ts.sys.fileExists(jquery_d_ts)) {
 	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts'); // from source
 }
 
-export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, id: 'javascript' | 'typescript'): LanguageMode {
-	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
+export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript'): LanguageMode {
+	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
 
-	const workingFile = id === 'javascript' ? 'vscode://javascript/1.js' : 'vscode://javascript/2.ts'; // the same 'file' is used for all contents
+	const workingFile = languageId === 'javascript' ? 'vscode://javascript/1.js' : 'vscode://javascript/2.ts'; // the same 'file' is used for all contents
 
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
 	let currentTextDocument: TextDocument;
@@ -72,7 +72,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 	return {
 		getId() {
-			return id;
+			return languageId;
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
 			updateCurrentTextDocument(document);
@@ -82,7 +82,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				return {
 					range: convertRange(currentTextDocument, diag),
 					severity: DiagnosticSeverity.Error,
-					source: 'js',
+					source: languageId,
 					message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
 				};
 			});
@@ -106,7 +106,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 						kind: convertKind(entry.kind),
 						textEdit: TextEdit.replace(replaceRange, entry.name),
 						data: { // data used for resolving item details (see 'doResolve')
-							languageId: 'javascript',
+							languageId,
 							uri: document.uri,
 							offset: offset
 						}

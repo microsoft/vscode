@@ -61,7 +61,7 @@ export function getSemanticTokenLegend() {
 }
 
 
-const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'parameterType', 'type', 'parameter', 'variable', 'property', 'constant', 'function', 'member'];
+const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'typeParameter', 'type', 'parameter', 'variable', 'property', 'constant', 'function', 'member'];
 const tokenModifiers: string[] = ['declaration', 'static', 'async'];
 
 enum TokenType {
@@ -69,7 +69,7 @@ enum TokenType {
 	'enum' = 1,
 	'interface' = 2,
 	'namespace' = 3,
-	'parameterType' = 4,
+	'typeParameter' = 4,
 	'type' = 5,
 	'parameter' = 6,
 	'variable' = 7,
@@ -98,4 +98,7 @@ const tokenFromDeclarationMapping: { [name: string]: TokenType } = {
 	[ts.SyntaxKind.MethodSignature]: TokenType.member,
 	[ts.SyntaxKind.GetAccessor]: TokenType.property,
 	[ts.SyntaxKind.PropertySignature]: TokenType.property,
+	[ts.SyntaxKind.InterfaceDeclaration]: TokenType.interface,
+	[ts.SyntaxKind.TypeAliasDeclaration]: TokenType.type,
+	[ts.SyntaxKind.TypeParameter]: TokenType.typeParameter
 };
