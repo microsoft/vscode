@@ -245,7 +245,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.getDefaultShell(false, configProvider);
 			},
 			openExternal(uri: URI) {
-				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.isRemote });
+				return extHostWindow.openUri(uri, { allowTunneling: !!initData.remote.authority });
 			},
 			asExternalUri(uri: URI) {
 				if (uri.scheme === initData.environment.appUriScheme) {
