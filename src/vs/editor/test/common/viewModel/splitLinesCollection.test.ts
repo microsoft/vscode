@@ -95,13 +95,11 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const fontInfo = config.options.get(EditorOption.fontInfo);
 		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
-		const wordWrapBreakObtrusiveCharacters = config.options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 
 		const hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
 			wordWrapBreakBeforeCharacters,
-			wordWrapBreakAfterCharacters,
-			wordWrapBreakObtrusiveCharacters
+			wordWrapBreakAfterCharacters
 		);
 
 		const model = TextModel.createFromString([
@@ -749,13 +747,11 @@ suite('SplitLinesCollection', () => {
 		const fontInfo = configuration.options.get(EditorOption.fontInfo);
 		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
-		const wordWrapBreakObtrusiveCharacters = configuration.options.get(EditorOption.wordWrapBreakObtrusiveCharacters);
 		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
 
 		const factory = new CharacterHardWrappingLineMapperFactory(
 			wordWrapBreakBeforeCharacters,
-			wordWrapBreakAfterCharacters,
-			wordWrapBreakObtrusiveCharacters
+			wordWrapBreakAfterCharacters
 		);
 
 		const linesCollection = new SplitLinesCollection(
