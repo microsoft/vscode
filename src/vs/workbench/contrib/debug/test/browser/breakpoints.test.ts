@@ -8,9 +8,9 @@ import { URI as uri } from 'vs/base/common/uri';
 import { DebugModel, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
-import { getExpandedBodySize } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { getExpandedBodySize, getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { dispose } from 'vs/base/common/lifecycle';
-import { IBreakpointData, IDebugSessionOptions, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpointData, IDebugSessionOptions, IBreakpointUpdateData, State } from 'vs/workbench/contrib/debug/common/debug';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
@@ -242,5 +242,71 @@ suite('Debug - Breakpoints', () => {
 		model.removeDataBreakpoints();
 		assert.equal(model.getDataBreakpoints().length, 0);
 		assert.equal(eventCount, 4);
+	});
+
+	test('message and class name', () => {
+		const modelUri = uri.file('/myfolder/my file first.js');
+		addBreakpointsAndCheckEvents(model, modelUri, [
+			{ lineNumber: 5, enabled: true, condition: 'x > 5' },
+			{ lineNumber: 10, enabled: false },
+			{ lineNumber: 12, enabled: true, logMessage: 'hello' },
+			{ lineNumber: 15, enabled: true, hitCondition: '12' },
+			{ lineNumber: 500, enabled: true },
+		]);
+		const breakpoints = model.getBreakpoints();
+
+		let result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[0]);
+		assert.equal(result.message, 'Expression: x > 5');
+		assert.equal(result.className, 'codicon-debug-breakpoint-conditional');
+
+		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[1]);
+		assert.equal(result.message, 'Disabled Breakpoint');
+		assert.equal(result.className, 'codicon-debug-breakpoint-disabled');
+
+		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[2]);
+		assert.equal(result.message, 'Log Message: hello');
+		assert.equal(result.className, 'codicon-debug-breakpoint-log');
+
+		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[3]);
+		assert.equal(result.message, 'Hit Count: 12');
+		assert.equal(result.className, 'codicon-debug-breakpoint-conditional');
+
+		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[4]);
+		assert.equal(result.message, 'Breakpoint');
+		assert.equal(result.className, 'codicon-debug-breakpoint');
+
+		result = getBreakpointMessageAndClassName(State.Stopped, false, breakpoints[2]);
+		assert.equal(result.message, 'Disabled Logpoint');
+		assert.equal(result.className, 'codicon-debug-breakpoint-log-disabled');
+
+		model.addDataBreakpoint('label', 'id', true, ['read']);
+		const dataBreakpoints = model.getDataBreakpoints();
+		result = getBreakpointMessageAndClassName(State.Stopped, true, dataBreakpoints[0]);
+		assert.equal(result.message, 'Data Breakpoint');
+		assert.equal(result.className, 'codicon-debug-breakpoint-data');
+
+		const functionBreakpoint = model.addFunctionBreakpoint('foo', '1');
+		result = getBreakpointMessageAndClassName(State.Stopped, true, functionBreakpoint);
+		assert.equal(result.message, 'Function Breakpoint');
+		assert.equal(result.className, 'codicon-debug-breakpoint-function');
+
+		const data = new Map<string, DebugProtocol.Breakpoint>();
+		data.set(breakpoints[0].getId(), { verified: false, line: 10 });
+		data.set(breakpoints[1].getId(), { verified: true, line: 50 });
+		data.set(breakpoints[2].getId(), { verified: true, line: 50, message: 'world' });
+		data.set(functionBreakpoint.getId(), { verified: true });
+		model.setBreakpointSessionData('mocksessionid', { supportsFunctionBreakpoints: false, supportsDataBreakpoints: true, supportsLogPoints: true }, data);
+
+		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[0]);
+		assert.equal(result.message, 'Unverified Breakpoint');
+		assert.equal(result.className, 'codicon-debug-breakpoint-unverified');
+
+		result = getBreakpointMessageAndClassName(State.Stopped, true, functionBreakpoint);
+		assert.equal(result.message, 'Function breakpoints not supported by this debug type');
+		assert.equal(result.className, 'codicon-debug-breakpoint-function-unverified');
+
+		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[2]);
+		assert.equal(result.message, 'Log Message: hello, world');
+		assert.equal(result.className, 'codicon-debug-breakpoint-log');
 	});
 });
