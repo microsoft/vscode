@@ -50,7 +50,7 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 	}
 });
 
-export class CodeActionWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+export class CodeActionWorkbenchConfigurationContribution extends Disposable implements IWorkbenchContribution {
 
 	private _contributedCodeActions: CodeActionsExtensionPoint[] = [];
 

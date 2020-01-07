@@ -8,7 +8,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { CodeActionWorkbenchContribution, editorConfiguration } from 'vs/workbench/contrib/codeActions/common/configuration';
+import { CodeActionWorkbenchConfigurationContribution, editorConfiguration } from 'vs/workbench/contrib/codeActions/common/configuration';
 import { CodeActionsExtensionPoint, codeActionsExtensionPointDescriptor } from 'vs/workbench/contrib/codeActions/common/extensionPoint';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -17,13 +17,13 @@ const codeActionsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<Code
 Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration(editorConfiguration);
 
-class WorkbenchContribution {
+class WorkbenchConfigurationContribution {
 	constructor(
 		@IKeybindingService keybindingsService: IKeybindingService,
 	) {
-		new CodeActionWorkbenchContribution(codeActionsExtensionPoint, keybindingsService);
+		new CodeActionWorkbenchConfigurationContribution(codeActionsExtensionPoint, keybindingsService);
 	}
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkbenchContribution, LifecyclePhase.Eventually);
+	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Eventually);
