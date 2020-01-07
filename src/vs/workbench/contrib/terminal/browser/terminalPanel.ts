@@ -97,19 +97,14 @@ export class TerminalPanel extends Panel {
 
 		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
-				if (this._terminalService.terminalInstances.length > 0) {
-					this._updateFont();
-					this._updateTheme();
+				const hasTerminals = this._terminalService.terminalInstances.length > 0;
+				if (!hasTerminals) {
+					this._terminalService.createTerminal();
+				}
+				this._updateFont();
+				this._updateTheme();
+				if (!hasTerminals) {
 					this._terminalService.getActiveTab()?.setVisible(visible);
-				} else {
-					// Check if instances were already restored as part of workbench restore
-					if (this._terminalService.terminalInstances.length === 0) {
-						this._terminalService.createTerminal();
-					}
-					if (this._terminalService.terminalInstances.length > 0) {
-						this._updateFont();
-						this._updateTheme();
-					}
 				}
 			}
 		}));
