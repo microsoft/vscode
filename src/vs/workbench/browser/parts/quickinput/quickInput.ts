@@ -1542,7 +1542,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			const quickInputBackground = theme.getColor(QUICK_INPUT_BACKGROUND);
 			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
 			const quickInputForeground = theme.getColor(QUICK_INPUT_FOREGROUND);
-			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : null;
+			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
 			const contrastBorderColor = theme.getColor(contrastBorder);
 			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : '';
 			const widgetShadowColor = theme.getColor(widgetShadow);

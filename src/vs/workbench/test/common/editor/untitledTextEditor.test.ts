@@ -236,9 +236,9 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled created with files.defaultLanguage setting (active-editor)', () => {
+	test('Untitled created with files.defaultLanguage setting (${activeEditorLanguage})', () => {
 		const config = accessor.testConfigurationService;
-		config.setUserConfiguration('files', { 'defaultLanguage': 'active-editor' });
+		config.setUserConfiguration('files', { 'defaultLanguage': '${activeEditorLanguage}' });
 
 		accessor.editorService.activeTextEditorMode = 'typescript';
 

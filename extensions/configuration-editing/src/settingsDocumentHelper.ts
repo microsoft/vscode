@@ -36,8 +36,8 @@ export class SettingsDocument {
 		if (location.path[0] === 'files.defaultLanguage') {
 			return this.provideLanguageCompletionItems(location, range).then(items => {
 
-				// Add special item 'active-editor'
-				return [this.newSimpleCompletionItem(JSON.stringify('active-editor'), range, localize('activeEditor', "Use the language mode of the currently active text editor if any")), ...items];
+				// Add special item '${activeEditorLanguage}'
+				return [this.newSimpleCompletionItem(JSON.stringify('${activeEditorLanguage}'), range, localize('activeEditor', "Use the language of the currently active text editor if any")), ...items];
 			});
 		}
 
