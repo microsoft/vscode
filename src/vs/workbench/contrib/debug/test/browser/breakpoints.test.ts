@@ -10,7 +10,13 @@ import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { getExpandedBodySize, getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { dispose } from 'vs/base/common/lifecycle';
+import { Range } from 'vs/editor/common/core/range';
 import { IBreakpointData, IDebugSessionOptions, IBreakpointUpdateData, State } from 'vs/workbench/contrib/debug/common/debug';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
+import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
+import { OverviewRulerLane } from 'vs/editor/common/model';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
@@ -308,5 +314,36 @@ suite('Debug - Breakpoints', () => {
 		result = getBreakpointMessageAndClassName(State.Stopped, true, breakpoints[2]);
 		assert.equal(result.message, 'Log Message: hello, world');
 		assert.equal(result.className, 'codicon-debug-breakpoint-log');
+	});
+
+	test('decorations', () => {
+		const modelUri = uri.file('/myfolder/my file first.js');
+		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
+		const textModel = new TextModel(
+			['this is line one', 'this is line two', '    this is line three it has whitespace at start', 'this is line four', 'this is line five'].join('\n'),
+			TextModel.DEFAULT_CREATION_OPTIONS,
+			languageIdentifier
+		);
+		addBreakpointsAndCheckEvents(model, modelUri, [
+			{ lineNumber: 1, enabled: true, condition: 'x > 5' },
+			{ lineNumber: 2, column: 4, enabled: false },
+			{ lineNumber: 3, enabled: true, logMessage: 'hello' },
+			{ lineNumber: 500, enabled: true },
+		]);
+		const breakpoints = model.getBreakpoints();
+
+		let decorations = createBreakpointDecorations(textModel, breakpoints, State.Running, true, true);
+		assert.equal(decorations.length, 3); // last breakpoint filtered out since it has a large line number
+		assert.deepEqual(decorations[0].range, new Range(1, 1, 1, 2));
+		assert.deepEqual(decorations[1].range, new Range(2, 4, 2, 5));
+		assert.deepEqual(decorations[2].range, new Range(3, 5, 3, 6));
+		assert.equal(decorations[0].options.beforeContentClassName, undefined);
+		assert.equal(decorations[1].options.beforeContentClassName, `debug-breakpoint-placeholder`);
+		assert.equal(decorations[0].options.overviewRuler?.position, OverviewRulerLane.Left);
+		const expected = new MarkdownString().appendCodeblock(languageIdentifier.language, 'Expression: x > 5');
+		assert.deepEqual(decorations[0].options.glyphMarginHoverMessage, expected);
+
+		decorations = createBreakpointDecorations(textModel, breakpoints, State.Running, true, false);
+		assert.equal(decorations[0].options.overviewRuler, null);
 	});
 });
