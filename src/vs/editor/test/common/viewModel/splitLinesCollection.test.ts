@@ -9,13 +9,11 @@ import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { toUint32Array } from 'vs/base/common/uint';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { CharacterHardWrappingLineMapperFactory, CharacterHardWrappingLineMapping } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ILineMapping, ISimpleModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
@@ -779,10 +777,11 @@ function createSplitLine(splitLengths: number[], wrappedLinesPrefix: string, isV
 }
 
 function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string): ILineMapping {
-	return new CharacterHardWrappingLineMapping(
-		new PrefixSumComputer(toUint32Array(breakingLengths)),
-		wrappedLinesPrefix
-	);
+	let sums: number[] = [];
+	for (let i = 0; i < breakingLengths.length; i++) {
+		sums[i] = (i > 0 ? sums[i - 1] : 0) + breakingLengths[i];
+	}
+	return new CharacterHardWrappingLineMapping(sums, wrappedLinesPrefix);
 }
 
 function createModel(text: string): ISimpleModel {
