@@ -404,37 +404,14 @@ export class BulkEditService implements IBulkEditService {
 		});
 	}
 
-	private static _mergeSequentialTextEditsOfSameResource(workspaceEdit: WorkspaceEdit): WorkspaceEdit {
-		let newEdit: WorkspaceEdit = { edits: [] };
-		let last: ResourceTextEdit | undefined;
-		for (let edit of workspaceEdit.edits) {
-			if (!isResourceTextEdit(edit)) {
-				last = undefined;
-				newEdit.edits.push(edit);
+	async apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
-			} else {
-				if (!last || last.resource.toString() !== edit.resource.toString()) {
-					last = edit;
-					newEdit.edits.push(last);
-				} else {
-					last.edits.push(...edit.edits);
-					last.modelVersionId = last.modelVersionId || edit.modelVersionId;
-				}
-			}
-		}
-		return newEdit;
-	}
-
-	async apply(edit: WorkspaceEdit, options: IBulkEditOptions = {}): Promise<IBulkEditResult> {
-
-		edit = BulkEditService._mergeSequentialTextEditsOfSameResource(edit);
-
-		if (this._previewHandler && !options.noPreview) {
+		if (this._previewHandler && !options?.noPreview) {
 			edit = await this._previewHandler(edit, options);
 		}
 
-		let { edits } = edit;
-		let codeEditor = options.editor;
+		const { edits } = edit;
+		let codeEditor = options?.editor;
 
 		// First check if loaded models were not changed in the meantime
 		for (const edit of edits) {
@@ -461,7 +438,7 @@ export class BulkEditService implements IBulkEditService {
 			codeEditor = undefined;
 		}
 		const bulkEdit = new BulkEdit(
-			codeEditor, options.progress, edits,
+			codeEditor, options?.progress, edits,
 			this._logService, this._textModelService, this._fileService, this._workerService, this._textFileService, this._labelService, this._configurationService
 		);
 		return bulkEdit.perform().then(() => {
