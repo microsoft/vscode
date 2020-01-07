@@ -13,12 +13,14 @@ import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/con
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Terminal, ILinkMatcherOptions, IViewportRange } from 'xterm';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { posix, win32 } from 'vs/base/common/path';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import type { ILinkMatcherOptions, IViewportRange } from 'xterm';
+
+type XTermTerminal = import('xterm').Terminal;
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -76,7 +78,7 @@ export class TerminalLinkHandler {
 	private readonly _leaveCallback: () => void;
 
 	constructor(
-		private _xterm: Terminal,
+		private _xterm: XTermTerminal,
 		private readonly _processManager: ITerminalProcessManager | undefined,
 		private readonly _configHelper: ITerminalConfigHelper,
 		@IOpenerService private readonly _openerService: IOpenerService,

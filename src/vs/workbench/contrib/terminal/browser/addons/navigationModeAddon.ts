@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Terminal, ITerminalAddon } from 'xterm';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { INavigationMode } from 'vs/workbench/contrib/terminal/common/terminal';
+import type { ITerminalAddon } from 'xterm';
+
+type XTermTerminal = import('xterm').Terminal;
 
 export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
-	private _terminal: Terminal | undefined;
+	private _terminal: XTermTerminal | undefined;
 
 	constructor(
 		private _navigationModeContextKey: IContextKey<boolean>
 	) { }
 
-	activate(terminal: Terminal): void {
+	activate(terminal: XTermTerminal): void {
 		this._terminal = terminal;
 	}
 

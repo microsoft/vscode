@@ -10,10 +10,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
 import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
-import { Terminal as XTermTerminal } from 'xterm';
-import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
-import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
@@ -23,10 +19,16 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 
-let Terminal: typeof XTermTerminal;
-let WebLinksAddon: typeof XTermWebLinksAddon;
-let SearchAddon: typeof XTermSearchAddon;
-let WebglAddon: typeof XTermWebglAddon;
+type XTermTerminal = import('xterm').Terminal;
+type XTermTerminalCtor = typeof import('xterm').Terminal;
+type XTermWebLinksAddonCtor = typeof import('xterm-addon-web-links').WebLinksAddon;
+type XTermSearchAddonCtor = typeof import('xterm-addon-search').SearchAddon;
+type XTermWebglAddonCtor = typeof import('xterm-addon-webgl').WebglAddon;
+
+let Terminal: XTermTerminalCtor;
+let WebLinksAddon: XTermWebLinksAddonCtor;
+let SearchAddon: XTermSearchAddonCtor;
+let WebglAddon: XTermWebglAddonCtor;
 
 export class TerminalInstanceService implements ITerminalInstanceService {
 	public _serviceBrand: undefined;
@@ -42,28 +44,28 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	) {
 	}
 
-	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
+	public async getXtermConstructor(): Promise<XTermTerminalCtor> {
 		if (!Terminal) {
 			Terminal = (await import('xterm')).Terminal;
 		}
 		return Terminal;
 	}
 
-	public async getXtermWebLinksConstructor(): Promise<typeof XTermWebLinksAddon> {
+	public async getXtermWebLinksConstructor(): Promise<XTermWebLinksAddonCtor> {
 		if (!WebLinksAddon) {
 			WebLinksAddon = (await import('xterm-addon-web-links')).WebLinksAddon;
 		}
 		return WebLinksAddon;
 	}
 
-	public async getXtermSearchConstructor(): Promise<typeof XTermSearchAddon> {
+	public async getXtermSearchConstructor(): Promise<XTermSearchAddonCtor> {
 		if (!SearchAddon) {
 			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
 		}
 		return SearchAddon;
 	}
 
-	public async getXtermWebglConstructor(): Promise<typeof XTermWebglAddon> {
+	public async getXtermWebglConstructor(): Promise<XTermWebglAddonCtor> {
 		if (!WebglAddon) {
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
 		}

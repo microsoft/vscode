@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal as XTermTerminal } from 'xterm';
 import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
@@ -14,6 +13,9 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { URI } from 'vs/base/common/uri';
+
+type XTermTerminal = import('xterm').Terminal;
+type XTermTerminalCtor = typeof import('xterm').Terminal;
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -29,7 +31,7 @@ export interface ITerminalInstanceService {
 	// These events are optional as the requests they make are only needed on the browser side
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
 
-	getXtermConstructor(): Promise<typeof XTermTerminal>;
+	getXtermConstructor(): Promise<XTermTerminalCtor>;
 	getXtermWebLinksConstructor(): Promise<typeof XTermWebLinksAddon>;
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
 	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;

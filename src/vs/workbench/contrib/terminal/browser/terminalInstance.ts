@@ -33,13 +33,16 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, TerminalShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import type { IBuffer, ITerminalAddon } from 'xterm';
+
+type XTermTerminal = import('xterm').Terminal;
+type XTermTerminalCtor = typeof import('xterm').Terminal;
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -165,7 +168,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.toggleMaximizedPanel'
 ];
 
-let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
+let xtermConstructor: Promise<XTermTerminalCtor> | undefined;
 
 interface ICanvasDimensions {
 	width: number;
@@ -438,11 +441,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
-	private async _getXtermConstructor(): Promise<typeof XTermTerminal> {
+	private async _getXtermConstructor(): Promise<XTermTerminalCtor> {
 		if (xtermConstructor) {
 			return xtermConstructor;
 		}
-		xtermConstructor = new Promise<typeof XTermTerminal>(async (resolve) => {
+		xtermConstructor = new Promise<XTermTerminalCtor>(async (resolve) => {
 			const Terminal = await this._terminalInstanceService.getXtermConstructor();
 			// Localize strings
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');

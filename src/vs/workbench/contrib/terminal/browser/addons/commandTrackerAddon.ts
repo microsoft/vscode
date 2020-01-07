@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
+import type { IMarker, ITerminalAddon } from 'xterm';
 
+type XTermTerminal = import('xterm').Terminal;
 /**
  * The minimum size of the prompt in which to assume the line is a command.
  */
@@ -25,9 +26,9 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
-	private _terminal: Terminal | undefined;
+	private _terminal: XTermTerminal | undefined;
 
-	public activate(terminal: Terminal): void {
+	public activate(terminal: XTermTerminal): void {
 		this._terminal = terminal;
 		terminal.onKey(e => this._onKey(e.key));
 	}
@@ -188,7 +189,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
 	}
 
-	private _selectLines(xterm: Terminal, start: IMarker | Boundary, end: IMarker | Boundary | null): void {
+	private _selectLines(xterm: XTermTerminal, start: IMarker | Boundary, end: IMarker | Boundary | null): void {
 		if (end === null) {
 			end = Boundary.Bottom;
 		}
@@ -209,7 +210,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		xterm.selectLines(startLine, endLine);
 	}
 
-	private _getLine(xterm: Terminal, marker: IMarker | Boundary): number {
+	private _getLine(xterm: XTermTerminal, marker: IMarker | Boundary): number {
 		// Use the _second last_ row as the last row is likely the prompt
 		if (marker === Boundary.Bottom) {
 			return xterm.buffer.baseY + xterm.rows - 1;
@@ -222,7 +223,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		return marker.line;
 	}
 
-	public scrollToPreviousLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	public scrollToPreviousLine(xterm: XTermTerminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
@@ -245,7 +246,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	public scrollToNextLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	public scrollToNextLine(xterm: XTermTerminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
@@ -268,7 +269,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	private _getOffset(xterm: Terminal): number {
+	private _getOffset(xterm: XTermTerminal): number {
 		if (this._currentMarker === Boundary.Bottom) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Top) {
@@ -280,7 +281,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 	}
 
-	private _findPreviousCommand(xterm: Terminal): number {
+	private _findPreviousCommand(xterm: XTermTerminal): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
@@ -297,7 +298,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		return -1;
 	}
 
-	private _findNextCommand(xterm: Terminal): number {
+	private _findNextCommand(xterm: XTermTerminal): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {

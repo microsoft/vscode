@@ -6,10 +6,11 @@
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowsShellHelper, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal as XTermTerminal } from 'xterm';
 import * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalInstance, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+
+type XTermTerminal = import('xterm').Terminal;
 
 const SHELL_EXECUTABLES = [
 	'cmd.exe',
