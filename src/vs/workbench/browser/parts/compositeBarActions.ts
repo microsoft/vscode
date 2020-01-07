@@ -168,7 +168,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
-				this.label.style.color = foreground ? foreground.toString() : null;
+				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
 			}
 		}
@@ -179,7 +179,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			const badgeBackground = colors.badgeBackground;
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
-			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : null;
+			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : '';
 			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : '';
 
 			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';

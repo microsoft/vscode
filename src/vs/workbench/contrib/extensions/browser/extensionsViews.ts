@@ -28,7 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, MenuItemExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, getContextMenuActions } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -241,7 +241,7 @@ export class ExtensionsListView extends ViewPane {
 					getActions: () => actions.slice(0, actions.length - 1)
 				});
 			} else if (e.element) {
-				const groups = MenuItemExtensionAction.getContextMenuActions(this.menuService, this.contextKeyService.createScoped());
+				const groups = getContextMenuActions(this.menuService, this.contextKeyService.createScoped());
 				groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = e.element!));
 				let actions: IAction[] = [];
 				for (const menuActions of groups) {

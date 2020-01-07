@@ -13,7 +13,7 @@ import * as json from 'vs/base/common/json';
 import { ActionViewItem, Separator, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG, IExtensionMenuAction } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { ExtensionsLabel, IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService, IExtensionRecommendation, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -660,6 +660,14 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 	}
 }
 
+export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService): ExtensionAction[][] {
+	const groups: ExtensionAction[][] = [];
+	const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService);
+	menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => new MenuItemExtensionAction(action))));
+	menu.dispose();
+	return groups;
+}
+
 export class ManageExtensionAction extends ExtensionDropDownAction {
 
 	static readonly ID = 'extensions.manage';
@@ -711,7 +719,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		const contextKeyService = this.contextKeyService.createScoped();
 		contextKeyService.createKey('extensionStatus', 'installed');
 		contextKeyService.createKey<boolean>('extensionHasConfiguration', !!this.extension && !!this.extension.local && !!this.extension.local.manifest.contributes && !!this.extension.local.manifest.contributes.configuration);
-		MenuItemExtensionAction.getContextMenuActions(this.menuService, contextKeyService).forEach(actions => groups.push(actions));
+		getContextMenuActions(this.menuService, contextKeyService).forEach(actions => groups.push(actions));
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
@@ -739,26 +747,15 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 
 export class MenuItemExtensionAction extends ExtensionAction {
 
-	constructor(private readonly action: IExtensionMenuAction) {
+	constructor(private readonly action: IAction) {
 		super(action.id, action.label);
-	}
-
-	static getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService): ExtensionAction[][] {
-		const groups: ExtensionAction[][] = [];
-		const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService);
-		menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => new MenuItemExtensionAction(action))));
-		menu.dispose();
-		return groups;
 	}
 
 	update() { }
 
 	async run(): Promise<void> {
 		if (this.extension) {
-			const packageJSON = await this.extension.getManifest(CancellationToken.None);
-			if (packageJSON) {
-				return this.action.run({ id: this.extension.identifier.id, packageJSON });
-			}
+			return this.action.run(this.extension.identifier.id);
 		}
 	}
 }

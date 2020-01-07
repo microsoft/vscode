@@ -21,7 +21,6 @@ class WorkbenchContribution {
 	constructor(
 		@IKeybindingService keybindingsService: IKeybindingService,
 	) {
-		// tslint:disable-next-line: no-unused-expression
 		new CodeActionWorkbenchContribution(codeActionsExtensionPoint, keybindingsService);
 	}
 }

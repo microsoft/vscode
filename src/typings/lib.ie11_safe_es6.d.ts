@@ -12,7 +12,7 @@ interface Map<K, V> {
 	forEach(callbackfn: (value: V, index: K, map: Map<K, V>) => void, thisArg?: any): void;
 	get(key: K): V | undefined;
 	has(key: K): boolean;
-	set(key: K, value?: V): Map<K, V>;
+	set(key: K, value: V): Map<K, V>;
 	readonly size: number;
 
 	// not supported on IE11:

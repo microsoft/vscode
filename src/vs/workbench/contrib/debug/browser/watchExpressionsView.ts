@@ -192,7 +192,7 @@ export class WatchExpressionsView extends ViewPane {
 
 class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 
-	getHeight(element: IExpression): number {
+	getHeight(_element: IExpression): number {
 		return 22;
 	}
 

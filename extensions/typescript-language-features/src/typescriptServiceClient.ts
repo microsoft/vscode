@@ -24,7 +24,7 @@ import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
 import TelemetryReporter, { VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
-import { inferredProjectConfig } from './utils/tsconfig';
+import { inferredProjectCompilerOptions } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
 
@@ -118,7 +118,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
 
-		// tslint:disable-next-line: no-var-keyword
+		// eslint-disable-next-line no-var
 		var p = new Promise<void>((resolve, reject) => {
 			this._onReady = { promise: p, resolve, reject };
 		});
@@ -498,7 +498,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
 		return {
-			...inferredProjectConfig(configuration),
+			...inferredProjectCompilerOptions(true, configuration),
 			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,

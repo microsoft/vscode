@@ -257,9 +257,8 @@ export const enum ConfirmResult {
 }
 
 const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, fileNamesOrResources: readonly (string | URI)[]): string {
-	const message = [start];
-	message.push('');
+export function getFileNamesMessage(fileNamesOrResources: readonly (string | URI)[]): string {
+	const message: string[] = [];
 	message.push(...fileNamesOrResources.slice(0, MAX_CONFIRM_FILES).map(fileNameOrResource => typeof fileNameOrResource === 'string' ? fileNameOrResource : basename(fileNameOrResource)));
 
 	if (fileNamesOrResources.length > MAX_CONFIRM_FILES) {
