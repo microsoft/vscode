@@ -19,7 +19,7 @@ export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameIn
 
 export class RenameInputField implements IContentWidget, IDisposable {
 
-	private _editor: ICodeEditor;
+
 	private _position?: Position;
 	private _domNode?: HTMLElement;
 	private _inputField?: HTMLInputElement;
@@ -31,38 +31,33 @@ export class RenameInputField implements IContentWidget, IDisposable {
 	allowEditorOverflow: boolean = true;
 
 	constructor(
-		editor: ICodeEditor,
-		private readonly themeService: IThemeService,
+		private readonly _editor: ICodeEditor,
+		private readonly _themeService: IThemeService,
 		contextKeyService: IContextKeyService,
 	) {
 		this._visibleContextKey = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 
-		this._editor = editor;
 		this._editor.addContentWidget(this);
 
-		this._disposables.add(editor.onDidChangeConfiguration(e => {
+		this._disposables.add(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
-				this.updateFont();
+				this._updateFont();
 			}
 		}));
 
-		this._disposables.add(themeService.onThemeChange(theme => this.onThemeChange(theme)));
+		this._disposables.add(_themeService.onThemeChange(this._updateStyles, this));
 	}
 
-	private onThemeChange(theme: ITheme): void {
-		this.updateStyles(theme);
-	}
-
-	public dispose(): void {
+	dispose(): void {
 		this._disposables.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
-	public getId(): string {
+	getId(): string {
 		return '__renameInputWidget';
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
 		if (!this._domNode) {
 			this._inputField = document.createElement('input');
 			this._inputField.className = 'rename-input';
@@ -73,13 +68,13 @@ export class RenameInputField implements IContentWidget, IDisposable {
 			this._domNode.className = 'monaco-editor rename-box';
 			this._domNode.appendChild(this._inputField);
 
-			this.updateFont();
-			this.updateStyles(this.themeService.getTheme());
+			this._updateFont();
+			this._updateStyles(this._themeService.getTheme());
 		}
 		return this._domNode;
 	}
 
-	private updateStyles(theme: ITheme): void {
+	private _updateStyles(theme: ITheme): void {
 		if (!this._inputField) {
 			return;
 		}
@@ -99,7 +94,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 		this._domNode!.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : '';
 	}
 
-	private updateFont(): void {
+	private _updateFont(): void {
 		if (!this._inputField) {
 			return;
 		}
@@ -110,7 +105,7 @@ export class RenameInputField implements IContentWidget, IDisposable {
 		this._inputField.style.fontSize = `${fontInfo.fontSize}px`;
 	}
 
-	public getPosition(): IContentWidgetPosition | null {
+	getPosition(): IContentWidgetPosition | null {
 		return this._visible
 			? { position: this._position!, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
 			: null;
@@ -119,19 +114,19 @@ export class RenameInputField implements IContentWidget, IDisposable {
 	private _currentAcceptInput: (() => void) | null = null;
 	private _currentCancelInput: ((focusEditor: boolean) => void) | null = null;
 
-	public acceptInput(): void {
+	acceptInput(): void {
 		if (this._currentAcceptInput) {
 			this._currentAcceptInput();
 		}
 	}
 
-	public cancelInput(focusEditor: boolean): void {
+	cancelInput(focusEditor: boolean): void {
 		if (this._currentCancelInput) {
 			this._currentCancelInput(focusEditor);
 		}
 	}
 
-	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<string | boolean> {
+	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<string | boolean> {
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
 		this._inputField!.value = value;
@@ -140,10 +135,6 @@ export class RenameInputField implements IContentWidget, IDisposable {
 		this._inputField!.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
 
 		const disposeOnDone = new DisposableStore();
-		const always = () => {
-			disposeOnDone.dispose();
-			this._hide();
-		};
 
 		return new Promise<string | boolean>(resolve => {
 
@@ -178,12 +169,9 @@ export class RenameInputField implements IContentWidget, IDisposable {
 
 			this._show();
 
-		}).then(newValue => {
-			always();
-			return newValue;
-		}, err => {
-			always();
-			return Promise.reject(err);
+		}).finally(() => {
+			disposeOnDone.dispose();
+			this._hide();
 		});
 	}
 
