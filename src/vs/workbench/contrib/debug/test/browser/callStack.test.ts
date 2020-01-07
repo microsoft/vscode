@@ -45,7 +45,7 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 	return { firstStackFrame, secondStackFrame };
 }
 
-suite.only('Debug - CallStack', () => {
+suite('Debug - CallStack', () => {
 	let model: DebugModel;
 	let rawSession: MockRawSession;
 
