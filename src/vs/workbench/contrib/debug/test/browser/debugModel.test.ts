@@ -106,16 +106,16 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints({ lineNumber: 5 }).length, 1);
 		assert.equal(model.getBreakpoints({ column: 5 }).length, 0);
 
-
 		const bp = model.getBreakpoints()[0];
 		const update = new Map<string, IBreakpointUpdateData>();
 		update.set(bp.getId(), { lineNumber: 100 });
 		let eventFired = false;
-		model.onDidChangeBreakpoints(e => {
+		const toDispose = model.onDidChangeBreakpoints(e => {
 			eventFired = true;
 			assert.equal(e?.added, undefined);
 			assert.equal(e?.removed, undefined);
 			assert.equal(e?.changed?.length, 1);
+			dispose(toDispose);
 		});
 		model.updateBreakpoints(update);
 		assert.equal(eventFired, true);
