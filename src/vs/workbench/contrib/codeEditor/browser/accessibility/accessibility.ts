@@ -35,7 +35,7 @@ const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessi
 
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.accessibilityHelpController';
+	public static readonly ID = 'editor.contrib.accessibilityHelpController';
 
 	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
@@ -52,10 +52,6 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 
 		this._editor = editor;
 		this._widget = this._register(instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
-	}
-
-	public getId(): string {
-		return AccessibilityHelpController.ID;
 	}
 
 	public show(): void {
@@ -267,11 +263,13 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private _layout(): void {
 		let editorLayout = this._editor.getLayoutInfo();
 
-		let top = Math.round((editorLayout.height - AccessibilityHelpWidget.HEIGHT) / 2);
-		this._domNode.setTop(top);
+		const width = Math.min(editorLayout.width - 40, AccessibilityHelpWidget.WIDTH);
+		const height = Math.min(editorLayout.height - 40, AccessibilityHelpWidget.HEIGHT);
 
-		let left = Math.round((editorLayout.width - AccessibilityHelpWidget.WIDTH) / 2);
-		this._domNode.setLeft(left);
+		this._domNode.setTop(Math.round((editorLayout.height - height) / 2));
+		this._domNode.setLeft(Math.round((editorLayout.width - width) / 2));
+		this._domNode.setWidth(width);
+		this._domNode.setHeight(height);
 	}
 }
 
@@ -299,7 +297,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
 registerEditorAction(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);

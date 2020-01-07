@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { startsWith } from 'vs/base/common/strings';
@@ -15,11 +15,12 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle, WebviewPanelShowOptions, WebviewPanelViewStateData } from 'vs/workbench/api/common/extHost.protocol';
+import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
+import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
@@ -79,8 +80,8 @@ class WebviewViewTypeTransformer {
 
 const webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-');
 
-@extHostNamedCustomer(MainContext.MainThreadWebviews)
-export class MainThreadWebviews extends Disposable implements MainThreadWebviewsShape {
+@extHostNamedCustomer(extHostProtocol.MainContext.MainThreadWebviews)
+export class MainThreadWebviews extends Disposable implements extHostProtocol.MainThreadWebviewsShape {
 
 	private static readonly standardSupportedLinkSchemes = new Set([
 		Schemas.http,
@@ -90,14 +91,16 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		'vscode-insider',
 	]);
 
-	private readonly _proxy: ExtHostWebviewsShape;
+	private readonly _proxy: extHostProtocol.ExtHostWebviewsShape;
 	private readonly _webviewInputs = new WebviewInputStore();
 	private readonly _revivers = new Map<string, IDisposable>();
 	private readonly _editorProviders = new Map<string, IDisposable>();
+	private readonly _customEditorModels = new Map<ICustomEditorModel, { referenceCount: number }>();
 
 	constructor(
-		context: IExtHostContext,
+		context: extHostProtocol.IExtHostContext,
 		@IExtensionService extensionService: IExtensionService,
+		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -107,7 +110,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	) {
 		super();
 
-		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
+		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
 		this._register(_editorService.onDidActiveEditorChange(this.updateWebviewViewStates, this));
 		this._register(_editorService.onDidVisibleEditorsChange(this.updateWebviewViewStates, this));
 
@@ -131,13 +134,12 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	}
 
 	public $createWebviewPanel(
-		handle: WebviewPanelHandle,
+		extensionData: extHostProtocol.WebviewExtensionDescription,
+		handle: extHostProtocol.WebviewPanelHandle,
 		viewType: string,
 		title: string,
 		showOptions: { viewColumn?: EditorViewColumn, preserveFocus?: boolean; },
-		options: WebviewInputOptions,
-		extensionId: ExtensionIdentifier,
-		extensionLocation: UriComponents
+		options: WebviewInputOptions
 	): void {
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
 		if (showOptions) {
@@ -145,7 +147,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const extension = reviveWebviewExtension(extensionId, extensionLocation);
+		const extension = reviveWebviewExtension(extensionData);
 		const webview = this._webviewWorkbenchService.createWebview(handle, webviewPanelViewType.fromExternal(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), extension);
 		this.hookupWebviewEventDelegate(handle, webview);
 
@@ -156,42 +158,35 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extensionId.value });
+		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extension.id.value });
 	}
 
-	public $disposeWebview(handle: WebviewPanelHandle): void {
+	public $disposeWebview(handle: extHostProtocol.WebviewPanelHandle): void {
 		const webview = this.getWebviewInput(handle);
 		webview.dispose();
 	}
 
-	public $setTitle(handle: WebviewPanelHandle, value: string): void {
+	public $setTitle(handle: extHostProtocol.WebviewPanelHandle, value: string): void {
 		const webview = this.getWebviewInput(handle);
 		webview.setName(value);
 	}
 
-	public $setState(handle: WebviewPanelHandle, state: modes.WebviewContentState): void {
-		const webview = this.getWebviewInput(handle);
-		if (webview instanceof CustomFileEditorInput) {
-			webview.setState(state);
-		}
-	}
-
-	public $setIconPath(handle: WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
+	public $setIconPath(handle: extHostProtocol.WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
 		const webview = this.getWebviewInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
 	}
 
-	public $setHtml(handle: WebviewPanelHandle, value: string): void {
+	public $setHtml(handle: extHostProtocol.WebviewPanelHandle, value: string): void {
 		const webview = this.getWebviewInput(handle);
 		webview.webview.html = value;
 	}
 
-	public $setOptions(handle: WebviewPanelHandle, options: modes.IWebviewOptions): void {
+	public $setOptions(handle: extHostProtocol.WebviewPanelHandle, options: modes.IWebviewOptions): void {
 		const webview = this.getWebviewInput(handle);
 		webview.webview.contentOptions = reviveWebviewOptions(options);
 	}
 
-	public $reveal(handle: WebviewPanelHandle, showOptions: WebviewPanelShowOptions): void {
+	public $reveal(handle: extHostProtocol.WebviewPanelHandle, showOptions: extHostProtocol.WebviewPanelShowOptions): void {
 		const webview = this.getWebviewInput(handle);
 		if (webview.isDisposed()) {
 			return;
@@ -203,7 +198,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 	}
 
-	public async $postMessage(handle: WebviewPanelHandle, message: any): Promise<boolean> {
+	public async $postMessage(handle: extHostProtocol.WebviewPanelHandle, message: any): Promise<boolean> {
 		const webview = this.getWebviewInput(handle);
 		webview.webview.sendMessage(message);
 		return true;
@@ -258,33 +253,34 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this._revivers.delete(viewType);
 	}
 
-	public $registerEditorProvider(viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void {
+	public $registerEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]): void {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
 
-		const extension = reviveWebviewExtension(extensionId, extensionLocation);
+		const extension = reviveWebviewExtension(extensionData);
 
 		this._editorProviders.set(viewType, this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewInput) => {
 				return webviewInput instanceof CustomFileEditorInput && webviewInput.viewType === viewType;
 			},
-			resolveWebview: async (webviewInput) => {
+			resolveWebview: async (webviewInput: CustomFileEditorInput) => {
 				const handle = webviewInput.id;
 				this._webviewInputs.add(handle, webviewInput);
 				this.hookupWebviewEventDelegate(handle, webviewInput);
 
+				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
+				const resource = webviewInput.getResource();
 
-				if (webviewInput instanceof CustomFileEditorInput) {
-					webviewInput.onWillSave(e => {
-						e.waitUntil(this._proxy.$save(handle));
-					});
-				}
+				const model = await this.retainCustomEditorModel(webviewInput, resource, viewType, capabilities);
+				webviewInput.onDisposeWebview(() => {
+					this.releaseCustomEditorModel(model);
+				});
 
 				try {
 					await this._proxy.$resolveWebviewEditor(
-						webviewInput.getResource(),
+						resource,
 						handle,
 						viewType,
 						webviewInput.getTitle(),
@@ -294,6 +290,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
+					return;
 				}
 			}
 		}));
@@ -309,15 +306,79 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		this._editorProviders.delete(viewType);
 	}
 
-	private hookupWebviewEventDelegate(handle: WebviewPanelHandle, input: WebviewInput) {
-		input.webview.onDidClickLink((uri: URI) => this.onDidClickLink(handle, uri));
-		input.webview.onMessage((message: any) => this._proxy.$onMessage(handle, message));
+	private async retainCustomEditorModel(webviewInput: WebviewInput, resource: URI, viewType: string, capabilities: readonly extHostProtocol.WebviewEditorCapabilities[]) {
+		const model = await this._customEditorService.models.loadOrCreate(webviewInput.getResource(), webviewInput.viewType);
+
+		const existingEntry = this._customEditorModels.get(model);
+		if (existingEntry) {
+			++existingEntry.referenceCount;
+			// no need to hook up listeners again
+			return model;
+		}
+
+		this._customEditorModels.set(model, { referenceCount: 1 });
+
+		const capabilitiesSet = new Set(capabilities);
+		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable)) {
+			model.onUndo(edits => {
+				this._proxy.$undoEdits(resource, viewType, edits.map(x => x.data));
+			});
+
+			model.onApplyEdit(edits => {
+				const editsToApply = edits.filter(x => x.source !== model).map(x => x.data);
+				if (editsToApply.length) {
+					this._proxy.$applyEdits(resource, viewType, editsToApply);
+				}
+			});
+
+			model.onWillSave(e => {
+				e.waitUntil(this._proxy.$onSave(resource.toJSON(), viewType));
+			});
+
+			model.onWillSaveAs(e => {
+				e.waitUntil(this._proxy.$onSaveAs(e.resource.toJSON(), viewType, e.targetResource.toJSON()));
+			});
+		}
+		return model;
+	}
+
+	private async releaseCustomEditorModel(model: ICustomEditorModel) {
+		const entry = this._customEditorModels.get(model);
+		if (!entry) {
+			return;
+		}
+
+		--entry.referenceCount;
+		if (entry.referenceCount <= 0) {
+			this._customEditorService.models.disposeModel(model);
+			this._customEditorModels.delete(model);
+		}
+	}
+
+	public $onEdit(resource: UriComponents, viewType: string, editData: any): void {
+		const model = this._customEditorService.models.get(URI.revive(resource), viewType);
+		if (!model) {
+			throw new Error('Could not find model for webview editor');
+		}
+
+		model.pushEdit({ source: model, data: editData });
+	}
+
+	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
+		const disposables = new DisposableStore();
+
+		disposables.add(input.webview.onDidClickLink((uri) => this.onDidClickLink(handle, uri)));
+		disposables.add(input.webview.onMessage((message: any) => { this._proxy.$onMessage(handle, message); }));
+		disposables.add(input.webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value)));
+
 		input.onDispose(() => {
+			disposables.dispose();
+		});
+		input.onDisposeWebview(() => {
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
 				this._webviewInputs.delete(handle);
 			});
 		});
-		input.webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value));
 	}
 
 	private updateWebviewViewStates() {
@@ -326,7 +387,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 
 		const activeInput = this._editorService.activeControl && this._editorService.activeControl.input;
-		const viewStates: WebviewPanelViewStateData = {};
+		const viewStates: extHostProtocol.WebviewPanelViewStateData = {};
 
 		const updateViewStatesForInput = (group: IEditorGroup, topLevelInput: IEditorInput, editorInput: IEditorInput) => {
 			if (!(editorInput instanceof WebviewInput)) {
@@ -361,10 +422,10 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		}
 	}
 
-	private onDidClickLink(handle: WebviewPanelHandle, link: URI): void {
+	private onDidClickLink(handle: extHostProtocol.WebviewPanelHandle, link: string): void {
 		const webview = this.getWebviewInput(handle);
-		if (this.isSupportedLink(webview, link)) {
-			this._openerService.open(link);
+		if (this.isSupportedLink(webview, URI.parse(link))) {
+			this._openerService.open(link, { fromUserGesture: true });
 		}
 	}
 
@@ -378,7 +439,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		return !!webview.webview.contentOptions.enableCommandUris && link.scheme === Schemas.command;
 	}
 
-	private getWebviewInput(handle: WebviewPanelHandle): WebviewInput {
+	private getWebviewInput(handle: extHostProtocol.WebviewPanelHandle): WebviewInput {
 		const webview = this.tryGetWebviewInput(handle);
 		if (!webview) {
 			throw new Error('Unknown webview handle:' + handle);
@@ -386,7 +447,7 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 		return webview;
 	}
 
-	private tryGetWebviewInput(handle: WebviewPanelHandle): WebviewInput | undefined {
+	private tryGetWebviewInput(handle: extHostProtocol.WebviewPanelHandle): WebviewInput | undefined {
 		return this._webviewInputs.getInputForHandle(handle);
 	}
 
@@ -402,8 +463,8 @@ export class MainThreadWebviews extends Disposable implements MainThreadWebviews
 	}
 }
 
-function reviveWebviewExtension(extensionId: ExtensionIdentifier, extensionLocation: UriComponents): WebviewExtensionDescription {
-	return { id: extensionId, location: URI.revive(extensionLocation) };
+function reviveWebviewExtension(extensionData: extHostProtocol.WebviewExtensionDescription): WebviewExtensionDescription {
+	return { id: extensionData.id, location: URI.revive(extensionData.location) };
 }
 
 function reviveWebviewOptions(options: modes.IWebviewOptions): WebviewInputOptions {

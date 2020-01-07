@@ -577,23 +577,34 @@ export class PieceTreeBase {
 
 		let m: RegExpExecArray | null;
 		// Reset regex to search from the beginning
-		searcher.reset(start);
 		let ret: BufferCursor = { line: 0, column: 0 };
+		let searchText: string;
+		let offsetInBuffer: (offset: number) => number;
+
+		if (searcher._wordSeparators) {
+			searchText = buffer.buffer.substring(start, end);
+			offsetInBuffer = (offset: number) => offset + start;
+			searcher.reset(-1);
+		} else {
+			searchText = buffer.buffer;
+			offsetInBuffer = (offset: number) => offset;
+			searcher.reset(start);
+		}
 
 		do {
-			m = searcher.next(buffer.buffer);
+			m = searcher.next(searchText);
 
 			if (m) {
-				if (m.index >= end) {
+				if (offsetInBuffer(m.index) >= end) {
 					return resultLen;
 				}
-				this.positionInBuffer(node, m.index - startOffsetInBuffer, ret);
+				this.positionInBuffer(node, offsetInBuffer(m.index) - startOffsetInBuffer, ret);
 				let lineFeedCnt = this.getLineFeedCnt(node.piece.bufferIndex, startCursor, ret);
 				let retStartColumn = ret.line === startCursor.line ? ret.column - startCursor.column + startColumn : ret.column + 1;
 				let retEndColumn = retStartColumn + m[0].length;
 				result[resultLen++] = createFindMatch(new Range(startLineNumber + lineFeedCnt, retStartColumn, startLineNumber + lineFeedCnt, retEndColumn), m, captureMatches);
 
-				if (m.index + m[0].length >= end) {
+				if (offsetInBuffer(m.index) + m[0].length >= end) {
 					return resultLen;
 				}
 				if (resultLen >= limitResultCount) {

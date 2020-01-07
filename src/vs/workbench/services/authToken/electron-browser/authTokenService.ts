@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
+import { URI } from 'vs/base/common/uri';
 
 export class AuthTokenService extends Disposable implements IAuthTokenService {
 
@@ -16,41 +17,43 @@ export class AuthTokenService extends Disposable implements IAuthTokenService {
 
 	private readonly channel: IChannel;
 
-	private _status: AuthTokenStatus = AuthTokenStatus.Disabled;
+	private _status: AuthTokenStatus = AuthTokenStatus.Initializing;
 	get status(): AuthTokenStatus { return this._status; }
 	private _onDidChangeStatus: Emitter<AuthTokenStatus> = this._register(new Emitter<AuthTokenStatus>());
 	readonly onDidChangeStatus: Event<AuthTokenStatus> = this._onDidChangeStatus.event;
 
+	readonly _onDidGetCallback: Emitter<URI> = this._register(new Emitter<URI>());
+
 	constructor(
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
 		super();
 		this.channel = sharedProcessService.getChannel('authToken');
-		this.channel.call<AuthTokenStatus>('_getInitialStatus').then(status => {
-			this.updateStatus(status);
-			this._register(this.channel.listen<AuthTokenStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
-		});
+		this._register(this.channel.listen<AuthTokenStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
+		this.channel.call<AuthTokenStatus>('_getInitialStatus').then(status => this.updateStatus(status));
 	}
 
 	getToken(): Promise<string> {
 		return this.channel.call('getToken');
 	}
 
-	updateToken(token: string): Promise<void> {
-		return this.channel.call('updateToken', [token]);
+	login(): Promise<void> {
+		return this.channel.call('login');
 	}
 
 	refreshToken(): Promise<void> {
 		return this.channel.call('getToken');
 	}
 
-	deleteToken(): Promise<void> {
-		return this.channel.call('deleteToken');
+	logout(): Promise<void> {
+		return this.channel.call('logout');
 	}
 
 	private async updateStatus(status: AuthTokenStatus): Promise<void> {
-		this._status = status;
-		this._onDidChangeStatus.fire(status);
+		if (status !== AuthTokenStatus.Initializing) {
+			this._status = status;
+			this._onDidChangeStatus.fire(status);
+		}
 	}
 
 }

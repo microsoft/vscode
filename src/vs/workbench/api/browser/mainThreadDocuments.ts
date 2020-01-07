@@ -16,7 +16,7 @@ import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThre
 import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource } from 'vs/base/common/resources';
 
@@ -70,7 +70,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private readonly _textModelResolverService: ITextModelService;
 	private readonly _textFileService: ITextFileService;
 	private readonly _fileService: IFileService;
-	private readonly _untitledEditorService: IUntitledEditorService;
+	private readonly _untitledTextEditorService: IUntitledTextEditorService;
 	private readonly _environmentService: IWorkbenchEnvironmentService;
 
 	private readonly _toDispose = new DisposableStore();
@@ -87,14 +87,14 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@ITextFileService textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._fileService = fileService;
-		this._untitledEditorService = untitledEditorService;
+		this._untitledTextEditorService = untitledTextEditorService;
 		this._environmentService = environmentService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
@@ -227,13 +227,13 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _doCreateUntitled(resource?: URI, mode?: string, initialValue?: string): Promise<URI> {
-		return this._untitledEditorService.loadOrCreate({
+		return this._untitledTextEditorService.loadOrCreate({
 			resource,
 			mode,
 			initialValue,
 			useResourcePath: Boolean(resource && resource.path)
 		}).then(model => {
-			const resource = model.getResource();
+			const resource = model.resource;
 
 			if (!this._modelIsSynced.has(resource.toString())) {
 				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);

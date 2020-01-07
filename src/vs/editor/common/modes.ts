@@ -19,7 +19,6 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureR
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { keys } from 'vs/base/common/map';
 
 /**
  * Open ended enum at runtime
@@ -125,6 +124,8 @@ export const enum MetadataConsts {
 	FONT_STYLE_MASK = 0b00000000000000000011100000000000,
 	FOREGROUND_MASK = 0b00000000011111111100000000000000,
 	BACKGROUND_MASK = 0b11111111100000000000000000000000,
+
+	LANG_TTYPE_CMPL = 0b11111111111111111111100000000000,
 
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
@@ -435,7 +436,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion.
+	 * this completion. When `falsy` the [label](#CompletionItem.label)
 	 * is used.
 	 */
 	insertText: string;
@@ -453,7 +454,7 @@ export interface CompletionItem {
 	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
 	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
 	 */
-	range: IRange;
+	range: IRange | { insert: IRange, replace: IRange };
 	/**
 	 * An optional set of characters that when pressed while this completion is active will accept it first and
 	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
@@ -547,6 +548,7 @@ export interface CodeAction {
 	diagnostics?: IMarkerData[];
 	kind?: string;
 	isPreferred?: boolean;
+	disabled?: string;
 }
 
 /**
@@ -941,12 +943,6 @@ export namespace SymbolKinds {
 	/**
 	 * @internal
 	 */
-	export function names(): readonly string[] {
-		return keys(byName);
-	}
-	/**
-	 * @internal
-	 */
 	export function toString(kind: SymbolKind): string | undefined {
 		return byKind.get(kind);
 	}
@@ -954,7 +950,7 @@ export namespace SymbolKinds {
 	 * @internal
 	 */
 	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		return `symbol-icon ${inline ? 'inline' : 'block'} ${byKind.get(kind) || 'property'}`;
+		return `codicon ${inline ? 'inline' : 'block'} codicon-symbol-${byKind.get(kind) || 'property'}`;
 	}
 }
 
@@ -1250,9 +1246,9 @@ export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
 }
 
 export interface ResourceFileEdit {
-	oldUri: URI;
-	newUri: URI;
-	options: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
+	oldUri?: URI;
+	newUri?: URI;
+	options?: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
 }
 
 export interface ResourceTextEdit {
@@ -1451,14 +1447,6 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
-/**
- * @internal
- */
-export const enum WebviewContentState {
-	Readonly = 1,
-	Unchanged = 2,
-	Dirty = 3,
-}
 
 export interface CodeLens {
 	range: IRange;
@@ -1475,6 +1463,33 @@ export interface CodeLensProvider {
 	onDidChange?: Event<this>;
 	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
+}
+
+export interface SemanticTokensLegend {
+	readonly tokenTypes: string[];
+	readonly tokenModifiers: string[];
+}
+
+export interface SemanticTokens {
+	readonly resultId?: string;
+	readonly data: Uint32Array;
+}
+
+export interface SemanticTokensEdit {
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly data?: Uint32Array;
+}
+
+export interface SemanticTokensEdits {
+	readonly resultId?: string;
+	readonly edits: SemanticTokensEdit[];
+}
+
+export interface SemanticTokensProvider {
+	getLegend(): SemanticTokensLegend;
+	provideSemanticTokens(model: model.ITextModel, lastResultId: string | null, ranges: Range[] | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+	releaseSemanticTokens(resultId: string | undefined): void;
 }
 
 // --- feature registries ------
@@ -1582,6 +1597,11 @@ export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingR
 /**
  * @internal
  */
+export const SemanticTokensProviderRegistry = new LanguageFeatureRegistry<SemanticTokensProvider>();
+
+/**
+ * @internal
+ */
 export interface ITokenizationSupportChangedEvent {
 	changedLanguages: string[];
 	changedColorMap: boolean;
@@ -1617,9 +1637,9 @@ export interface ITokenizationRegistry {
 
 	/**
 	 * Get the tokenization support for a language.
-	 * Returns `undefined` if not found.
+	 * Returns `null` if not found.
 	 */
-	get(language: string): ITokenizationSupport | undefined;
+	get(language: string): ITokenizationSupport | null;
 
 	/**
 	 * Get the promise of a tokenization support for a language.
@@ -1632,9 +1652,9 @@ export interface ITokenizationRegistry {
 	 */
 	setColorMap(colorMap: Color[]): void;
 
-	getColorMap(): Color[] | undefined;
+	getColorMap(): Color[] | null;
 
-	getDefaultBackground(): Color | undefined;
+	getDefaultBackground(): Color | null;
 }
 
 /**

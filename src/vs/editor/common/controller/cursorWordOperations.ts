@@ -289,17 +289,26 @@ export class WordOperations {
 				column = model.getLineMaxColumn(lineNumber);
 			}
 		} else if (wordNavigationType === WordNavigationType.WordAccessibility) {
+			if (movedDown) {
+				// If we move to the next line, pretend that the cursor is right before the first character.
+				// This is needed when the first word starts right at the first character - and in order not to miss it,
+				// we need to start before.
+				column = 0;
+			}
 
 			while (
 				nextWordOnLine
-				&& nextWordOnLine.wordType === WordType.Separator
+				&& (nextWordOnLine.wordType === WordType.Separator
+					|| nextWordOnLine.start + 1 <= column
+				)
 			) {
 				// Skip over a word made up of one single separator
+				// Also skip over word if it begins before current cursor position to ascertain we're moving forward at least 1 character.
 				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 
 			if (nextWordOnLine) {
-				column = nextWordOnLine.end + 1;
+				column = nextWordOnLine.start + 1;
 			} else {
 				column = model.getLineMaxColumn(lineNumber);
 			}

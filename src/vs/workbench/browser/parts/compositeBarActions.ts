@@ -158,11 +158,17 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			if (this.options.icon) {
 				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
-				this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+				if (this.activity.iconUrl) {
+					// Apply background color to activity bar item provided with iconUrls
+					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+				} else {
+					// Apply foreground color to activity bar items provided with codicons
+					this.label.style.color = foreground ? foreground.toString() : '';
+				}
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
-				this.label.style.color = foreground ? foreground.toString() : null;
+				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
 			}
 		}
@@ -173,7 +179,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			const badgeBackground = colors.badgeBackground;
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
-			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : null;
+			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : '';
 			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : '';
 
 			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';
@@ -233,6 +239,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.updateLabel();
 		this.updateTitle(this.activity.name);
 		this.updateBadge();
+		this.updateStyles();
 	}
 
 	protected updateBadge(): void {
@@ -293,7 +300,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Title
 		let title: string;
-		if (badge && badge.getDescription()) {
+		if (badge?.getDescription()) {
 			if (this.activity.name) {
 				title = nls.localize('badgeTitle', "{0} - {1}", this.activity.name, badge.getDescription());
 			} else {
@@ -311,6 +318,11 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		if (this.activity.cssClass) {
 			dom.addClass(this.label, this.activity.cssClass);
+		}
+
+		if (this.options.icon && !this.activity.iconUrl) {
+			// Only apply codicon class to activity bar icon items without iconUrl
+			dom.addClass(this.label, 'codicon');
 		}
 
 		if (!this.options.icon) {
@@ -346,7 +358,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: nls.localize('additionalViews', "Additional Views"),
-			cssClass: 'toggle-more'
+			cssClass: 'codicon-more'
 		});
 	}
 
@@ -362,8 +374,8 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 	constructor(
 		action: ActivityAction,
-		private getOverflowingComposites: () => { id: string, name: string }[],
-		private getActiveCompositeId: () => string,
+		private getOverflowingComposites: () => { id: string, name?: string }[],
+		private getActiveCompositeId: () => string | undefined,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
 		colors: (theme: ITheme) => ICompositeBarColors,
@@ -383,6 +395,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => this.actions,
+			getCheckedActionsRepresentation: () => 'radio',
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -390,7 +403,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 	private getActions(): Action[] {
 		return this.getOverflowingComposites().map(composite => {
 			const action = this.getCompositeOpenAction(composite.id);
-			action.radio = this.getActiveCompositeId() === action.id;
+			action.checked = this.getActiveCompositeId() === action.id;
 
 			const badge = this.getBadge(composite.id);
 			let suffix: string | number | undefined;
@@ -403,7 +416,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 			if (suffix) {
 				action.label = nls.localize('numberBadge', "{0} ({1})", composite.name, suffix);
 			} else {
-				action.label = composite.name;
+				action.label = composite.name || '';
 			}
 
 			return action;
@@ -480,11 +493,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				activityName = this.compositeActivityAction.activity.name;
 			}
 
-			this.compositeActivity = {
-				id: this.compositeActivityAction.activity.id,
-				cssClass: this.compositeActivityAction.activity.cssClass,
-				name: activityName
-			};
+			this.compositeActivity = { ...this.compositeActivityAction.activity, ... { name: activityName } };
 		}
 
 		return this.compositeActivity;
@@ -614,8 +623,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActionsContext: () => this.activity.id,
-			getActions: () => actions
+			getActions: () => actions,
+			getActionsContext: () => this.activity.id
 		});
 	}
 

@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { ITerminalService, ITerminalInstance, ITerminalTab } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
@@ -134,7 +134,7 @@ export class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined);
 	}
 
-	public requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
+	public requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
 		this._extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			// Wait for the remoteAuthority to be ready (and listening for events) before firing
 			// the event to spawn the ext host process
@@ -504,7 +504,7 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string): Promise<string> {
+	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string, shellType: TerminalShellType): Promise<string> {
 		return new Promise<string>(c => {
 			if (!executable) {
 				c(originalPath);
@@ -527,18 +527,41 @@ export class TerminalService implements ITerminalService {
 			if (isWindows) {
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
-				const lowerExecutable = executable.toLowerCase();
-				if (this._terminalNativeService.getWindowsBuildNumber() >= 17063 &&
-					(lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1))) {
-					c(this._terminalNativeService.getWslPath(originalPath));
-					return;
-				} else if (hasSpace) {
-					c('"' + originalPath + '"');
+				if (shellType !== undefined) {
+					if (shellType === WindowsShellType.GitBash) {
+						c(originalPath.replace(/\\/g, '/'));
+						return;
+					}
+					else if (shellType === WindowsShellType.Wsl) {
+						if (this._terminalNativeService.getWindowsBuildNumber() >= 17063) {
+							c(this._terminalNativeService.getWslPath(originalPath));
+						} else {
+							c(originalPath.replace(/\\/g, '/'));
+						}
+						return;
+					}
+
+					if (hasSpace) {
+						c('"' + originalPath + '"');
+					} else {
+						c(originalPath);
+					}
 				} else {
-					c(originalPath);
+					const lowerExecutable = executable.toLowerCase();
+					if (this._terminalNativeService.getWindowsBuildNumber() >= 17063 &&
+						(lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1))) {
+						c(this._terminalNativeService.getWslPath(originalPath));
+						return;
+					} else if (hasSpace) {
+						c('"' + originalPath + '"');
+					} else {
+						c(originalPath);
+					}
 				}
+
 				return;
 			}
+
 			c(escapeNonWindowsPath(originalPath));
 		});
 	}

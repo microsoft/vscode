@@ -34,6 +34,9 @@ export class WebviewPortMappingManager extends Disposable {
 				if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
 					const tunnel = await this.getOrCreateTunnel(mapping.extensionHostPort);
 					if (tunnel) {
+						if (tunnel.tunnelLocalPort === mapping.webviewPort) {
+							return undefined;
+						}
 						return encodeURI(uri.with({
 							authority: `127.0.0.1:${tunnel.tunnelLocalPort}`,
 						}).toString(true));
@@ -65,7 +68,7 @@ export class WebviewPortMappingManager extends Disposable {
 		if (existing) {
 			return existing;
 		}
-		const tunnel = this.tunnelService.openTunnel(remotePort);
+		const tunnel = this.tunnelService.openTunnel(undefined, remotePort);
 		if (tunnel) {
 			this._tunnels.set(remotePort, tunnel);
 		}

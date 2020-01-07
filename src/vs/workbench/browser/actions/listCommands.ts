@@ -557,7 +557,7 @@ function listFocusFirst(accessor: ServicesAccessor, options?: { fromFocused: boo
 	else if (focused) {
 		const tree = focused;
 
-		tree.focusFirst({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : undefined);
+		tree.focusFirst({ origin: 'keyboard' }, options?.fromFocused ? tree.getFocus() : undefined);
 		tree.reveal(tree.getFocus());
 	}
 }
@@ -609,7 +609,7 @@ function listFocusLast(accessor: ServicesAccessor, options?: { fromFocused: bool
 	else if (focused) {
 		const tree = focused;
 
-		tree.focusLast({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : undefined);
+		tree.focusLast({ origin: 'keyboard' }, options?.fromFocused ? tree.getFocus() : undefined);
 		tree.reveal(tree.getFocus());
 	}
 }
@@ -872,10 +872,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.scrollLeft',
+	id: '84256',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 	handler: accessor => {
 		const focused = accessor.get(IListService).lastFocusedList;
 
@@ -891,7 +890,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.scrollRight',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
 	handler: accessor => {
 		const focused = accessor.get(IListService).lastFocusedList;
 

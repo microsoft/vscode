@@ -38,7 +38,8 @@
           "tasks.json",
           "keybindings.json",
           "extensions.json",
-          "argv.json"
+          "argv.json",
+          "profiles.json"
         ]
       }
     ],
@@ -88,6 +89,10 @@
         "url": "vscode://schemas/tasks"
       },
       {
+        "fileMatch": "%APP_SETTINGS_HOME%/tasks.json",
+        "url": "vscode://schemas/tasks"
+      },
+      {
         "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
         "url": "vscode://schemas/snippets"
       },
@@ -114,6 +119,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "^12.11.7"
   }
 }

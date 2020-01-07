@@ -526,6 +526,14 @@ export class LinkedMap<K, V> {
 		return this._size;
 	}
 
+	get first(): V | undefined {
+		return this._head?.value;
+	}
+
+	get last(): V | undefined {
+		return this._tail?.value;
+	}
+
 	has(key: K): boolean {
 		return this._map.has(key);
 	}

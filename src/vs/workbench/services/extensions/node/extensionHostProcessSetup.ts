@@ -27,6 +27,17 @@ interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
 }
 
+// workaround for https://github.com/microsoft/vscode/issues/85490
+// remove --inspect-port=0 after start so that it doesn't trigger LSP debugging
+(function removeInspectPort() {
+	for (let i = 0; i < process.execArgv.length; i++) {
+		if (process.execArgv[i] === '--inspect-port=0') {
+			process.execArgv.splice(i, 1);
+			i--;
+		}
+	}
+})();
+
 const args = minimist(process.argv.slice(2), {
 	string: [
 		'uriTransformerPath'
@@ -222,7 +233,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 						promise.catch(e => {
 							unhandledPromises.splice(idx, 1);
 							console.warn(`rejected promise not handled within 1 second: ${e}`);
-							if (e.stack) {
+							if (e && e.stack) {
 								console.warn(`stack trace: ${e.stack}`);
 							}
 							onUnexpectedError(reason);

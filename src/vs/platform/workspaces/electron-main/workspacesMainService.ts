@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IUntitledWorkspaceInfo, getStoredWorkspaceFolder, IEnterWorkspaceResult, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join, dirname } from 'vs/base/common/path';
 import { mkdirp, writeFile, rimrafSync, readdirSync, writeFileSync } from 'vs/base/node/pfs';
@@ -17,7 +17,7 @@ import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { originalFSPath, isEqualOrParent, joinPath, isEqual, basename } from 'vs/base/common/resources';
+import { originalFSPath, joinPath, isEqual, basename } from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { localize } from 'vs/nls';
@@ -104,7 +104,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	private isWorkspacePath(uri: URI): boolean {
-		return this.isInsideWorkspacesHome(uri) || hasWorkspaceFileExtension(uri);
+		return isUntitledWorkspace(uri, this.environmentService) || hasWorkspaceFileExtension(uri);
 	}
 
 	private doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace | null {
@@ -130,20 +130,13 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
 
 		// Filter out folders which do not have a path or uri set
-		if (Array.isArray(storedWorkspace.folders)) {
+		if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
 			storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
-		}
-
-		// Validate
-		if (!Array.isArray(storedWorkspace.folders)) {
+		} else {
 			throw new Error(`${path.toString()} looks like an invalid workspace file.`);
 		}
 
 		return storedWorkspace;
-	}
-
-	private isInsideWorkspacesHome(path: URI): boolean {
-		return isEqualOrParent(path, this.environmentService.untitledWorkspacesHome);
 	}
 
 	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
@@ -196,7 +189,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 	}
 
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean {
-		return this.isInsideWorkspacesHome(workspace.configPath);
+		return isUntitledWorkspace(workspace.configPath, this.environmentService);
 	}
 
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
@@ -247,7 +240,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 				}
 			}
 		} catch (error) {
-			if (error && error.code !== 'ENOENT') {
+			if (error.code !== 'ENOENT') {
 				this.logService.warn(`Unable to read folders in ${this.untitledWorkspacesHome} (${error}).`);
 			}
 		}

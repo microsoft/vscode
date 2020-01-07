@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { sep, posix, normalize, basename as path_basename, dirname as path_dirname } from 'vs/base/common/path';
+import { sep, posix, normalize, win32 } from 'vs/base/common/path';
 import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -43,7 +43,7 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			}
 
 			if (hasMultipleRoots) {
-				const rootName = (baseResource && baseResource.name) ? baseResource.name : basename(baseResource.uri);
+				const rootName = baseResource.name ? baseResource.name : basename(baseResource.uri);
 				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
 			}
 
@@ -387,8 +387,12 @@ export function unmnemonicLabel(label: string): string {
  * Splits a path in name and parent path, supporting both '/' and '\'
  */
 export function splitName(fullPath: string): { name: string, parentPath: string } {
-	if (fullPath.indexOf('/') !== -1) {
-		return { name: posix.basename(fullPath), parentPath: posix.dirname(fullPath) };
+	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
+	const name = p.basename(fullPath);
+	const parentPath = p.dirname(fullPath);
+	if (name.length) {
+		return { name, parentPath };
 	}
-	return { name: path_basename(fullPath), parentPath: path_dirname(fullPath) };
+	// only the root segment
+	return { name: parentPath, parentPath: '' };
 }

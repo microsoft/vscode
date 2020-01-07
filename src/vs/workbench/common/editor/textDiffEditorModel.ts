@@ -45,7 +45,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	}
 
 	private updateTextDiffEditorModel(): void {
-		if (this.originalModel && this.originalModel.isResolved() && this.modifiedModel && this.modifiedModel.isResolved()) {
+		if (this.originalModel?.isResolved() && this.modifiedModel?.isResolved()) {
 
 			// Create new
 			if (!this._textDiffEditorModel) {

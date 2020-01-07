@@ -12,7 +12,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { equals } from 'vs/base/common/arrays';
 
 class CursorState {
 	readonly selections: readonly Selection[];
@@ -22,85 +21,96 @@ class CursorState {
 	}
 
 	public equals(other: CursorState): boolean {
-		return equals(this.selections, other.selections, (a, b) => a.equalsSelection(b));
+		const thisLen = this.selections.length;
+		const otherLen = other.selections.length;
+		if (thisLen !== otherLen) {
+			return false;
+		}
+		for (let i = 0; i < thisLen; i++) {
+			if (!this.selections[i].equalsSelection(other.selections[i])) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
-export class CursorUndoController extends Disposable implements IEditorContribution {
+export class CursorUndoRedoController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.cursorUndoController';
+	public static readonly ID = 'editor.contrib.cursorUndoRedoController';
 
-	public static get(editor: ICodeEditor): CursorUndoController {
-		return editor.getContribution<CursorUndoController>(CursorUndoController.ID);
+	public static get(editor: ICodeEditor): CursorUndoRedoController {
+		return editor.getContribution<CursorUndoRedoController>(CursorUndoRedoController.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
-	private _isCursorUndo: boolean;
+	private _isCursorUndoRedo: boolean;
 
 	private _undoStack: CursorState[];
-	private _prevState: CursorState | null;
+	private _redoStack: CursorState[];
 
 	constructor(editor: ICodeEditor) {
 		super();
 		this._editor = editor;
-		this._isCursorUndo = false;
+		this._isCursorUndoRedo = false;
 
 		this._undoStack = [];
-		this._prevState = this._readState();
+		this._redoStack = [];
 
 		this._register(editor.onDidChangeModel((e) => {
 			this._undoStack = [];
-			this._prevState = null;
+			this._redoStack = [];
 		}));
 		this._register(editor.onDidChangeModelContent((e) => {
 			this._undoStack = [];
-			this._prevState = null;
+			this._redoStack = [];
 		}));
 		this._register(editor.onDidChangeCursorSelection((e) => {
-
-			if (!this._isCursorUndo && this._prevState) {
-				this._undoStack.push(this._prevState);
+			if (this._isCursorUndoRedo) {
+				return;
+			}
+			if (!e.oldSelections) {
+				return;
+			}
+			if (e.oldModelVersionId !== e.modelVersionId) {
+				return;
+			}
+			const prevState = new CursorState(e.oldSelections);
+			const isEqualToLastUndoStack = (this._undoStack.length > 0 && this._undoStack[this._undoStack.length - 1].equals(prevState));
+			if (!isEqualToLastUndoStack) {
+				this._undoStack.push(prevState);
+				this._redoStack = [];
 				if (this._undoStack.length > 50) {
 					// keep the cursor undo stack bounded
 					this._undoStack.shift();
 				}
 			}
-
-			this._prevState = this._readState();
 		}));
 	}
 
-	private _readState(): CursorState | null {
-		if (!this._editor.hasModel()) {
-			// no model => no state
-			return null;
-		}
-
-		return new CursorState(this._editor.getSelections());
-	}
-
-	public getId(): string {
-		return CursorUndoController.ID;
-	}
-
 	public cursorUndo(): void {
-		if (!this._editor.hasModel()) {
+		if (!this._editor.hasModel() || this._undoStack.length === 0) {
 			return;
 		}
 
-		const currState = new CursorState(this._editor.getSelections());
+		this._redoStack.push(new CursorState(this._editor.getSelections()));
+		this._applyState(this._undoStack.pop()!);
+	}
 
-		while (this._undoStack.length > 0) {
-			const prevState = this._undoStack.pop()!;
-
-			if (!prevState.equals(currState)) {
-				this._isCursorUndo = true;
-				this._editor.setSelections(prevState.selections);
-				this._editor.revealRangeInCenterIfOutsideViewport(prevState.selections[0], ScrollType.Smooth);
-				this._isCursorUndo = false;
-				return;
-			}
+	public cursorRedo(): void {
+		if (!this._editor.hasModel() || this._redoStack.length === 0) {
+			return;
 		}
+
+		this._undoStack.push(new CursorState(this._editor.getSelections()));
+		this._applyState(this._redoStack.pop()!);
+	}
+
+	private _applyState(state: CursorState): void {
+		this._isCursorUndoRedo = true;
+		this._editor.setSelections(state.selections);
+		this._editor.revealRangeInCenterIfOutsideViewport(state.selections[0], ScrollType.Smooth);
+		this._isCursorUndoRedo = false;
 	}
 }
 
@@ -108,8 +118,8 @@ export class CursorUndo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
-			label: nls.localize('cursor.undo', "Soft Undo"),
-			alias: 'Soft Undo',
+			label: nls.localize('cursor.undo', "Cursor Undo"),
+			alias: 'Cursor Undo',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -120,9 +130,25 @@ export class CursorUndo extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		CursorUndoController.get(editor).cursorUndo();
+		CursorUndoRedoController.get(editor).cursorUndo();
 	}
 }
 
-registerEditorContribution(CursorUndoController);
+export class CursorRedo extends EditorAction {
+	constructor() {
+		super({
+			id: 'cursorRedo',
+			label: nls.localize('cursor.redo', "Cursor Redo"),
+			alias: 'Cursor Redo',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		CursorUndoRedoController.get(editor).cursorRedo();
+	}
+}
+
+registerEditorContribution(CursorUndoRedoController.ID, CursorUndoRedoController);
 registerEditorAction(CursorUndo);
+registerEditorAction(CursorRedo);

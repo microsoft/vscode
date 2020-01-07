@@ -33,25 +33,17 @@
 		},
 		{
 			"type": "npm",
-			"script": "strict-initialization-watch",
-			"label": "TS - Strict Initialization",
+			"script": "strict-function-types-watch",
+			"label": "TS - Strict Function Types",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
 			},
 			"problemMatcher": {
 				"base": "$tsc-watch",
-				"owner": "typescript-strict-initialization",
+				"owner": "typescript-function-types",
 				"applyTo": "allDocuments"
 			}
-		},
-		{
-			"type": "gulp",
-			"task": "tslint",
-			"label": "Run tslint",
-			"problemMatcher": [
-				"$tslint5"
-			]
 		},
 		{
 			"label": "Run tests",
@@ -76,8 +68,8 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "gulp",
-			"task": "electron",
+			"type": "npm",
+			"script": "electron",
 			"label": "Download electron"
 		},
 		{
@@ -90,7 +82,6 @@
 			"command": "yarn web -- --no-launch",
 			"label": "Run web",
 			"isBackground": true,
-			// This section to make error go away when launching the debug config
 			"problemMatcher": {
 				"pattern": {
 					"regexp": ""
@@ -104,5 +95,13 @@
 				"reveal": "never"
 			}
 		},
+		{
+			"type": "npm",
+			"script": "eslint",
+			"problemMatcher": {
+				"source": "eslint",
+				"base": "$eslint-stylish"
+			}
+		}
 	]
 }

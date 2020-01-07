@@ -27,14 +27,29 @@ export const enum Position {
 	BOTTOM
 }
 
+export function positionToString(position: Position): string {
+	switch (position) {
+		case Position.LEFT: return 'left';
+		case Position.RIGHT: return 'right';
+		case Position.BOTTOM: return 'bottom';
+	}
+
+	return 'bottom';
+}
+
+const positionsByString: { [key: string]: Position } = {
+	[positionToString(Position.LEFT)]: Position.LEFT,
+	[positionToString(Position.RIGHT)]: Position.RIGHT,
+	[positionToString(Position.BOTTOM)]: Position.BOTTOM
+};
+
+export function positionFromString(str: string): Position {
+	return positionsByString[str];
+}
+
 export interface IWorkbenchLayoutService extends ILayoutService {
 
 	_serviceBrand: undefined;
-
-	/**
-	 * Emits when the visibility of the title bar changes.
-	 */
-	readonly onTitleBarVisibilityChange: Event<void>;
 
 	/**
 	 * Emits when the zen mode is enabled or disabled.
@@ -47,6 +62,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onFullscreenChange: Event<boolean>;
 
 	/**
+	 * Emits when the window is maximized or unmaximized.
+	 */
+	readonly onMaximizeChange: Event<boolean>;
+
+	/**
 	 * Emits when centered layout is enabled or disabled.
 	 */
 	readonly onCenteredLayoutChange: Event<boolean>;
@@ -55,6 +75,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Emit when panel position changes.
 	 */
 	readonly onPanelPositionChange: Event<string>;
+
+	/**
+	 * Emit when part visibility changes
+	 */
+	readonly onPartVisibilityChange: Event<void>;
 
 	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
@@ -113,6 +138,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Shrinks the panel to the default starting size if the panel is maximized.
 	 */
 	toggleMaximizedPanel(): void;
+
+	/**
+	 * Returns true if the window has a border.
+	 */
+	hasWindowBorder(): boolean;
+
+	/**
+	 * Returns the window border radius if any.
+	 */
+	getWindowBorderRadius(): string | undefined;
 
 	/**
 	 * Returns true if the panel is maximized.
@@ -178,4 +213,15 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Register a part to participate in the layout.
 	 */
 	registerPart(part: Part): void;
+
+
+	/**
+	 * Returns whether the window is maximized.
+	 */
+	isWindowMaximized(): boolean;
+
+	/**
+	 * Updates the maximized state of the window.
+	 */
+	updateWindowMaximizedState(maximized: boolean): void;
 }

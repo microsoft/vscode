@@ -30,23 +30,33 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
-	display: block;
+	display: flex;
 	height: 35px;
-	line-height: 35px;
 	min-width: 28px;
+	align-items: center;
+	justify-content: center;
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
 }
 
 .hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label,
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label {
+.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label:not(.codicon) {
 	line-height: initial;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label .label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label .label {
 	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label.codicon {
+	color: inherit;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-actions .action-label.disabled,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-label.disabled {
+	opacity: 0.4;
 }
 
 /* Drag Cursor */

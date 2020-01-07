@@ -343,17 +343,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return Promise.all<TaskTerminateResponse>(promises);
 	}
 
-	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string): Promise<ITaskSummary> {
+	private async executeTask(task: Task, resolver: ITaskResolver, trigger: string, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+		alreadyResolved = alreadyResolved ?? new Map<string, string>();
 		let promises: Promise<ITaskSummary>[] = [];
 		if (task.configurationProperties.dependsOn) {
 			for (const dependency of task.configurationProperties.dependsOn) {
-				let dependencyTask = resolver.resolve(dependency.workspaceFolder, dependency.task!);
+				let dependencyTask = resolver.resolve(dependency.uri, dependency.task!);
 				if (dependencyTask) {
 					let key = dependencyTask.getMapKey();
 					let promise = this.activeTasks[key] ? this.activeTasks[key].promise : undefined;
 					if (!promise) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.DependsOnStarted, task));
-						promise = this.executeTask(dependencyTask, resolver, trigger);
+						promise = this.executeTask(dependencyTask, resolver, trigger, alreadyResolved);
 					}
 					if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
 						promise = Promise.resolve(await promise);
@@ -363,7 +364,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					this.log(nls.localize('dependencyFailed',
 						'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
 						Types.isString(dependency.task) ? dependency.task : JSON.stringify(dependency.task, undefined, 0),
-						dependency.workspaceFolder.name
+						dependency.uri.toString()
 					));
 					this.showOutput();
 				}
@@ -378,9 +379,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 					}
 				}
 				if (this.isRerun) {
-					return this.reexecuteCommand(task, trigger);
+					return this.reexecuteCommand(task, trigger, alreadyResolved!);
 				} else {
-					return this.executeCommand(task, trigger);
+					return this.executeCommand(task, trigger, alreadyResolved!);
 				}
 			});
 		} else {
@@ -395,7 +396,36 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, variables: Set<string>): Promise<ResolvedVariables> {
+	private resolveAndFindExecutable(workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
+		return this.findExecutable(
+			this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name!)),
+			cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
+			envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
+		);
+	}
+
+	private findUnresolvedVariables(variables: Set<string>, alreadyResolved: Map<string, string>): Set<string> {
+		if (alreadyResolved.size === 0) {
+			return variables;
+		}
+		const unresolved = new Set<string>();
+		for (const variable of variables) {
+			if (!alreadyResolved.has(variable.substring(2, variable.length - 1))) {
+				unresolved.add(variable);
+			}
+		}
+		return unresolved;
+	}
+
+	private mergeMaps(mergeInto: Map<string, string>, mergeFrom: Map<string, string>) {
+		for (const entry of mergeFrom) {
+			if (!mergeInto.has(entry[0])) {
+				mergeInto.set(entry[0], entry[1]);
+			}
+		}
+	}
+
+	private resolveVariablesFromSet(taskSystemInfo: TaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, variables: Set<string>, alreadyResolved: Map<string, string>): Promise<ResolvedVariables> {
 		let isProcess = task.command && task.command.runtime === RuntimeType.Process;
 		let options = task.command && task.command.options ? task.command.options : undefined;
 		let cwd = options ? options.cwd : undefined;
@@ -410,11 +440,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 		}
-
+		const unresolved = this.findUnresolvedVariables(variables, alreadyResolved);
 		let resolvedVariables: Promise<ResolvedVariables>;
 		if (taskSystemInfo && workspaceFolder) {
 			let resolveSet: ResolveSet = {
-				variables
+				variables: unresolved
 			};
 
 			if (taskSystemInfo.platform === Platform.Platform.Windows && isProcess) {
@@ -426,28 +456,32 @@ export class TerminalTaskSystem implements ITaskSystem {
 					resolveSet.process.path = envPath;
 				}
 			}
-			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, resolveSet).then(resolved => {
-				if ((taskSystemInfo.platform !== Platform.Platform.Windows) && isProcess) {
-					resolved.variables.set(TerminalTaskSystem.ProcessVarName, CommandString.value(task.command.name!));
+			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, resolveSet).then(async (resolved) => {
+				this.mergeMaps(alreadyResolved, resolved.variables);
+				resolved.variables = new Map(alreadyResolved);
+				if (isProcess) {
+					let process = CommandString.value(task.command.name!);
+					if (taskSystemInfo.platform === Platform.Platform.Windows) {
+						process = await this.resolveAndFindExecutable(workspaceFolder, task, cwd, envPath);
+					}
+					resolved.variables.set(TerminalTaskSystem.ProcessVarName, process);
 				}
 				return Promise.resolve(resolved);
 			});
 			return resolvedVariables;
 		} else {
 			let variablesArray = new Array<string>();
-			variables.forEach(variable => variablesArray.push(variable));
+			unresolved.forEach(variable => variablesArray.push(variable));
 
 			return new Promise((resolve, reject) => {
-				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks').then(async resolvedVariablesMap => {
+				this.configurationResolverService.resolveWithInteraction(workspaceFolder, variablesArray, 'tasks').then(async (resolvedVariablesMap: Map<string, string> | undefined) => {
 					if (resolvedVariablesMap) {
+						this.mergeMaps(alreadyResolved, resolvedVariablesMap);
+						resolvedVariablesMap = new Map(alreadyResolved);
 						if (isProcess) {
 							let processVarValue: string;
 							if (Platform.isWindows) {
-								processVarValue = await this.findExecutable(
-									this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name!)),
-									cwd ? this.configurationResolverService.resolve(workspaceFolder, cwd) : undefined,
-									envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined
-								);
+								processVarValue = await this.resolveAndFindExecutable(workspaceFolder, task, cwd, envPath);
 							} else {
 								processVarValue = this.configurationResolverService.resolve(workspaceFolder, CommandString.value(task.command.name!));
 							}
@@ -467,7 +501,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
-	private executeCommand(task: CustomTask | ContributedTask, trigger: string): Promise<ITaskSummary> {
+	private executeCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
 		const taskWorkspaceFolder = task.getWorkspaceFolder();
 		let workspaceFolder: IWorkspaceFolder | undefined;
 		if (taskWorkspaceFolder) {
@@ -480,7 +514,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		let variables = new Set<string>();
 		this.collectTaskVariables(variables, task);
-		const resolvedVariables = this.resolveVariablesFromSet(systemInfo, workspaceFolder, task, variables);
+		const resolvedVariables = this.resolveVariablesFromSet(systemInfo, workspaceFolder, task, variables, alreadyResolved);
 
 		return resolvedVariables.then((resolvedVariables) => {
 			const isCustomExecution = (task.command.runtime === RuntimeType.CustomExecution);
@@ -497,7 +531,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	private reexecuteCommand(task: CustomTask | ContributedTask, trigger: string): Promise<ITaskSummary> {
+	private reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
 		const lastTask = this.lastTask;
 		if (!lastTask) {
 			return Promise.reject(new Error('No task previously run'));
@@ -515,7 +549,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 
 		if (!hasAllVariables) {
-			return this.resolveVariablesFromSet(lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables).then((resolvedVariables) => {
+			return this.resolveVariablesFromSet(lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables, alreadyResolved).then((resolvedVariables) => {
 				this.currentTask.resolvedVariables = resolvedVariables;
 				return this.executeInTerminal(task, trigger, new VariableResolver(lastTask.getVerifiedTask().workspaceFolder, lastTask.getVerifiedTask().systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder!);
 			}, reason => {
@@ -1324,7 +1358,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	private resolveOptions(resolver: VariableResolver, options: CommandOptions | undefined): CommandOptions {
 		if (options === undefined || options === null) {
-			return { cwd: this.resolveVariable(resolver, '${workspaceFolder}') };
+			let cwd: string | undefined;
+			try {
+				cwd = this.resolveVariable(resolver, '${workspaceFolder}');
+			} catch (e) {
+				// No workspace
+			}
+			return { cwd };
 		}
 		let result: CommandOptions = Types.isString(options.cwd)
 			? { cwd: this.resolveVariable(resolver, options.cwd) }
@@ -1412,6 +1452,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 	}
 
+	private async fileExists(path: string): Promise<boolean> {
+		const uri: URI = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: path }), this.environmentService.configuration.remoteAuthority);
+		if (await this.fileService.exists(uri)) {
+			return !((await this.fileService.resolve(uri)).isDirectory);
+		}
+		return false;
+	}
+
 	private async findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string> {
 		// If we have an absolute path then we take it.
 		if (path.isAbsolute(command)) {
@@ -1444,15 +1492,15 @@ export class TerminalTaskSystem implements ITaskSystem {
 				fullPath = path.join(cwd, pathEntry, command);
 			}
 
-			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: fullPath }), this.environmentService.configuration.remoteAuthority))) {
+			if (await this.fileExists(fullPath)) {
 				return fullPath;
 			}
 			let withExtension = fullPath + '.com';
-			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: withExtension }), this.environmentService.configuration.remoteAuthority))) {
+			if (await this.fileExists(withExtension)) {
 				return withExtension;
 			}
 			withExtension = fullPath + '.exe';
-			if (await this.fileService.exists(resources.toLocalResource(URI.from({ scheme: Schemas.file, path: withExtension }), this.environmentService.configuration.remoteAuthority))) {
+			if (await this.fileExists(withExtension)) {
 				return withExtension;
 			}
 		}

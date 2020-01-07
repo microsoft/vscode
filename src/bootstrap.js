@@ -39,10 +39,12 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 	// @ts-ignore
 	Module._resolveLookupPaths = function (moduleName, parent) {
 		const paths = originalResolveLookupPaths(moduleName, parent);
-		for (let i = 0, len = paths.length; i < len; i++) {
-			if (paths[i] === nodeModulesPath) {
-				paths.splice(i, 0, injectPath);
-				break;
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === nodeModulesPath) {
+					paths.splice(i, 0, injectPath);
+					break;
+				}
 			}
 		}
 
@@ -74,10 +76,12 @@ exports.enableASARSupport = function (nodeModulesPath) {
 	// @ts-ignore
 	Module._resolveLookupPaths = function (request, parent) {
 		const paths = originalResolveLookupPaths(request, parent);
-		for (let i = 0, len = paths.length; i < len; i++) {
-			if (paths[i] === NODE_MODULES_PATH) {
-				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-				break;
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (paths[i] === NODE_MODULES_PATH) {
+					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+					break;
+				}
 			}
 		}
 
@@ -153,30 +157,10 @@ exports.writeFile = function (file, content) {
  * @param {string} dir
  * @returns {Promise<string>}
  */
-function mkdir(dir) {
+exports.mkdirp = function mkdirp(dir) {
 	const fs = require('fs');
 
-	return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-exports.mkdirp = function mkdirp(dir) {
-	const path = require('path');
-
-	return mkdir(dir).then(null, err => {
-		if (err && err.code === 'ENOENT') {
-			const parent = path.dirname(dir);
-
-			if (parent !== dir) { // if not arrived at root
-				return mkdirp(parent).then(() => mkdir(dir));
-			}
-		}
-
-		throw err;
-	});
+	return new Promise((c, e) => fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
 };
 //#endregion
 
@@ -279,7 +263,12 @@ exports.configurePortable = function () {
 	}
 
 	if (isTempPortable) {
-		process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = portableTempPath;
+		if (process.platform === 'win32') {
+			process.env['TMP'] = portableTempPath;
+			process.env['TEMP'] = portableTempPath;
+		} else {
+			process.env['TMPDIR'] = portableTempPath;
+		}
 	}
 
 	return {

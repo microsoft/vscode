@@ -21,10 +21,14 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { dispose } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { equals } from 'vs/base/common/arrays';
 
-function containsLineMappingChanged(events: readonly viewEvents.ViewEvent[]): boolean {
-	return events.some(event => event.type === viewEvents.ViewEventType.ViewLineMappingChanged);
+function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
+	for (let i = 0, len = events.length; i < len; i++) {
+		if (events[i].type === viewEvents.ViewEventType.ViewLineMappingChanged) {
+			return true;
+		}
+	}
+	return false;
 }
 
 export class CursorStateChangedEvent {
@@ -34,6 +38,18 @@ export class CursorStateChangedEvent {
 	 */
 	readonly selections: Selection[];
 	/**
+	 * The new model version id that `selections` apply to.
+	 */
+	readonly modelVersionId: number;
+	/**
+	 * The old selections.
+	 */
+	readonly oldSelections: Selection[] | null;
+	/**
+	 * The model version id the that `oldSelections` apply to.
+	 */
+	readonly oldModelVersionId: number;
+	/**
 	 * Source of the call that caused the event.
 	 */
 	readonly source: string;
@@ -42,8 +58,11 @@ export class CursorStateChangedEvent {
 	 */
 	readonly reason: CursorChangeReason;
 
-	constructor(selections: Selection[], source: string, reason: CursorChangeReason) {
+	constructor(selections: Selection[], modelVersionId: number, oldSelections: Selection[] | null, oldModelVersionId: number, source: string, reason: CursorChangeReason) {
 		this.selections = selections;
+		this.modelVersionId = modelVersionId;
+		this.oldSelections = oldSelections;
+		this.oldModelVersionId = oldModelVersionId;
 		this.source = source;
 		this.reason = reason;
 	}
@@ -69,7 +88,15 @@ export class CursorModelState {
 		if (this.modelVersionId !== other.modelVersionId) {
 			return false;
 		}
-		return equals(this.cursorState, other.cursorState, (a, b) => a.equals(b));
+		if (this.cursorState.length !== other.cursorState.length) {
+			return false;
+		}
+		for (let i = 0, len = this.cursorState.length; i < len; i++) {
+			if (!this.cursorState[i].equals(other.cursorState[i])) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
@@ -161,6 +188,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	private _isHandling: boolean;
 	private _isDoingComposition: boolean;
+	private _selectionsWhenCompositionStarted: Selection[] | null;
 	private _columnSelectData: IColumnSelectData | null;
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
@@ -176,6 +204,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		this._isHandling = false;
 		this._isDoingComposition = false;
+		this._selectionsWhenCompositionStarted = null;
 		this._columnSelectData = null;
 		this._autoClosedActions = [];
 		this._prevEditOperationType = EditOperationType.Other;
@@ -526,7 +555,9 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			|| oldState.cursorState.length !== newState.cursorState.length
 			|| newState.cursorState.some((newCursorState, i) => !newCursorState.modelState.equals(oldState.cursorState[i].modelState))
 		) {
-			this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+			const oldSelections = oldState ? oldState.cursorState.map(s => s.modelState.selection) : null;
+			const oldModelVersionId = oldState ? oldState.modelVersionId : 0;
+			this._onDidChange.fire(new CursorStateChangedEvent(selections, newState.modelVersionId, oldSelections, oldModelVersionId, source || 'keyboard', reason));
 		}
 
 		return true;
@@ -655,6 +686,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		if (handlerId === H.CompositionStart) {
 			this._isDoingComposition = true;
+			this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
 			return;
 		}
 
@@ -745,7 +777,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (!this._isDoingComposition && source === 'keyboard') {
 			// composition finishes, let's check if we need to auto complete if necessary.
 			const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters));
+			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
+			this._selectionsWhenCompositionStarted = null;
 		}
 	}
 
@@ -753,19 +786,17 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (!this._isDoingComposition && source === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
-			for (let i = 0, len = text.length; i < len; i++) {
-				let charCode = text.charCodeAt(i);
-				let chr: string;
-				if (strings.isHighSurrogate(charCode) && i + 1 < len) {
-					chr = text.charAt(i) + text.charAt(i + 1);
-					i++;
-				} else {
-					chr = text.charAt(i);
-				}
+			const len = text.length;
+			let offset = 0;
+			while (offset < len) {
+				const charLength = strings.nextCharLength(text, offset);
+				const chr = text.substr(offset, charLength);
 
 				// Here we must interpret each typed character individually
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
 				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
+
+				offset += charLength;
 			}
 
 		} else {
@@ -937,7 +968,12 @@ class CommandExecutor {
 	}
 
 	private static _arrayIsEmpty(commands: (editorCommon.ICommand | null)[]): boolean {
-		return commands.every(command => !command);
+		for (let i = 0, len = commands.length; i < len; i++) {
+			if (commands[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private static _getEditOperations(ctx: IExecContext, commands: (editorCommon.ICommand | null)[]): ICommandsData {

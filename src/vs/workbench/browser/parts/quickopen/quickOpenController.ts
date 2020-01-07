@@ -16,7 +16,7 @@ import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel
 import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, QuickOpenItemAccessorClass } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -51,6 +51,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const HELP_PREFIX = '?';
 
@@ -107,7 +108,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
-		this._register(this.layoutService.onTitleBarVisibilityChange(() => this.positionQuickOpenWidget()));
+		this._register(this.layoutService.onPartVisibilityChange(() => this.positionQuickOpenWidget()));
 		this._register(browser.onDidChangeZoomLevel(() => this.positionQuickOpenWidget()));
 		this._register(this.layoutService.onLayout(dimension => this.layout(dimension)));
 	}
@@ -306,7 +307,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			}
 		}
 
-		if (key && key.get()) {
+		if (key?.get()) {
 			return; // already active context
 		}
 
@@ -350,7 +351,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 		const handlerDescriptor = registry.getQuickOpenHandler(value);
 		const defaultHandlerDescriptor = registry.getDefaultQuickOpenHandler();
-		const instantProgress = handlerDescriptor && handlerDescriptor.instantProgress;
+		const instantProgress = handlerDescriptor?.instantProgress;
 		const contextKey = handlerDescriptor ? handlerDescriptor.contextKey : defaultHandlerDescriptor.contextKey;
 
 		// Reset Progress
@@ -451,7 +452,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// If we have matching entries from history we want to show them directly and not wait for the other results to come in
 		// This also applies when we used to have entries from a previous run and now there are no more history results matching
 		const previousInput = quickOpenWidget.getInput();
-		const wasShowingHistory = previousInput && previousInput.entries && previousInput.entries.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
+		const wasShowingHistory = previousInput?.entries?.some(e => e instanceof EditorHistoryEntry || e instanceof EditorHistoryEntryGroup);
 		if (wasShowingHistory || matchingHistoryEntries.length > 0) {
 			(async () => {
 				if (resolvedHandler.hasShortResponseTime()) {
@@ -476,7 +477,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			}
 
 			// merge history and default handler results
-			const handlerResults = (result && result.entries) || [];
+			const handlerResults = result?.entries || [];
 			this.mergeResults(quickOpenWidget, quickOpenModel, handlerResults, types.withNullAsUndefined(resolvedHandler.getGroupLabel()));
 		}
 	}
@@ -723,7 +724,7 @@ export class EditorHistoryEntryGroup extends QuickOpenEntryGroup {
 export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private input: IEditorInput | IResourceInput;
 	private resource: URI | undefined;
-	private label: string | undefined;
+	private label: string;
 	private description?: string;
 	private dirty: boolean;
 
@@ -735,7 +736,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(editorService);
 
@@ -743,7 +745,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 		if (input instanceof EditorInput) {
 			this.resource = resourceForEditorHistory(input, fileService);
-			this.label = types.withNullAsUndefined(input.getName());
+			this.label = input.getName();
 			this.description = input.getDescription();
 			this.dirty = input.isDirty();
 		} else {
@@ -753,17 +755,17 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			this.description = labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
-			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (this.dirty && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 				this.dirty = false; // no dirty decoration if auto save is on with a short timeout
 			}
 		}
 	}
 
 	getIcon(): string {
-		return this.dirty ? 'dirty' : '';
+		return this.dirty ? 'codicon codicon-circle-filled' : '';
 	}
 
-	getLabel(): string | undefined {
+	getLabel(): string {
 		return this.label;
 	}
 

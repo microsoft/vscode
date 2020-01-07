@@ -12,6 +12,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
@@ -37,7 +38,8 @@ export class LinkDetector {
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		// noop
 	}
@@ -96,7 +98,7 @@ export class LinkDetector {
 	private createWebLink(url: string): Node {
 		const link = this.createLink(url);
 		const uri = URI.parse(url);
-		this.decorateLink(link, () => this.openerService.open(uri));
+		this.decorateLink(link, () => this.openerService.open(uri, { allowTunneling: !!this.workbenchEnvironmentService.configuration.remoteAuthority }));
 		return link;
 	}
 
@@ -129,6 +131,8 @@ export class LinkDetector {
 			}
 			const options = { selection: { startLineNumber: lineNumber, startColumn: columnNumber } };
 			this.decorateLink(link, () => this.editorService.openEditor({ resource: uri, options }));
+		}).catch(() => {
+			// If the uri can not be resolved we should not spam the console with error, remain quite #86587
 		});
 		return link;
 	}
@@ -142,7 +146,7 @@ export class LinkDetector {
 	private decorateLink(link: HTMLElement, onclick: () => void) {
 		link.classList.add('link');
 		link.title = platform.isMacintosh ? nls.localize('fileLinkMac', "Cmd + click to follow link") : nls.localize('fileLink', "Ctrl + click to follow link");
-		link.onmousemove = (event) => link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey);
+		link.onmousemove = (event) => { link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey); };
 		link.onmouseleave = () => link.classList.remove('pointer');
 		link.onclick = (event) => {
 			const selection = window.getSelection();

@@ -6,7 +6,6 @@
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -26,16 +25,22 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	private _state: string | undefined = undefined;
 	private _extension: WebviewExtensionDescription | undefined;
 
+	private _contentOptions: WebviewContentOptions;
+	private _options: WebviewOptions;
+
 	private _owner: any = undefined;
 
 	public constructor(
 		private readonly id: string,
-		public readonly options: WebviewOptions,
-		private _contentOptions: WebviewContentOptions,
+		initialOptions: WebviewOptions,
+		initialContentOptions: WebviewContentOptions,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService
 	) {
 		super();
+
+		this._options = initialOptions;
+		this._contentOptions = initialContentOptions;
 
 		this._register(toDisposable(() => this.container.remove()));
 	}
@@ -64,7 +69,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		}
 		this._owner = undefined;
 		this.container.style.visibility = 'hidden';
-		if (!this.options.retainContextWhenHidden) {
+		if (!this._options.retainContextWhenHidden) {
 			this._webview.clear();
 			this._webviewEvents.clear();
 		}
@@ -85,15 +90,15 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 
 	private show() {
 		if (!this._webview.value) {
-			const webview = this._webviewService.createWebview(this.id, this.options, this._contentOptions);
+			const webview = this._webviewService.createWebview(this.id, this._options, this._contentOptions);
 			this._webview.value = webview;
 			webview.state = this._state;
 			webview.html = this._html;
 			webview.extension = this._extension;
-			if (this.options.tryRestoreScrollPosition) {
+			if (this._options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
-			this._webview.value.mountTo(this.container);
+			webview.mountTo(this.container);
 
 			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();
@@ -136,6 +141,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		this.withWebview(webview => webview.state = value);
 	}
 
+	public get options(): WebviewOptions { return this._options; }
+	public set options(value: WebviewOptions) { this._options = { customClasses: this._options.customClasses, ...value }; }
+
 	public get contentOptions(): WebviewContentOptions { return this._contentOptions; }
 	public set contentOptions(value: WebviewContentOptions) {
 		this._contentOptions = value;
@@ -151,8 +159,8 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private readonly _onDidClickLink = this._register(new Emitter<URI>());
-	public readonly onDidClickLink: Event<URI> = this._onDidClickLink.event;
+	private readonly _onDidClickLink = this._register(new Emitter<string>());
+	public readonly onDidClickLink: Event<string> = this._onDidClickLink.event;
 
 	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number; }>());
 	public readonly onDidScroll: Event<{ scrollYPercentage: number; }> = this._onDidScroll.event;
@@ -188,5 +196,13 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		if (this._webview.value) {
 			f(this._webview.value);
 		}
+	}
+
+	windowDidDragStart() {
+		this.withWebview(webview => webview.windowDidDragStart());
+	}
+
+	windowDidDragEnd() {
+		this.withWebview(webview => webview.windowDidDragEnd());
 	}
 }

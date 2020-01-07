@@ -316,6 +316,12 @@ export interface IEditor {
 	getVisibleColumnFromPosition(position: IPosition): number;
 
 	/**
+	 * Given a position, returns a column number that takes tab-widths into account.
+	 * @internal
+	 */
+	getStatusbarColumn(position: IPosition): number;
+
+	/**
 	 * Returns the primary position of the cursor.
 	 */
 	getPosition(): Position | null;
@@ -489,10 +495,6 @@ export interface IDiffEditor extends IEditor {
  */
 export interface IEditorContribution {
 	/**
-	 * Get a unique identifier for this contribution.
-	 */
-	getId(): string;
-	/**
 	 * Dispose this contribution.
 	 */
 	dispose(): void;
@@ -511,10 +513,6 @@ export interface IEditorContribution {
  * @internal
  */
 export interface IDiffEditorContribution {
-	/**
-	 * Get a unique identifier for this contribution.
-	 */
-	getId(): string;
 	/**
 	 * Dispose this contribution.
 	 */

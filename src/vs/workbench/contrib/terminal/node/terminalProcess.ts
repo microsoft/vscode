@@ -65,7 +65,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: useConpty,
+			useConpty,
 			// This option will force conpty to not redraw the whole viewport on launch
 			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};
@@ -74,18 +74,21 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (!stat.isDirectory()) {
 				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
 			}
+			return undefined;
 		}, async err => {
 			if (err && err.code === 'ENOENT') {
 				// So we can include in the error message the specified CWD
 				shellLaunchConfig.cwd = cwd;
 				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
 			}
+			return undefined;
 		});
 
 		const executableVerification = stat(shellLaunchConfig.executable!).then(async stat => {
 			if (!stat.isFile() && !stat.isSymbolicLink()) {
 				return Promise.reject(stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE);
 			}
+			return undefined;
 		}, async (err) => {
 			if (err && err.code === 'ENOENT') {
 				let cwd = shellLaunchConfig.cwd instanceof URI ? shellLaunchConfig.cwd.path : shellLaunchConfig.cwd!;
@@ -96,6 +99,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return Promise.reject(SHELL_PATH_INVALID_EXIT_CODE);
 				}
 			}
+			return undefined;
 		});
 
 		Promise.all([cwdVerification, executableVerification]).then(() => {
@@ -260,7 +264,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('IPty#pid');
-				exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+				exec('lsof -OPl -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 					if (stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 					}

@@ -231,6 +231,28 @@ export interface EnterAction {
 /**
  * @internal
  */
+export interface CompleteEnterAction {
+	/**
+	 * Describe what to do with the indentation.
+	 */
+	indentAction: IndentAction;
+	/**
+	 * Describes text to be appended after the new line and after the indentation.
+	 */
+	appendText: string;
+	/**
+	 * Describes the number of characters to remove from the new line's indentation.
+	 */
+	removeText: number;
+	/**
+	 * The line's indentation minus removeText
+	 */
+	indentation: string;
+}
+
+/**
+ * @internal
+ */
 export class StandardAutoClosingPairConditional {
 	_standardAutoClosingPairConditionalBrand: void;
 

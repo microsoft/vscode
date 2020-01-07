@@ -146,8 +146,20 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 	}
 }
 
+const extensionKindSchema: IJSONSchema = {
+	type: 'string',
+	enum: [
+		'ui',
+		'workspace'
+	],
+	enumDescriptions: [
+		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
+		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
+	],
+};
+
 const schemaId = 'vscode://schemas/vscode-extensions';
-export const schema = {
+export const schema: IJSONSchema = {
 	properties: {
 		engines: {
 			type: 'object',
@@ -345,17 +357,32 @@ export const schema = {
 			}
 		},
 		extensionKind: {
-			description: nls.localize('extensionKind', "Define the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote."),
-			type: 'string',
-			enum: [
-				'ui',
-				'workspace'
-			],
-			enumDescriptions: [
-				nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-				nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
-			],
-			default: 'workspace'
+			description: nls.localize('extensionKind', "Define the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions run on the remote."),
+			type: 'array',
+			items: extensionKindSchema,
+			default: ['workspace'],
+			defaultSnippets: [
+				{
+					body: ['ui'],
+					description: nls.localize('extensionKind.ui', "Define an extension which can run only on the local machine when connected to remote window.")
+				},
+				{
+					body: ['workspace'],
+					description: nls.localize('extensionKind.workspace', "Define an extension which can run only on the remote machine when connected remote window.")
+				},
+				{
+					body: ['ui', 'workspace'],
+					description: nls.localize('extensionKind.ui-workspace', "Define an extension which can run on either side, with a preference towards running on the local machine.")
+				},
+				{
+					body: ['workspace', 'ui'],
+					description: nls.localize('extensionKind.workspace-ui', "Define an extension which can run on either side, with a preference towards running on the remote machine.")
+				},
+				{
+					body: [],
+					description: nls.localize('extensionKind.empty', "Define an extension which cannot run in a remote context, neither on the local, nor on the remote machine.")
+				}
+			]
 		},
 		scripts: {
 			type: 'object',
@@ -395,7 +422,7 @@ export class ExtensionsRegistryImpl {
 		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
 		this._extensionPoints.set(desc.extensionPoint, result);
 
-		schema.properties['contributes'].properties[desc.extensionPoint] = desc.jsonSchema;
+		schema.properties!['contributes'].properties![desc.extensionPoint] = desc.jsonSchema;
 		schemaRegistry.registerSchema(schemaId, schema);
 
 		return result;

@@ -43,7 +43,7 @@ class MarkerModel {
 		this._markers = [];
 		this._nextIdx = -1;
 		this._ignoreSelectionChange = false;
-		this._onCurrentMarkerChanged = new Emitter<IMarker>();
+		this._onCurrentMarkerChanged = new Emitter<IMarker | undefined>();
 		this._onMarkerSetChanged = new Emitter<MarkerModel>();
 		this.setMarkers(markers);
 
@@ -191,7 +191,7 @@ class MarkerModel {
 
 export class MarkerController implements editorCommon.IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.markerController';
+	public static readonly ID = 'editor.contrib.markerController';
 
 	public static get(editor: ICodeEditor): MarkerController {
 		return editor.getContribution<MarkerController>(MarkerController.ID);
@@ -213,10 +213,6 @@ export class MarkerController implements editorCommon.IEditorContribution {
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
-	}
-
-	public getId(): string {
-		return MarkerController.ID;
 	}
 
 	public dispose(): void {
@@ -244,12 +240,12 @@ export class MarkerController implements editorCommon.IEditorContribution {
 		const prevMarkerKeybinding = this._keybindingService.lookupKeybinding(PrevMarkerAction.ID);
 		const nextMarkerKeybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
 		const actions = [
-			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem codicon-chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } }),
-			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem codicon-chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } })
+			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem codicon-chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } }),
+			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem codicon-chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } })
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService);
 		this._widgetVisible.set(true);
-		this._widget.onDidClose(() => this._cleanUp(), this, this._disposeOnClose);
+		this._widget.onDidClose(() => this.closeMarkersNavigation(), this, this._disposeOnClose);
 
 		this._disposeOnClose.add(this._model);
 		this._disposeOnClose.add(this._widget);
@@ -428,7 +424,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 			label: NextMarkerAction.LABEL,
 			alias: 'Go to Next Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
+			kbOpts: { kbExpr: EditorContextKeys.focus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 }
@@ -442,7 +438,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			label: PrevMarkerAction.LABEL,
 			alias: 'Go to Previous Problem (Error, Warning, Info)',
 			precondition: EditorContextKeys.writable,
-			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
+			kbOpts: { kbExpr: EditorContextKeys.focus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
 }
@@ -479,7 +475,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 	}
 }
 
-registerEditorContribution(MarkerController);
+registerEditorContribution(MarkerController.ID, MarkerController);
 registerEditorAction(NextMarkerAction);
 registerEditorAction(PrevMarkerAction);
 registerEditorAction(NextMarkerInFilesAction);

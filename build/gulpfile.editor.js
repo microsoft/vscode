@@ -17,14 +17,14 @@ const compilation = require('./lib/compilation');
 const monacoapi = require('./monaco/api');
 const fs = require('fs');
 
-var root = path.dirname(__dirname);
-var sha1 = util.getVersion(root);
-var semver = require('./monaco/package.json').version;
-var headerVersion = semver + '(' + sha1 + ')';
+let root = path.dirname(__dirname);
+let sha1 = util.getVersion(root);
+let semver = require('./monaco/package.json').version;
+let headerVersion = semver + '(' + sha1 + ')';
 
 // Build
 
-var editorEntryPoints = [
+let editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
@@ -40,11 +40,11 @@ var editorEntryPoints = [
 	}
 ];
 
-var editorResources = [
+let editorResources = [
 	'out-editor-build/vs/base/browser/ui/codiconLabel/**/*.ttf'
 ];
 
-var BUNDLED_FILE_HEADER = [
+let BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
 	' * Version: ' + headerVersion,
@@ -57,7 +57,6 @@ var BUNDLED_FILE_HEADER = [
 const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
 
 const extractEditorSrcTask = task.define('extract-editor-src', () => {
-	console.log(`If the build fails, consider tweaking shakeLevel below to a lower value.`);
 	const apiusages = monacoapi.execute().usageContent;
 	const extrausages = fs.readFileSync(path.join(root, 'build', 'monaco', 'monaco.usage.recipe')).toString();
 	standalone.extractEditor({
@@ -71,25 +70,15 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			apiusages,
 			extrausages
 		],
-		typings: [
-			'typings/lib.ie11_safe_es6.d.ts',
-			'typings/thenable.d.ts',
-			'typings/es6-promise.d.ts',
-			'typings/require-monaco.d.ts',
-			"typings/lib.es2018.promise.d.ts",
-			'vs/monaco.d.ts'
-		],
 		libs: [
 			`lib.es5.d.ts`,
 			`lib.dom.d.ts`,
 			`lib.webworker.importscripts.d.ts`
 		],
-		redirects: {
-			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
-		},
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,
-		destRoot: path.join(root, 'out-editor-src')
+		destRoot: path.join(root, 'out-editor-src'),
+		redirects: []
 	});
 });
 
@@ -140,23 +129,75 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 });
 
 const compileEditorESMTask = task.define('compile-editor-esm', () => {
+	console.log(`Launching the TS compiler at ${path.join(__dirname, '../out-editor-esm')}...`);
+	let result;
 	if (process.platform === 'win32') {
-		const result = cp.spawnSync(`..\\node_modules\\.bin\\tsc.cmd`, {
+		result = cp.spawnSync(`..\\node_modules\\.bin\\tsc.cmd`, {
 			cwd: path.join(__dirname, '../out-editor-esm')
 		});
-		console.log(result.stdout.toString());
-		console.log(result.stderr.toString());
 	} else {
-		const result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
+		result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
 			cwd: path.join(__dirname, '../out-editor-esm')
 		});
-		console.log(result.stdout.toString());
-		console.log(result.stderr.toString());
+	}
+
+	console.log(result.stdout.toString());
+	console.log(result.stderr.toString());
+
+	if (result.status !== 0) {
+		console.log(`The TS Compilation failed, preparing analysis folder...`);
+		const destPath = path.join(__dirname, '../../vscode-monaco-editor-esm-analysis');
+		return util.rimraf(destPath)().then(() => {
+			fs.mkdirSync(destPath);
+
+			// initialize a new repository
+			cp.spawnSync(`git`, [`init`], {
+				cwd: destPath
+			});
+
+			// build a list of files to copy
+			const files = util.rreddir(path.join(__dirname, '../out-editor-esm'));
+
+			// copy files from src
+			for (const file of files) {
+				const srcFilePath = path.join(__dirname, '../src', file);
+				const dstFilePath = path.join(destPath, file);
+				if (fs.existsSync(srcFilePath)) {
+					util.ensureDir(path.dirname(dstFilePath));
+					const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
+					fs.writeFileSync(dstFilePath, contents);
+				}
+			}
+
+			// create an initial commit to diff against
+			cp.spawnSync(`git`, [`add`, `.`], {
+				cwd: destPath
+			});
+
+			// create the commit
+			cp.spawnSync(`git`, [`commit`, `-m`, `"original sources"`, `--no-gpg-sign`], {
+				cwd: destPath
+			});
+
+			// copy files from esm
+			for (const file of files) {
+				const srcFilePath = path.join(__dirname, '../out-editor-esm', file);
+				const dstFilePath = path.join(destPath, file);
+				if (fs.existsSync(srcFilePath)) {
+					util.ensureDir(path.dirname(dstFilePath));
+					const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
+					fs.writeFileSync(dstFilePath, contents);
+				}
+			}
+
+			console.log(`Open in VS Code the folder at '${destPath}' and you can alayze the compilation error`);
+			throw new Error('Standalone Editor compilation failed. If this is the build machine, simply launch `yarn run gulp editor-distro` on your machine to further analyze the compilation problem.');
+		});
 	}
 });
 
 function toExternalDTS(contents) {
-	let lines = contents.split('\n');
+	let lines = contents.split(/\r\n|\r|\n/);
 	let killNextCloseCurlyBrace = false;
 	for (let i = 0; i < lines.length; i++) {
 		let line = lines[i];
@@ -222,7 +263,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 		// package.json
 		gulp.src('build/monaco/package.json')
 			.pipe(es.through(function (data) {
-				var json = JSON.parse(data.contents.toString());
+				let json = JSON.parse(data.contents.toString());
 				json.private = false;
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
 				this.emit('data', data);
@@ -266,10 +307,10 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 				return;
 			}
 
-			var relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
+			let relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
 
-			var strContents = data.contents.toString();
-			var newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
+			let strContents = data.contents.toString();
+			let newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
 			strContents = strContents.replace(/\/\/# sourceMappingURL=[^ ]+$/, newStr);
 
 			data.contents = Buffer.from(strContents);

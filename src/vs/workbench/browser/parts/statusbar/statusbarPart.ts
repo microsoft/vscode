@@ -7,7 +7,7 @@ import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
@@ -33,6 +33,7 @@ import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/la
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { values } from 'vs/base/common/map';
 import { assertIsDefined } from 'vs/base/common/types';
+import { Emitter, Event } from 'vs/base/common/event';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -59,6 +60,9 @@ class StatusbarViewModel extends Disposable {
 	get entries(): IStatusbarViewModelEntry[] { return this._entries; }
 
 	private hidden!: Set<string>;
+
+	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
+	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
 
 	constructor(private storageService: IStorageService) {
 		super();
@@ -117,7 +121,7 @@ class StatusbarViewModel extends Disposable {
 			if (changed.size > 0) {
 				this._entries.forEach(entry => {
 					if (changed.has(entry.id)) {
-						this.updateVisibility(entry.id);
+						this.updateVisibility(entry.id, true);
 
 						changed.delete(entry.id);
 					}
@@ -130,7 +134,7 @@ class StatusbarViewModel extends Disposable {
 		this._entries.push(entry); // intentionally not using a map here since multiple entries can have the same ID!
 
 		// Update visibility directly
-		this.updateVisibility(entry);
+		this.updateVisibility(entry, false);
 
 		// Sort according to priority
 		this.sort();
@@ -159,7 +163,7 @@ class StatusbarViewModel extends Disposable {
 		if (!this.hidden.has(id)) {
 			this.hidden.add(id);
 
-			this.updateVisibility(id);
+			this.updateVisibility(id, true);
 
 			this.saveState();
 		}
@@ -169,7 +173,7 @@ class StatusbarViewModel extends Disposable {
 		if (this.hidden.has(id)) {
 			this.hidden.delete(id);
 
-			this.updateVisibility(id);
+			this.updateVisibility(id, true);
 
 			this.saveState();
 		}
@@ -183,9 +187,9 @@ class StatusbarViewModel extends Disposable {
 		return this._entries.filter(entry => entry.alignment === alignment);
 	}
 
-	private updateVisibility(id: string): void;
-	private updateVisibility(entry: IStatusbarViewModelEntry): void;
-	private updateVisibility(arg1: string | IStatusbarViewModelEntry): void {
+	private updateVisibility(id: string, trigger: boolean): void;
+	private updateVisibility(entry: IStatusbarViewModelEntry, trigger: boolean): void;
+	private updateVisibility(arg1: string | IStatusbarViewModelEntry, trigger: boolean): void {
 
 		// By identifier
 		if (typeof arg1 === 'string') {
@@ -193,7 +197,7 @@ class StatusbarViewModel extends Disposable {
 
 			for (const entry of this._entries) {
 				if (entry.id === id) {
-					this.updateVisibility(entry);
+					this.updateVisibility(entry, trigger);
 				}
 			}
 		}
@@ -208,6 +212,10 @@ class StatusbarViewModel extends Disposable {
 				hide(entry.container);
 			} else {
 				show(entry.container);
+			}
+
+			if (trigger) {
+				this._onDidChangeEntryVisibility.fire({ id: entry.id, visible: !isHidden });
 			}
 
 			// Mark first/last visible entry
@@ -341,6 +349,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
+	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -352,6 +362,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.viewModel = this._register(new StatusbarViewModel(storageService));
+		this.onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
 
 		this.registerListeners();
 	}
@@ -420,6 +431,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 				dispose(item);
 			}
 		};
+	}
+
+	isEntryVisible(id: string): boolean {
+		return !this.viewModel.isHidden(id);
 	}
 
 	updateEntryVisibility(id: string, visible: boolean): void {
@@ -574,7 +589,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// Background colors
 		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND) || '';
 		container.style.backgroundColor = backgroundColor;
-		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
+		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND) || '';
 
 		// Border color
 		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
@@ -628,7 +643,7 @@ class StatusbarEntryItem extends Disposable {
 	private entry!: IStatusbarEntry;
 
 	private labelContainer!: HTMLElement;
-	private label!: OcticonLabel;
+	private label!: CodiconLabel;
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -657,7 +672,7 @@ class StatusbarEntryItem extends Disposable {
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 
 		// Label
-		this.label = new OcticonLabel(this.labelContainer);
+		this.label = new CodiconLabel(this.labelContainer);
 
 		// Add to parent
 		this.container.appendChild(this.labelContainer);
@@ -780,7 +795,7 @@ class StatusbarEntryItem extends Disposable {
 		if (isBackground) {
 			container.style.backgroundColor = colorResult || '';
 		} else {
-			container.style.color = colorResult;
+			container.style.color = colorResult || '';
 		}
 	}
 

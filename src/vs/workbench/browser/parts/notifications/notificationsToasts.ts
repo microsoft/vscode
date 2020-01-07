@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { Event } from 'vs/base/common/event';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
+import { Themable, NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -95,7 +95,7 @@ export class NotificationsToasts extends Themable {
 
 		// Filter
 		this._register(this.model.onDidFilterChange(filter => {
-			if (filter === NotificationsFilter.SILENT) {
+			if (filter === NotificationsFilter.SILENT || filter === NotificationsFilter.ERROR) {
 				this.hide();
 			}
 		}));
@@ -164,6 +164,7 @@ export class NotificationsToasts extends Themable {
 
 		// Create toast with item and show
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
+			ariaRole: 'dialog', // https://github.com/microsoft/vscode/issues/82728
 			ariaLabel: localize('notificationsToast', "Notification Toast"),
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
@@ -420,6 +421,9 @@ export class NotificationsToasts extends Themable {
 
 	protected updateStyles(): void {
 		this.mapNotificationToToast.forEach(t => {
+			const backgroundColor = this.getColor(NOTIFICATIONS_BACKGROUND);
+			t.toast.style.background = backgroundColor ? backgroundColor : '';
+
 			const widgetShadowColor = this.getColor(widgetShadow);
 			t.toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : '';
 
@@ -521,7 +525,7 @@ export class NotificationsToasts extends Themable {
 
 			// Hide or show toast based on context
 			this.setVisibility(toast, makeVisible);
-			toast.container.style.opacity = null;
+			toast.container.style.opacity = '';
 
 			if (makeVisible) {
 				visibleToasts++;

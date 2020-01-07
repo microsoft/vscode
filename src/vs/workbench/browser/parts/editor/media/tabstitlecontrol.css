@@ -23,6 +23,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container {
 	display: flex;
 	height: 35px;
+	scrollbar-width: none; /* Firefox: hide scrollbar */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.scroll {
@@ -30,7 +31,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container::-webkit-scrollbar {
-	display: none;
+	display: none; /* Chrome + Safari: hide scrollbar */
 }
 
 /* Tab */
@@ -53,6 +54,8 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit {
 	width: 120px;
 	min-width: fit-content;
+	min-width: -moz-fit-content;
+	flex-shrink: 0;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink {
@@ -60,6 +63,11 @@
 	flex-basis: 0; /* all tabs are even */
 	flex-grow: 1; /* all tabs grow even */
 	max-width: fit-content;
+	max-width: -moz-fit-content;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-left .action-label {
+	margin-right: 4px !important;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-button-left::after,
@@ -76,7 +84,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged {
-	will-change: transform; /* forces tab to be drawn on a separate layer (fixes https://github.com/Microsoft/vscode/issues/18733) */
+	transform: translate3d(0px, 0px, 0px); /* forces tab to be drawn on a separate layer (fixes https://github.com/Microsoft/vscode/issues/18733) */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dragged-over div {
@@ -198,6 +206,11 @@
 	opacity: 1;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-close .action-label.codicon {
+	color: inherit;
+	font-size: 16px;
+}
+
 /* change close icon to dirty state icon */
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label:not(:hover)::before {
@@ -232,6 +245,7 @@
 	padding-right: 5px; /* we need less room when sizing is shrink */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty-border-top > .tab-close,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off.dirty-border-top > .tab-close {
 	display: none; /* hide dirty state when highlightModifiedTabs is enabled and when running without close button */
 }
@@ -275,8 +289,11 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item::before {
-	min-width: 16px;
+	width: 16px;
 	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:last-child {
