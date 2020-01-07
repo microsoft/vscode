@@ -8,15 +8,95 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEdit, isResourceTextEdit, isResourceFileEdit } from 'vs/editor/common/modes';
+import { WorkspaceEdit, isResourceTextEdit, isResourceFileEdit, TextEdit } from 'vs/editor/common/modes';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { mergeSort } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import * as files from 'vs/platform/files/common/files';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree, values } from 'vs/base/common/map';
 import { basename } from 'vs/base/common/resources';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+
+export const enum BulkFileOperationType {
+	None = 0,
+	Create = 0b0001,
+	Delete = 0b0010,
+	Rename = 0b0100,
+}
+
+export class BulkFileOperation {
+
+	type = BulkFileOperationType.None;
+	textEdits: TextEdit[] = [];
+
+	constructor(readonly uri: URI) { }
+
+	addType(type: BulkFileOperationType) {
+		this.type += type;
+	}
+
+	addEdits(edits: TextEdit[]) {
+		this.textEdits = this.textEdits.concat(edits);
+	}
+}
+
+export class BulkFileOperations {
+
+	static async create(_accessor: ServicesAccessor, bulkEdit: WorkspaceEdit): Promise<BulkFileOperations> {
+
+		const operationByResource = new Map<string, BulkFileOperation>();
+
+		for (const edit of bulkEdit.edits) {
+
+			let uri: URI;
+			let type: BulkFileOperationType;
+			let textEdits: TextEdit[] | undefined;
+
+			if (isResourceTextEdit(edit)) {
+				type = BulkFileOperationType.None;
+				uri = edit.resource;
+				textEdits = edit.edits;
+
+			} else if (edit.newUri && edit.oldUri) {
+				type = BulkFileOperationType.Rename;
+				uri = edit.oldUri;
+
+			} else if (edit.oldUri) {
+				type = BulkFileOperationType.Delete;
+				uri = edit.oldUri;
+
+			} else if (edit.newUri) {
+				type = BulkFileOperationType.Create;
+				uri = edit.newUri;
+
+			} else {
+				// invalid edit -> skip
+				continue;
+			}
+
+
+			const key = uri.toString();
+			let operation = operationByResource.get(key);
+			if (!operation) {
+				operation = new BulkFileOperation(uri);
+				operationByResource.set(key, operation);
+			}
+
+			operation.addType(type);
+			if (textEdits) {
+				operation.addEdits(textEdits);
+			}
+		}
+
+		//todo@joh filter noops
+
+		return new BulkFileOperations(values(operationByResource));
+	}
+
+	constructor(readonly fileOperations: BulkFileOperation[]) { }
+}
 
 export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
@@ -107,29 +187,12 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	}
 }
 
-
 export function asPreviewUri(uri: URI): URI {
 	return URI.from({ scheme: 'vscode-bulkedit-preview', path: uri.path, query: uri.toString() });
 }
 
 export function fromPreviewUri(uri: URI): URI {
 	return URI.parse(uri.query);
-}
-
-export function asPreviewEdit(edit: WorkspaceEdit): WorkspaceEdit {
-	const result: WorkspaceEdit = { edits: [] };
-	for (let child of edit.edits) {
-		if (isResourceTextEdit(child)) {
-			result.edits.push({ ...child, resource: asPreviewUri(child.resource) });
-		} else {
-			result.edits.push({
-				oldUri: child.oldUri && asPreviewUri(child.oldUri),
-				newUri: child.newUri && asPreviewUri(child.newUri),
-				options: child.options
-			});
-		}
-	}
-	return result;
 }
 
 class File implements files.IStat {

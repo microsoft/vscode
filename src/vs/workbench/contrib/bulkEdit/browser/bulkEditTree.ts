@@ -18,6 +18,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { BulkFileOperations, BulkFileOperation } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 
 // --- VIEW MODEL
 
@@ -26,14 +27,9 @@ export class FileElement {
 	readonly uri: URI;
 	readonly _debugName: string;
 
-	constructor(readonly edit: modes.ResourceFileEdit | modes.ResourceTextEdit) {
-		this.uri = modes.isResourceTextEdit(this.edit)
-			? this.edit.resource
-			: this.edit.oldUri || this.edit.newUri!;
-
-		this._debugName = modes.isResourceTextEdit(this.edit)
-			? 'text edit'
-			: this.edit.oldUri && this.edit.newUri ? 'rename' : this.edit.newUri ? 'create' : 'delete';
+	constructor(readonly edit: BulkFileOperation) {
+		this.uri = edit.uri;
+		this._debugName = `0b${edit.type.toString(2)}`;
 	}
 
 }
@@ -41,7 +37,7 @@ export class FileElement {
 export class TextEditElement {
 
 	constructor(
-		readonly parent: modes.ResourceTextEdit,
+		readonly parent: FileElement,
 		readonly edit: modes.TextEdit,
 		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string
 	) { }
@@ -51,13 +47,13 @@ export type Edit = FileElement | TextEditElement;
 
 // --- DATA SOURCE
 
-export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit, Edit> {
+export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, Edit> {
 
 	constructor(@ITextModelService private readonly _textModelService: ITextModelService) { }
 
-	hasChildren(element: modes.WorkspaceEdit | Edit): boolean {
+	hasChildren(element: BulkFileOperations | Edit): boolean {
 		if (element instanceof FileElement) {
-			return modes.isResourceTextEdit(element.edit);
+			return element.edit.textEdits.length > 0;
 		}
 		if (element instanceof TextEditElement) {
 			return false;
@@ -65,20 +61,20 @@ export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit,
 		return true;
 	}
 
-	async getChildren(element: modes.WorkspaceEdit | Edit): Promise<Edit[]> {
+	async getChildren(element: BulkFileOperations | Edit): Promise<Edit[]> {
 
 		// root -> file/text edits
-		if (Array.isArray((<modes.WorkspaceEdit>element).edits)) {
-			return (<modes.WorkspaceEdit>element).edits.map(edit => new FileElement(edit));
+		if (element instanceof BulkFileOperations) {
+			return element.fileOperations.map(op => new FileElement(op));
 		}
 
 		// file: text edit
-		if (element instanceof FileElement && modes.isResourceTextEdit(element.edit)) {
+		if (element instanceof FileElement && element.edit.textEdits.length > 0) {
 			// const previewUri = BulkEditPreviewProvider.asPreviewUri(element.edit.resource);
 			let textModel: ITextModel;
 			let textModelDisposable: IDisposable;
 			try {
-				const ref = await this._textModelService.createModelReference(element.edit.resource);
+				const ref = await this._textModelService.createModelReference(element.edit.uri);
 				textModel = ref.object.textEditorModel;
 				textModelDisposable = ref;
 			} catch {
@@ -86,7 +82,7 @@ export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit,
 				textModelDisposable = textModel;
 			}
 
-			const result = element.edit.edits.map(edit => {
+			const result = element.edit.textEdits.map(edit => {
 				const range = Range.lift(edit.range);
 
 				const tokens = textModel.getLineTokens(range.endLineNumber);
@@ -96,7 +92,7 @@ export class BulkEditDataSource implements IAsyncDataSource<modes.WorkspaceEdit,
 				}
 
 				return new TextEditElement(
-					<modes.ResourceTextEdit>element.edit,
+					element,
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, 1, range.startLineNumber, range.startColumn)), // line start to edit start,
 					textModel.getValueInRange(range),

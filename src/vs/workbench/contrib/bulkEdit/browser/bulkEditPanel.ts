@@ -19,7 +19,7 @@ import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistr
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -32,9 +32,8 @@ const enum State {
 export class BulkEditPanel extends Panel {
 
 	static readonly ID = 'BulkEditPanel';
-	private static EmptyWorkspaceEdit = { edits: [] };
 
-	private _tree!: WorkbenchAsyncDataTree<WorkspaceEdit, Edit, FuzzyScore>;
+	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, Edit, FuzzyScore>;
 	private _message!: HTMLSpanElement;
 
 	private readonly _acceptAction = new Action('ok', localize('ok', "Apply Refactoring"), 'codicon-check', false, async () => this._done(true));
@@ -113,16 +112,18 @@ export class BulkEditPanel extends Panel {
 		this.getContainer()!.dataset['state'] = state;
 	}
 
-	setInput(edit: WorkspaceEdit): Promise<boolean> {
+	async setInput(edit: WorkspaceEdit): Promise<boolean> {
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
 
-		this._sessionDisposables.add(this._instaService.createInstance(BulkEditPreviewProvider, edit));
 
 		if (this._currentResolve) {
 			this._currentResolve(false);
 			this._currentResolve = undefined;
 		}
+
+		this._sessionDisposables.add(this._instaService.createInstance(BulkEditPreviewProvider, edit));
+		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
 
 		this._acceptAction.enabled = true;
 		this._discardAction.enabled = true;
@@ -130,7 +131,7 @@ export class BulkEditPanel extends Panel {
 		return new Promise(async resolve => {
 
 			this._currentResolve = resolve;
-			await this._tree.setInput(edit);
+			await this._tree.setInput(input);
 			this._tree.domFocus();
 			this._tree.focusFirst();
 
@@ -148,7 +149,7 @@ export class BulkEditPanel extends Panel {
 			this._currentResolve(accept);
 			this._acceptAction.enabled = false;
 			this._discardAction.enabled = false;
-			this._tree.setInput(BulkEditPanel.EmptyWorkspaceEdit);
+			this._tree.setInput(new BulkFileOperations([]));
 		}
 	}
 
@@ -157,18 +158,18 @@ export class BulkEditPanel extends Panel {
 		let leftResource: URI;
 
 		try {
-			(await this._textModelService.createModelReference(edit.parent.resource)).dispose();
-			leftResource = edit.parent.resource;
+			(await this._textModelService.createModelReference(edit.parent.uri)).dispose();
+			leftResource = edit.parent.uri;
 		} catch {
 			leftResource = BulkEditPreviewProvider.emptyPreview;
 		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(edit.parent.resource);
+		const previewUri = BulkEditPreviewProvider.asPreviewUri(edit.parent.uri);
 
 		this._editorService.openEditor({
 			leftResource,
 			rightResource: previewUri,
-			label: localize('edt.title', "{0} (Refactor Preview)", this._labelService.getUriLabel(edit.parent.resource)),
+			label: localize('edt.title', "{0} (Refactor Preview)", this._labelService.getUriLabel(edit.parent.uri)),
 			options: {
 				selection: edit.edit.range
 				// preserveFocus,
