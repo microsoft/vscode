@@ -14,6 +14,7 @@ import { IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { createDecorationsForStackFrame } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { Constants } from 'vs/base/common/uint';
+import { getContext, getContextForContributedActions } from 'vs/workbench/contrib/debug/browser/callStackView';
 
 export function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
 	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
@@ -320,5 +321,32 @@ suite('Debug - CallStack', () => {
 		// Inline decoration gets rendered in this case
 		assert.equal(decorations[2].options.beforeContentClassName, 'debug-top-stack-frame-column');
 		assert.deepEqual(decorations[2].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+	});
+
+	test('contexts', () => {
+		const session = createMockSession(model);
+		model.addSession(session);
+		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
+		let context = getContext(firstStackFrame);
+		assert.equal(context.sessionId, firstStackFrame.thread.session.getId());
+		assert.equal(context.threadId, firstStackFrame.thread.getId());
+		assert.equal(context.frameId, firstStackFrame.getId());
+
+		context = getContext(secondStackFrame.thread);
+		assert.equal(context.sessionId, secondStackFrame.thread.session.getId());
+		assert.equal(context.threadId, secondStackFrame.thread.getId());
+		assert.equal(context.frameId, undefined);
+
+		context = getContext(session);
+		assert.equal(context.sessionId, session.getId());
+		assert.equal(context.threadId, undefined);
+		assert.equal(context.frameId, undefined);
+
+		let contributedContext = getContextForContributedActions(firstStackFrame);
+		assert.equal(contributedContext, firstStackFrame.source.raw.path);
+		contributedContext = getContextForContributedActions(firstStackFrame.thread);
+		assert.equal(contributedContext, firstStackFrame.thread.threadId);
+		contributedContext = getContextForContributedActions(session);
+		assert.equal(contributedContext, session.getId());
 	});
 });
