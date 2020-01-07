@@ -252,7 +252,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostUrls.createAppUri(uri);
 				}
 
-				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.isRemote });
+				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
 			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
