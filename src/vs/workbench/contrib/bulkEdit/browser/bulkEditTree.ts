@@ -17,18 +17,25 @@ import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 // --- VIEW MODEL
 
 export class FileElement {
 
-	constructor(readonly edit: modes.ResourceFileEdit | modes.ResourceTextEdit) { }
+	readonly uri: URI;
+	readonly _debugName: string;
 
-	getUri(): URI {
-		return modes.isResourceTextEdit(this.edit)
+	constructor(readonly edit: modes.ResourceFileEdit | modes.ResourceTextEdit) {
+		this.uri = modes.isResourceTextEdit(this.edit)
 			? this.edit.resource
 			: this.edit.oldUri || this.edit.newUri!;
+
+		this._debugName = modes.isResourceTextEdit(this.edit)
+			? 'text edit'
+			: this.edit.oldUri && this.edit.newUri ? 'rename' : this.edit.newUri ? 'create' : 'delete';
 	}
+
 }
 
 export class TextEditElement {
@@ -135,18 +142,32 @@ export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScor
 
 	readonly templateId: string = FileElementRenderer.id;
 
-	private readonly _resourceLabel: ResourceLabels;
+	private readonly _resourceLabels: ResourceLabels;
 
-	constructor(@IInstantiationService instaService: IInstantiationService) {
-		this._resourceLabel = instaService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
+	constructor(
+		@IInstantiationService instaService: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService,
+	) {
+		this._resourceLabels = instaService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
+	}
+
+	dispose(): void {
+		this._resourceLabels.dispose();
 	}
 
 	renderTemplate(container: HTMLElement): FileElementTemplate {
-		return new FileElementTemplate(this._resourceLabel.create(container, { supportHighlights: true }));
+		return new FileElementTemplate(this._resourceLabels.create(container, { supportHighlights: true }));
 	}
 
 	renderElement(node: ITreeNode<FileElement, FuzzyScore>, _index: number, template: FileElementTemplate): void {
-		template.label.setFile(node.element.getUri(), { matches: createMatches(node.filterData) });
+
+		template.label.setResource({
+			name: this._labelService.getUriLabel(node.element.uri, { relative: true }),
+			description: node.element._debugName,
+			resource: node.element.uri,
+		}, {
+			matches: createMatches(node.filterData),
+		});
 	}
 
 	disposeTemplate(template: FileElementTemplate): void {
