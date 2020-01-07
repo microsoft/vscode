@@ -103,7 +103,7 @@ export class TerminalPanel extends Panel {
 				}
 				this._updateFont();
 				this._updateTheme();
-				if (!hasTerminals) {
+				if (hasTerminals) {
 					this._terminalService.getActiveTab()?.setVisible(visible);
 				}
 			}
