@@ -139,22 +139,22 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			}
 		}
 
-		let classifier = this.classifier;
+		const classifier = this.classifier;
 		let lastBreakingOffset = 0; // Last 0-based offset in the lineText at which a break happened
 		let breakingLengths: number[] = []; // The length of each broken-up line text
 		let breakingLengthsIndex: number = 0; // The count of breaks already done
 		let visibleColumn = 0; // Visible column since the beginning of the current line
 		let niceBreakOffset = -1; // Last index of a character that indicates a break should happen before it (more desirable)
 		let niceBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `niceBreakOffset`
-		let len = lineText.length;
+		const len = lineText.length;
 
 		for (let i = 0; i < len; i++) {
 			// At this point, there is a certainty that the character before `i` fits on the current line,
 			// but the character at `i` might not fit
 
-			let charCode = lineText.charCodeAt(i);
-			let charCodeIsTab = (charCode === CharCode.Tab);
-			let charCodeClass = classifier.get(charCode);
+			const charCode = lineText.charCodeAt(i);
+			const charCodeIsTab = (charCode === CharCode.Tab);
+			const charCodeClass = classifier.get(charCode);
 
 			if (strings.isLowSurrogate(charCode)/*  && i + 1 < len */) {
 				// A surrogate pair must always be considered as a single unit, so it is never to be broken
@@ -173,18 +173,14 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 			// CJK breaking : before break
 			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i > 0) {
-				let prevCode = lineText.charCodeAt(i - 1);
-				let prevClass = classifier.get(prevCode);
+				const prevClass = classifier.get(lineText.charCodeAt(i - 1));
 				if (prevClass !== CharacterClass.BREAK_BEFORE) { // Kinsoku Shori: Don't break after a leading character, like an open bracket
 					niceBreakOffset = i;
 					niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 				}
 			}
 
-			let charColumnSize = 1;
-			if (strings.isFullWidthCharacter(charCode)) {
-				charColumnSize = columnsForFullWidthChar;
-			}
+			const charColumnSize = strings.isFullWidthCharacter(charCode) ? columnsForFullWidthChar : 1;
 
 			// Advance visibleColumn with character at `i`
 			visibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(visibleColumn, tabSize, charCodeIsTab, charColumnSize);
@@ -239,8 +235,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 			// CJK breaking : after break
 			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i < len - 1) {
-				let nextCode = lineText.charCodeAt(i + 1);
-				let nextClass = classifier.get(nextCode);
+				const nextClass = classifier.get(lineText.charCodeAt(i + 1));
 				if (nextClass !== CharacterClass.BREAK_AFTER) { // Kinsoku Shori: Don't break before a trailing character, like a period
 					niceBreakOffset = i + 1;
 					niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
