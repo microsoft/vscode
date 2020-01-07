@@ -122,8 +122,8 @@ export class BulkEditPanel extends Panel {
 			this._currentResolve = undefined;
 		}
 
-		this._sessionDisposables.add(this._instaService.createInstance(BulkEditPreviewProvider, edit));
 		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
+		this._sessionDisposables.add(this._instaService.createInstance(BulkEditPreviewProvider, input));
 
 		this._acceptAction.enabled = true;
 		this._discardAction.enabled = true;

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEdit, isResourceTextEdit, isResourceFileEdit, TextEdit } from 'vs/editor/common/modes';
+import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/modes';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { mergeSort } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
@@ -116,7 +116,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	private readonly _ready: Promise<any>;
 
 	constructor(
-		private readonly _edit: WorkspaceEdit,
+		private readonly _operations: BulkFileOperations,
 		@IModeService private readonly _modeService: IModeService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService
@@ -154,27 +154,21 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 						previewUri
 					);
 				}
-				this._disposables.add(model);
 			}
+			// this is a little weird but otherwise editors and other cusomers
+			// will dispose my models before they should be disposed...
+			// And all of this is off the eventloop to prevent endless recursion
+			new Promise(async () => this._disposables.add(await this._textModelResolverService.createModelReference(model!.uri)));
 			return model;
 		};
 
-		for (let edit of this._edit.edits) {
-			if (isResourceFileEdit(edit)) {
-				if (URI.isUri(edit.newUri)) {
-					await getOrCreatePreviewModel(edit.newUri);
-				}
-				if (URI.isUri(edit.oldUri)) {
-					await getOrCreatePreviewModel(edit.oldUri);
-				}
-			} else {
-				const model = await getOrCreatePreviewModel(edit.resource);
-				const editOperations = mergeSort(
-					edit.edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)),
-					(a, b) => Range.compareRangesUsingStarts(a.range, b.range)
-				);
-				model.applyEdits(editOperations);
-			}
+		for (let operation of this._operations.fileOperations) {
+			const model = await getOrCreatePreviewModel(operation.uri);
+			const editOperations = mergeSort(
+				operation.textEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)),
+				(a, b) => Range.compareRangesUsingStarts(a.range, b.range)
+			);
+			model.applyEdits(editOperations);
 		}
 	}
 
