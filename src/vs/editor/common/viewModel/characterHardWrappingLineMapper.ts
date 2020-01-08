@@ -66,19 +66,11 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars);
 	}
 
-	// TODO@Alex -> duplicated in lineCommentCommand
-	private static nextVisibleColumn(currentVisibleColumn: number, tabSize: number, isTab: boolean, columnSize: number): number {
-		currentVisibleColumn = +currentVisibleColumn; //@perf
-		tabSize = +tabSize; //@perf
-		columnSize = +columnSize; //@perf
-
-		if (isTab) {
-			return currentVisibleColumn + (tabSize - (currentVisibleColumn % tabSize));
-		}
-		return currentVisibleColumn + columnSize;
-	}
-
 	public createLineMappingComputer(tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineMappingComputer {
+		tabSize = tabSize | 0; //@perf
+		wrappingColumn = +wrappingColumn; //@perf
+		columnsForFullWidthChar = +columnsForFullWidthChar; //@perf
+
 		let requests: string[] = [];
 		return {
 			addRequest: (lineText: string) => {
@@ -94,70 +86,57 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		};
 	}
 
-	private _createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
-		if (breakingColumn === -1) {
+	private _createLineMapping(lineText: string, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
+		if (firstLineBreakingColumn === -1) {
 			return null;
 		}
 
-		tabSize = +tabSize; //@perf
-		breakingColumn = +breakingColumn; //@perf
-		columnsForFullWidthChar = +columnsForFullWidthChar; //@perf
-		hardWrappingIndent = +hardWrappingIndent; //@perf
-
-		let wrappedTextIndentVisibleColumn = 0;
-		let wrappedTextIndent = '';
-
 		let firstNonWhitespaceIndex = -1;
+		let wrappedTextIndentLength = 0;
 		if (hardWrappingIndent !== WrappingIndent.None) {
 			firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 			if (firstNonWhitespaceIndex !== -1) {
 				// Track existing indent
-				wrappedTextIndent = lineText.substring(0, firstNonWhitespaceIndex);
+
 				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, lineText.charCodeAt(i) === CharCode.Tab, 1);
+					const charWidth = (lineText.charCodeAt(i) === CharCode.Tab ? tabCharacterWidth(wrappedTextIndentLength, tabSize) : 1);
+					wrappedTextIndentLength += charWidth;
 				}
 
 				// Increase indent of continuation lines, if desired
-				let numberOfAdditionalTabs = 0;
-				if (hardWrappingIndent === WrappingIndent.Indent) {
-					numberOfAdditionalTabs = 1;
-				} else if (hardWrappingIndent === WrappingIndent.DeepIndent) {
-					numberOfAdditionalTabs = 2;
-				}
+				const numberOfAdditionalTabs = (hardWrappingIndent === WrappingIndent.DeepIndent ? 2 : hardWrappingIndent === WrappingIndent.Indent ? 1 : 0);
 				for (let i = 0; i < numberOfAdditionalTabs; i++) {
-					wrappedTextIndent += '\t';
-					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, true, 1);
+					const charWidth = tabCharacterWidth(wrappedTextIndentLength, tabSize);
+					wrappedTextIndentLength += charWidth;
 				}
 
 				// Force sticking to beginning of line if no character would fit except for the indentation
-				if (wrappedTextIndentVisibleColumn + columnsForFullWidthChar > breakingColumn) {
-					wrappedTextIndent = '';
-					wrappedTextIndentVisibleColumn = 0;
+				if (wrappedTextIndentLength + columnsForFullWidthChar > firstLineBreakingColumn) {
+					wrappedTextIndentLength = 0;
 				}
 			}
 		}
+		const wrappedLineBreakingColumn = firstLineBreakingColumn - wrappedTextIndentLength;
 
 		const classifier = this.classifier;
-		let breakingOffsets: number[] = []; // The offset where a break occurs
-		let breakingOffsetsIndex: number = 0; // The count of breaks already done
-		let visibleColumn = 0; // Visible column since the beginning of the current line
-		let niceBreakOffset = 0; // Last index of a character that indicates a break should happen before it (more desirable)
-		let niceBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `niceBreakOffset`
+		let breakingOffsets: number[] = [];
+		let breakingOffsetsVisibleColumn: number[] = [];
+		let breakingOffsetsCount: number = 0;
+		let visibleColumn = 0;
+		let breakOffset = 0;
+		let breakOffsetVisibleColumn = 0;
 		const len = lineText.length;
 
+		let breakingColumn = firstLineBreakingColumn;
 		for (let i = 0; i < len; i++) {
 			// At this point, there is a certainty that the character before `i` fits on the current line,
 			// but the character at `i` might not fit
 
 			const charCode = lineText.charCodeAt(i);
+
 			if (strings.isLowSurrogate(charCode)) {
 				// A surrogate pair must always be considered as a single unit, so it is never to be broken
-
-				// Advance visibleColumn & niceBreakVisibleColumn
-				visibleColumn = visibleColumn + 1;
-				if (niceBreakOffset !== 0) {
-					niceBreakVisibleColumn = niceBreakVisibleColumn + 1;
-				}
+				visibleColumn += 1;
 				continue;
 			}
 
@@ -171,68 +150,59 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				// (or) CJK breaking : before break : Kinsoku Shori : Don't break after a leading character, like an open bracket
 				// Since we are certain the character before `i` fits, there's no extra checking needed,
 				// just mark it as a nice breaking opportunity
-				niceBreakOffset = i;
-				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
+				breakOffset = i;
+				breakOffsetVisibleColumn = visibleColumn;
 			}
 
-			const charCodeIsTab = (charCode === CharCode.Tab);
-			const charColumnSize = strings.isFullWidthCharacter(charCode) ? columnsForFullWidthChar : 1;
+			const charColumnSize = (
+				charCode === CharCode.Tab
+					? tabCharacterWidth(visibleColumn, tabSize)
+					: (strings.isFullWidthCharacter(charCode) ? columnsForFullWidthChar : 1)
+			);
 
-			// Advance visibleColumn with character at `i`
-			visibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(visibleColumn, tabSize, charCodeIsTab, charColumnSize);
+			visibleColumn += charColumnSize;
 
+			// check if adding character at `i` will go over the breaking column
 			if (visibleColumn > breakingColumn && i !== 0) {
 				// We need to break at least before character at `i`:
-				//  - break before niceBreakLastOffset if it exists (and re-establish a correct visibleColumn by using niceBreakVisibleColumn + charAt(i))
-				//  - otherwise, break before obtrusiveBreakLastOffset if it exists (and re-establish a correct visibleColumn by using obtrusiveBreakVisibleColumn + charAt(i))
-				//  - otherwise, break before i (and re-establish a correct visibleColumn by charAt(i))
 
-				if (niceBreakOffset !== 0 && niceBreakVisibleColumn <= breakingColumn) {
-
-					// We will break before `niceBreakLastOffset`
-					breakingOffsets[breakingOffsetsIndex++] = niceBreakOffset;
-					visibleColumn = niceBreakVisibleColumn;
-
-				} else {
-
-					// We will break before `i`
-					breakingOffsets[breakingOffsetsIndex++] = i;
-					visibleColumn = wrappedTextIndentVisibleColumn;
-
+				if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakingColumn) {
+					// Cannot break at `breakOffset`, must break at `i`
+					breakOffset = i;
+					breakOffsetVisibleColumn = visibleColumn - charColumnSize;
 				}
 
-				// Re-establish visibleColumn by taking character at `i` into account
-				visibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(visibleColumn, tabSize, charCodeIsTab, charColumnSize);
-
-				// Reset markers
-				niceBreakOffset = 0;
+				breakingOffsets[breakingOffsetsCount] = breakOffset;
+				breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
+				breakingOffsetsCount++;
+				breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakingColumn;
+				breakOffset = 0;
 			}
 
 			// At this point, there is a certainty that the character at `i` fits on the current line
-
-			if (niceBreakOffset !== 0) {
-				// Advance niceBreakVisibleColumn
-				niceBreakVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(niceBreakVisibleColumn, tabSize, charCodeIsTab, charColumnSize);
-			}
-
 			if (
 				(charCodeClass === CharacterClass.BREAK_AFTER && (hardWrappingIndent === WrappingIndent.None || i >= firstNonWhitespaceIndex))
 				|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i + 1 < len && classifier.get(lineText.charCodeAt(i + 1)) !== CharacterClass.BREAK_AFTER)
 			) {
 				// This is a character that indicates that a break should happen after it
 				// (or) CJK breaking : after break : Kinsoku Shori : Don't break before a trailing character, like a period
-				niceBreakOffset = i + 1;
-				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
+				breakOffset = i + 1;
+				breakOffsetVisibleColumn = visibleColumn;
 			}
 		}
 
-		if (breakingOffsetsIndex === 0) {
+		if (breakingOffsetsCount === 0) {
 			return null;
 		}
 
 		// Add last segment
-		breakingOffsets[breakingOffsetsIndex++] = len;
+		breakingOffsets[breakingOffsetsCount] = len;
+		breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
 
-		return new LineBreakingData(breakingOffsets, wrappedTextIndent);
+		return new LineBreakingData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
 	}
+}
+
+function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
+	return (tabSize - (visibleColumn % tabSize));
 }

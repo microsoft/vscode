@@ -23,7 +23,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
 		let model1 = createModel('My First LineMy Second LineAnd another one');
-		let line1 = createSplitLine([13, 14, 15], '');
+		let line1 = createSplitLine([13, 14, 15], [13, 13 + 14, 13 + 14 + 15], 0);
 
 		assert.equal(line1.getViewLineCount(), 3);
 		assert.equal(line1.getViewLineContent(model1, 1, 0), 'My First Line');
@@ -52,38 +52,38 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		}
 
 		model1 = createModel('My First LineMy Second LineAnd another one');
-		line1 = createSplitLine([13, 14, 15], '\t');
+		line1 = createSplitLine([13, 14, 15], [13, 13 + 14, 13 + 14 + 15], 4);
 
 		assert.equal(line1.getViewLineCount(), 3);
 		assert.equal(line1.getViewLineContent(model1, 1, 0), 'My First Line');
-		assert.equal(line1.getViewLineContent(model1, 1, 1), '\tMy Second Line');
-		assert.equal(line1.getViewLineContent(model1, 1, 2), '\tAnd another one');
+		assert.equal(line1.getViewLineContent(model1, 1, 1), '    My Second Line');
+		assert.equal(line1.getViewLineContent(model1, 1, 2), '    And another one');
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 0), 14);
-		assert.equal(line1.getViewLineMaxColumn(model1, 1, 1), 16);
-		assert.equal(line1.getViewLineMaxColumn(model1, 1, 2), 17);
-		for (let col = 1; col <= 14; col++) {
-			assert.equal(line1.getModelColumnOfViewPosition(0, col), col, 'getInputColumnOfOutputPosition(0, ' + col + ')');
+		assert.equal(line1.getViewLineMaxColumn(model1, 1, 1), 19);
+		assert.equal(line1.getViewLineMaxColumn(model1, 1, 2), 20);
+
+		let actualViewColumnMapping: number[][] = [];
+		for (let lineIndex = 0; lineIndex < line1.getViewLineCount(); lineIndex++) {
+			let actualLineViewColumnMapping: number[] = [];
+			for (let col = 1; col <= line1.getViewLineMaxColumn(model1, 1, lineIndex); col++) {
+				actualLineViewColumnMapping.push(line1.getModelColumnOfViewPosition(lineIndex, col));
+			}
+			actualViewColumnMapping.push(actualLineViewColumnMapping);
 		}
-		for (let col = 1; col <= 1; col++) {
-			assert.equal(line1.getModelColumnOfViewPosition(1, 1), 13 + col, 'getInputColumnOfOutputPosition(1, ' + col + ')');
-		}
-		for (let col = 2; col <= 16; col++) {
-			assert.equal(line1.getModelColumnOfViewPosition(1, col), 13 + col - 1, 'getInputColumnOfOutputPosition(1, ' + col + ')');
-		}
-		for (let col = 1; col <= 1; col++) {
-			assert.equal(line1.getModelColumnOfViewPosition(2, col), 13 + 14 + col, 'getInputColumnOfOutputPosition(2, ' + col + ')');
-		}
-		for (let col = 2; col <= 17; col++) {
-			assert.equal(line1.getModelColumnOfViewPosition(2, col), 13 + 14 + col - 1, 'getInputColumnOfOutputPosition(2, ' + col + ')');
-		}
+		assert.deepEqual(actualViewColumnMapping, [
+			[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+			[14, 14, 14, 14, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28],
+			[28, 28, 28, 28, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43],
+		]);
+
 		for (let col = 1; col <= 13; col++) {
-			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(0, col), 'getOutputPositionOfInputPosition(' + col + ')');
+			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(0, col), '6.getOutputPositionOfInputPosition(' + col + ')');
 		}
 		for (let col = 1 + 13; col <= 14 + 13; col++) {
-			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(1, 1 + col - 13), 'getOutputPositionOfInputPosition(' + col + ')');
+			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(1, 4 + col - 13), '7.getOutputPositionOfInputPosition(' + col + ')');
 		}
 		for (let col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
-			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(2, 1 + col - 13 - 14), 'getOutputPositionOfInputPosition(' + col + ')');
+			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(2, 4 + col - 13 - 14), '8.getOutputPositionOfInputPosition(' + col + ')');
 		}
 	});
 
@@ -612,12 +612,12 @@ suite('SplitLinesCollection', () => {
 					]
 				},
 				{
-					content: '			world");',
-					minColumn: 4,
-					maxColumn: 12,
+					content: '            world");',
+					minColumn: 13,
+					maxColumn: 21,
 					tokens: [
-						{ endIndex: 9, value: 15 },
-						{ endIndex: 11, value: 16 },
+						{ endIndex: 18, value: 15 },
+						{ endIndex: 20, value: 16 },
 					]
 				},
 				{
@@ -654,28 +654,28 @@ suite('SplitLinesCollection', () => {
 					]
 				},
 				{
-					content: '			world, this is a ',
-					minColumn: 4,
-					maxColumn: 21,
+					content: '            world, this is a ',
+					minColumn: 13,
+					maxColumn: 30,
 					tokens: [
-						{ endIndex: 20, value: 28 },
+						{ endIndex: 29, value: 28 },
 					]
 				},
 				{
-					content: '			somewhat longer ',
-					minColumn: 4,
+					content: '            somewhat longer ',
+					minColumn: 13,
+					maxColumn: 29,
+					tokens: [
+						{ endIndex: 28, value: 28 },
+					]
+				},
+				{
+					content: '            line");',
+					minColumn: 13,
 					maxColumn: 20,
 					tokens: [
-						{ endIndex: 19, value: 28 },
-					]
-				},
-				{
-					content: '			line");',
-					minColumn: 4,
-					maxColumn: 11,
-					tokens: [
-						{ endIndex: 8, value: 28 },
-						{ endIndex: 10, value: 29 },
+						{ endIndex: 17, value: 28 },
+						{ endIndex: 19, value: 29 },
 					]
 				},
 				{
@@ -772,16 +772,16 @@ function pos(lineNumber: number, column: number): Position {
 	return new Position(lineNumber, column);
 }
 
-function createSplitLine(splitLengths: number[], wrappedLinesPrefix: string, isVisible: boolean = true): SplitLine {
-	return new SplitLine(createLineMapping(splitLengths, wrappedLinesPrefix), isVisible);
+function createSplitLine(splitLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number, isVisible: boolean = true): SplitLine {
+	return new SplitLine(createLineMapping(splitLengths, breakingOffsetsVisibleColumn, wrappedTextIndentWidth), isVisible);
 }
 
-function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string): LineBreakingData {
+function createLineMapping(breakingLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number): LineBreakingData {
 	let sums: number[] = [];
 	for (let i = 0; i < breakingLengths.length; i++) {
 		sums[i] = (i > 0 ? sums[i - 1] : 0) + breakingLengths[i];
 	}
-	return new LineBreakingData(sums, wrappedLinesPrefix);
+	return new LineBreakingData(sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth);
 }
 
 function createModel(text: string): ISimpleModel {

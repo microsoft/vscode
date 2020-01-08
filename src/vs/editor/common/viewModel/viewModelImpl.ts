@@ -564,7 +564,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			mightContainNonBasicASCII,
 			lineData.tokens,
 			inlineDecorations,
-			tabSize
+			tabSize,
+			lineData.startVisibleColumn
 		);
 	}
 

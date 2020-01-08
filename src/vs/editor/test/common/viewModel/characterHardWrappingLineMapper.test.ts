@@ -114,7 +114,7 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	test('issue #35162: wrappingIndent not consistently working', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('', '\t ');
 		let mapper = assertLineMapping(factory, 4, 24, '                t h i s |i s |a l |o n |g l |i n |e', WrappingIndent.Indent);
-		assert.equal(mapper!.wrappedLinesIndent, '                \t');
+		assert.equal(mapper!.wrappedTextIndentLength, '                    '.length);
 	});
 
 	test('issue #75494: surrogate pairs', () => {
@@ -125,6 +125,6 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	test('CharacterHardWrappingLineMapper - WrappingIndent.DeepIndent', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('', '\t ');
 		let mapper = assertLineMapping(factory, 4, 26, '        W e A r e T e s t |i n g D e |e p I n d |e n t a t |i o n', WrappingIndent.DeepIndent);
-		assert.equal(mapper!.wrappedLinesIndent, '        \t\t');
+		assert.equal(mapper!.wrappedTextIndentLength, '                '.length);
 	});
 });
