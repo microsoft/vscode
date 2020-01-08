@@ -41,7 +41,8 @@ export class BulkEditPanel extends Panel {
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _sessionDisposables = new DisposableStore();
-	private _currentResolve?: (apply: boolean) => void;
+	private _currentResolve?: (edit?: WorkspaceEdit) => void;
+	private _currentInput?: BulkFileOperations;
 
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -74,10 +75,11 @@ export class BulkEditPanel extends Panel {
 		this._tree = this._instaService.createInstance(
 			WorkbenchAsyncDataTree, this.getId(), treeContainer,
 			new BulkEditDelegate(),
-			[new TextEditElementRenderer(), this._instaService.createInstance(FileElementRenderer)],
+			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer)],
 			this._instaService.createInstance(BulkEditDataSource),
 			{
-				identityProvider: new BulkEditIdentityProvider()
+				identityProvider: new BulkEditIdentityProvider(),
+				expandOnlyOnTwistieClick: true
 			}
 		);
 
@@ -112,18 +114,20 @@ export class BulkEditPanel extends Panel {
 		this.getContainer()!.dataset['state'] = state;
 	}
 
-	async setInput(edit: WorkspaceEdit): Promise<boolean> {
+	async setInput(edit: WorkspaceEdit): Promise<WorkspaceEdit | undefined> {
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
 
-
 		if (this._currentResolve) {
-			this._currentResolve(false);
+			this._currentResolve(undefined);
 			this._currentResolve = undefined;
 		}
 
 		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
-		this._sessionDisposables.add(this._instaService.createInstance(BulkEditPreviewProvider, input));
+		const provider = this._instaService.createInstance(BulkEditPreviewProvider, input);
+
+		this._sessionDisposables.add(provider);
+		this._currentInput = input;
 
 		this._acceptAction.enabled = true;
 		this._discardAction.enabled = true;
@@ -146,32 +150,31 @@ export class BulkEditPanel extends Panel {
 		this._setState(State.Message);
 		this._sessionDisposables.clear();
 		if (this._currentResolve) {
-			this._currentResolve(accept);
+			this._currentResolve(accept ? this._currentInput?.asWorkspaceEdit() : undefined);
 			this._acceptAction.enabled = false;
 			this._discardAction.enabled = false;
-			this._tree.setInput(new BulkFileOperations([]));
 		}
 	}
 
-	private async _previewTextEditElement(edit: TextEditElement): Promise<void> {
+	private async _previewTextEditElement(element: TextEditElement): Promise<void> {
 
 		let leftResource: URI;
 
 		try {
-			(await this._textModelService.createModelReference(edit.parent.uri)).dispose();
-			leftResource = edit.parent.uri;
+			(await this._textModelService.createModelReference(element.parent.uri)).dispose();
+			leftResource = element.parent.uri;
 		} catch {
 			leftResource = BulkEditPreviewProvider.emptyPreview;
 		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(edit.parent.uri);
+		const previewUri = BulkEditPreviewProvider.asPreviewUri(element.parent.uri);
 
 		this._editorService.openEditor({
 			leftResource,
 			rightResource: previewUri,
-			label: localize('edt.title', "{0} (Refactor Preview)", this._labelService.getUriLabel(edit.parent.uri)),
+			label: localize('edt.title', "{0} (Refactor Preview)", this._labelService.getUriLabel(element.parent.uri)),
 			options: {
-				selection: edit.edit.range
+				selection: element.edit.edit.range
 				// preserveFocus,
 				// pinned,
 				// revealIfVisible: true

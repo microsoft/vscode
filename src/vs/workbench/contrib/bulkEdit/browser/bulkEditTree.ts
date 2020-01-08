@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import * as modes from 'vs/editor/common/modes';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IResourceLabel, ResourceLabels, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
@@ -15,11 +14,14 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { Range } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { BulkFileOperations, BulkFileOperation, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { localize } from 'vs/nls';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 
 // --- VIEW MODEL
 
@@ -42,14 +44,13 @@ export class FileElement {
 		this.uri = edit.uri;
 		this.typeLabel = FileElement._typeLabels[edit.type] || '';
 	}
-
 }
 
 export class TextEditElement {
 
 	constructor(
 		readonly parent: FileElement,
-		readonly edit: modes.TextEdit,
+		readonly edit: BulkTextEdit,
 		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string
 	) { }
 }
@@ -94,7 +95,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			}
 
 			const result = element.edit.textEdits.map(edit => {
-				const range = Range.lift(edit.range);
+				const range = Range.lift(edit.edit.range);
 
 				const tokens = textModel.getLineTokens(range.endLineNumber);
 				let suffixLen = 0;
@@ -107,7 +108,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, 1, range.startLineNumber, range.startColumn)), // line start to edit start,
 					textModel.getValueInRange(range),
-					edit.text,
+					edit.edit.text,
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
 				);
 			});
@@ -128,7 +129,7 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 		if (element instanceof FileElement) {
 			return element.uri;
 		} else {
-			return element.parent.uri.toString() + JSON.stringify(element.edit);
+			return element.parent.uri.toString() + JSON.stringify(element.edit.edit);
 		}
 	}
 }
@@ -136,7 +137,42 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 // --- RENDERER
 
 class FileElementTemplate {
-	constructor(readonly label: IResourceLabel) { }
+
+	private readonly _disposables = new DisposableStore();
+	private _element?: FileElement;
+
+	constructor(
+		private readonly _checkbox: Checkbox,
+		private readonly _label: IResourceLabel,
+		@IThemeService themeService: IThemeService,
+		@ILabelService private readonly _labelService: ILabelService,
+	) {
+		this._disposables.add(_checkbox.onChange(() => {
+			if (this._element) {
+				this._element.edit.updateChecked(_checkbox.checked);
+			}
+		}));
+		this._disposables.add(attachCheckboxStyler(_checkbox, themeService));
+	}
+
+	dispose(): void {
+		this._element = undefined;
+		this._disposables.dispose();
+		this._checkbox.dispose();
+		this._label.dispose();
+	}
+
+	set(element: FileElement, matches: FuzzyScore | undefined) {
+		this._element = element;
+		this._checkbox.checked = element.edit.isChecked();
+		this._label.setResource({
+			name: this._labelService.getUriLabel(element.uri, { relative: true }),
+			description: element.typeLabel,
+			resource: element.uri,
+		}, {
+			matches: createMatches(matches),
+		});
+	}
 }
 
 export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScore, FileElementTemplate> {
@@ -148,10 +184,9 @@ export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScor
 	private readonly _resourceLabels: ResourceLabels;
 
 	constructor(
-		@IInstantiationService instaService: IInstantiationService,
-		@ILabelService private readonly _labelService: ILabelService,
+		@IInstantiationService private _instaService: IInstantiationService
 	) {
-		this._resourceLabels = instaService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
+		this._resourceLabels = _instaService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
 	}
 
 	dispose(): void {
@@ -159,42 +194,48 @@ export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScor
 	}
 
 	renderTemplate(container: HTMLElement): FileElementTemplate {
-		return new FileElementTemplate(this._resourceLabels.create(container, { supportHighlights: true }));
+		const checkbox = new Checkbox({ actionClassName: 'codicon-check edit-checkbox', isChecked: true, title: '' });
+		container.appendChild(checkbox.domNode);
+
+		const label = this._resourceLabels.create(container, { supportHighlights: true });
+		return this._instaService.createInstance(FileElementTemplate, checkbox, label);
 	}
 
 	renderElement(node: ITreeNode<FileElement, FuzzyScore>, _index: number, template: FileElementTemplate): void {
-
-		template.label.setResource({
-			name: this._labelService.getUriLabel(node.element.uri, { relative: true }),
-			description: node.element.typeLabel,
-			resource: node.element.uri,
-		}, {
-			matches: createMatches(node.filterData),
-		});
+		template.set(node.element, node.filterData);
 	}
 
 	disposeTemplate(template: FileElementTemplate): void {
-		template.label.dispose();
+		template.dispose();
 	}
 }
 
 class TextEditElementTemplate {
-	constructor(readonly label: HighlightedLabel) { }
-}
 
-export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, FuzzyScore, TextEditElementTemplate> {
+	private readonly _disposables = new DisposableStore();
+	private readonly _localDisposables = new DisposableStore();
 
-	static readonly id = 'TextEditElementRenderer';
+	constructor(
+		private readonly _checkbox: Checkbox,
+		private readonly _label: HighlightedLabel,
+		@IThemeService themeService: IThemeService
+	) {
 
-	readonly templateId: string = TextEditElementRenderer.id;
-
-	renderTemplate(container: HTMLElement): TextEditElementTemplate {
-		const label = new HighlightedLabel(container, false);
-		dom.addClass(label.element, 'textedit');
-		return new TextEditElementTemplate(label);
+		this._disposables.add(attachCheckboxStyler(_checkbox, themeService));
 	}
 
-	renderElement({ element }: ITreeNode<TextEditElement, FuzzyScore>, _index: number, template: TextEditElementTemplate): void {
+	dispose(): void {
+		this._localDisposables.dispose();
+		this._disposables.dispose();
+		this._checkbox.dispose();
+	}
+
+	set(element: TextEditElement) {
+		this._localDisposables.clear();
+		this._localDisposables.add(this._checkbox.onChange(() => element.edit.updateChecked(this._checkbox.checked)));
+		this._localDisposables.add(element.edit.parent.parent.onDidChangeCheckedState(() => {
+			dom.toggleClass(this._checkbox.domNode, 'disabled', !element.edit.parent.isChecked());
+		}));
 
 		let value = '';
 		value += element.prefix;
@@ -205,7 +246,30 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 		let selectHighlight: IHighlight = { start: element.prefix.length, end: element.prefix.length + element.selecting.length, extraClasses: 'remove' };
 		let insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: 'insert' };
 
-		template.label.set(value, [selectHighlight, insertHighlight], undefined, true);
+		this._label.set(value, [selectHighlight, insertHighlight], undefined, true);
+		this._checkbox.checked = element.edit.isChecked();
+	}
+}
+
+export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, FuzzyScore, TextEditElementTemplate> {
+
+	static readonly id = 'TextEditElementRenderer';
+
+	readonly templateId: string = TextEditElementRenderer.id;
+
+	constructor(@IInstantiationService private readonly _instaService: IInstantiationService) { }
+
+	renderTemplate(container: HTMLElement): TextEditElementTemplate {
+		const checkbox = new Checkbox({ actionClassName: 'codicon-check edit-checkbox', isChecked: true, title: '' });
+		container.appendChild(checkbox.domNode);
+
+		const label = new HighlightedLabel(container, false);
+		dom.addClass(label.element, 'textedit');
+		return this._instaService.createInstance(TextEditElementTemplate, checkbox, label);
+	}
+
+	renderElement({ element }: ITreeNode<TextEditElement, FuzzyScore>, _index: number, template: TextEditElementTemplate): void {
+		template.set(element);
 	}
 
 	disposeTemplate(_template: TextEditElementTemplate): void { }

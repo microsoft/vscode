@@ -31,8 +31,8 @@ class BulkEditPreviewContribution {
 			return edit;
 		}
 
-		const apply = await panel.setInput(edit);
-		if (!apply) {
+		const newEditOrUndefined = await panel.setInput(edit);
+		if (!newEditOrUndefined) {
 			return { edits: [] };
 		}
 
@@ -41,8 +41,7 @@ class BulkEditPreviewContribution {
 		// 	this._panelService.hideActivePanel();
 		// }
 
-		// todo@joh get 'real' edit
-		return edit;
+		return newEditOrUndefined;
 	}
 }
 
