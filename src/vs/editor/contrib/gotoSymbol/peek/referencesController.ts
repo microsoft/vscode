@@ -329,24 +329,31 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+// commands that aren't needed anymore because there is now ContextKeyExpr.OR
+CommandsRegistry.registerCommandAlias('goToNextReferenceFromEmbeddedEditor', 'goToNextReference');
+CommandsRegistry.registerCommandAlias('goToPreviousReferenceFromEmbeddedEditor', 'goToPreviousReference');
+
+// close
+CommandsRegistry.registerCommandAlias('closeReferenceSearchEditor', 'closeReferenceSearch');
+CommandsRegistry.registerCommand(
+	'closeReferenceSearch',
+	accessor => withController(accessor, controller => controller.closeWidget())
+);
+KeybindingsRegistry.registerKeybindingRule({
 	id: 'closeReferenceSearch',
 	weight: KeybindingWeight.EditorContrib - 101,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.or(
-		ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
-		ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek'))
-	),
-	handler(accessor: ServicesAccessor) {
-		withController(accessor, controller => controller.closeWidget());
-	}
+	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek'))
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'closeReferenceSearch',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape],
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
 });
 
-// commands that aren't needed anymore because there is now ContextKeyExpr.OR
-CommandsRegistry.registerCommandAlias('goToNextReferenceFromEmbeddedEditor', 'goToNextReference');
-CommandsRegistry.registerCommandAlias('goToPreviousReferenceFromEmbeddedEditor', 'goToPreviousReference');
-CommandsRegistry.registerCommandAlias('closeReferenceSearchEditor', 'closeReferenceSearch');
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',
