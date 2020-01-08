@@ -139,16 +139,28 @@ class ToggleScreencastModeAction extends Action {
 		}));
 
 		const keyboardMarker = append(container, $('.screencast-keyboard'));
+
 		disposables.add(toDisposable(() => keyboardMarker.remove()));
+
+		const updateKeyboardFontSize = () => {
+			keyboardMarker.style.fontSize = `${this.configurationService.getValue<number>('screencastMode.fontSize')}px`;
+			keyboardMarker.style.height = keyboardMarker.style.lineHeight = `${this.configurationService.getValue<number>('screencastMode.fontSize') + 44}px`;
+		};
 
 		const updateKeyboardMarker = () => {
 			keyboardMarker.style.bottom = `${clamp(this.configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
 		};
 
+		updateKeyboardFontSize();
 		updateKeyboardMarker();
+
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('screencastMode.verticalOffset')) {
 				updateKeyboardMarker();
+			}
+
+			if (e.affectsConfiguration('screencastMode.fontSize')) {
+				updateKeyboardFontSize();
 			}
 		}));
 
@@ -260,6 +272,13 @@ configurationRegistry.registerConfiguration({
 			minimum: 0,
 			maximum: 90,
 			description: nls.localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+		},
+		'screencastMode.fontSize': {
+			type: 'number',
+			default: 56,
+			minimum: 20,
+			maximum: 100,
+			description: nls.localize('screencastMode.fontSize', "Controls font size of the screencast mode keyboard shortcuts")
 		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
