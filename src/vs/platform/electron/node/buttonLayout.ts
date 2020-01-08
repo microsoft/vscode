@@ -3,24 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawnSync } from 'child_process';
+import { spawn } from 'child_process';
 
 export type ButtonLayout = ('maximize' | 'minimize')[];
 
-export function getGnomeButtonLayout(): ButtonLayout | null {
-	let output = spawnSync('gsettings', ['get', 'org.gnome.desktop.wm.preferences', 'button-layout']);
+export function getGnomeButtonLayout(): Promise<ButtonLayout | null> {
+	return new Promise((resolve, reject) => {
+		let child = spawn('gsettings', ['get', 'org.gnome.desktop.wm.preferences', 'button-layout']);
+		let stdout = '';
 
-	if (output.status === 0) {
-		let stdout = output.stdout.toString().replace(/'/g, '');
+		child.stdout.on('data', chunk => stdout += chunk.toString());
+		child.once('close', (code) => {
+			if (code === 0) {
+				stdout = stdout.replace(/'/g, '');
 
-		if (stdout.length < 0) {
-			return null;
-		}
+				if (stdout.length < 0) {
+					resolve(null);
+				}
 
-		let layout = stdout.split(',').filter(item => item === 'maximize' || item === 'minimize');
+				let layout = stdout.split(',').filter(item => item === 'maximize' || item === 'minimize');
 
-		return layout as ('maximize' | 'minimize')[];
-	}
+				resolve(layout as ('maximize' | 'minimize')[]);
+			}
 
-	return null;
+			resolve(null);
+		});
+		child.once('error', () => {
+			resolve(null);
+		});
+	});
 }

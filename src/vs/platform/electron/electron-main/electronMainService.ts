@@ -182,11 +182,11 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	getTitlebarButtonLayout(): ButtonLayout {
+	async getTitlebarButtonLayout(): Promise<ButtonLayout> {
 		let layout: ButtonLayout = ['maximize', 'minimize'];
 
 		if (isLinux) {
-			layout = getGnomeButtonLayout() ?? layout;
+			layout = await getGnomeButtonLayout() ?? layout;
 		}
 
 		return layout;

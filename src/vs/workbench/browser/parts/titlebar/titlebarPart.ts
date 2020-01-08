@@ -418,28 +418,35 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Window Controls (Native Windows/Linux)
 		if (!isMacintosh && !isWeb) {
 			this.windowControls = append(this.element, $('div.window-controls-container'));
-			let buttonLayout = this.electronService.getTitlebarButtonLayout();
 
 			// Minimize
-			if ('minimize' in buttonLayout) {
-				const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize.codicon.codicon-chrome-minimize'));
-				this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
-					this.electronService.minimizeWindow();
-				}));
-			}
+			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize.codicon.codicon-chrome-minimize'));
+			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
+				this.electronService.minimizeWindow();
+			}));
 
 			// Restore
-			if ('maximize' in buttonLayout) {
-				this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore.codicon'));
-				this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
-					const maximized = await this.electronService.isMaximized();
-					if (maximized) {
-						return this.electronService.unmaximizeWindow();
-					}
+			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore.codicon'));
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
+				const maximized = await this.electronService.isMaximized();
+				if (maximized) {
+					return this.electronService.unmaximizeWindow();
+				}
 
-					return this.electronService.maximizeWindow();
-				}));
-			}
+				return this.electronService.maximizeWindow();
+			}));
+
+			this.electronService.getTitlebarButtonLayout().then(buttonLayout => {
+				console.log(buttonLayout);
+
+				if (!buttonLayout.includes('minimize')) {
+					minimizeIcon.remove();
+				}
+
+				if (!buttonLayout.includes('maximize')) {
+					this.maxRestoreControl?.remove();
+				}
+			});
 
 			// Close
 			const closeIcon = append(this.windowControls, $('div.window-icon.window-close.codicon.codicon-chrome-close'));
