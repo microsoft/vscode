@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
-import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export interface IBackupMetaData {
@@ -82,7 +82,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	readonly capabilities = WorkingCopyCapabilities.AutoSave;
+	readonly capabilities = 0;
 
 	private contentEncoding: string | undefined; // encoding as reported from disk
 

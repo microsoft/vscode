@@ -316,7 +316,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
-		const dirty = editor?.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
+		const dirty = editor?.isDirty() && !editor.isSaving() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
 		const remoteName = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority);
 		const separator = TitlebarPart.TITLE_SEPARATOR;
