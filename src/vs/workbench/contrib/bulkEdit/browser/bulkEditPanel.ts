@@ -8,7 +8,7 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { Dimension } from 'vs/base/browser/dom';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { Edit, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
+import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -33,7 +33,7 @@ export class BulkEditPanel extends Panel {
 
 	static readonly ID = 'BulkEditPanel';
 
-	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, Edit, FuzzyScore>;
+	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _message!: HTMLSpanElement;
 
 	private readonly _acceptAction = new Action('ok', localize('ok', "Apply Refactoring"), 'codicon-check', false, async () => this._done(true));

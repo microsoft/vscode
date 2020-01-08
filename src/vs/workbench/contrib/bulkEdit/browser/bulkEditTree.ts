@@ -43,15 +43,15 @@ export class TextEditElement {
 	) { }
 }
 
-export type Edit = FileElement | TextEditElement;
+export type BulkEditElement = FileElement | TextEditElement;
 
 // --- DATA SOURCE
 
-export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, Edit> {
+export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, BulkEditElement> {
 
 	constructor(@ITextModelService private readonly _textModelService: ITextModelService) { }
 
-	hasChildren(element: BulkFileOperations | Edit): boolean {
+	hasChildren(element: BulkFileOperations | BulkEditElement): boolean {
 		if (element instanceof FileElement) {
 			return element.edit.textEdits.length > 0;
 		}
@@ -61,7 +61,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 		return true;
 	}
 
-	async getChildren(element: BulkFileOperations | Edit): Promise<Edit[]> {
+	async getChildren(element: BulkFileOperations | BulkEditElement): Promise<BulkEditElement[]> {
 
 		// root -> file/text edits
 		if (element instanceof BulkFileOperations) {
@@ -111,18 +111,14 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 // --- IDENT
 
-export class BulkEditIdentityProvider implements IIdentityProvider<Edit> {
+export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditElement> {
 
-	private readonly _map = new WeakMap<Edit, number>();
-	private _idPool = 0;
-
-	getId(element: Edit): { toString(): string; } {
-		let id = this._map.get(element);
-		if (typeof id === 'undefined') {
-			id = this._idPool++;
-			this._map.set(element, id);
+	getId(element: BulkEditElement): { toString(): string; } {
+		if (element instanceof FileElement) {
+			return element.uri;
+		} else {
+			return element.parent.uri.toString() + JSON.stringify(element.edit);
 		}
-		return id;
 	}
 }
 
@@ -204,13 +200,13 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 	disposeTemplate(_template: TextEditElementTemplate): void { }
 }
 
-export class BulkEditDelegate implements IListVirtualDelegate<Edit> {
+export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement> {
 
 	getHeight(): number {
 		return 23;
 	}
 
-	getTemplateId(element: Edit): string {
+	getTemplateId(element: BulkEditElement): string {
 		return element instanceof FileElement
 			? FileElementRenderer.id
 			: TextEditElementRenderer.id;
