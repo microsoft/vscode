@@ -64,7 +64,7 @@ export function getSemanticTokenLegend() {
 const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'typeParameter', 'type', 'parameter', 'variable', 'property', 'constant', 'function', 'member'];
 const tokenModifiers: string[] = ['declaration', 'static', 'async'];
 
-enum TokenType {
+const enum TokenType {
 	'class' = 0,
 	'enum' = 1,
 	'interface' = 2,
@@ -79,7 +79,8 @@ enum TokenType {
 	'member' = 11
 }
 
-enum TokenModifier {
+
+const enum TokenModifier {
 	'declaration' = 0x01,
 	'static' = 0x02,
 	'async' = 0x04,
