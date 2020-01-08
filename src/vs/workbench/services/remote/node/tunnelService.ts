@@ -19,8 +19,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { findFreePort } from 'vs/base/node/ports';
 import { Event, Emitter } from 'vs/base/common/event';
 
-export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
-	const tunnel = new NodeRemoteTunnel(options, tunnelRemotePort, tunnelLocalPort);
+export async function createRemoteTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
+	const tunnel = new NodeRemoteTunnel(options, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort);
 	return tunnel.waitForReady();
 }
 
@@ -28,7 +28,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 	public readonly tunnelRemotePort: number;
 	public tunnelLocalPort!: number;
-	public tunnelRemoteHost: string = 'localhost';
+	public tunnelRemoteHost: string;
 	public localAddress!: string;
 
 	private readonly _options: IConnectionOptions;
@@ -38,7 +38,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	private readonly _listeningListener: () => void;
 	private readonly _connectionListener: (socket: net.Socket) => void;
 
-	constructor(options: IConnectionOptions, tunnelRemotePort: number, private readonly suggestedLocalPort?: number) {
+	constructor(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number, private readonly suggestedLocalPort?: number) {
 		super();
 		this._options = options;
 		this._server = net.createServer();
@@ -51,7 +51,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this._server.on('connection', this._connectionListener);
 
 		this.tunnelRemotePort = tunnelRemotePort;
-
+		this.tunnelRemoteHost = tunnelRemoteHost;
 	}
 
 	public dispose(): void {
@@ -229,7 +229,7 @@ export class TunnelService implements ITunnelService {
 				this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			}
 			return tunnel;
-		} else if (remoteHost === 'localhost') {
+		} else {
 			const options: IConnectionOptions = {
 				commit: product.commit,
 				socketFactory: nodeSocketFactory,
@@ -243,11 +243,10 @@ export class TunnelService implements ITunnelService {
 				logService: this.logService
 			};
 
-			const tunnel = createRemoteTunnel(options, remotePort, localPort);
+			const tunnel = createRemoteTunnel(options, remoteHost, remotePort, localPort);
 			this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			return tunnel;
 		}
-		return undefined;
 	}
 }
 

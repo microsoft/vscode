@@ -47,13 +47,6 @@ type ConfigurationInspect<T> = {
 	workspaceFolderLanguageValue?: T;
 };
 
-function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
-	return thing
-		&& thing.uri instanceof URI
-		&& (!thing.name || typeof thing.name === 'string')
-		&& (!thing.index || typeof thing.index === 'number');
-}
-
 function isUri(thing: any): thing is vscode.Uri {
 	return thing instanceof URI;
 }
@@ -61,18 +54,34 @@ function isUri(thing: any): thing is vscode.Uri {
 function isResourceLanguage(thing: any): thing is { uri: URI, languageId: string } {
 	return thing
 		&& thing.uri instanceof URI
-		&& (!thing.languageId || typeof thing.languageId === 'string');
+		&& (thing.languageId && typeof thing.languageId === 'string');
+}
+
+function isLanguage(thing: any): thing is { languageId: string } {
+	return thing
+		&& !thing.uri
+		&& (thing.languageId && typeof thing.languageId === 'string');
+}
+
+function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
+	return thing
+		&& thing.uri instanceof URI
+		&& (!thing.name || typeof thing.name === 'string')
+		&& (!thing.index || typeof thing.index === 'number');
 }
 
 function scopeToOverrides(scope: vscode.ConfigurationScope | undefined | null): IConfigurationOverrides | undefined {
 	if (isUri(scope)) {
 		return { resource: scope };
 	}
-	if (isWorkspaceFolder(scope)) {
-		return { resource: scope.uri };
-	}
 	if (isResourceLanguage(scope)) {
 		return { resource: scope.uri, overrideIdentifier: scope.languageId };
+	}
+	if (isLanguage(scope)) {
+		return { overrideIdentifier: scope.languageId };
+	}
+	if (isWorkspaceFolder(scope)) {
+		return { resource: scope.uri };
 	}
 	return undefined;
 }

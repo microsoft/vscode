@@ -65,10 +65,11 @@ import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
 import { IAuthTokenService } from 'vs/platform/auth/common/auth';
 import { AuthTokenService } from 'vs/workbench/services/authToken/browser/authTokenService';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, ISettingsSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -79,6 +80,7 @@ registerSingleton(ILoggerService, FileLoggerService);
 registerSingleton(IAuthTokenService, AuthTokenService);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
+registerSingleton(ISettingsSyncService, SettingsSynchroniser);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
 
 //#endregion
