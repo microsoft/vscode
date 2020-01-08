@@ -10,6 +10,7 @@ import { values } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
+import { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
 
 export function computeRemoteContent(localContent: string, remoteContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
 	if (ignoredSettings.length) {
@@ -24,7 +25,7 @@ export function computeRemoteContent(localContent: string, remoteContent: string
 	return localContent;
 }
 
-export function merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[], formattingOptions: FormattingOptions): { mergeContent: string, hasChanges: boolean, hasConflicts: boolean } {
+export function merge(localContent: string, remoteContent: string, baseContent: string | null, ignoredSettings: string[], resolvedConflicts: { key: string, value: any | undefined }[], formattingOptions: FormattingOptions): { mergeContent: string, hasChanges: boolean, conflicts: IConflictSetting[] } {
 	const local = parse(localContent);
 	const remote = parse(remoteContent);
 	const base = baseContent ? parse(baseContent) : null;
@@ -33,30 +34,41 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 	const localToRemote = compare(local, remote, ignored);
 	if (localToRemote.added.size === 0 && localToRemote.removed.size === 0 && localToRemote.updated.size === 0) {
 		// No changes found between local and remote.
-		return { mergeContent: localContent, hasChanges: false, hasConflicts: false };
+		return { mergeContent: localContent, hasChanges: false, conflicts: [] };
 	}
 
-	const conflicts: Set<string> = new Set<string>();
+	const conflicts: Map<string, IConflictSetting> = new Map<string, IConflictSetting>();
+	const handledConflicts: Set<string> = new Set<string>();
 	const baseToLocal = base ? compare(base, local, ignored) : { added: Object.keys(local).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
 	const baseToRemote = base ? compare(base, remote, ignored) : { added: Object.keys(remote).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
 	let mergeContent = localContent;
+
+	const handleConflict = (conflictKey: string): void => {
+		handledConflicts.add(conflictKey);
+		const resolvedConflict = resolvedConflicts.filter(({ key }) => key === conflictKey)[0];
+		if (resolvedConflict) {
+			mergeContent = contentUtil.edit(mergeContent, [conflictKey], resolvedConflict.value, formattingOptions);
+		} else {
+			conflicts.set(conflictKey, { key: conflictKey, localValue: local[conflictKey], remoteValue: remote[conflictKey] });
+		}
+	};
 
 	// Removed settings in Local
 	for (const key of values(baseToLocal.removed)) {
 		// Got updated in remote
 		if (baseToRemote.updated.has(key)) {
-			conflicts.add(key);
+			handleConflict(key);
 		}
 	}
 
 	// Removed settings in Remote
 	for (const key of values(baseToRemote.removed)) {
-		if (conflicts.has(key)) {
+		if (handledConflicts.has(key)) {
 			continue;
 		}
 		// Got updated in local
 		if (baseToLocal.updated.has(key)) {
-			conflicts.add(key);
+			handleConflict(key);
 		} else {
 			mergeContent = contentUtil.edit(mergeContent, [key], undefined, formattingOptions);
 		}
@@ -64,28 +76,28 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 
 	// Added settings in Local
 	for (const key of values(baseToLocal.added)) {
-		if (conflicts.has(key)) {
+		if (handledConflicts.has(key)) {
 			continue;
 		}
 		// Got added in remote
 		if (baseToRemote.added.has(key)) {
 			// Has different value
 			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+				handleConflict(key);
 			}
 		}
 	}
 
 	// Added settings in remote
 	for (const key of values(baseToRemote.added)) {
-		if (conflicts.has(key)) {
+		if (handledConflicts.has(key)) {
 			continue;
 		}
 		// Got added in local
 		if (baseToLocal.added.has(key)) {
 			// Has different value
 			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+				handleConflict(key);
 			}
 		} else {
 			mergeContent = contentUtil.edit(mergeContent, [key], remote[key], formattingOptions);
@@ -94,28 +106,28 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 
 	// Updated settings in Local
 	for (const key of values(baseToLocal.updated)) {
-		if (conflicts.has(key)) {
+		if (handledConflicts.has(key)) {
 			continue;
 		}
 		// Got updated in remote
 		if (baseToRemote.updated.has(key)) {
 			// Has different value
 			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+				handleConflict(key);
 			}
 		}
 	}
 
 	// Updated settings in Remote
 	for (const key of values(baseToRemote.updated)) {
-		if (conflicts.has(key)) {
+		if (handledConflicts.has(key)) {
 			continue;
 		}
 		// Got updated in local
 		if (baseToLocal.updated.has(key)) {
 			// Has different value
 			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+				handleConflict(key);
 			}
 		} else {
 			mergeContent = contentUtil.edit(mergeContent, [key], remote[key], formattingOptions);
@@ -126,7 +138,7 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 		const conflictNodes: { key: string, node: Node | undefined }[] = [];
 		const tree = parseTree(mergeContent);
 		const eol = formattingOptions.eol!;
-		for (const key of values(conflicts)) {
+		for (const { key } of values(conflicts)) {
 			const node = findNodeAtLocation(tree, [key]);
 			conflictNodes.push({ key, node });
 		}
@@ -166,7 +178,7 @@ export function merge(localContent: string, remoteContent: string, baseContent: 
 		}
 	}
 
-	return { mergeContent, hasChanges: true, hasConflicts: conflicts.size > 0 };
+	return { mergeContent, hasChanges: true, conflicts: values(conflicts) };
 }
 
 function compare(from: IStringDictionary<any>, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
