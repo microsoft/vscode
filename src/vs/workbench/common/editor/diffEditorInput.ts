@@ -28,6 +28,13 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		super(name, description, original, modified);
 	}
 
+	matches(otherInput: unknown): boolean {
+		if (!super.matches(otherInput)) {
+			return false;
+		}
+		return otherInput instanceof DiffEditorInput && otherInput.forceOpenAsBinary === this.forceOpenAsBinary;
+	}
+
 	getTypeId(): string {
 		return DiffEditorInput.ID;
 	}
