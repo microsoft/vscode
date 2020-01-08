@@ -418,7 +418,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Window Controls (Native Windows/Linux)
 		if (!isMacintosh && !isWeb) {
 			this.windowControls = append(this.element, $('div.window-controls-container'));
-			let buttonLayout = this.electronService.getToolbarButtonLayout();
+			let buttonLayout = this.electronService.getTitlebarButtonLayout();
 
 			// Minimize
 			if ('minimize' in buttonLayout) {

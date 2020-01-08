@@ -47,7 +47,7 @@ export interface IElectronService {
 	isWindowFocused(): Promise<boolean>;
 	focusWindow(options?: { windowId?: number }): Promise<void>;
 
-	getToolbarButtonLayout(): ButtonLayout;
+	getTitlebarButtonLayout(): ButtonLayout;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;

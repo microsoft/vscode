@@ -182,7 +182,7 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	getToolbarButtonLayout(): ButtonLayout {
+	getTitlebarButtonLayout(): ButtonLayout {
 		let layout: ButtonLayout = ['maximize', 'minimize'];
 
 		if (isLinux) {
