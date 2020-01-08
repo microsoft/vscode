@@ -1305,7 +1305,7 @@ declare module 'vscode' {
 
 	//#region Language specific settings: https://github.com/microsoft/vscode/issues/26707
 
-	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri: Uri, languageId: string };
+	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri, languageId: string };
 
 	/**
 	 * An event describing the change in Configuration
