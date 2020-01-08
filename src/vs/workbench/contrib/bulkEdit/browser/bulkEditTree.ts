@@ -25,12 +25,22 @@ import { localize } from 'vs/nls';
 
 export class FileElement {
 
+	private static _typeLabels: Record<number, string> = {
+		[BulkFileOperationType.Create]: localize('create', "create"),
+		[BulkFileOperationType.Delete]: localize('delete', "delete"),
+		[BulkFileOperationType.Rename]: localize('rename', "rename"),
+		[BulkFileOperationType.Create | BulkFileOperationType.Delete]: localize('createDelete', "create & delete"),
+		[BulkFileOperationType.Create | BulkFileOperationType.Rename]: localize('createRename', "create & rename"),
+		[BulkFileOperationType.Delete | BulkFileOperationType.Rename]: localize('deleteRename', "delete & rename"),
+		[BulkFileOperationType.Create | BulkFileOperationType.Delete | BulkFileOperationType.Rename]: localize('createRenameDelete', "create, rename, delete"),
+	};
+
 	readonly uri: URI;
-	readonly _debugName: string;
+	readonly typeLabel: string;
 
 	constructor(readonly edit: BulkFileOperation) {
 		this.uri = edit.uri;
-		this._debugName = `0b${edit.type.toString(2)}`;
+		this.typeLabel = FileElement._typeLabels[edit.type] || '';
 	}
 
 }
@@ -154,20 +164,9 @@ export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScor
 
 	renderElement(node: ITreeNode<FileElement, FuzzyScore>, _index: number, template: FileElementTemplate): void {
 
-		let fileOperationsLabels: string[] = [];
-		if (node.element.edit.type & BulkFileOperationType.Create) {
-			fileOperationsLabels.push(localize('file.create', "create file"));
-		}
-		if (node.element.edit.type & BulkFileOperationType.Delete) {
-			fileOperationsLabels.push(localize('file.delete', "delete file"));
-		}
-		if (node.element.edit.type & BulkFileOperationType.Rename) {
-			fileOperationsLabels.push(localize('file.rename', "rename file"));
-		}
-
 		template.label.setResource({
 			name: this._labelService.getUriLabel(node.element.uri, { relative: true }),
-			description: fileOperationsLabels.join(', '),
+			description: node.element.typeLabel,
 			resource: node.element.uri,
 		}, {
 			matches: createMatches(node.filterData),

@@ -15,6 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { values } from 'vs/base/common/map';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export const enum BulkFileOperationType {
 	None = 0,
@@ -41,9 +42,11 @@ export class BulkFileOperation {
 
 export class BulkFileOperations {
 
-	static async create(_accessor: ServicesAccessor, bulkEdit: WorkspaceEdit): Promise<BulkFileOperations> {
+	static async create(accessor: ServicesAccessor, bulkEdit: WorkspaceEdit): Promise<BulkFileOperations> {
 
 		const operationByResource = new Map<string, BulkFileOperation>();
+
+		const fileService = accessor.get(IFileService);
 
 		for (const edit of bulkEdit.edits) {
 
@@ -55,24 +58,34 @@ export class BulkFileOperations {
 				type = BulkFileOperationType.None;
 				uri = edit.resource;
 				textEdits = edit.edits;
-
 			} else if (edit.newUri && edit.oldUri) {
 				type = BulkFileOperationType.Rename;
 				uri = edit.oldUri;
+				if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await fileService.exists(uri)) {
+					// noop -> "soft" rename to something that already exists
+					continue;
+				}
 
 			} else if (edit.oldUri) {
 				type = BulkFileOperationType.Delete;
 				uri = edit.oldUri;
+				if (edit.options?.ignoreIfNotExists && !await fileService.exists(uri)) {
+					// noop -> "soft" delete something that doesn't exist
+					continue;
+				}
 
 			} else if (edit.newUri) {
 				type = BulkFileOperationType.Create;
 				uri = edit.newUri;
+				if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await fileService.exists(uri)) {
+					// noop -> "soft" create something that already exists
+					continue;
+				}
 
 			} else {
 				// invalid edit -> skip
 				continue;
 			}
-
 
 			const key = uri.toString();
 			let operation = operationByResource.get(key);
@@ -86,8 +99,6 @@ export class BulkFileOperations {
 				operation.addEdits(textEdits);
 			}
 		}
-
-		//todo@joh filter noops
 
 		return new BulkFileOperations(values(operationByResource));
 	}
