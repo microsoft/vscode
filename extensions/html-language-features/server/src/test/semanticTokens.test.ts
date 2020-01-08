@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { TextDocument, getLanguageModes, ClientCapabilities, Range } from '../modes/languageModes';
+import { TextDocument, getLanguageModes, ClientCapabilities, Range, Position } from '../modes/languageModes';
 import { newSemanticTokenProvider } from '../modes/semanticTokens';
 
 interface ExpectedToken {
@@ -15,7 +15,7 @@ interface ExpectedToken {
 	tokenClassifiction: string;
 }
 
-function assertTokens(lines: string[], expected: ExpectedToken[], range?: Range, message?: string): void {
+function assertTokens(lines: string[], expected: ExpectedToken[], ranges?: Range[], message?: string): void {
 	const document = TextDocument.create('test://foo/bar.html', 'html', 1, lines.join('\n'));
 	const workspace = {
 		settings: {},
@@ -25,7 +25,7 @@ function assertTokens(lines: string[], expected: ExpectedToken[], range?: Range,
 	const semanticTokensProvider = newSemanticTokenProvider(languageModes);
 
 	const legend = semanticTokensProvider.legend;
-	const actual = semanticTokensProvider.getSemanticTokens(document, range && [range]);
+	const actual = semanticTokensProvider.getSemanticTokens(document, ranges);
 
 	let actualRanges = [];
 	let lastLine = 0;
@@ -46,9 +46,9 @@ function t(startLine: number, character: number, length: number, tokenClassifict
 	return { startLine, character, length, tokenClassifiction };
 }
 
-suite('JavaScript Semantic Tokens', () => {
+suite('HTML Semantic Tokens', () => {
 
-	test('variables', () => {
+	test('Variables', () => {
 		const input = [
 			/*0*/'<html>',
 			/*1*/'<head>',
@@ -71,7 +71,7 @@ suite('JavaScript Semantic Tokens', () => {
 		]);
 	});
 
-	test('function', () => {
+	test('Functions', () => {
 		const input = [
 			/*0*/'<html>',
 			/*1*/'<head>',
@@ -91,7 +91,7 @@ suite('JavaScript Semantic Tokens', () => {
 		]);
 	});
 
-	test('members', () => {
+	test('Members', () => {
 		const input = [
 			/*0*/'<html>',
 			/*1*/'<head>',
@@ -120,14 +120,7 @@ suite('JavaScript Semantic Tokens', () => {
 		]);
 	});
 
-
-
-});
-
-
-suite('Type Semantic Tokens', () => {
-
-	test('interface', () => {
+	test('Interfaces', () => {
 		const input = [
 			/*0*/'<html>',
 			/*1*/'<head>',
@@ -147,7 +140,7 @@ suite('Type Semantic Tokens', () => {
 	});
 
 
-	test('type alias', () => {
+	test('Type aliases and type parameters', () => {
 		const input = [
 			/*0*/'<html>',
 			/*1*/'<head>',
@@ -167,5 +160,47 @@ suite('Type Semantic Tokens', () => {
 		]);
 	});
 
+	test('TS and JS', () => {
+		const input = [
+			/*0*/'<html>',
+			/*1*/'<head>',
+			/*2*/'<script type="text/typescript">',
+			/*3*/'  function f<T>(p1: T): T[] { return [ p1 ]; }',
+			/*4*/'</script>',
+			/*5*/'<script>',
+			/*6*/'  window.alert("Hello");',
+			/*7*/'</script>',
+			/*8*/'</head>',
+			/*9*/'</html>',
+		];
+		assertTokens(input, [
+			t(3, 11, 1, 'function.declaration'), t(3, 13, 1, 'typeParameter.declaration'), t(3, 16, 2, 'parameter.declaration'), t(3, 20, 1, 'typeParameter'), t(3, 24, 1, 'typeParameter'), t(3, 39, 2, 'parameter'),
+			t(6, 2, 6, 'variable'), t(6, 9, 5, 'member')
+		]);
+	});
+
+	test('Ranges', () => {
+		const input = [
+			/*0*/'<html>',
+			/*1*/'<head>',
+			/*2*/'<script>',
+			/*3*/'  window.alert("Hello");',
+			/*4*/'</script>',
+			/*5*/'<script>',
+			/*6*/'  window.alert("World");',
+			/*7*/'</script>',
+			/*8*/'</head>',
+			/*9*/'</html>',
+		];
+		assertTokens(input, [
+			t(3, 2, 6, 'variable'), t(3, 9, 5, 'member')
+		], [Range.create(Position.create(2, 0), Position.create(4, 0))]);
+
+		assertTokens(input, [
+			t(6, 2, 6, 'variable'),
+		], [Range.create(Position.create(6, 2), Position.create(6, 8))]);
+	});
+
 
 });
+
