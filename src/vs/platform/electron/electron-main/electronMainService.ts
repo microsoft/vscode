@@ -10,7 +10,7 @@ import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -20,6 +20,7 @@ import { dirExists } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ButtonLayout, getGnomeButtonLayout } from 'vs/platform/electron/node/buttonLayout';
 
 export interface IElectronMainService extends AddFirstParameterToFunctions<IElectronService, Promise<any> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -179,6 +180,16 @@ export class ElectronMainService implements IElectronMainService {
 				window.win.focus();
 			}
 		}
+	}
+
+	getToolbarButtonLayout(): ButtonLayout {
+		let layout: ButtonLayout = ['maximize', 'minimize'];
+
+		if (isLinux) {
+			layout = getGnomeButtonLayout() ?? layout;
+		}
+
+		return layout;
 	}
 
 	//#endregion

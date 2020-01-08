@@ -10,6 +10,7 @@ import { IWindowOpenable, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/plat
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
+import { ButtonLayout } from 'vs/platform/electron/node/buttonLayout';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -45,6 +46,8 @@ export interface IElectronService {
 
 	isWindowFocused(): Promise<boolean>;
 	focusWindow(options?: { windowId?: number }): Promise<void>;
+
+	getToolbarButtonLayout(): ButtonLayout;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;

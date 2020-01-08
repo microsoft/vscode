@@ -97,6 +97,7 @@ import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbe
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { MockDebugService } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { ButtonLayout } from 'vs/platform/electron/node/buttonLayout';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -1432,6 +1433,7 @@ export class TestElectronService implements IElectronService {
 	async minimizeWindow(): Promise<void> { }
 	async isWindowFocused(): Promise<boolean> { return true; }
 	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
+	getToolbarButtonLayout(): ButtonLayout { return []; }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
 	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
