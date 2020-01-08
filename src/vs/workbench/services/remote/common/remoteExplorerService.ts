@@ -46,7 +46,7 @@ export interface Tunnel {
 }
 
 export function MakeAddress(host: string, port: number): string {
-	if (host = '127.0.0.1') {
+	if (host === '127.0.0.1') {
 		host = 'localhost';
 	}
 	return host + ':' + port;

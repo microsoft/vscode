@@ -183,7 +183,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 							ip: this.parseIpAddress(address[0]),
 							port: parseInt(address[1], 16)
 						};
-					}).map(port => [port.port, port])
+					}).map(port => [port.ip + ':' + port.port, port])
 			).values()
 		];
 	}
