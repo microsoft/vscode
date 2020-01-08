@@ -92,17 +92,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Lifecycle
 		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
-
-		// Auto save changes
-		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
-	}
-
-	private onAutoSaveConfigurationChange(): void {
-
-		// save all dirty when enabling auto save
-		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
-			this.saveAll();
-		}
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
