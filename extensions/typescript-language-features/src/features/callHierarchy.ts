@@ -8,6 +8,9 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 import API from '../utils/api';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import * as Proto from '../protocol';
+import * as path from 'path';
+import * as PConst from '../protocol.const';
 
 class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 	public static readonly minVersion = API.v380;
@@ -31,8 +34,8 @@ class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 		}
 
 		return Array.isArray(response.body)
-			? response.body.map(typeConverters.CallHierarchyItem.fromProtocolCallHierarchyItem)
-			: typeConverters.CallHierarchyItem.fromProtocolCallHierarchyItem(response.body);
+			? response.body.map(fromProtocolCallHierarchyItem)
+			: fromProtocolCallHierarchyItem(response.body);
 	}
 
 	public async provideCallHierarchyIncomingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): Promise<vscode.CallHierarchyIncomingCall[] | undefined> {
@@ -47,7 +50,7 @@ class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 			return undefined;
 		}
 
-		return response.body.map(typeConverters.CallHierarchyIncomingCall.fromProtocolCallHierchyIncomingCall);
+		return response.body.map(fromProtocolCallHierchyIncomingCall);
 	}
 
 	public async provideCallHierarchyOutgoingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): Promise<vscode.CallHierarchyOutgoingCall[] | undefined> {
@@ -62,8 +65,40 @@ class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 			return undefined;
 		}
 
-		return response.body.map(typeConverters.CallHierarchyOutgoingCall.fromProtocolCallHierchyOutgoingCall);
+		return response.body.map(fromProtocolCallHierchyOutgoingCall);
 	}
+}
+
+function isSourceFileItem(item: Proto.CallHierarchyItem) {
+	return item.kind === PConst.Kind.script || item.kind === PConst.Kind.module && item.selectionSpan.start.line === 0 && item.selectionSpan.start.offset === 0;
+}
+
+function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.CallHierarchyItem {
+	const useFileName = isSourceFileItem(item);
+	const name = useFileName ? path.basename(item.file) : item.name;
+	const detail = useFileName ? vscode.workspace.asRelativePath(path.dirname(item.file)) : '';
+	return new vscode.CallHierarchyItem(
+		typeConverters.SymbolKind.fromProtocolScriptElementKind(item.kind),
+		name,
+		detail,
+		vscode.Uri.file(item.file),
+		typeConverters.Range.fromTextSpan(item.span),
+		typeConverters.Range.fromTextSpan(item.selectionSpan)
+	);
+}
+
+function fromProtocolCallHierchyIncomingCall(item: Proto.CallHierarchyIncomingCall): vscode.CallHierarchyIncomingCall {
+	return new vscode.CallHierarchyIncomingCall(
+		fromProtocolCallHierarchyItem(item.from),
+		item.fromSpans.map(typeConverters.Range.fromTextSpan)
+	);
+}
+
+function fromProtocolCallHierchyOutgoingCall(item: Proto.CallHierarchyOutgoingCall): vscode.CallHierarchyOutgoingCall {
+	return new vscode.CallHierarchyOutgoingCall(
+		fromProtocolCallHierarchyItem(item.to),
+		item.fromSpans.map(typeConverters.Range.fromTextSpan)
+	);
 }
 
 export function register(

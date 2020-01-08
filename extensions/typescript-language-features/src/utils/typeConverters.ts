@@ -7,7 +7,6 @@
  * Helpers for converting FROM vscode types TO ts types
  */
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
@@ -125,43 +124,5 @@ export namespace SymbolKind {
 			case PConst.Kind.string: return vscode.SymbolKind.String;
 			default: return vscode.SymbolKind.Variable;
 		}
-	}
-}
-
-export namespace CallHierarchyItem {
-	function isSourceFileItem(item: Proto.CallHierarchyItem) {
-		return item.kind === PConst.Kind.script || item.kind === PConst.Kind.module && item.selectionSpan.start.line === 0 && item.selectionSpan.start.offset === 0;
-	}
-
-	export function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.CallHierarchyItem {
-		const useFileName = isSourceFileItem(item);
-		const name = useFileName ? path.basename(item.file) : item.name;
-		const detail = useFileName ? vscode.workspace.asRelativePath(path.dirname(item.file)) : '';
-		return new vscode.CallHierarchyItem(
-			SymbolKind.fromProtocolScriptElementKind(item.kind),
-			name,
-			detail,
-			vscode.Uri.file(item.file),
-			Range.fromTextSpan(item.span),
-			Range.fromTextSpan(item.selectionSpan)
-		);
-	}
-}
-
-export namespace CallHierarchyIncomingCall {
-	export function fromProtocolCallHierchyIncomingCall(item: Proto.CallHierarchyIncomingCall): vscode.CallHierarchyIncomingCall {
-		return new vscode.CallHierarchyIncomingCall(
-			CallHierarchyItem.fromProtocolCallHierarchyItem(item.from),
-			item.fromSpans.map(Range.fromTextSpan)
-		);
-	}
-}
-
-export namespace CallHierarchyOutgoingCall {
-	export function fromProtocolCallHierchyOutgoingCall(item: Proto.CallHierarchyOutgoingCall): vscode.CallHierarchyOutgoingCall {
-		return new vscode.CallHierarchyOutgoingCall(
-			CallHierarchyItem.fromProtocolCallHierarchyItem(item.to),
-			item.fromSpans.map(Range.fromTextSpan)
-		);
 	}
 }
