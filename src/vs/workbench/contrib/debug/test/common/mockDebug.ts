@@ -3,18 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+import { Emitter, Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
+import { URI as uri } from 'vs/base/common/uri';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
+import { AdapterEndEvent, IBreakpoint, IBreakpointData, IBreakpointsChangeEvent, IBreakpointUpdateData, IConfig, IConfigurationManager, IDataBreakpoint, IDebugger, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEvaluate, IExceptionBreakpoint, IExceptionInfo, IExpression, IFunctionBreakpoint, ILaunch, IRawModelUpdate, IReplElement, IReplElementSource, IStackFrame, IThread, IViewModel, LoadedSourceEvent, State } from 'vs/workbench/contrib/debug/common/debug';
+import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+
+const noopEvent = new Emitter<any>().event;
 
 export class MockDebugService implements IDebugService {
 
 	public _serviceBrand: undefined;
+
+	private readonly _model: IDebugModel;
+	private readonly _viewModel: IViewModel;
+
+	constructor() {
+		this._model = new MockDebugModel();
+		this._viewModel = new MockDebugViewModel();
+	}
 
 	public get state(): State {
 		throw new Error('not implemented');
@@ -32,9 +42,7 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	public get onDidChangeState(): Event<State> {
-		throw new Error('not implemented');
-	}
+	public onDidChangeState: Event<State> = noopEvent;
 
 	public getConfigurationManager(): IConfigurationManager {
 		throw new Error('not implemented');
@@ -116,11 +124,11 @@ export class MockDebugService implements IDebugService {
 	}
 
 	public getModel(): IDebugModel {
-		throw new Error('not implemented');
+		return this._model;
 	}
 
 	public getViewModel(): IViewModel {
-		throw new Error('not implemented');
+		return this._viewModel;
 	}
 
 	public logToRepl(session: IDebugSession, value: string): void { }
@@ -526,5 +534,99 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 		if (args.expression.indexOf('after.') === 0) {
 			this.sendEventBody('output', { output: args.expression });
 		}
+	}
+}
+
+class MockDebugModel implements IDebugModel {
+	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined> = noopEvent;
+
+	get onDidChangeCallStack(): Event<void> {
+		throw new Error('not implemented');
+	}
+
+	get onDidChangeWatchExpressions(): Event<IExpression | undefined> {
+		throw new Error('not implemented');
+	}
+
+	getSession(sessionId: string | undefined, includeInactive?: boolean | undefined): IDebugSession | undefined {
+		throw new Error('not implemented.');
+	}
+
+	getSessions(includeInactive?: boolean | undefined): IDebugSession[] {
+		return [];
+	}
+
+	getBreakpoints(filter?: { uri?: uri | undefined; lineNumber?: number | undefined; column?: number | undefined; enabledOnly?: boolean | undefined; } | undefined): readonly IBreakpoint[] {
+		return [];
+	}
+
+	areBreakpointsActivated(): boolean {
+		throw new Error('not implemented.');
+	}
+
+	getFunctionBreakpoints(): readonly IFunctionBreakpoint[] {
+		throw new Error('not implemented.');
+	}
+
+	getDataBreakpoints(): readonly IDataBreakpoint[] {
+		throw new Error('not implemented.');
+	}
+
+	getExceptionBreakpoints(): readonly IExceptionBreakpoint[] {
+		throw new Error('not implemented.');
+	}
+
+	getWatchExpressions(): readonly (IExpression & IEvaluate)[] {
+		throw new Error('not implemented.');
+	}
+
+	getId(): string {
+		throw new Error('not implemented.');
+	}
+}
+
+class MockDebugViewModel implements IViewModel {
+	get focusedSession(): IDebugSession | undefined {
+		throw new Error('not implemented');
+	}
+
+	get focusedThread(): IThread | undefined {
+		throw new Error('not implemented');
+	}
+
+	focusedStackFrame: IStackFrame | undefined = undefined;
+
+	get onDidFocusSession(): Event<IDebugSession | undefined> {
+		throw new Error('not implemented');
+	}
+
+	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; }> = noopEvent;
+
+	get onDidSelectExpression(): Event<IExpression | undefined> {
+		throw new Error('not implemented');
+	}
+
+	getSelectedExpression(): IExpression | undefined {
+		throw new Error('Method not implemented.');
+	}
+
+	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined {
+		throw new Error('Method not implemented.');
+	}
+
+	setSelectedExpression(expression: IExpression | undefined): void {
+		throw new Error('Method not implemented.');
+	}
+
+	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void {
+		throw new Error('Method not implemented.');
+	}
+
+	isMultiSessionView(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	getId(): string {
+		throw new Error('Method not implemented.');
 	}
 }
