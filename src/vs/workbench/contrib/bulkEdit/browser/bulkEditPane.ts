@@ -67,7 +67,7 @@ export class BulkEditPanel extends ViewPane {
 	}
 
 	protected renderBody(parent: HTMLElement): void {
-		parent.className = 'bulk-edit-panel';
+		parent.classList.add('bulk-edit-panel', 'show-file-icons');
 
 		// tree
 		const treeContainer = document.createElement('div');

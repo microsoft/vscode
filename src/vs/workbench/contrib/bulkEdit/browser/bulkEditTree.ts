@@ -16,12 +16,12 @@ import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachCheckboxStyler } from 'vs/platform/theme/common/styler';
+import { FileKind } from 'vs/platform/files/common/files';
 
 // --- VIEW MODEL
 
@@ -144,8 +144,7 @@ class FileElementTemplate {
 	constructor(
 		private readonly _checkbox: Checkbox,
 		private readonly _label: IResourceLabel,
-		@IThemeService themeService: IThemeService,
-		@ILabelService private readonly _labelService: ILabelService,
+		@IThemeService themeService: IThemeService
 	) {
 		this._disposables.add(_checkbox.onChange(() => {
 			if (this._element) {
@@ -162,15 +161,26 @@ class FileElementTemplate {
 		this._label.dispose();
 	}
 
-	set(element: FileElement, matches: FuzzyScore | undefined) {
+	set(element: FileElement, score: FuzzyScore | undefined) {
 		this._element = element;
 		this._checkbox.checked = element.edit.isChecked();
-		this._label.setResource({
-			name: this._labelService.getUriLabel(element.uri, { relative: true }),
-			description: element.typeLabel,
-			resource: element.uri,
-		}, {
-			matches: createMatches(matches),
+
+		const extraClasses: string[] = [];
+		if (element.edit.type & BulkFileOperationType.Create) {
+			extraClasses.push('create');
+		}
+		if (element.edit.type & BulkFileOperationType.Delete) {
+			extraClasses.push('delete');
+		}
+		if (element.edit.type & BulkFileOperationType.Rename) {
+			extraClasses.push('rename');
+		}
+		this._label.setFile(element.uri, {
+			matches: createMatches(score),
+			fileKind: FileKind.FILE,
+			fileDecorations: { colors: true, badges: false },
+			// parentCount: element.edit.textEdits.length || undefined,
+			extraClasses,
 		});
 	}
 }
