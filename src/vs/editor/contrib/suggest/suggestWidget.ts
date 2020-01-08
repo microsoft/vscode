@@ -133,6 +133,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			const options = this.editor.getOptions();
 			const fontInfo = options.get(EditorOption.fontInfo);
 			const fontFamily = fontInfo.fontFamily;
+			const fontFeatureSettings = fontInfo.fontFeatureSettings;
 			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 			const fontWeight = fontInfo.fontWeight;
@@ -142,6 +143,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			data.root.style.fontSize = fontSizePx;
 			data.root.style.fontWeight = fontWeight;
 			main.style.fontFamily = fontFamily;
+			main.style.fontFeatureSettings = fontFeatureSettings;
 			main.style.lineHeight = lineHeightPx;
 			data.icon.style.height = lineHeightPx;
 			data.icon.style.width = lineHeightPx;

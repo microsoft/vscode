@@ -100,6 +100,7 @@ export class TerminalPanel extends Panel {
 				if (this._terminalService.terminalInstances.length > 0) {
 					this._updateFont();
 					this._updateTheme();
+					this._terminalService.getActiveTab()?.setVisible(visible);
 				} else {
 					// Check if instances were already restored as part of workbench restore
 					if (this._terminalService.terminalInstances.length === 0) {

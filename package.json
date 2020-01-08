@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.42.0",
-  "distro": "57c315cb98e064a152bcc6a599ed459d67d933e2",
+  "distro": "aafa05cffde354e7f58dc9fd2dcfc9aa3e81ea77",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -25,7 +25,7 @@
     "smoketest": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
-    "valid-globals-check": "node build/lib/globalsLinter.js",
+    "valid-layers-check": "node build/lib/layersChecker.js",
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node scripts/code-web.js",
@@ -55,7 +55,7 @@
     "vscode-ripgrep": "^1.5.7",
     "vscode-sqlite3": "4.0.9",
     "vscode-textmate": "4.4.0",
-    "xterm": "4.4.0-beta.13",
+    "xterm": "4.4.0-beta.15",
     "xterm-addon-search": "0.4.0-beta4",
     "xterm-addon-web-links": "0.2.1",
     "xterm-addon-webgl": "0.5.0-beta.7",
@@ -144,7 +144,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "ts-loader": "^4.4.2",
-    "typescript": "3.7.3",
+    "typescript": "^3.8.0-dev.20200104",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",

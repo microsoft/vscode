@@ -18,7 +18,7 @@ import { Event } from 'vs/base/common/event';
 import { relative } from 'vs/base/common/path';
 
 export const VIEWLET_ID = 'workbench.view.search';
-export const PANEL_ID = 'workbench.view.search';
+export const PANEL_ID = 'workbench.panel.search';
 export const VIEW_ID = 'workbench.view.search';
 
 export const ISearchService = createDecorator<ISearchService>('searchService');

@@ -664,8 +664,17 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection | null {
-		const viewDescriptorCollectionItem = this.viewDescriptorCollections.get(container);
-		return viewDescriptorCollectionItem ? viewDescriptorCollectionItem.viewDescriptorCollection : null;
+		const registeredViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(container.id);
+		if (registeredViewContainer) {
+			let viewDescriptorCollectionItem = this.viewDescriptorCollections.get(registeredViewContainer);
+			if (!viewDescriptorCollectionItem) {
+				// Create and register the collection if does not exist
+				this.onDidRegisterViewContainer(registeredViewContainer);
+				viewDescriptorCollectionItem = this.viewDescriptorCollections.get(registeredViewContainer);
+			}
+			return viewDescriptorCollectionItem!.viewDescriptorCollection;
+		}
+		return null;
 	}
 
 	async openView(id: string, focus: boolean): Promise<IView | null> {
