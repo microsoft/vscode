@@ -52,6 +52,7 @@ import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cance
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 const HELP_PREFIX = '?';
 
@@ -74,6 +75,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private isQuickOpen: boolean | undefined;
 	private lastInputValue: string | undefined;
 	private lastSubmittedInputValue: string | undefined;
+	private inputHistory: string[] = ['', ''];
+	private inputHistoryIndex: number = 0;
 	private quickOpenWidget: QuickOpenWidget | undefined;
 	private mapResolvedHandlersToPrefix: Map<string, Promise<QuickOpenHandler>> = new Map();
 	private mapContextKeyToContext: Map<string, IContextKey<boolean>> = new Map();
@@ -104,6 +107,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.updateConfiguration();
 
 		this.registerListeners();
+
+		this.registerCommands();
 	}
 
 	private registerListeners(): void {
@@ -283,6 +288,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 		// Events
 		this.emitQuickOpenVisibilityChange(false);
+
+		this.inputHistoryIndex = this.inputHistory.length - 1;
 	}
 
 	private cancelPendingGetResultsInvocation(): void {
@@ -336,6 +343,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private onOk(): void {
 		if (this.isQuickOpen) {
 			this.lastSubmittedInputValue = this.lastInputValue;
+			if (this.lastSubmittedInputValue) {
+				this.inputHistory[this.inputHistory.length - 1] = this.lastSubmittedInputValue;
+				this.inputHistory.push('');
+				this.inputHistoryIndex = this.inputHistory.length - 1;
+			}
 		}
 	}
 
@@ -626,6 +638,24 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		if (this.quickOpenWidget) {
 			this.quickOpenWidget.layout(dimension);
 		}
+	}
+
+	navigateInputHistory(arg?: any): void {
+		if (!this.quickOpenWidget) {
+			return;
+		}
+		if (arg === 'forwardInInputHistory' && this.inputHistoryIndex < this.inputHistory.length - 1) {
+			this.inputHistoryIndex++;
+		} else if (arg === 'backwardInInputHistory' && this.inputHistoryIndex > 0) {
+			this.inputHistoryIndex--;
+		}
+		this.quickOpenWidget.setValue(this.inputHistory[this.inputHistoryIndex]);
+	}
+
+	private registerCommands() {
+		CommandsRegistry.registerCommand('navigateInputHistory', (accessor, arg) => {
+			this.navigateInputHistory(arg);
+		});
 	}
 }
 
