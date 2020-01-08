@@ -11,7 +11,7 @@ import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TunnelInformation } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { TunnelInformation, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -172,7 +172,7 @@ export class TunnelModel extends Disposable {
 		return (this.forwarded.get(key) || this.detected.get(key))?.localAddress;
 	}
 
-	addEnvironmentTunnels(tunnels: { remoteAddress: { port: number, host: string }, localAddress: string }[]): void {
+	addEnvironmentTunnels(tunnels: TunnelDescription[]): void {
 		tunnels.forEach(tunnel => {
 			this.detected.set(MakeAddress(tunnel.remoteAddress.host, tunnel.remoteAddress.port), {
 				remoteHost: tunnel.remoteAddress.host,

@@ -40,10 +40,13 @@ declare module 'vscode' {
 		label?: string;
 	}
 
-	export interface Tunnel {
+	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string };
 		//The complete local address(ex. localhost:1234)
 		localAddress: string;
+	}
+
+	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
 		dispose(): void;
@@ -58,7 +61,7 @@ declare module 'vscode' {
 		 * The localAddress should be the complete local address (ex. localhost:1234) for connecting to the port. Tunnels provided through
 		 * detected are read-only from the forwarded ports UI.
 		 */
-		environmentTunnels?: { remoteAddress: { port: number, host: string }, localAddress: string }[];
+		environmentTunnels?: TunnelDescription[];
 
 		hideCandidatePorts?: boolean;
 	}
