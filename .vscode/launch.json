@@ -19,10 +19,7 @@
 			"restart": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			],
-			"presentation": {
-				"hidden": true,
-			}
+			]
 		},
 		{
 			"type": "chrome",
