@@ -4,16 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./bulkEdit';
-import { Panel } from 'vs/workbench/browser/panel';
-import { Dimension } from 'vs/base/browser/dom';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Action } from 'vs/base/common/actions';
 import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
@@ -23,13 +19,18 @@ import { BulkEditPreviewProvider, BulkFileOperations } from 'vs/workbench/contri
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const enum State {
 	Data = 'data',
 	Message = 'message'
 }
 
-export class BulkEditPanel extends Panel {
+export class BulkEditPanel extends ViewPane {
 
 	static readonly ID = 'BulkEditPanel';
 
@@ -49,11 +50,15 @@ export class BulkEditPanel extends Panel {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(BulkEditPanel.ID, telemetryService, themeService, storageService);
+		super(
+			{ id: BulkEditPanel.ID, title: localize('title', "Refactor Preview") },
+			keybindingService, contextMenuService, configurationService, contextKeyService
+		);
 	}
 
 	dispose(): void {
@@ -61,8 +66,7 @@ export class BulkEditPanel extends Panel {
 		this._disposables.dispose();
 	}
 
-	create(parent: HTMLElement): void {
-		super.create(parent);
+	protected renderBody(parent: HTMLElement): void {
 		parent.className = 'bulk-edit-panel';
 
 		// tree
@@ -73,7 +77,7 @@ export class BulkEditPanel extends Panel {
 		parent.appendChild(treeContainer);
 
 		this._tree = this._instaService.createInstance(
-			WorkbenchAsyncDataTree, this.getId(), treeContainer,
+			WorkbenchAsyncDataTree, this.id, treeContainer,
 			new BulkEditDelegate(),
 			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer)],
 			this._instaService.createInstance(BulkEditDataSource),
@@ -88,7 +92,7 @@ export class BulkEditPanel extends Panel {
 			if (first instanceof TextEditElement) {
 				this._previewTextEditElement(first);
 			} else if (first instanceof FileElement) {
-				this._previewFileElement(first);
+				this._previewFileElement();
 			}
 		}));
 
@@ -106,12 +110,12 @@ export class BulkEditPanel extends Panel {
 		return [this._acceptAction, this._discardAction];
 	}
 
-	layout(dimension: Dimension): void {
-		this._tree.layout(dimension.height, dimension.width);
+	protected layoutBody(height: number, width: number): void {
+		this._tree.layout(height, width);
 	}
 
 	private _setState(state: State): void {
-		this.getContainer()!.dataset['state'] = state;
+		this.body.dataset['state'] = state;
 	}
 
 	async setInput(edit: WorkspaceEdit): Promise<WorkspaceEdit | undefined> {
@@ -182,7 +186,7 @@ export class BulkEditPanel extends Panel {
 		});
 	}
 
-	private _previewFileElement(edit: FileElement): void {
+	private _previewFileElement(): void {
 
 	}
 }

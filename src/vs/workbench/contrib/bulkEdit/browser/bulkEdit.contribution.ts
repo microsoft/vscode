@@ -9,9 +9,11 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { BulkEditPanel } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPanel';
-import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
+import { BulkEditPanel as BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPane';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
+import { ViewPaneContainer, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { PaneCompositePanel } from 'vs/workbench/browser/panel';
 
 class BulkEditPreviewContribution {
 
@@ -19,19 +21,22 @@ class BulkEditPreviewContribution {
 		@IPanelService private _panelService: IPanelService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 	) {
-
 		bulkEditService.setPreviewHandler(edit => this._previewEdit(edit));
 	}
 
 	private async _previewEdit(edit: WorkspaceEdit) {
 
-		const panel = this._panelService.openPanel(BulkEditPanel.ID, true);
-		if (!(panel instanceof BulkEditPanel)) {
-			// error?
+		let view: ViewPane | undefined;
+		const activePanel = this._panelService.openPanel(BulkEditPane.ID, true);
+		if (activePanel instanceof PaneCompositePanel) {
+			view = activePanel.getViewPaneContainer().getView(BulkEditPane.ID);
+		}
+
+		if (!(view instanceof BulkEditPane)) {
 			return edit;
 		}
 
-		const newEditOrUndefined = await panel.setInput(edit);
+		const newEditOrUndefined = await view.setInput(edit);
 		if (!newEditOrUndefined) {
 			return { edits: [] };
 		}
@@ -49,10 +54,20 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	BulkEditPreviewContribution, LifecyclePhase.Ready
 );
 
-Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
-	BulkEditPanel,
-	BulkEditPanel.ID,
-	localize('panel', "Refactor Preview"),
-	'bulkEditPanel',
-	10
-));
+
+const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+	id: BulkEditPane.ID,
+	name: localize('panel', "Refactor Preview"),
+	ctorDescriptor: {
+		ctor: ViewPaneContainer,
+		arguments: [BulkEditPane.ID, '', { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
+	}
+}, ViewContainerLocation.Panel);
+
+Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
+	id: BulkEditPane.ID,
+	name: localize('panel', "Refactor Preview"),
+	canToggleVisibility: false,
+	ctorDescriptor: { ctor: BulkEditPane },
+}], container);
+

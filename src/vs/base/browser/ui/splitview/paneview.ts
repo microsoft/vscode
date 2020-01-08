@@ -44,8 +44,8 @@ export abstract class Pane extends Disposable implements IView {
 	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
-	private header!: HTMLElement;
-	private body!: HTMLElement;
+	protected header!: HTMLElement;
+	protected body!: HTMLElement;
 
 	protected _expanded: boolean;
 
