@@ -45,10 +45,20 @@
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:_typescript.configurePlugin",
+    "onCommand:_typescript.learnMoreAboutRefactorings",
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "contributes": {
+    "documentation": {
+      "refactoring": [
+        {
+          "title": "%documentation.refactoring.title%",
+          "when": "typescript.isManagedFile",
+          "command": "_typescript.learnMoreAboutRefactorings"
+        }
+      ]
+    },
     "jsonValidation": [
       {
         "fileMatch": "package.json",
