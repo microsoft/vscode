@@ -49,15 +49,21 @@ export function registerConfiguration(): IDisposable {
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
-			'sync.enableExtensions': {
-				type: 'boolean',
-				description: localize('sync.enableExtensions', "Enable synchronizing extensions."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-			},
 			'sync.enableKeybindings': {
 				type: 'boolean',
 				description: localize('sync.enableKeybindings', "Enable synchronizing keybindings."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'sync.enableUIState': {
+				type: 'boolean',
+				description: localize('sync.enableUIState', "Enable synchronizing UI state."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'sync.enableExtensions': {
+				type: 'boolean',
+				description: localize('sync.enableExtensions', "Enable synchronizing extensions."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
@@ -143,6 +149,11 @@ export interface ISyncExtension {
 	identifier: IExtensionIdentifier;
 	version?: string;
 	enabled: boolean;
+}
+
+export interface IGlobalState {
+	argv: IStringDictionary<any>;
+	storage: IStringDictionary<any>;
 }
 
 export const enum SyncSource {

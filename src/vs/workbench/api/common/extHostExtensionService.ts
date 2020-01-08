@@ -662,7 +662,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 				value: {
 					authority,
 					options,
-					tunnelInformation: { environmentTunnels: result.environmentTunnels }
+					tunnelInformation: { environmentTunnels: result.environmentTunnels, hideCandidatePorts: result.hideCandidatePorts }
 				}
 			};
 		} catch (err) {

@@ -37,6 +37,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { URI } from 'vs/base/common/uri';
+import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -608,17 +609,24 @@ namespace ForwardPortAction {
 		return null;
 	}
 
+	function error(notificationService: INotificationService, tunnel: RemoteTunnel | void, host: string, port: number) {
+		if (!tunnel) {
+			notificationService.error(nls.localize('remote.tunnel.forwardError', "Unable to forward {0}:{1}. The host may not be available.", host, port));
+		}
+	}
+
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			const notificationService = accessor.get(INotificationService);
 			if (arg instanceof TunnelItem) {
-				remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort });
+				remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }).then(tunnel => error(notificationService, tunnel, arg.remoteHost, arg.remotePort));
 			} else {
 				remoteExplorerService.setEditable(undefined, {
 					onFinish: (value, success) => {
 						let parsed: { host: string, port: number } | undefined;
 						if (success && (parsed = parseInput(value))) {
-							remoteExplorerService.forward({ host: parsed.host, port: parsed.port });
+							remoteExplorerService.forward({ host: parsed.host, port: parsed.port }).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
 						}
 						remoteExplorerService.setEditable(undefined, null);
 					},
@@ -632,6 +640,7 @@ namespace ForwardPortAction {
 	export function commandPaletteHandler(): ICommandHandler {
 		return async (accessor, arg) => {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			const notificationService = accessor.get(INotificationService);
 			const viewsService = accessor.get(IViewsService);
 			const quickInputService = accessor.get(IQuickInputService);
 			await viewsService.openView(TunnelPanel.ID, true);
@@ -641,7 +650,7 @@ namespace ForwardPortAction {
 			});
 			let parsed: { host: string, port: number } | undefined;
 			if (value && (parsed = parseInput(value))) {
-				remoteExplorerService.forward({ host: parsed.host, port: parsed.port });
+				remoteExplorerService.forward({ host: parsed.host, port: parsed.port }).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
 			}
 		};
 	}

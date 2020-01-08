@@ -11,6 +11,7 @@ import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TunnelInformation } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -54,6 +55,7 @@ export function MakeAddress(host: string, port: number): string {
 export class TunnelModel extends Disposable {
 	readonly forwarded: Map<string, Tunnel>;
 	readonly detected: Map<string, Tunnel>;
+	private _candidatesEnabled: boolean = true;
 	private _onForwardPort: Emitter<Tunnel> = new Emitter();
 	public onForwardPort: Event<Tunnel> = this._onForwardPort.event;
 	private _onClosePort: Emitter<{ host: string, port: number }> = new Emitter();
@@ -181,6 +183,10 @@ export class TunnelModel extends Disposable {
 		});
 	}
 
+	set candidateEnabled(enabled: boolean) {
+		this._candidatesEnabled = enabled;
+	}
+
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void {
 		this._candidateFinder = finder;
 	}
@@ -190,6 +196,10 @@ export class TunnelModel extends Disposable {
 	}
 
 	private async updateCandidates(): Promise<void> {
+		if (!this._candidatesEnabled) {
+			this._candidates = [];
+			return;
+		}
 		if (this._candidateFinder) {
 			this._candidates = await this._candidateFinder();
 		}
@@ -211,7 +221,7 @@ export interface IRemoteExplorerService {
 	getEditableData(tunnelItem: ITunnelItem | undefined): IEditableData | undefined;
 	forward(remote: { host: string, port: number }, localPort?: number, name?: string): Promise<RemoteTunnel | void>;
 	close(remote: { host: string, port: number }): Promise<void>;
-	addEnvironmentTunnels(tunnels: { remoteAddress: { port: number, host: string }, localAddress: string }[] | undefined): void;
+	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void;
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void;
 	refresh(): Promise<void>;
 }
@@ -258,10 +268,12 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		return this.tunnelModel.close(remote.host, remote.port);
 	}
 
-	addEnvironmentTunnels(tunnels: { remoteAddress: { port: number, host: string }, localAddress: string }[] | undefined): void {
-		if (tunnels) {
-			this.tunnelModel.addEnvironmentTunnels(tunnels);
+	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void {
+		if (tunnelInformation && tunnelInformation.environmentTunnels) {
+			this.tunnelModel.addEnvironmentTunnels(tunnelInformation.environmentTunnels);
 		}
+
+		this.tunnelModel.candidateEnabled = tunnelInformation ? (tunnelInformation.hideCandidatePorts !== true) : true;
 	}
 
 	setEditable(tunnelItem: ITunnelItem | undefined, data: IEditableData | null): void {

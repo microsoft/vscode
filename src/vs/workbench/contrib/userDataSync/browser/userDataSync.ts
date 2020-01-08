@@ -213,6 +213,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				id: 'sync.enableKeybindings',
 				label: localize('user keybindings', "User Keybindings")
 			}, {
+				id: 'sync.enableUIState',
+				label: localize('ui state', "UI State")
+			}, {
 				id: 'sync.enableExtensions',
 				label: localize('extensions', "Extensions")
 			}];

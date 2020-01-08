@@ -16,7 +16,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IEncodingSupport, IWorkingCopy {
@@ -32,12 +32,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IEnc
 	private readonly _onDidChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeEncoding: Event<void> = this._onDidChangeEncoding.event;
 
-	readonly capabilities = 0;
+	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
 	private dirty = false;
 	private versionId = 0;
 	private readonly contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledTextEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
-	private configuredEncoding?: string;
+	private configuredEncoding: string | undefined;
 
 	constructor(
 		private readonly preferredMode: string | undefined,

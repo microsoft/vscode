@@ -13,10 +13,11 @@ import { TernarySearchTree } from 'vs/base/common/map';
 export const enum WorkingCopyCapabilities {
 
 	/**
-	 * Signals that the working copy participates
-	 * in auto saving as configured by the user.
+	 * Signals that the working copy requires
+	 * additional input when saving, e.g. an
+	 * associated path to save to. 
 	 */
-	AutoSave = 1 << 1
+	Untitled = 1 << 1
 }
 
 export interface IWorkingCopy {

@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as vscode from 'vscode';
+import * as env from 'vs/base/common/platform';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
@@ -23,7 +24,6 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
@@ -87,7 +87,22 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			}
 
 			const configProvider = await this._configurationService.getConfigProvider();
-			const shell = this._terminalService.getDefaultShell(true, configProvider);
+			const terminalConfig = configProvider.getConfiguration('terminal');
+
+			let shell;
+			const automationShellConfig = terminalConfig.integrated.automationShell;
+			if (automationShellConfig) {
+				if (env.isWindows) {
+					shell = automationShellConfig.windows;
+				} else if (env.isLinux) {
+					shell = automationShellConfig.linux;
+				} else if (env.isMacintosh) {
+					shell = automationShellConfig.osx;
+				}
+			}
+			if (!shell) {
+				shell = this._terminalService.getDefaultShell(true, configProvider);
+			}
 
 			if (needNewTerminal || !this._integratedTerminalInstance) {
 
@@ -108,7 +123,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			terminal.show();
 
 			const shellProcessId = await this._integratedTerminalInstance.processId;
-			const command = prepareCommand(args, shell, configProvider);
+			const command = prepareCommand(args, shell);
 			terminal.sendText(command, true);
 
 			return shellProcessId;
@@ -121,7 +136,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as IProcessEnvironment);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as env.IProcessEnvironment);
 	}
 
 }

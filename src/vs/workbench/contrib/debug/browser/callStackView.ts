@@ -40,7 +40,7 @@ const $ = dom.$;
 
 type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndSessionIds | IStackFrame[];
 
-function getContext(element: CallStackItem | null): any {
+export function getContext(element: CallStackItem | null): any {
 	return element instanceof StackFrame ? {
 		sessionId: element.thread.session.getId(),
 		threadId: element.thread.getId(),
@@ -51,6 +51,25 @@ function getContext(element: CallStackItem | null): any {
 	} : isDebugSession(element) ? {
 		sessionId: element.getId()
 	} : undefined;
+}
+
+// Extensions depend on this context, should not be changed even though it is not fully deterministic
+export function getContextForContributedActions(element: CallStackItem | null): string | number {
+	if (element instanceof StackFrame) {
+		if (element.source.inMemory) {
+			return element.source.raw.path || element.source.reference || '';
+		}
+
+		return element.source.uri.toString();
+	}
+	if (element instanceof Thread) {
+		return element.threadId;
+	}
+	if (isDebugSession(element)) {
+		return element.getId();
+	}
+
+	return '';
 }
 
 export class CallStackView extends ViewPane {
@@ -336,7 +355,7 @@ export class CallStackView extends ViewPane {
 		}
 
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -344,24 +363,6 @@ export class CallStackView extends ViewPane {
 			getActionsContext: () => getContext(element),
 			onHide: () => dispose(actionsDisposable)
 		});
-	}
-
-	private getContextForContributedActions(element: CallStackItem | null): string | number {
-		if (element instanceof StackFrame) {
-			if (element.source.inMemory) {
-				return element.source.raw.path || element.source.reference || '';
-			}
-
-			return element.source.uri.toString();
-		}
-		if (element instanceof Thread) {
-			return element.threadId;
-		}
-		if (isDebugSession(element)) {
-			return element.getId();
-		}
-
-		return '';
 	}
 }
 
