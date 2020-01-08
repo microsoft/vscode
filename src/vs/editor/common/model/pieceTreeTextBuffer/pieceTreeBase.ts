@@ -511,7 +511,93 @@ export class PieceTreeBase {
 	}
 
 	public getLinesContent(): string[] {
-		return this.getContentOfSubTree(this.root).split(/\r\n|\r|\n/);
+		let lines: string[] = [];
+		let linesLength = 0;
+		let currentLine = '';
+		let danglingCR = false;
+
+		this.iterate(this.root, node => {
+			if (node === SENTINEL) {
+				return true;
+			}
+
+			const piece = node.piece;
+			let pieceLength = piece.length;
+			if (pieceLength === 0) {
+				return true;
+			}
+
+			const buffer = this._buffers[piece.bufferIndex].buffer;
+			const lineStarts = this._buffers[piece.bufferIndex].lineStarts;
+
+			const pieceStartLine = piece.start.line;
+			const pieceEndLine = piece.end.line;
+			let pieceStartOffset = lineStarts[pieceStartLine] + piece.start.column;
+
+			if (danglingCR) {
+				if (buffer.charCodeAt(pieceStartOffset) === CharCode.LineFeed) {
+					// pretend the \n was in the previous piece..
+					pieceStartOffset++;
+					pieceLength--;
+				}
+				lines[linesLength++] = currentLine;
+				currentLine = '';
+				danglingCR = false;
+				if (pieceLength === 0) {
+					return true;
+				}
+			}
+
+			if (pieceStartLine === pieceEndLine) {
+				// this piece has no new lines
+				if (!this._EOLNormalized && buffer.charCodeAt(pieceStartOffset + pieceLength - 1) === CharCode.CarriageReturn) {
+					danglingCR = true;
+					currentLine += buffer.substr(pieceStartOffset, pieceLength - 1);
+				} else {
+					currentLine += buffer.substr(pieceStartOffset, pieceLength);
+				}
+				return true;
+			}
+
+			// add the text before the first line start in this piece
+			currentLine += (
+				this._EOLNormalized
+					? buffer.substring(pieceStartOffset, Math.max(pieceStartOffset, lineStarts[pieceStartLine + 1] - this._EOLLength))
+					: buffer.substring(pieceStartOffset, lineStarts[pieceStartLine + 1]).replace(/(\r\n|\r|\n)$/, '')
+			);
+			lines[linesLength++] = currentLine;
+
+			for (let line = pieceStartLine + 1; line < pieceEndLine; line++) {
+				currentLine = (
+					this._EOLNormalized
+						? buffer.substring(lineStarts[line], lineStarts[line + 1] - this._EOLLength)
+						: buffer.substring(lineStarts[line], lineStarts[line + 1]).replace(/(\r\n|\r|\n)$/, '')
+				);
+				lines[linesLength++] = currentLine;
+			}
+
+			if (!this._EOLNormalized && buffer.charCodeAt(lineStarts[pieceEndLine] + piece.end.column - 1) === CharCode.CarriageReturn) {
+				danglingCR = true;
+				if (piece.end.column === 0) {
+					// The last line ended with a \r, let's undo the push, it will be pushed by next iteration
+					linesLength--;
+				} else {
+					currentLine = buffer.substr(lineStarts[pieceEndLine], piece.end.column - 1);
+				}
+			} else {
+				currentLine = buffer.substr(lineStarts[pieceEndLine], piece.end.column);
+			}
+
+			return true;
+		});
+
+		if (danglingCR) {
+			lines[linesLength++] = currentLine;
+			currentLine = '';
+		}
+
+		lines[linesLength++] = currentLine;
+		return lines;
 	}
 
 	public getLength(): number {
