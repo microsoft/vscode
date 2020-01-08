@@ -18,7 +18,8 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { BulkFileOperations, BulkFileOperation } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkFileOperations, BulkFileOperation, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { localize } from 'vs/nls';
 
 // --- VIEW MODEL
 
@@ -153,9 +154,20 @@ export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScor
 
 	renderElement(node: ITreeNode<FileElement, FuzzyScore>, _index: number, template: FileElementTemplate): void {
 
+		let fileOperationsLabels: string[] = [];
+		if (node.element.edit.type & BulkFileOperationType.Create) {
+			fileOperationsLabels.push(localize('file.create', "create file"));
+		}
+		if (node.element.edit.type & BulkFileOperationType.Delete) {
+			fileOperationsLabels.push(localize('file.delete', "delete file"));
+		}
+		if (node.element.edit.type & BulkFileOperationType.Rename) {
+			fileOperationsLabels.push(localize('file.rename', "rename file"));
+		}
+
 		template.label.setResource({
 			name: this._labelService.getUriLabel(node.element.uri, { relative: true }),
-			description: node.element._debugName,
+			description: fileOperationsLabels.join(', '),
 			resource: node.element.uri,
 		}, {
 			matches: createMatches(node.filterData),
