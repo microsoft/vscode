@@ -437,7 +437,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			}));
 
 			this.electronService.getTitlebarButtonLayout().then(buttonLayout => {
-				console.log(buttonLayout);
 
 				if (!buttonLayout.includes('minimize')) {
 					minimizeIcon.remove();
