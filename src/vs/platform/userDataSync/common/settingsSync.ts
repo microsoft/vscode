@@ -19,6 +19,8 @@ import { startsWith } from 'vs/base/common/strings';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { computeRemoteContent, merge } from 'vs/platform/userDataSync/common/settingsMerge';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 
 interface ISyncPreviewResult {
 	readonly fileContent: IFileContent | null;
@@ -40,6 +42,11 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 	get status(): SyncStatus { return this._status; }
 	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
+
+	private _conflicts: IConflictSetting[] = [];
+	get conflicts(): IConflictSetting[] { return this._conflicts; }
+	private _onDidChangeConflicts: Emitter<IConflictSetting[]> = this._register(new Emitter<IConflictSetting[]>());
+	readonly onDidChangeConflicts: Event<IConflictSetting[]> = this._onDidChangeConflicts.event;
 
 	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
@@ -65,6 +72,18 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			this._status = status;
 			this._onDidChangStatus.fire(status);
 		}
+		if (this._status !== SyncStatus.HasConflicts) {
+			this.setConflicts([]);
+		}
+	}
+
+	private setConflicts(conflicts: IConflictSetting[]): void {
+		if (!arrays.equals(this.conflicts, conflicts,
+			(a, b) => a.key === b.key && objects.equals(a.localValue, b.localValue) && objects.equals(a.remoteValue, b.remoteValue))
+		) {
+			this._conflicts = conflicts;
+			this._onDidChangeConflicts.fire(conflicts);
+		}
 	}
 
 	async sync(_continue?: boolean): Promise<boolean> {
@@ -83,6 +102,8 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			return false;
 		}
 
+		this.logService.trace('Settings: Started synchronizing settings...');
+		this.setStatus(SyncStatus.Syncing);
 		return this.doSync([]);
 	}
 
@@ -96,28 +117,15 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 		this.setStatus(SyncStatus.Idle);
 	}
 
-	async getConflicts(): Promise<IConflictSetting[]> {
-		if (!this.syncPreviewResultPromise) {
-			return [];
-		}
-		if (this.status !== SyncStatus.HasConflicts) {
-			return [];
-		}
-		const preview = await this.syncPreviewResultPromise;
-		return preview.conflicts;
-	}
-
 	async resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
-			this.stop();
+			this.syncPreviewResultPromise!.cancel();
+			this.syncPreviewResultPromise = null;
 			await this.doSync(resolvedConflicts);
 		}
 	}
 
 	private async doSync(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<boolean> {
-		this.logService.trace('Settings: Started synchronizing settings...');
-		this.setStatus(SyncStatus.Syncing);
-
 		try {
 			const result = await this.getPreview(resolvedConflicts);
 			if (result.conflicts.length) {
@@ -222,12 +230,13 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 
 		if (remoteContent) {
 			const localContent: string = fileContent ? fileContent.value.toString() : '{}';
+
+			// No action when there are errors
 			if (this.hasErrors(localContent)) {
 				this.logService.error('Settings: Unable to sync settings as there are errors/warning in settings file.');
-				return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, conflicts };
 			}
 
-			if (!lastSyncData // First time sync
+			else if (!lastSyncData // First time sync
 				|| lastSyncData.content !== localContent // Local has forwarded
 				|| lastSyncData.content !== remoteContent // Remote has forwarded
 			) {
@@ -255,6 +264,7 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(previewContent));
 		}
 
+		this.setConflicts(conflicts);
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, conflicts };
 	}
 
