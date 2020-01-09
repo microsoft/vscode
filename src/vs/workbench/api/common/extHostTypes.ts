@@ -1395,7 +1395,7 @@ export class CompletionItem implements vscode.CompletionItem {
 export class CompletionList {
 
 	isIncomplete?: boolean;
-
+	isDetailsResolved?: boolean;
 	items: vscode.CompletionItem[];
 
 	constructor(items: vscode.CompletionItem[] = [], isIncomplete: boolean = false) {

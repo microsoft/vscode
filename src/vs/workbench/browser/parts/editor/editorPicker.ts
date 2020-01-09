@@ -42,7 +42,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	getIcon(): string {
-		return this.editor.isDirty() ? 'codicon codicon-circle-filled' : '';
+		return this.editor.isDirty() && !this.editor.isSaving() ? 'codicon codicon-circle-filled' : '';
 	}
 
 	get group(): IEditorGroup {

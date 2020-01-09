@@ -357,6 +357,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			// Pass Focus to Viewer
 			this.tree.domFocus();
+		} else if (this.tree) {
+			this.tree.domFocus();
 		} else {
 			this.domNode.focus();
 		}

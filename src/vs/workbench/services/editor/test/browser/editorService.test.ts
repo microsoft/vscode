@@ -73,19 +73,19 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setFailToOpen(): void {
 		this.fails = true;
 	}
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.gotSaved = true;
-		return Promise.resolve(true);
+		return true;
 	}
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.gotSavedAs = true;
-		return Promise.resolve(true);
+		return true;
 	}
-	revert(options?: IRevertOptions): Promise<boolean> {
+	async revert(options?: IRevertOptions): Promise<boolean> {
 		this.gotReverted = true;
 		this.gotSaved = false;
 		this.gotSavedAs = false;
-		return Promise.resolve(true);
+		return true;
 	}
 	isDirty(): boolean {
 		return this.dirty;
@@ -383,12 +383,12 @@ suite('EditorService', () => {
 		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
 		const inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource-delegate'), undefined);
-		const delegate = instantiationService.createInstance(DelegatingEditorService, (delegate, group, input) => {
+		const delegate = instantiationService.createInstance(DelegatingEditorService, async (delegate, group, input) => {
 			assert.strictEqual(input, inp);
 
 			done();
 
-			return Promise.resolve(ed);
+			return ed;
 		});
 
 		delegate.openEditor(inp);

@@ -11,13 +11,12 @@ import severity from 'vs/base/common/severity';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { RemoveBreakpointAction } from 'vs/workbench/contrib/debug/browser/debugActions';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -145,7 +144,7 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 	return result;
 }
 
-class BreakpointEditorContribution implements IBreakpointEditorContribution {
+export class BreakpointEditorContribution implements IBreakpointEditorContribution {
 
 	private breakpointHintDecoration: string[] = [];
 	private breakpointWidget: BreakpointWidget | undefined;
@@ -692,5 +691,3 @@ const debugIconBreakpointDisabledForeground = registerColor('debugIcon.breakpoin
 const debugIconBreakpointUnverifiedForeground = registerColor('debugIcon.breakpointUnverifiedForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, nls.localize('debugIcon.breakpointUnverifiedForeground', 'Icon color for unverified breakpoints.'));
 const debugIconBreakpointCurrentStackframeForeground = registerColor('debugIcon.breakpointCurrentStackframeForeground', { dark: '#FFCC00', light: '#FFCC00', hc: '#FFCC00' }, nls.localize('debugIcon.breakpointCurrentStackframeForeground', 'Icon color for the current breakpoint stack frame.'));
 const debugIconBreakpointStackframeForeground = registerColor('debugIcon.breakpointStackframeForeground', { dark: '#89D185', light: '#89D185', hc: '#89D185' }, nls.localize('debugIcon.breakpointStackframeForeground', 'Icon color for all breakpoint stack frames.'));
-
-registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointEditorContribution);

@@ -92,17 +92,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Lifecycle
 		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
-
-		// Auto save changes
-		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
-	}
-
-	private onAutoSaveConfigurationChange(): void {
-
-		// save all dirty when enabling auto save
-		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
-			this.saveAll();
-		}
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -229,7 +218,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Handle untitled resources
 		await Promise.all(untitledResources
 			.filter(untitled => this.untitledTextEditorService.exists(untitled))
-			.map(async untitled => (await this.untitledTextEditorService.loadOrCreate({ resource: untitled })).backup()));
+			.map(async untitled => (await this.untitledTextEditorService.createOrGet({ resource: untitled }).resolve()).backup()));
 	}
 
 	private async confirmBeforeShutdown(): Promise<boolean> {
@@ -721,7 +710,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		if (this.fileService.canHandleResource(resource)) {
 			model = this._models.get(resource);
 		} else if (resource.scheme === Schemas.untitled && this.untitledTextEditorService.exists(resource)) {
-			model = await this.untitledTextEditorService.loadOrCreate({ resource });
+			model = await this.untitledTextEditorService.createOrGet({ resource }).resolve();
 		}
 
 		// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)

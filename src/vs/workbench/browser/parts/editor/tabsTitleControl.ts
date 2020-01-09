@@ -1001,8 +1001,8 @@ export class TabsTitleControl extends TitleControl {
 	private doRedrawEditorDirty(isGroupActive: boolean, isTabActive: boolean, editor: IEditorInput, tabContainer: HTMLElement): boolean {
 		let hasModifiedBorderColor = false;
 
-		// Tab: dirty
-		if (editor.isDirty()) {
+		// Tab: dirty (unless saving)
+		if (editor.isDirty() && !editor.isSaving()) {
 			addClass(tabContainer, 'dirty');
 
 			// Highlight modified tabs with a border if configured

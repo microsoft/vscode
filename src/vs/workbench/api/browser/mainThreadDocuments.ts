@@ -227,12 +227,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _doCreateUntitled(resource?: URI, mode?: string, initialValue?: string): Promise<URI> {
-		return this._untitledTextEditorService.loadOrCreate({
+		return this._untitledTextEditorService.createOrGet({
 			resource,
 			mode,
 			initialValue,
 			useResourcePath: Boolean(resource && resource.path)
-		}).then(model => {
+		}).resolve().then(model => {
 			const resource = model.resource;
 
 			if (!this._modelIsSynced.has(resource.toString())) {
