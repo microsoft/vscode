@@ -14,7 +14,7 @@ interface PackageInfo {
 }
 
 export interface TelemetryProperties {
-	readonly [prop: string]: string | number;
+	readonly [prop: string]: string | number | undefined;
 }
 
 export interface TelemetryReporter {

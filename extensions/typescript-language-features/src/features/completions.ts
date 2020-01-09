@@ -405,15 +405,17 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 						"duration" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"type" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"count" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"updateGraphDurationMs" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
 						]
 					}
 				*/
 				this.telemetryReporter.logTelemetry('completions.execute', {
-					duration: duration + '',
-					type: response ? response.type : 'unknown',
-					count: (response && response.type === 'response' && response.body ? response.body.entries.length : 0) + ''
+					duration: duration,
+					type: response?.type ?? 'unknown',
+					count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
+					updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
 				});
 			}
 
