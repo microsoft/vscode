@@ -34,6 +34,29 @@ export class LineBreakingData {
 		public readonly wrappedTextIndentLength: number
 	) { }
 
+	assertEqual(other: LineBreakingData | null): void {
+		if (other === null) {
+			throw new Error(`x--unexpected--1`);
+		}
+		if (other.breakingColumn !== this.breakingColumn) {
+			throw new Error(`x--unexpected--2`);
+		}
+		if (other.wrappedTextIndentLength !== this.wrappedTextIndentLength) {
+			throw new Error(`x--unexpected--3`);
+		}
+		if (other.breakOffsets.length !== this.breakOffsets.length) {
+			throw new Error(`x--unexpected--4`);
+		}
+		for (let i = 0; i < this.breakOffsets.length; i++) {
+			if (this.breakOffsets[i] !== other.breakOffsets[i]) {
+				throw new Error(`x--unexpected--5`);
+			}
+			if (this.breakingOffsetsVisibleColumn[i] !== other.breakingOffsetsVisibleColumn[i]) {
+				throw new Error(`x--unexpected--6`);
+			}
+		}
+	}
+
 	public static getInputOffsetOfOutputPosition(breakOffsets: number[], outputLineIndex: number, outputOffset: number): number {
 		if (outputLineIndex === 0) {
 			return outputOffset;

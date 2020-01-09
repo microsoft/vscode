@@ -3,49 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
+import { WrappingIndent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ILineMapperFactory, LineBreakingData } from 'vs/editor/common/viewModel/splitLinesCollection';
 
-function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): LineBreakingData | null {
-	// Create version of `annotatedText` with line break markers removed
-	let rawText = '';
+function parseAnnotatedText(annotatedText: string): { text: string; indices: number[]; } {
+	let text = '';
 	let currentLineIndex = 0;
-	let lineIndices: number[] = [];
+	let indices: number[] = [];
 	for (let i = 0, len = annotatedText.length; i < len; i++) {
 		if (annotatedText.charAt(i) === '|') {
 			currentLineIndex++;
 		} else {
-			rawText += annotatedText.charAt(i);
-			lineIndices[rawText.length - 1] = currentLineIndex;
+			text += annotatedText.charAt(i);
+			indices[text.length - 1] = currentLineIndex;
 		}
 	}
+	return { text: text, indices: indices };
+}
 
-	const lineMappingComputer = factory.createLineMappingComputer(tabSize, breakAfter, 2, wrappingIndent);
-	lineMappingComputer.addRequest(rawText, null);
-	const lineMappings = lineMappingComputer.finalize();
-	const mapper = lineMappings[0];
-
+function toAnnotatedText(text: string, lineBreakingData: LineBreakingData | null): string {
 	// Insert line break markers again, according to algorithm
 	let actualAnnotatedText = '';
-	if (mapper) {
+	if (lineBreakingData) {
 		let previousLineIndex = 0;
-		for (let i = 0, len = rawText.length; i < len; i++) {
-			let r = LineBreakingData.getOutputPositionOfInputOffset(mapper.breakOffsets, i);
+		for (let i = 0, len = text.length; i < len; i++) {
+			let r = LineBreakingData.getOutputPositionOfInputOffset(lineBreakingData.breakOffsets, i);
 			if (previousLineIndex !== r.outputLineIndex) {
 				previousLineIndex = r.outputLineIndex;
 				actualAnnotatedText += '|';
 			}
-			actualAnnotatedText += rawText.charAt(i);
+			actualAnnotatedText += text.charAt(i);
 		}
 	} else {
 		// No wrapping
-		actualAnnotatedText = rawText;
+		actualAnnotatedText = text;
 	}
+	return actualAnnotatedText;
+}
+
+function getLineBreakingData(factory: ILineMapperFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakingData: LineBreakingData | null): LineBreakingData | null {
+	const lineMappingComputer = factory.createLineMappingComputer(tabSize, breakAfter, columnsForFullWidthChar, wrappingIndent);
+	lineMappingComputer.addRequest(text, previousLineBreakingData);
+	return lineMappingComputer.finalize()[0];
+}
+
+function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): LineBreakingData | null {
+	// Create version of `annotatedText` with line break markers removed
+	const text = parseAnnotatedText(annotatedText).text;
+	const lineBreakingData = getLineBreakingData(factory, tabSize, breakAfter, 2, wrappingIndent, text, null);
+	const actualAnnotatedText = toAnnotatedText(text, lineBreakingData);
 
 	assert.equal(actualAnnotatedText, annotatedText);
 
-	return mapper;
+	return lineBreakingData;
 }
 
 suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
@@ -90,6 +101,54 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 		assertLineMapping(factory, 4, 5, 'aa.(|().|aaa');
 		assertLineMapping(factory, 4, 5, 'aa.(.|).aaa');
 	});
+
+	function assertIncrementalLineMapping(factory: ILineMapperFactory, text: string, tabSize: number, breakAfter1: number, annotatedText1: string, breakAfter2: number, annotatedText2: string, wrappingIndent = WrappingIndent.None): void {
+		// sanity check the test
+		assert.equal(text, parseAnnotatedText(annotatedText1).text);
+		assert.equal(text, parseAnnotatedText(annotatedText2).text);
+
+		// check that the direct mapping is ok for 1
+		const directLineBreakingData1 = getLineBreakingData(factory, tabSize, breakAfter1, 2, wrappingIndent, text, null);
+		assert.equal(toAnnotatedText(text, directLineBreakingData1), annotatedText1);
+
+		// check that the direct mapping is ok for 2
+		const directLineBreakingData2 = getLineBreakingData(factory, tabSize, breakAfter2, 2, wrappingIndent, text, null);
+		assert.equal(toAnnotatedText(text, directLineBreakingData2), annotatedText2);
+
+		// check that going from 1 to 2 is ok
+		const lineBreakingData2from1 = getLineBreakingData(factory, tabSize, breakAfter2, 2, wrappingIndent, text, directLineBreakingData1);
+		assert.equal(toAnnotatedText(text, lineBreakingData2from1), annotatedText2);
+		assert.deepEqual(lineBreakingData2from1, directLineBreakingData2);
+
+		// check that going from 2 to 1 is ok
+		const lineBreakingData1from2 = getLineBreakingData(factory, tabSize, breakAfter1, 2, wrappingIndent, text, directLineBreakingData2);
+		assert.equal(toAnnotatedText(text, lineBreakingData1from2), annotatedText1);
+		assert.deepEqual(lineBreakingData1from2, directLineBreakingData1);
+	}
+
+	test('CharacterHardWrappingLineMapper incremental 1', () => {
+
+		let factory = new CharacterHardWrappingLineMapperFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+
+		assertIncrementalLineMapping(
+			factory, 'just some text and more', 4,
+			10, 'just some |text and |more',
+			15, 'just some text |and more'
+		);
+
+		assertIncrementalLineMapping(
+			factory, 'Cu scripserit suscipiantur eos, in affert pericula contentiones sed, cetero sanctus et pro. Ius vidit magna regione te, sit ei elaboraret liberavisse. Mundi verear eu mea, eam vero scriptorem in, vix in menandri assueverit. Natum definiebas cu vim. Vim doming vocibus efficiantur id. In indoctum deseruisse voluptatum vim, ad debitis verterem sed.', 4,
+			47, 'Cu scripserit suscipiantur eos, in affert |pericula contentiones sed, cetero sanctus et |pro. Ius vidit magna regione te, sit ei |elaboraret liberavisse. Mundi verear eu mea, |eam vero scriptorem in, vix in menandri |assueverit. Natum definiebas cu vim. Vim |doming vocibus efficiantur id. In indoctum |deseruisse voluptatum vim, ad debitis verterem |sed.',
+			142, 'Cu scripserit suscipiantur eos, in affert pericula contentiones sed, cetero sanctus et pro. Ius vidit magna regione te, sit ei elaboraret |liberavisse. Mundi verear eu mea, eam vero scriptorem in, vix in menandri assueverit. Natum definiebas cu vim. Vim doming vocibus efficiantur |id. In indoctum deseruisse voluptatum vim, ad debitis verterem sed.',
+		);
+
+		assertIncrementalLineMapping(
+			factory, 'An his legere persecuti, oblique delicata efficiantur ex vix, vel at graecis officiis maluisset. Et per impedit voluptua, usu discere maiorum at. Ut assum ornatus temporibus vis, an sea melius pericula. Ea dicunt oblique phaedrum nam, eu duo movet nobis. His melius facilis eu, vim malorum temporibus ne. Nec no sale regione, meliore civibus placerat id eam. Mea alii fabulas definitionem te, agam volutpat ad vis, et per bonorum nonumes repudiandae.', 4,
+			57, 'An his legere persecuti, oblique delicata efficiantur ex |vix, vel at graecis officiis maluisset. Et per impedit |voluptua, usu discere maiorum at. Ut assum ornatus |temporibus vis, an sea melius pericula. Ea dicunt |oblique phaedrum nam, eu duo movet nobis. His melius |facilis eu, vim malorum temporibus ne. Nec no sale |regione, meliore civibus placerat id eam. Mea alii |fabulas definitionem te, agam volutpat ad vis, et per |bonorum nonumes repudiandae.',
+			58, 'An his legere persecuti, oblique delicata efficiantur ex |vix, vel at graecis officiis maluisset. Et per impedit |voluptua, usu discere maiorum at. Ut assum ornatus |temporibus vis, an sea melius pericula. Ea dicunt oblique |phaedrum nam, eu duo movet nobis. His melius facilis eu, |vim malorum temporibus ne. Nec no sale regione, meliore |civibus placerat id eam. Mea alii fabulas definitionem te,| agam volutpat ad vis, et per bonorum nonumes repudiandae.'
+		);
+	});
+
 
 	test('CharacterHardWrappingLineMapper - CJK and Kinsoku Shori', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('(', '\t)');
