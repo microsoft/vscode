@@ -126,13 +126,26 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		let breakOffset = 0;
 		let breakOffsetVisibleColumn = 0;
 		const len = lineText.length;
+		const len1 = len - 1;
 
 		let breakingColumn = firstLineBreakingColumn;
+		let prevCharCode = CharCode.Null;
+		let prevCharCodeClass = CharacterClass.NONE;
+		let charCode = CharCode.Null;
+		let charCodeClass = CharacterClass.NONE;
+		let nextCharCode = (len > 0 ? lineText.charCodeAt(0) : CharCode.Null);
+		let nextCharCodeClass = classifier.get(nextCharCode);
+
 		for (let i = 0; i < len; i++) {
 			// At this point, there is a certainty that the character before `i` fits on the current line,
 			// but the character at `i` might not fit
 
-			const charCode = lineText.charCodeAt(i);
+			prevCharCode = charCode;
+			prevCharCodeClass = charCodeClass;
+			charCode = nextCharCode;
+			charCodeClass = nextCharCodeClass;
+			nextCharCode = (i < len1 ? lineText.charCodeAt(i + 1) : CharCode.Null);
+			nextCharCodeClass = classifier.get(nextCharCode);
 
 			if (strings.isLowSurrogate(charCode)) {
 				// A surrogate pair must always be considered as a single unit, so it is never to be broken
@@ -140,16 +153,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				continue;
 			}
 
-			const charCodeClass = classifier.get(charCode);
-
-			if (
-				(charCodeClass === CharacterClass.BREAK_BEFORE)
-				|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i > 0 && classifier.get(lineText.charCodeAt(i - 1)) !== CharacterClass.BREAK_BEFORE)
-			) {
-				// This is a character that indicates that a break should happen before it
-				// (or) CJK breaking : before break : Kinsoku Shori : Don't break after a leading character, like an open bracket
-				// Since we are certain the character before `i` fits, there's no extra checking needed,
-				// just mark it as a nice breaking opportunity
+			if (prevCharCode !== CharCode.Null && canBreakBefore(charCodeClass, prevCharCodeClass)) {
 				breakOffset = i;
 				breakOffsetVisibleColumn = visibleColumn;
 			}
@@ -180,12 +184,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			}
 
 			// At this point, there is a certainty that the character at `i` fits on the current line
-			if (
-				(charCodeClass === CharacterClass.BREAK_AFTER && (hardWrappingIndent === WrappingIndent.None || i >= firstNonWhitespaceIndex))
-				|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i + 1 < len && classifier.get(lineText.charCodeAt(i + 1)) !== CharacterClass.BREAK_AFTER)
-			) {
-				// This is a character that indicates that a break should happen after it
-				// (or) CJK breaking : after break : Kinsoku Shori : Don't break before a trailing character, like a period
+			if (nextCharCode !== CharCode.Null && canBreakAfter(charCodeClass, nextCharCodeClass)) {
 				breakOffset = i + 1;
 				breakOffsetVisibleColumn = visibleColumn;
 			}
@@ -205,4 +204,22 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
 	return (tabSize - (visibleColumn % tabSize));
+}
+
+function canBreakBefore(charCodeClass: CharacterClass, prevCharCodeClass: CharacterClass): boolean {
+	// This is a character that indicates that a break should happen before it
+	// (or) CJK breaking : before break : Kinsoku Shori : Don't break after a leading character, like an open bracket
+	return (
+		(charCodeClass === CharacterClass.BREAK_BEFORE)
+		|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && prevCharCodeClass !== CharacterClass.BREAK_BEFORE)
+	);
+}
+
+function canBreakAfter(charCodeClass: CharacterClass, nextCharCodeClass: CharacterClass): boolean {
+	// This is a character that indicates that a break should happen after it
+	// (or) CJK breaking : after break : Kinsoku Shori : Don't break before a trailing character, like a period
+	return (
+		(charCodeClass === CharacterClass.BREAK_AFTER)
+		|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && nextCharCodeClass !== CharacterClass.BREAK_AFTER)
+	);
 }
