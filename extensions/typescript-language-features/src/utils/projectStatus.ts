@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { loadMessageBundle } from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import TelemetryReporter from './telemetry';
+import { TelemetryReporter } from './telemetry';
 import { isImplicitProjectConfigFile, openOrCreateConfigFile } from './tsconfig';
 
 const localize = loadMessageBundle();
