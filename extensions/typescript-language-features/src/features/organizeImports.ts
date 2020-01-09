@@ -12,7 +12,7 @@ import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();

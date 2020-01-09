@@ -9267,10 +9267,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^3.8.0-dev.20200104:
-  version "3.8.0-dev.20200104"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.8.0-dev.20200104.tgz#521b2f0b5a288b6e3f8a095525f64712330cc649"
-  integrity sha512-Zdb8X1uzvUPrRvRBqega83NxqCuN/kyxuXG1u8BV10mGOqfwQb0SreSDoDDM1zUgrqFZ93neVh3DVyWTvx6XlA==
+typescript@^3.8.0-dev.20200108:
+  version "3.8.0-dev.20200108"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.8.0-dev.20200108.tgz#ca3a4d950cd19112d80758be779fb07d577e49bc"
+  integrity sha512-SD3VEYUUrDGc0djorpi0zVdmVwmvuaSHta18WP3sS9X0HC7eA4izdjj07pVUc99IBpBw55ljUATm5vkNdvxX6w==
 
 uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
@@ -10072,10 +10072,10 @@ xterm-addon-webgl@0.5.0-beta.7:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.5.0-beta.7.tgz#b7b95a362e942ad6f86fa286d7b7bd8ee3e7cf67"
   integrity sha512-v6aCvhm1C6mvaurGwUYQfyhb2cAUyuVnzf3Ob/hy5ebtyzUj4wW0N9NbqDEJk67UeMi1lV2xZqrO5gNeTpVqFA==
 
-xterm@4.4.0-beta.13:
-  version "4.4.0-beta.13"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.4.0-beta.13.tgz#f7c5fa0d2b098ce0dd8b7c96d3d5fcaee22b86ed"
-  integrity sha512-ZoDOVO3w84CXekBveGw1H2lcvM4HkJG5suXesE/3S+N4DnBhBcK/vw4kdooALGoorJV2GtgA1XEA6+m4N5Sgnw==
+xterm@4.4.0-beta.15:
+  version "4.4.0-beta.15"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.4.0-beta.15.tgz#5897bf79d29d1a2496ccd54665aded28c341b1cc"
+  integrity sha512-Dvz1CMCYKeoxPF7uIDznbRgUA2Mct49Bq93K2nnrDU0pDMM3Sf1t9fkEyz59wxSx5XEHVdLS80jywsz4sjXBjQ==
 
 y18n@^3.2.1:
   version "3.2.1"

@@ -22,7 +22,7 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
-import TelemetryReporter, { VSCodeTelemetryReporter } from './utils/telemetry';
+import { TelemetryReporter, VSCodeTelemetryReporter, TelemetryProperties } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
@@ -271,7 +271,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.logger.error(message, data);
 	}
 
-	private logTelemetry(eventName: string, properties?: { readonly [prop: string]: string }) {
+	private logTelemetry(eventName: string, properties?: TelemetryProperties) {
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
@@ -711,7 +711,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				"${include}": [
 					"${TypeScriptCommonProperties}",
 					"${TypeScriptRequestErrorProperties}"
-				]
+				],
+				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			}
 		*/
 		this.logTelemetry('fatalError', { command, ...(error instanceof TypeScriptServerError ? error.telemetry : {}) });

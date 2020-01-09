@@ -144,7 +144,7 @@ async function detectNpmScripts(): Promise<Task[]> {
 		for (const folder of folders) {
 			if (isAutoDetectionEnabled(folder)) {
 				let relativePattern = new RelativePattern(folder, '**/package.json');
-				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+				let paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
 				for (const path of paths) {
 					if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
 						let tasks = await provideNpmScriptsForFolder(path);

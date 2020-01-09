@@ -15,7 +15,7 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry, ConfigurationSc
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/extensionPoint';
+import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/codeActionsExtensionPoint';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 
@@ -40,17 +40,11 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 export const editorConfiguration = Object.freeze<IConfigurationNode>({
 	...editorConfigurationBaseNode,
 	properties: {
-		'editor.codeActionsOnSave': codeActionsOnSaveSchema,
-		'editor.codeActionsOnSaveTimeout': {
-			type: 'number',
-			default: 750,
-			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled."),
-			scope: ConfigurationScope.RESOURCE_LANGUAGE,
-		},
+		'editor.codeActionsOnSave': codeActionsOnSaveSchema
 	}
 });
 
-export class CodeActionWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+export class CodeActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private _contributedCodeActions: CodeActionsExtensionPoint[] = [];
 
@@ -58,7 +52,7 @@ export class CodeActionWorkbenchContribution extends Disposable implements IWork
 
 	constructor(
 		codeActionsExtensionPoint: IExtensionPoint<CodeActionsExtensionPoint[]>,
-		keybindingService: IKeybindingService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super();
 
