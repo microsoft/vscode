@@ -17,7 +17,7 @@ export interface TelemetrtyProperties {
 	readonly [prop: string]: string | number;
 }
 
-export default interface TelemetryReporter {
+export interface TelemetryReporter {
 	logTelemetry(eventName: string, properties?: TelemetrtyProperties): void;
 
 	dispose(): void;

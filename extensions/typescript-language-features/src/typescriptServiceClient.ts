@@ -22,7 +22,7 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
-import TelemetryReporter, { VSCodeTelemetryReporter, TelemetrtyProperties } from './utils/telemetry';
+import { TelemetryReporter, VSCodeTelemetryReporter, TelemetrtyProperties } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
