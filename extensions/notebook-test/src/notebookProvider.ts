@@ -4,16 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 
 export class Cell implements vscode.ICell {
-	public outputs: any[] = [];
+	public outputs: vscode.IOutput[] = [];
 
 	constructor(
 		public source: string[],
 		public cell_type: 'markdown' | 'code',
-		private _outputs: any[]
+		private _outputs: vscode.IOutput[]
 	) {
 
+	}
+
+	containHTML() {
+		return this._outputs && this._outputs.some(output => {
+			if (output.output_type === 'display_data' && output.data['text/html']) {
+				return true;
+			}
+
+			return false;
+		});
 	}
 
 	fillInOutputs() {
@@ -35,7 +46,7 @@ export class NotebookProvider implements vscode.NotebookProvider {
 	onDidChangeNotebook: vscode.Event<{ resource: vscode.Uri; notebook: vscode.INotebook; }> = this._onDidChangeNotebook.event;
 	private _notebooks: Map<string, JupyterNotebook> = new Map();
 
-	constructor() {
+	constructor(private _extensionPath: string) {
 	}
 
 	async resolveNotebook(resource: vscode.Uri): Promise<vscode.INotebook | undefined> {
@@ -68,7 +79,35 @@ export class NotebookProvider implements vscode.NotebookProvider {
 	async executeNotebook(resource: vscode.Uri): Promise<void> {
 		if (this._notebooks.has(resource.fsPath)) {
 			let notebook = this._notebooks.get(resource.fsPath);
-			notebook!.cells.forEach(cell => cell.fillInOutputs());
+			let preloadScript = false;
+			notebook!.cells.forEach(cell => {
+				if (!preloadScript) {
+					let containHTML = cell.containHTML();
+					if (containHTML) {
+						preloadScript = true;
+						cell.fillInOutputs();
+						const scriptPathOnDisk = vscode.Uri.file(
+							path.join(this._extensionPath, 'dist', 'ipywidgets.js')
+						);
+
+						let scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
+						cell.outputs.unshift(
+							{
+								'output_type': 'display_data',
+								'data': {
+									'text/html': [
+										`<script src="${scriptUri}"></script>\n`,
+									]
+								}
+							}
+						);
+					} else {
+						cell.fillInOutputs();
+					}
+				} else {
+					cell.fillInOutputs();
+				}
+			});
 			this._onDidChangeNotebook.fire({ resource, notebook: notebook! });
 		}
 

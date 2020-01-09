@@ -24,6 +24,7 @@ import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 
 const $ = DOM.$;
 
@@ -46,7 +47,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IStorageService storageService: IStorageService,
-		@IWebviewService private webviewService: IWebviewService
+		@IWebviewService private webviewService: IWebviewService,
+		@INotebookService private notebookService: INotebookService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 	}
@@ -116,7 +118,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			}
 		);
 
-		this.webview = new BackLayerWebView(this.webviewService, this);
+		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this);
 		this.list.view.rowsContainer.appendChild(this.webview.element);
 		this._register(this.list);
 	}
@@ -125,7 +127,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createContentWidget(cell: ViewCell, shadowContent: string, offset: number) {
+	createContentWidget(cell: ViewCell, outputIndex: number, shadowContent: string, offset: number) {
 		if (!this.webview) {
 			return;
 		}
@@ -133,6 +135,12 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		if (!this.webview!.mapping.has(cell.id)) {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 			let top = this.list?.getElementTop(index) || 0;
+			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset);
+			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
+		} else if (!this.webview!.outputMapping.has(cell.id + `-${outputIndex}`)) {
+			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+			let top = this.list?.getElementTop(index) || 0;
+			this.webview!.outputMapping.set(cell.id + `-${outputIndex}`, true);
 			this.webview!.createContentWidget(cell, offset, shadowContent, top + offset);
 		} else {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
@@ -185,9 +193,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				if (this.webview) {
 					this.webview?.clearContentWidgets();
 				} else {
-					this.webview = new BackLayerWebView(this.webviewService, this);
+					this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this);
 					this.list?.view.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
-
 				}
 
 				this.model = model;

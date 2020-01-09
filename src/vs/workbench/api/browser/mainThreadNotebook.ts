@@ -85,7 +85,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): void {
 		let controller = new MainThreadNotebookController(this);
 		this._notebookProviders.set(viewType, controller);
-		this._notebookService.registerNotebookController(viewType, controller);
+		this._notebookService.registerNotebookController(viewType, extension, controller);
 	}
 
 	$unregisterNotebookProvider(viewType: string): void {

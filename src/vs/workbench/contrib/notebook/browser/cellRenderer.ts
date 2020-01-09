@@ -185,7 +185,7 @@ export interface NotebookHandler {
 	editNotebookCell(cell: ViewCell): void;
 	saveNotebookCell(cell: ViewCell): void;
 	layoutElement(cell: ViewCell, height: number): void;
-	createContentWidget(cell: ViewCell, shadowContent: string, offset: number): void;
+	createContentWidget(cell: ViewCell, index: number, shadowContent: string, offset: number): void;
 	disposeViewCell(cell: ViewCell): void;
 	triggerWheel(event: IMouseWheelEvent): void;
 }
@@ -581,7 +581,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 						templateData.outputContainer?.appendChild(result.element);
 						if (result.shadowContent) {
 							hasDynamicHeight = false;
-							this.handler.createContentWidget(element, result.shadowContent, totalHeight + 8);
+							this.handler.createContentWidget(element, i, result.shadowContent, totalHeight + 8);
 						}
 					}
 				}
@@ -634,7 +634,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					templateData.outputContainer?.appendChild(result.element);
 					if (result.shadowContent) {
 						hasDynamicHeight = false;
-						this.handler.createContentWidget(element, result.shadowContent, totalHeight + 8);
+						this.handler.createContentWidget(element, i, result.shadowContent, totalHeight + 8);
 					}
 				}
 			}

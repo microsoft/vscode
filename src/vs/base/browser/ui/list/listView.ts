@@ -560,9 +560,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.rowsContainer.style.left = `-${renderLeft}px`;
-		console.log('------');
-		const date = new Date();
-		console.log('list view render top change, old ', this.rowsContainer.style.top, ' new ', `-${renderTop}` + ' - ' + date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+		// console.log('------');
+		// const date = new Date();
+		// console.log('list view render top change, old ', this.rowsContainer.style.top, ' new ', `-${renderTop}` + ' - ' + date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 		this.rowsContainer.style.top = `-${renderTop}px`;
 
 		if (this.horizontalScrolling) {

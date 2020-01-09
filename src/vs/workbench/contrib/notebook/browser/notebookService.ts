@@ -9,6 +9,7 @@ import { INotebook } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
 import { notebookExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
@@ -20,11 +21,12 @@ export interface IMainNotebookController {
 
 export interface INotebookService {
 	_serviceBrand: undefined;
-	registerNotebookController(viewType: string, controller: IMainNotebookController): void;
+	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;
 	resolveNotebook(viewType: string, uri: URI): Promise<INotebook | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[];
+	getNotebookProviderResourceRoots(): URI[];
 }
 
 export class NotebookInfoStore {
@@ -55,7 +57,7 @@ export class NotebookInfoStore {
 
 export class NotebookService extends Disposable implements INotebookService {
 	_serviceBrand: undefined;
-	private readonly _notebookProviders = new Map<string, IMainNotebookController>();
+	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	public notebookProviderInfoStore: NotebookInfoStore = new NotebookInfoStore();
 
 	constructor() {
@@ -78,8 +80,8 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	}
 
-	registerNotebookController(viewType: string, controller: IMainNotebookController) {
-		this._notebookProviders.set(viewType, controller);
+	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController) {
+		this._notebookProviders.set(viewType, { extensionData, controller });
 	}
 
 	unregisterNotebookProvider(viewType: string): void {
@@ -90,7 +92,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.resolveNotebook(viewType, uri);
+			return provider.controller.resolveNotebook(viewType, uri);
 		}
 
 		return Promise.resolve(undefined);
@@ -100,7 +102,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.executeNotebook(viewType, uri);
+			return provider.controller.executeNotebook(viewType, uri);
 		}
 
 		return;
@@ -108,5 +110,14 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	public getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
 		return this.notebookProviderInfoStore.getContributedNotebook(resource);
+	}
+
+	public getNotebookProviderResourceRoots(): URI[] {
+		let ret: URI[] = [];
+		this._notebookProviders.forEach(val => {
+			ret.push(URI.revive(val.extensionData.location));
+		});
+
+		return ret;
 	}
 }

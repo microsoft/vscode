@@ -9,12 +9,28 @@
 
 const withDefaults = require('../shared.webpack.config');
 
-module.exports = withDefaults({
-	context: __dirname,
-	resolve: {
-		mainFields: ['module', 'main']
-	},
-	entry: {
-		extension: './src/extension.ts',
+module.exports = [
+	withDefaults({
+		context: __dirname,
+		resolve: {
+			mainFields: ['module', 'main']
+		},
+		entry: {
+			extension: './src/extension.ts',
+		}
+	}),
+	{
+		mode: 'development',
+		entry: './output/ipywidgets.js',
+		output: {
+			filename: 'ipywidgets.js',
+			publicPath: 'dist/'
+		},
+		target: 'web',
+		module: {
+			rules: [
+				{ test: /\.css$/, loader: "style-loader!css-loader" }
+			]
+		},
 	}
-});
+]

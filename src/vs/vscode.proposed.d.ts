@@ -1302,14 +1302,10 @@ declare module 'vscode' {
 
 	export interface IDisplayOutput {
 		output_type: 'display_data';
-		data: { string: string };
+		data: { [key: string]: any };
 	}
 
-	export interface IGenericOutput {
-		output_type: string;
-	}
-
-	export type IOutput = IStreamOutput | any;
+	export type IOutput = IStreamOutput | IErrorOutput | IDisplayOutput;
 
 	export interface ICell {
 		source: string[];

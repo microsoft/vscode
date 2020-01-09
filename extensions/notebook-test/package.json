@@ -14,7 +14,7 @@
   "engines": {
     "vscode": "^1.40.0"
   },
-  "main": "./out/extension",
+  "main": "./dist/extension",
   "categories": [
     "Other"
   ],
@@ -39,8 +39,16 @@
     "watch": "tsc -watch -p ./"
   },
   "dependencies": {
+    "@jupyter-widgets/base": "^2.0.2",
+    "@jupyter-widgets/controls": "^1.5.3",
+    "@lumino/widgets": "^1.3.0",
+    "typescript": "^3.6.4",
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-nls": "^4.0.0",
-    "typescript": "^3.6.4"
+    "vscode-nls": "^4.0.0"
+  },
+  "devDependencies": {
+    "webpack-cli": "^3.3.10",
+    "css-loader": "^3.4.1",
+    "style-loader": "^1.1.2"
   }
 }

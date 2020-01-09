@@ -8,6 +8,7 @@ import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/br
 import * as DOM from 'vs/base/browser/dom';
 import * as UUID from 'vs/base/common/uuid';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 
 
 export interface IDimentionMessage {
@@ -61,8 +62,9 @@ export class BackLayerWebView extends Disposable {
 	public element: HTMLElement;
 	public webview: WebviewElement;
 	public mapping: Map<string, { cell: ViewCell, offset: number, top: number }> = new Map();
+	public outputMapping: Map<string, boolean> = new Map();
 
-	constructor(public webviewService: IWebviewService, public notebookHandler: NotebookHandler) {
+	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: NotebookHandler) {
 		super();
 		this.element = document.createElement('div');
 		this.element.style.width = 'calc(100% - 36px)';
@@ -70,19 +72,44 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.position = 'absolute';
 		this.element.style.margin = '0px 0 0px 24px';
 
-
 		let content = /* html */`
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
 			</head>
 			<body style="overflow: hidden;">
-				<div id='container' style="position: absolute;width:100%;"></div>
+				<div id='container' class="widgetarea" style="position: absolute;width:100%;"></div>
 <script>
 (function () {
 	// eslint-disable-next-line no-undef
 	const vscode = acquireVsCodeApi();
-	console.log('a');
+
+	const preservedScriptAttributes = {
+		type: true,
+		src: true,
+		nonce: true,
+		noModule: true,
+		async: true
+	};
+
+	// derived from https://github.com/jquery/jquery/blob/d0ce00cdfa680f1f0c38460bc51ea14079ae8b07/src/core/DOMEval.js
+	const domEval = (container) => {
+		var arr = Array.from(container.getElementsByTagName('script'));
+		for (let n = 0; n < arr.length; n++) {
+			let node = arr[n];
+			let scriptTag = document.createElement('script');
+			scriptTag.text = node.innerText;
+			for (let key in preservedScriptAttributes ) {
+				const val = node[key] || node.getAttribute && node.getAttribute(key);
+				if (val) {
+					scriptTag.setAttribute(key, val);
+				}
+			}
+
+			// TODO: should script with src not be removed?
+			container.appendChild(scriptTag).parentNode.removeChild(scriptTag);
+		}
+	};
 
 	window.addEventListener('message', event => {
 		let id = event.data.id;
@@ -90,30 +117,39 @@ export class BackLayerWebView extends Disposable {
 		switch (event.data.type) {
 			case 'html':
 				{
-					let content = event.data.content;
-					let newElement = document.createElement('div');
-					newElement.style.position = 'absolute';
-					newElement.style.top = event.data.top + 'px';
-					newElement.id = id;
-					document.getElementById('container').appendChild(newElement);
-					newElement.innerHTML = content;
-					var arr = newElement.getElementsByTagName('script');
-					for (let n = 0; n < arr.length; n++) {
-						eval(arr[n].innerHTML); //run script inside div
+					let cellOutputContainer = document.getElementById(id);
+					if (!cellOutputContainer) {
+						let newElement = document.createElement('div');
+						newElement.style.position = 'absolute';
+						newElement.style.top = event.data.top + 'px';
+						newElement.id = id;
+						document.getElementById('container').appendChild(newElement);
+						cellOutputContainer = newElement;
 					}
-					vscode.postMessage({
-						type: 'dimension',
-						id: id,
-						data: {
-							height: newElement.clientHeight
-						}
-					});
+
+					let outputNode = document.createElement('div');
+					let content = event.data.content;
+					outputNode.innerHTML = content;
+					cellOutputContainer.appendChild(outputNode);
+
+					// eval
+					domEval(outputNode);
+
+					setTimeout(() => {
+						vscode.postMessage({
+							type: 'dimension',
+							id: id,
+							data: {
+								height: cellOutputContainer.clientHeight
+							}
+						});
+					}, 200);
 				}
 				break;
 			case 'view-scroll':
 				{
 					const date = new Date();
-					console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
 					document.getElementById('container').style.top = event.data.top + 'px';
 					for (let i = 0; i < event.data.widgets.length; i++) {
@@ -159,9 +195,9 @@ export class BackLayerWebView extends Disposable {
 					this.notebookHandler.layoutElement(cell, totalHeight + 32 + height);
 				}
 			} else if (data.type === 'scroll-ack') {
-				const date = new Date();
-				const top = data.data.top;
-				console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+				// const date = new Date();
+				// const top = data.data.top;
+				// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 			}
 		}));
 	}
@@ -170,7 +206,8 @@ export class BackLayerWebView extends Disposable {
 		const webview = webviewService.createWebview('' + UUID.generateUuid(), {
 			enableFindWidget: false,
 		}, {
-			allowScripts: true
+			allowScripts: true,
+			localResourceRoots: this.notebookService.getNotebookProviderResourceRoots()
 		});
 		webview.html = content;
 		return webview;
