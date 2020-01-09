@@ -20,7 +20,7 @@ export interface RemoteTunnel {
 
 export interface TunnelOptions {
 	remoteAddress: { port: number, host: string };
-	localPort?: number;
+	localAddressPort?: number;
 	label?: string;
 }
 

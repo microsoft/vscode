@@ -21,6 +21,7 @@ import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileE
 import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
@@ -41,6 +42,7 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(id, viewType, '', webview, webviewWorkbenchService, lifecycleService);
 		this._editorResource = resource;
@@ -107,6 +109,18 @@ export class CustomFileEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public isDirty(): boolean {
 		return this._model ? this._model.isDirty() : false;
+	}
+
+	public isSaving(): boolean {
+		if (!this.isDirty()) {
+			return false; // the editor needs to be dirty for being saved
+		}
+
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return true; // a short auto save is configured, treat this as being saved
+		}
+
+		return false;
 	}
 
 	public save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {

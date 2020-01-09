@@ -49,10 +49,7 @@ function registerMarkdownLanguageFeatures(
 	symbolProvider: MDDocumentSymbolProvider,
 	engine: MarkdownEngine
 ): vscode.Disposable {
-	const selector: vscode.DocumentSelector = [
-		{ language: 'markdown', scheme: 'file' },
-		{ language: 'markdown', scheme: 'untitled' }
-	];
+	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
 	const charPattern = '(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})';
 

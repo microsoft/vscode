@@ -115,7 +115,7 @@ class RenameController implements IEditorContribution {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
-		this._renameInputField = new IdleValue(() => this._dispoableStore.add(new RenameInputField(this.editor, this._themeService, this._contextKeyService)));
+		this._renameInputField = this._dispoableStore.add(new IdleValue(() => this._dispoableStore.add(new RenameInputField(this.editor, this._themeService, this._contextKeyService))));
 	}
 
 	dispose(): void {

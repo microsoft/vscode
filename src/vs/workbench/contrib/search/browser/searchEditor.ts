@@ -22,6 +22,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
 import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
 import { localize } from 'vs/nls';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
@@ -234,10 +235,13 @@ const serializeSearchResultForEditor = (searchResult: SearchResult, rawIncludePa
 
 export const refreshActiveEditorSearch =
 	async (contextLines: number | undefined, editorService: IEditorService, instantiationService: IInstantiationService, contextService: IWorkspaceContextService, labelService: ILabelService, configurationService: IConfigurationService) => {
-		const model = editorService.activeTextEditorWidget?.getModel();
-		if (!model) { return; }
+		const editorWidget = editorService.activeTextEditorWidget;
+		if (!isCodeEditor(editorWidget)) {
+			return;
+		}
 
-		const textModel = model as ITextModel;
+		const textModel = editorWidget.getModel();
+		if (!textModel) { return; }
 
 		const header = textModel.getValueInRange(new Range(1, 1, 5, 1), EndOfLinePreference.LF)
 			.split(lineDelimiter)

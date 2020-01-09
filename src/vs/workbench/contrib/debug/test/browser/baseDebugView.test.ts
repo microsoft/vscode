@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { replaceWhitespace, renderExpressionValue, renderVariable } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { replaceWhitespace, renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import * as dom from 'vs/base/browser/dom';
 import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
@@ -30,6 +30,16 @@ suite('Debug - Base Debug View', () => {
 		assert.equal(replaceWhitespace('hey there\n'), 'hey there\\n');
 		assert.equal(replaceWhitespace('hey \r there\n\t'), 'hey \\r there\\n\\t');
 		assert.equal(replaceWhitespace('hey \r\t\n\t\t\n there'), 'hey \\r\\t\\n\\t\\t\\n there');
+	});
+
+	test('render view tree', () => {
+		const container = $('.container');
+		const treeContainer = renderViewTree(container);
+
+		assert.equal(treeContainer.className, 'debug-view-content');
+		assert.equal(container.childElementCount, 1);
+		assert.equal(container.firstChild, treeContainer);
+		assert.equal(treeContainer instanceof HTMLDivElement, true);
 	});
 
 	test('render expression value', () => {

@@ -290,7 +290,7 @@ export class DebugService implements IDebugService {
 						"Compound must have \"configurations\" attribute set in order to start multiple configurations."));
 				}
 				if (compound.preLaunchTask) {
-					const taskResult = await this.taskRunner.runTaskAndCheckErrors(launch?.workspace || this.contextService.getWorkspace(), compound.preLaunchTask, this.showError);
+					const taskResult = await this.taskRunner.runTaskAndCheckErrors(launch?.workspace || this.contextService.getWorkspace(), compound.preLaunchTask, (msg, actions) => this.showError(msg, actions));
 					if (taskResult === TaskRunResult.Failure) {
 						this.endInitializingState();
 						return false;
@@ -379,12 +379,25 @@ export class DebugService implements IDebugService {
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
 			try {
-				const resolvedConfig = await this.substituteVariables(launch, configByProviders);
-
+				let resolvedConfig = await this.substituteVariables(launch, configByProviders);
 				if (!resolvedConfig) {
-					// User canceled resolving of interactive variables, silently return
+					// User cancelled resolving of interactive variables, silently return
 					return false;
 				}
+
+				if (!this.initCancellationToken) {
+					// User cancelled, silently return
+					return false;
+				}
+
+				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, this.initCancellationToken.token);
+				if (!cfg) {
+					if (launch && type && cfg === null && this.initCancellationToken) {	// show launch.json only for "config" being "null".
+						await launch.openConfigFile(false, true, type, this.initCancellationToken.token);
+					}
+					return false;
+				}
+				resolvedConfig = cfg;
 
 				if (!this.configurationManager.getDebugger(resolvedConfig.type) || (configByProviders.request !== 'attach' && configByProviders.request !== 'launch')) {
 					let message: string;
@@ -401,8 +414,8 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const workspace = launch ? launch.workspace : this.contextService.getWorkspace();
-				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, this.showError);
+				const workspace = launch?.workspace || this.contextService.getWorkspace();
+				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, (msg, actions) => this.showError(msg, actions));
 				if (taskResult === TaskRunResult.Success) {
 					return this.doCreateSession(launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 				}
@@ -413,16 +426,16 @@ export class DebugService implements IDebugService {
 				} else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
 				}
-				if (launch) {
-					await launch.openConfigFile(false, true, undefined, this.initCancellationToken ? this.initCancellationToken.token : undefined);
+				if (launch && this.initCancellationToken) {
+					await launch.openConfigFile(false, true, undefined, this.initCancellationToken.token);
 				}
 
 				return false;
 			}
 		}
 
-		if (launch && type && configByProviders === null) {	// show launch.json only for "config" being "null".
-			await launch.openConfigFile(false, true, type, this.initCancellationToken ? this.initCancellationToken.token : undefined);
+		if (launch && type && configByProviders === null && this.initCancellationToken) {	// show launch.json only for "config" being "null".
+			await launch.openConfigFile(false, true, type, this.initCancellationToken.token);
 		}
 
 		return false;
@@ -563,8 +576,11 @@ export class DebugService implements IDebugService {
 				// Data breakpoints that can not be persisted should be cleared when a session ends
 				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
 				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
-			}
 
+				if (this.panelService.getLastActivePanelId() === REPL_ID && this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd) {
+					this.panelService.hideActivePanel();
+				}
+			}
 		}));
 	}
 
@@ -579,7 +595,7 @@ export class DebugService implements IDebugService {
 			}
 
 			await this.taskRunner.runTask(session.root, session.configuration.postDebugTask);
-			return this.taskRunner.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask, this.showError);
+			return this.taskRunner.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask, (msg, actions) => this.showError(msg, actions));
 		};
 
 		const extensionDebugSession = getExtensionHostDebugSession(session);
@@ -636,6 +652,9 @@ export class DebugService implements IDebugService {
 					const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, this.initCancellationToken.token);
 					if (resolvedByProviders) {
 						resolved = await this.substituteVariables(launch, resolvedByProviders);
+						if (resolved && this.initCancellationToken) {
+							resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, this.initCancellationToken.token);
+						}
 					} else {
 						resolved = resolvedByProviders;
 					}
@@ -660,13 +679,13 @@ export class DebugService implements IDebugService {
 	}
 
 	stopSession(session: IDebugSession): Promise<any> {
-
 		if (session) {
 			return session.terminate();
 		}
 
 		const sessions = this.model.getSessions();
 		if (sessions.length === 0) {
+			this.taskRunner.cancel();
 			this.endInitializingState();
 		}
 
@@ -760,9 +779,11 @@ export class DebugService implements IDebugService {
 
 	//---- watches
 
-	addWatchExpression(name: string): void {
+	addWatchExpression(name?: string): void {
 		const we = this.model.addWatchExpression(name);
-		this.viewModel.setSelectedExpression(we);
+		if (!name) {
+			this.viewModel.setSelectedExpression(we);
+		}
 		this.storeWatchExpressions();
 	}
 

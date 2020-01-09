@@ -17,8 +17,13 @@ export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
 }
 
+export interface TunnelDescription {
+	remoteAddress: { port: number, host: string };
+	localAddress: string;
+}
 export interface TunnelInformation {
-	environmentTunnels?: { remoteAddress: { port: number, host: string }, localAddress: string }[];
+	environmentTunnels?: TunnelDescription[];
+	hideCandidatePorts?: boolean;
 }
 
 export interface ResolverResult {

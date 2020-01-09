@@ -39,7 +39,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PagedModel } from 'vs/base/common/paging';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -55,10 +55,8 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { prefersExecuteOnUI, prefersExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
@@ -662,6 +660,14 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 	}
 }
 
+export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService): ExtensionAction[][] {
+	const groups: ExtensionAction[][] = [];
+	const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService);
+	menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => new MenuItemExtensionAction(action))));
+	menu.dispose();
+	return groups;
+}
+
 export class ManageExtensionAction extends ExtensionDropDownAction {
 
 	static readonly ID = 'extensions.manage';
@@ -671,7 +677,9 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 
 		super(ManageExtensionAction.ID, '', '', true, true, instantiationService);
@@ -708,11 +716,10 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
 
-		const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(CopyExtensionInfoAction), this.instantiationService.createInstance(CopyExtensionIdAction)];
-		if (this.extension && this.extension.local && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.configuration) {
-			extensionActions.push(this.instantiationService.createInstance(ExtensionSettingsAction));
-		}
-		groups.push(extensionActions);
+		const contextKeyService = this.contextKeyService.createScoped();
+		contextKeyService.createKey('extensionStatus', 'installed');
+		contextKeyService.createKey<boolean>('extensionHasConfiguration', !!this.extension && !!this.extension.local && !!this.extension.local.manifest.contributes && !!this.extension.local.manifest.contributes.configuration);
+		getContextMenuActions(this.menuService, contextKeyService).forEach(actions => groups.push(actions));
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
@@ -734,6 +741,21 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 			this.enabled = state === ExtensionState.Installed;
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
 			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
+		}
+	}
+}
+
+export class MenuItemExtensionAction extends ExtensionAction {
+
+	constructor(private readonly action: IAction) {
+		super(action.id, action.label);
+	}
+
+	update() { }
+
+	async run(): Promise<void> {
+		if (this.extension) {
+			return this.action.run(this.extension.identifier.id);
 		}
 	}
 }
@@ -787,89 +809,6 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	private getVersionEntries(): Promise<(IQuickPickItem & { latest: boolean, id: string })[]> {
 		return this.extensionGalleryService.getAllVersions(this.extension!.gallery!, true)
 			.then(allVersions => allVersions.map((v, i) => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === this.extension!.version ? ` (${localize('current', "Current")})` : ''}`, latest: i === 0 })));
-	}
-}
-
-export class CopyExtensionInfoAction extends ExtensionAction {
-
-	static readonly ID = 'workbench.extensions.action.copyExtension';
-	static readonly LABEL = localize('workbench.extensions.action.copyExtension', "Copy");
-
-	constructor(
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super(CopyExtensionInfoAction.ID, CopyExtensionInfoAction.LABEL);
-		this.update();
-	}
-
-	update(): void {
-		this.enabled = !!this.extension;
-	}
-
-	async run(): Promise<any> {
-		if (!this.extension) {
-			return;
-		}
-
-		const name = localize('extensionInfoName', 'Name: {0}', this.extension.displayName);
-		const id = localize('extensionInfoId', 'Id: {0}', this.extension.identifier.id);
-		const description = localize('extensionInfoDescription', 'Description: {0}', this.extension.description);
-		const verision = localize('extensionInfoVersion', 'Version: {0}', this.extension.version);
-		const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', this.extension.publisherDisplayName);
-		const link = this.extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', this.extension.url.toString()) : null;
-
-		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
-
-		return this.clipboardService.writeText(clipboardStr);
-	}
-}
-
-export class CopyExtensionIdAction extends ExtensionAction {
-
-	static readonly ID = 'workbench.extensions.action.copyExtensionId';
-	static readonly LABEL = localize('workbench.extensions.action.copyExtensionId', "Copy Extension Id");
-
-	constructor(
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super(CopyExtensionIdAction.ID, CopyExtensionIdAction.LABEL);
-		this.update();
-	}
-
-	update(): void {
-		this.enabled = !!this.extension;
-	}
-
-	async run(): Promise<any> {
-		if (!this.extension) {
-			return;
-		}
-		return this.clipboardService.writeText(this.extension.identifier.id);
-	}
-}
-
-export class ExtensionSettingsAction extends ExtensionAction {
-
-	static readonly ID = 'extensions.extensionSettings';
-	static readonly LABEL = localize('extensionSettingsAction', "Configure Extension Settings");
-
-	constructor(
-		@IPreferencesService private readonly preferencesService: IPreferencesService
-	) {
-		super(ExtensionSettingsAction.ID, ExtensionSettingsAction.LABEL);
-		this.update();
-	}
-
-	update(): void {
-		this.enabled = !!this.extension;
-	}
-
-	async run(): Promise<any> {
-		if (!this.extension) {
-			return;
-		}
-		this.preferencesService.openSettings(false, `@ext:${this.extension.identifier.id}`);
-		return Promise.resolve();
 	}
 }
 

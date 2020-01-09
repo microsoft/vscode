@@ -30,6 +30,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 
 export interface PositionLike {
 	line: number;
@@ -830,7 +831,7 @@ export namespace CompletionItemKind {
 
 export namespace CompletionItem {
 
-	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
+	export function to(suggestion: modes.CompletionItem, converter?: CommandsConverter): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
@@ -844,14 +845,17 @@ export namespace CompletionItem {
 		result.range = editorRange.Range.isIRange(suggestion.range) ? Range.to(suggestion.range) : undefined;
 		result.range2 = editorRange.Range.isIRange(suggestion.range) ? undefined : { inserting: Range.to(suggestion.range.insert), replacing: Range.to(suggestion.range.replace) };
 		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
-		// 'inserText'-logic
+		// 'insertText'-logic
 		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;
 			result.textEdit = result.range instanceof types.Range ? new types.TextEdit(result.range, result.insertText) : undefined;
 		}
-		// TODO additionalEdits, command
+		if (suggestion.additionalTextEdits && suggestion.additionalTextEdits.length > 0) {
+			result.additionalTextEdits = suggestion.additionalTextEdits.map(e => TextEdit.to(e as modes.TextEdit));
+		}
+		result.command = converter && suggestion.command ? converter.fromInternal(suggestion.command) : undefined;
 
 		return result;
 	}

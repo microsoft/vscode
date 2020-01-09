@@ -10,6 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { URI } from 'vs/base/common/uri';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
 export const ILoggerService = createServiceDecorator<ILoggerService>('loggerService');
@@ -245,15 +246,15 @@ export class ConsoleLogInMainService extends AbstractLogService implements ILogS
 		}
 	}
 
-	error(message: string, ...args: any[]): void {
+	error(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Error) {
-			this.client.consoleLog('error', [message, ...args]);
+			this.client.consoleLog('error', [toErrorMessage(message, this.getLevel() <= LogLevel.Trace), ...args]);
 		}
 	}
 
-	critical(message: string, ...args: any[]): void {
+	critical(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Critical) {
-			this.client.consoleLog('critical', [message, ...args]);
+			this.client.consoleLog('critical', [toErrorMessage(message, this.getLevel() <= LogLevel.Trace), ...args]);
 		}
 	}
 

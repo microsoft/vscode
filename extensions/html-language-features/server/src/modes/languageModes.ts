@@ -31,6 +31,13 @@ export interface Workspace {
 	readonly folders: WorkspaceFolder[];
 }
 
+export interface SemanticTokenData {
+	start: Position;
+	length: number;
+	typeIdx: number;
+	modifierSet: number;
+}
+
 export interface LanguageMode {
 	getId(): string;
 	getSelectionRange?: (document: TextDocument, position: Position) => SelectionRange;
@@ -52,7 +59,7 @@ export interface LanguageMode {
 	findMatchingTagPosition?: (document: TextDocument, position: Position) => Position | null;
 	getFoldingRanges?: (document: TextDocument) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
-	getSemanticTokens?(document: TextDocument, ranges: Range[] | undefined): number[];
+	getSemanticTokens?(document: TextDocument): SemanticTokenData[];
 	getSemanticTokenLegend?(): { types: string[], modifiers: string[] };
 	dispose(): void;
 }
@@ -87,7 +94,8 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions);
+		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript');
+		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript');
 	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {
