@@ -2,11 +2,6 @@
 # yarn lockfile v1
 
 
-"@aeschli/typescript-vscode-sh-plugin@0.2.0":
-  version "0.2.0"
-  resolved "https://npm.pkg.github.com/download/@aeschli/typescript-vscode-sh-plugin/0.2.0/6e1ccd1d9ed6c3251091de08bb83589bc555f203b1c594fc9c2bc9d38b66b44d#"
-  integrity sha512-QHORCwbuln5T9gdfDoqJ2nNXzY/8yOBgTG2f+GiQPeQ0rGrNIydbKe0IYi7VmCvIm1LGhEcNOihcF4FWmsKFow==
-
 "@types/events@*":
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/@types/events/-/events-3.0.0.tgz#2862f3f58a9a7f7c3e78d79f130dd4d71c25c2a7"
@@ -630,6 +625,11 @@ tweetnacl@^0.14.3, tweetnacl@~0.14.0:
   version "0.14.5"
   resolved "https://registry.yarnpkg.com/tweetnacl/-/tweetnacl-0.14.5.tgz#5ae68177f192d4456269d108afa93ff8743f4f64"
   integrity sha1-WuaBd/GS1EViadEIr6k/+HQ/T2Q=
+
+typescript-vscode-sh-plugin@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/typescript-vscode-sh-plugin/-/typescript-vscode-sh-plugin-0.2.0.tgz#8f1b79f2bc5a7d225235bf2b9fffdec9499f00f7"
+  integrity sha512-jp3B45VPwBuJ7I7IshkNuxn92/DUPqFq6Y3wiNE64Mmws0UCkXKbTsDT8+CKt5rFFCQL7PUtApj6aQkN8OKfxw==
 
 uri-js@^4.2.2:
   version "4.2.2"

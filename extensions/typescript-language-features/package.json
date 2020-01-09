@@ -21,7 +21,7 @@
     "semver": "5.5.1",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0",
-    "@aeschli/typescript-vscode-sh-plugin": "0.2.0" 
+    "typescript-vscode-sh-plugin": "0.2.0"
   },
   "devDependencies": {
     "@types/node": "^12.11.7",
