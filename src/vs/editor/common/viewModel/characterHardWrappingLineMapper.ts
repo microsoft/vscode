@@ -104,6 +104,9 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 		return null;
 	}
 
+	const prevBreakingOffsets = previousBreakingData.breakOffsets;
+	const prevBreakingOffsetsVisibleColumn = previousBreakingData.breakingOffsetsVisibleColumn;
+
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
 	const wrappedLineBreakingColumn = firstLineBreakingColumn - wrappedTextIndentLength;
 
@@ -111,21 +114,18 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 	let breakingOffsetsVisibleColumn: number[] = [];
 	let breakingOffsetsCount: number = 0;
 
-	const prevBreakingOffsets = previousBreakingData.breakOffsets;
-	const prevBreakingOffsetsVisibleColumn = previousBreakingData.breakingOffsetsVisibleColumn;
-
 	let breakingColumn = firstLineBreakingColumn;
 	const prevLen = prevBreakingOffsets.length;
 	let prevIndex = 0;
 
 	if (prevIndex >= 0) {
-		let currentDiff = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex] - breakingColumn);
+		let bestDistance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex] - breakingColumn);
 		while (prevIndex + 1 < prevLen) {
-			const potentialDiff = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex + 1] - breakingColumn);
-			if (potentialDiff >= currentDiff) {
+			const distance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex + 1] - breakingColumn);
+			if (distance >= bestDistance) {
 				break;
 			}
-			currentDiff = potentialDiff;
+			bestDistance = distance;
 			prevIndex++;
 		}
 	}
@@ -133,7 +133,7 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 	while (prevIndex < prevLen) {
 		// Allow for prevIndex to be -1 (for the case where we hit a tab when walking backwards from the first break)
 		const prevBreakOffset = prevIndex < 0 ? 0 : prevBreakingOffsets[prevIndex];
-		const prevBreakoffsetVisibleColumn = prevIndex < 0 ? 0 : prevBreakingOffsetsVisibleColumn[prevIndex];;
+		const prevBreakoffsetVisibleColumn = prevIndex < 0 ? 0 : prevBreakingOffsetsVisibleColumn[prevIndex];
 
 		let breakOffset = 0;
 		let breakOffsetVisibleColumn = 0;
@@ -148,29 +148,32 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 			let prevCharCodeClass = classifier.get(prevCharCode);
 			let entireLineFits = true;
 			for (let i = prevBreakOffset; i < len; i++) {
+				const charStartOffset = i;
 				const charCode = lineText.charCodeAt(i);
-				const charCodeClass = classifier.get(charCode);
+				let charCodeClass: number;
+				let charWidth: number;
 
-				if (strings.isHighSurrogate(prevCharCode)) {
+				if (strings.isHighSurrogate(charCode)) {
 					// A surrogate pair must always be considered as a single unit, so it is never to be broken
-					visibleColumn += 1;
-					prevCharCode = charCode;
-					prevCharCodeClass = charCodeClass;
-					continue;
-
+					i++;
+					charCodeClass = CharacterClass.NONE;
+					charWidth = 2;
+				} else {
+					charCodeClass = classifier.get(charCode);
+					charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
 				}
 
 				if (canBreak(prevCharCodeClass, charCodeClass)) {
-					breakOffset = i;
+					breakOffset = charStartOffset;
 					breakOffsetVisibleColumn = visibleColumn;
 				}
 
-				const charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
 				visibleColumn += charWidth;
 
+				// check if adding character at `i` will go over the breaking column
 				if (visibleColumn > breakingColumn) {
 					// We need to break at least before character at `i`:
-					forcedBreakOffset = i;
+					forcedBreakOffset = charStartOffset;
 					forcedBreakOffsetVisibleColumn = visibleColumn - charWidth;
 
 					if (visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakingColumn) {
@@ -188,9 +191,11 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 
 			if (entireLineFits) {
 				// there is no more need to break => stop the outer loop!
-				// Add last segment
-				breakingOffsets[breakingOffsetsCount] = prevBreakingOffsets[prevBreakingOffsets.length - 1];
-				breakingOffsetsVisibleColumn[breakingOffsetsCount] = prevBreakingOffsetsVisibleColumn[prevBreakingOffsets.length - 1];
+				if (breakingOffsetsCount > 0) {
+					// Add last segment
+					breakingOffsets[breakingOffsetsCount] = prevBreakingOffsets[prevBreakingOffsets.length - 1];
+					breakingOffsetsVisibleColumn[breakingOffsetsCount] = prevBreakingOffsetsVisibleColumn[prevBreakingOffsets.length - 1];
+				}
 				break;
 			}
 		}
@@ -202,16 +207,8 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 			let charCodeClass = classifier.get(charCode);
 			let hitATabCharacter = false;
 			for (let i = prevBreakOffset - 1; i >= 0; i--) {
+				const charStartOffset = i + 1;
 				const prevCharCode = lineText.charCodeAt(i);
-				const prevCharCodeClass = classifier.get(prevCharCode);
-
-				if (strings.isHighSurrogate(prevCharCode)) {
-					// A surrogate pair must always be considered as a single unit, so it is never to be broken
-					visibleColumn -= 1;
-					charCode = prevCharCode;
-					charCodeClass = prevCharCodeClass;
-					continue;
-				}
 
 				if (prevCharCode === CharCode.Tab) {
 					// cannot determine the width of a tab when going backwards, so we must go forwards
@@ -219,11 +216,22 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 					break;
 				}
 
-				const charWidth = (strings.isFullWidthCharacter(prevCharCode) ? columnsForFullWidthChar : 1);
+				let prevCharCodeClass: number;
+				let prevCharWidth: number;
+
+				if (strings.isLowSurrogate(prevCharCode)) {
+					// A surrogate pair must always be considered as a single unit, so it is never to be broken
+					i--;
+					prevCharCodeClass = CharacterClass.NONE;
+					prevCharWidth = 2;
+				} else {
+					prevCharCodeClass = classifier.get(prevCharCode);
+					prevCharWidth = (strings.isFullWidthCharacter(prevCharCode) ? columnsForFullWidthChar : 1);
+				}
 
 				if (visibleColumn <= breakingColumn) {
 					if (forcedBreakOffset === 0) {
-						forcedBreakOffset = i + 1;
+						forcedBreakOffset = charStartOffset;
 						forcedBreakOffsetVisibleColumn = visibleColumn;
 					}
 
@@ -233,15 +241,33 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 					}
 
 					if (canBreak(prevCharCodeClass, charCodeClass)) {
-						breakOffset = i + 1;
+						breakOffset = charStartOffset;
 						breakOffsetVisibleColumn = visibleColumn;
 						break;
 					}
 				}
 
-				visibleColumn -= charWidth;
+				visibleColumn -= prevCharWidth;
 				charCode = prevCharCode;
 				charCodeClass = prevCharCodeClass;
+			}
+
+			if (breakOffset !== 0) {
+				const remainingWidthOfNextLine = wrappedLineBreakingColumn - (forcedBreakOffsetVisibleColumn - breakOffsetVisibleColumn);
+				if (remainingWidthOfNextLine <= tabSize) {
+					const charCodeAtForcedBreakOffset = lineText.charCodeAt(forcedBreakOffset);
+					let charWidth: number;
+					if (strings.isHighSurrogate(charCodeAtForcedBreakOffset)) {
+						// A surrogate pair must always be considered as a single unit, so it is never to be broken
+						charWidth = 2;
+					} else {
+						charWidth = computeCharWidth(charCodeAtForcedBreakOffset, forcedBreakOffsetVisibleColumn, tabSize, columnsForFullWidthChar);
+					}
+					if (remainingWidthOfNextLine - charWidth < 0) {
+						// it is not worth it to break at breakOffset, it just introduces an extra needless line!
+						breakOffset = 0;
+					}
+				}
 			}
 
 			if (hitATabCharacter) {
@@ -266,14 +292,13 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 			prevIndex++;
 		}
 
-		let currentDiff = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex] - breakingColumn);
-		// let lastBreakingColumn
+		let bestDistance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex] - breakingColumn);
 		while (prevIndex + 1 < prevLen) {
-			const potentialDiff = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex + 1] - breakingColumn);
-			if (potentialDiff >= currentDiff) {
+			const distance = Math.abs(prevBreakingOffsetsVisibleColumn[prevIndex + 1] - breakingColumn);
+			if (distance >= bestDistance) {
 				break;
 			}
-			currentDiff = potentialDiff;
+			bestDistance = distance;
 			prevIndex++;
 		}
 	}
@@ -282,54 +307,56 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 		return null;
 	}
 
-	// return new LineBreakingData(firstLineBreakingColumn, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
-	const expected = createLineMapping(classifier, lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
-	const actual = new LineBreakingData(firstLineBreakingColumn, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
-	try {
-		actual.assertEqual(expected);
-	} catch (err) {
-		console.log(`BREAKING!!`);
-		console.log(err);
-		console.log(`previous breaks: ${JSON.stringify(prevBreakingOffsets)}, breakingOffsetsVisibleColumn: ${JSON.stringify(prevBreakingOffsetsVisibleColumn)}`);
-		console.log(`expected breakOffsets: ${JSON.stringify(expected?.breakOffsets)}, breakingOffsetsVisibleColumn: ${JSON.stringify(expected?.breakingOffsetsVisibleColumn)}`);
-		console.log(`actual breakOffsets: ${JSON.stringify(actual?.breakOffsets)}, breakingOffsetsVisibleColumn: ${JSON.stringify(actual?.breakingOffsetsVisibleColumn)}`);
+	return new LineBreakingData(firstLineBreakingColumn, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+	// const expected = createLineMapping(classifier, lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
+	// const actual = new LineBreakingData(firstLineBreakingColumn, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+	// try {
+	// 	actual.assertEqual(expected);
+	// } catch (err) {
+	// 	console.log(`BREAKING!!`);
+	// 	console.log(err);
+	// 	console.log(`
+	// firstLineBreakingColumn: ${firstLineBreakingColumn}
 
-		console.log(`actual str: ${toAnnotatedText(lineText, actual)}`);
+	// previous breaks: ${JSON.stringify(prevBreakingOffsets)}, breakingOffsetsVisibleColumn: ${JSON.stringify(prevBreakingOffsetsVisibleColumn)}
+	// expected breaks: ${JSON.stringify(expected?.breakOffsets)}, breakingOffsetsVisibleColumn: ${JSON.stringify(expected?.breakingOffsetsVisibleColumn)}
+	//   actual breaks: ${JSON.stringify(actual?.breakOffsets)}, breakingOffsetsVisibleColumn: ${JSON.stringify(actual?.breakingOffsetsVisibleColumn)}
 
+	// previous str:  ${toAnnotatedText(lineText, previousBreakingData)}
+	// expected str:  ${toAnnotatedText(lineText, expected)}
+	//    actual str: ${toAnnotatedText(lineText, actual)}
 
-		console.log(`
-	assertIncrementalLineMapping(
-		factory, ${str(lineText)}, 4,
-		${previousBreakingData.breakingColumn}, ${str(toAnnotatedText(lineText, previousBreakingData))},
-		${expected!.breakingColumn}, ${str(toAnnotatedText(lineText, expected))},
-		WrappingIndent.${hardWrappingIndent === WrappingIndent.None ? 'None' : hardWrappingIndent === WrappingIndent.Same ? 'Same' : hardWrappingIndent === WrappingIndent.Indent ? 'Indent' : 'DeepIndent'}
-	);
-`);
-		function str(strr: string) {
-			return `'${strr.replace(/'/g, '\\\'')}'`;
-		}
-		function toAnnotatedText(text: string, lineBreakingData: LineBreakingData | null): string {
-			// Insert line break markers again, according to algorithm
-			let actualAnnotatedText = '';
-			if (lineBreakingData) {
-				let previousLineIndex = 0;
-				for (let i = 0, len = text.length; i < len; i++) {
-					let r = LineBreakingData.getOutputPositionOfInputOffset(lineBreakingData.breakOffsets, i);
-					if (previousLineIndex !== r.outputLineIndex) {
-						previousLineIndex = r.outputLineIndex;
-						actualAnnotatedText += '|';
-					}
-					actualAnnotatedText += text.charAt(i);
-				}
-			} else {
-				// No wrapping
-				actualAnnotatedText = text;
-			}
-			return actualAnnotatedText;
-		}
-	}
-	return actual;
-
+	// 	assertIncrementalLineMapping(
+	// 		factory, ${str(lineText)}, 4,
+	// 		${previousBreakingData.breakingColumn}, ${str(toAnnotatedText(lineText, previousBreakingData))},
+	// 		${expected!.breakingColumn}, ${str(toAnnotatedText(lineText, expected))},
+	// 		WrappingIndent.${hardWrappingIndent === WrappingIndent.None ? 'None' : hardWrappingIndent === WrappingIndent.Same ? 'Same' : hardWrappingIndent === WrappingIndent.Indent ? 'Indent' : 'DeepIndent'}
+	// 	);
+	// `);
+	// 	function str(strr: string) {
+	// 		return `'${strr.replace(/\\/g, '\\\\').replace(/'/g, '\\\'')}'`;
+	// 	}
+	// 	function toAnnotatedText(text: string, lineBreakingData: LineBreakingData | null): string {
+	// 		// Insert line break markers again, according to algorithm
+	// 		let actualAnnotatedText = '';
+	// 		if (lineBreakingData) {
+	// 			let previousLineIndex = 0;
+	// 			for (let i = 0, len = text.length; i < len; i++) {
+	// 				let r = LineBreakingData.getOutputPositionOfInputOffset(lineBreakingData.breakOffsets, i);
+	// 				if (previousLineIndex !== r.outputLineIndex) {
+	// 					previousLineIndex = r.outputLineIndex;
+	// 					actualAnnotatedText += '|';
+	// 				}
+	// 				actualAnnotatedText += text.charAt(i);
+	// 			}
+	// 		} else {
+	// 			// No wrapping
+	// 			actualAnnotatedText = text;
+	// 		}
+	// 		return actualAnnotatedText;
+	// 	}
+	// }
+	// return actual;
 }
 
 function createLineMapping(classifier: WrappingCharacterClassifier, lineText: string, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
@@ -356,24 +383,36 @@ function createLineMapping(classifier: WrappingCharacterClassifier, lineText: st
 	let prevCharCodeClass = classifier.get(prevCharCode);
 	let visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
 
-	for (let i = 1; i < len; i++) {
-		const charCode = lineText.charCodeAt(i);
-		const charCodeClass = classifier.get(charCode);
+	let startOffset = 1;
+	if (strings.isHighSurrogate(prevCharCode)) {
+		// A surrogate pair must always be considered as a single unit, so it is never to be broken
+		visibleColumn += 1;
+		prevCharCode = lineText.charCodeAt(1);
+		prevCharCodeClass = classifier.get(prevCharCode);
+		startOffset++;
+	}
 
-		if (strings.isHighSurrogate(prevCharCode)) {
+	for (let i = startOffset; i < len; i++) {
+		const charStartOffset = i;
+		const charCode = lineText.charCodeAt(i);
+		let charCodeClass: number;
+		let charWidth: number;
+
+		if (strings.isHighSurrogate(charCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
-			visibleColumn += 1;
-			prevCharCode = charCode;
-			prevCharCodeClass = charCodeClass;
-			continue;
+			i++;
+			charCodeClass = CharacterClass.NONE;
+			charWidth = 2;
+		} else {
+			charCodeClass = classifier.get(charCode);
+			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
 		}
 
 		if (canBreak(prevCharCodeClass, charCodeClass)) {
-			breakOffset = i;
+			breakOffset = charStartOffset;
 			breakOffsetVisibleColumn = visibleColumn;
 		}
 
-		const charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
 		visibleColumn += charWidth;
 
 		// check if adding character at `i` will go over the breaking column
@@ -382,7 +421,7 @@ function createLineMapping(classifier: WrappingCharacterClassifier, lineText: st
 
 			if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakingColumn) {
 				// Cannot break at `breakOffset`, must break at `i`
-				breakOffset = i;
+				breakOffset = charStartOffset;
 				breakOffsetVisibleColumn = visibleColumn - charWidth;
 			}
 

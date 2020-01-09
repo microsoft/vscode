@@ -154,6 +154,34 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 			16, '\t\t"owner":| |"vscode"|,',
 			WrappingIndent.Same
 		);
+
+		assertIncrementalLineMapping(
+			factory, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇&👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬', 4,
+			51, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇&|👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬',
+			50, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇|&|👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬',
+			WrappingIndent.Same
+		);
+
+		assertIncrementalLineMapping(
+			factory, '🐇👬&🌞🌖', 4,
+			5, '🐇👬&|🌞🌖',
+			4, '🐇👬|&|🌞🌖',
+			WrappingIndent.Same
+		);
+
+		assertIncrementalLineMapping(
+			factory, '\t\tfunc(\'🌞🏇🍼🌞🏇🍼🐇&👬🌖🌞👬🌖🌞🏇🍼🐇👬\', WrappingIndent.Same);', 4,
+			26, '\t\tfunc|(\'🌞🏇🍼🌞🏇🍼🐇&|👬🌖🌞👬🌖🌞🏇🍼🐇|👬\', |WrappingIndent.|Same);',
+			27, '\t\tfunc|(\'🌞🏇🍼🌞🏇🍼🐇&|👬🌖🌞👬🌖🌞🏇🍼🐇|👬\', |WrappingIndent.|Same);',
+			WrappingIndent.Same
+		);
+
+		assertIncrementalLineMapping(
+			factory, 'factory, "xtxtfunc(x"🌞🏇🍼🌞🏇🍼🐇&👬🌖🌞👬🌖🌞🏇🍼🐇👬x"', 4,
+			16, 'factory, |"xtxtfunc|(x"🌞🏇🍼🌞🏇🍼|🐇&|👬🌖🌞👬🌖🌞🏇🍼|🐇👬x"',
+			17, 'factory, |"xtxtfunc|(x"🌞🏇🍼🌞🏇🍼🐇|&👬🌖🌞👬🌖🌞🏇🍼|🐇👬x"',
+			WrappingIndent.Same
+		);
 	});
 
 
@@ -185,7 +213,17 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 
 	test('issue #75494: surrogate pairs', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('\t', ' ');
-		assertLineMapping(factory, 4, 49, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇|👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬', WrappingIndent.Same);
+		assertLineMapping(factory, 4, 49, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼|🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼|🐇👬', WrappingIndent.Same);
+	});
+
+	test('issue #75494: surrogate pairs overrun 1', () => {
+		const factory = new CharacterHardWrappingLineMapperFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+		assertLineMapping(factory, 4, 4, '🐇👬|&|🌞🌖', WrappingIndent.Same);
+	});
+
+	test('issue #75494: surrogate pairs overrun 2', () => {
+		const factory = new CharacterHardWrappingLineMapperFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+		assertLineMapping(factory, 4, 17, 'factory, |"xtxtfunc|(x"🌞🏇🍼🌞🏇🍼🐇|&👬🌖🌞👬🌖🌞🏇🍼|🐇👬x"', WrappingIndent.Same);
 	});
 
 	test('CharacterHardWrappingLineMapper - WrappingIndent.DeepIndent', () => {
