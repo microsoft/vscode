@@ -18,7 +18,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/tree';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar, ActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -467,6 +467,7 @@ export class TunnelPanel extends ViewPane {
 		renderer.actionRunner = actionRunner;
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e, actionRunner)));
+		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 
 		this.tree.setInput(this.viewModel);
 		this._register(this.viewModel.onForwardedPortsChanged(() => {
@@ -553,6 +554,12 @@ export class TunnelPanel extends ViewPane {
 			getActionsContext: () => node,
 			actionRunner
 		});
+	}
+
+	private onMouseDblClick(e: ITreeMouseEvent<ITunnelGroup | ITunnelItem | null>): void {
+		if (!e.element) {
+			this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
+		}
 	}
 
 	protected layoutBody(height: number, width: number): void {
