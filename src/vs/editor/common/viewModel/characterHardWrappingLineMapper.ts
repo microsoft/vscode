@@ -81,103 +81,102 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			finalize: () => {
 				let result: (LineBreakingData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
-					result[i] = this._createLineMapping(requests[i], previousBreakingData[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
+					result[i] = createLineMapping(this.classifier, previousBreakingData[i], requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 				}
 				return result;
 			}
 		};
 	}
+}
 
-	private _createLineMapping(lineText: string, previousBreakingData: LineBreakingData | null, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
-		if (firstLineBreakingColumn === -1) {
-			return null;
-		}
-
-		const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
-		const wrappedLineBreakingColumn = firstLineBreakingColumn - wrappedTextIndentLength;
-
-		const classifier = this.classifier;
-		let breakingOffsets: number[] = [];
-		let breakingOffsetsVisibleColumn: number[] = [];
-		let breakingOffsetsCount: number = 0;
-		let visibleColumn = 0;
-		let breakOffset = 0;
-		let breakOffsetVisibleColumn = 0;
-		const len = lineText.length;
-		const len1 = len - 1;
-
-		let breakingColumn = firstLineBreakingColumn;
-		let prevCharCode = CharCode.Null;
-		let prevCharCodeClass = CharacterClass.NONE;
-		let charCode = CharCode.Null;
-		let charCodeClass = CharacterClass.NONE;
-		let nextCharCode = (len > 0 ? lineText.charCodeAt(0) : CharCode.Null);
-		let nextCharCodeClass = classifier.get(nextCharCode);
-
-		for (let i = 0; i < len; i++) {
-			// At this point, there is a certainty that the character before `i` fits on the current line,
-			// but the character at `i` might not fit
-
-			prevCharCode = charCode;
-			prevCharCodeClass = charCodeClass;
-			charCode = nextCharCode;
-			charCodeClass = nextCharCodeClass;
-			nextCharCode = (i < len1 ? lineText.charCodeAt(i + 1) : CharCode.Null);
-			nextCharCodeClass = classifier.get(nextCharCode);
-
-			if (strings.isLowSurrogate(charCode)) {
-				// A surrogate pair must always be considered as a single unit, so it is never to be broken
-				visibleColumn += 1;
-				continue;
-			}
-
-			if (prevCharCode !== CharCode.Null && canBreakBefore(charCodeClass, prevCharCodeClass)) {
-				breakOffset = i;
-				breakOffsetVisibleColumn = visibleColumn;
-			}
-
-			const charColumnSize = (
-				charCode === CharCode.Tab
-					? tabCharacterWidth(visibleColumn, tabSize)
-					: (strings.isFullWidthCharacter(charCode) ? columnsForFullWidthChar : 1)
-			);
-
-			visibleColumn += charColumnSize;
-
-			// check if adding character at `i` will go over the breaking column
-			if (visibleColumn > breakingColumn && i !== 0) {
-				// We need to break at least before character at `i`:
-
-				if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakingColumn) {
-					// Cannot break at `breakOffset`, must break at `i`
-					breakOffset = i;
-					breakOffsetVisibleColumn = visibleColumn - charColumnSize;
-				}
-
-				breakingOffsets[breakingOffsetsCount] = breakOffset;
-				breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
-				breakingOffsetsCount++;
-				breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakingColumn;
-				breakOffset = 0;
-			}
-
-			// At this point, there is a certainty that the character at `i` fits on the current line
-			if (nextCharCode !== CharCode.Null && canBreakAfter(charCodeClass, nextCharCodeClass)) {
-				breakOffset = i + 1;
-				breakOffsetVisibleColumn = visibleColumn;
-			}
-		}
-
-		if (breakingOffsetsCount === 0) {
-			return null;
-		}
-
-		// Add last segment
-		breakingOffsets[breakingOffsetsCount] = len;
-		breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
-
-		return new LineBreakingData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+function createLineMapping(classifier: WrappingCharacterClassifier, previousBreakingData: LineBreakingData | null, lineText: string, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
+	if (firstLineBreakingColumn === -1) {
+		return null;
 	}
+
+	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
+	const wrappedLineBreakingColumn = firstLineBreakingColumn - wrappedTextIndentLength;
+
+	let breakingOffsets: number[] = [];
+	let breakingOffsetsVisibleColumn: number[] = [];
+	let breakingOffsetsCount: number = 0;
+	let visibleColumn = 0;
+	let breakOffset = 0;
+	let breakOffsetVisibleColumn = 0;
+	const len = lineText.length;
+	const len1 = len - 1;
+
+	let breakingColumn = firstLineBreakingColumn;
+	let prevCharCode = CharCode.Null;
+	let prevCharCodeClass = CharacterClass.NONE;
+	let charCode = CharCode.Null;
+	let charCodeClass = CharacterClass.NONE;
+	let nextCharCode = (len > 0 ? lineText.charCodeAt(0) : CharCode.Null);
+	let nextCharCodeClass = classifier.get(nextCharCode);
+
+	for (let i = 0; i < len; i++) {
+		// At this point, there is a certainty that the character before `i` fits on the current line,
+		// but the character at `i` might not fit
+
+		prevCharCode = charCode;
+		prevCharCodeClass = charCodeClass;
+		charCode = nextCharCode;
+		charCodeClass = nextCharCodeClass;
+		nextCharCode = (i < len1 ? lineText.charCodeAt(i + 1) : CharCode.Null);
+		nextCharCodeClass = classifier.get(nextCharCode);
+
+		if (strings.isLowSurrogate(charCode)) {
+			// A surrogate pair must always be considered as a single unit, so it is never to be broken
+			visibleColumn += 1;
+			continue;
+		}
+
+		if (prevCharCode !== CharCode.Null && canBreakBefore(charCodeClass, prevCharCodeClass)) {
+			breakOffset = i;
+			breakOffsetVisibleColumn = visibleColumn;
+		}
+
+		const charColumnSize = (
+			charCode === CharCode.Tab
+				? tabCharacterWidth(visibleColumn, tabSize)
+				: (strings.isFullWidthCharacter(charCode) ? columnsForFullWidthChar : 1)
+		);
+
+		visibleColumn += charColumnSize;
+
+		// check if adding character at `i` will go over the breaking column
+		if (visibleColumn > breakingColumn && i !== 0) {
+			// We need to break at least before character at `i`:
+
+			if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakingColumn) {
+				// Cannot break at `breakOffset`, must break at `i`
+				breakOffset = i;
+				breakOffsetVisibleColumn = visibleColumn - charColumnSize;
+			}
+
+			breakingOffsets[breakingOffsetsCount] = breakOffset;
+			breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
+			breakingOffsetsCount++;
+			breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakingColumn;
+			breakOffset = 0;
+		}
+
+		// At this point, there is a certainty that the character at `i` fits on the current line
+		if (nextCharCode !== CharCode.Null && canBreakAfter(charCodeClass, nextCharCodeClass)) {
+			breakOffset = i + 1;
+			breakOffsetVisibleColumn = visibleColumn;
+		}
+	}
+
+	if (breakingOffsetsCount === 0) {
+		return null;
+	}
+
+	// Add last segment
+	breakingOffsets[breakingOffsetsCount] = len;
+	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
+
+	return new LineBreakingData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
 }
 
 function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
