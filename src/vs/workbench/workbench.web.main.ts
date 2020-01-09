@@ -60,7 +60,7 @@ import { BackupFileService } from 'vs/workbench/services/backup/common/backupFil
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { NoOpTunnelService } from 'vs/platform/remote/common/tunnelService';
+import { TunnelService } from 'vs/workbench/services/remote/common/tunnelService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
 import { IAuthTokenService } from 'vs/platform/auth/common/auth';
@@ -75,7 +75,7 @@ registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
 registerSingleton(IAccessibilityService, BrowserAccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
-registerSingleton(ITunnelService, NoOpTunnelService, true);
+registerSingleton(ITunnelService, TunnelService, true);
 registerSingleton(ILoggerService, FileLoggerService);
 registerSingleton(IAuthTokenService, AuthTokenService);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
