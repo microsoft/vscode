@@ -57,7 +57,7 @@ export function registerConfiguration(): IDisposable {
 			},
 			'sync.enableUIState': {
 				type: 'boolean',
-				description: localize('sync.enableUIState', "Enable synchronizing UI state."),
+				description: localize('sync.enableUIState', "Enable synchronizing UI state (Only Display Language)."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
