@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Event } from 'vs/base/common/event';
 import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -106,7 +107,7 @@ suite('Files - FileEditorTracker', () => {
 
 		model.textEditorModel.setValue('Super Good');
 
-		await timeout(300 /* 250ms debounce delay in text file editor model manager */);
+		await awaitEditorOpening(editorService);
 		assert.ok(editorService.isOpen({ resource }));
 
 		part.dispose();
@@ -138,11 +139,17 @@ suite('Files - FileEditorTracker', () => {
 
 		model.textEditorModel.setValue('Super Good');
 
-		await timeout(300 /* 250ms debounce delay in tracker */);
+		await awaitEditorOpening(editorService);
 		assert.ok(editorService.isOpen(untitledEditor));
 
 		part.dispose();
 		tracker.dispose();
 		model.dispose();
 	});
+
+	function awaitEditorOpening(editorService: IEditorService): Promise<void> {
+		return new Promise(c => {
+			Event.once(editorService.onDidActiveEditorChange)(c);
+		});
+	}
 });
