@@ -145,7 +145,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('active editor not always correct... #49125', async function () {
+	test.skip('active editor not always correct... #49125', async function () {
 		const randomFile1 = await createRandomFile();
 		const randomFile2 = await createRandomFile();
 
