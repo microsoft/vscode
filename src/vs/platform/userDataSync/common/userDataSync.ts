@@ -200,7 +200,8 @@ export interface IConflictSetting {
 export const ISettingsSyncService = createDecorator<ISettingsSyncService>('ISettingsSyncService');
 export interface ISettingsSyncService extends ISynchroniser {
 	_serviceBrand: any;
-	getConflicts(): Promise<IConflictSetting[]>;
+	readonly onDidChangeConflicts: Event<IConflictSetting[]>;
+	readonly conflicts: IConflictSetting[];
 	resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void>;
 }
 

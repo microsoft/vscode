@@ -42,6 +42,7 @@ export class SettingsSyncChannel implements IServerChannel {
 		switch (event) {
 			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
+			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
 		}
 		throw new Error(`Event not found: ${event}`);
 	}
@@ -50,8 +51,8 @@ export class SettingsSyncChannel implements IServerChannel {
 		switch (command) {
 			case 'sync': return this.service.sync(args[0]);
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
+			case '_getInitialConflicts': return Promise.resolve(this.service.conflicts);
 			case 'stop': this.service.stop(); return Promise.resolve();
-			case 'getConflicts': return this.service.getConflicts();
 			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
 		}
 		throw new Error('Invalid call');
