@@ -22,7 +22,7 @@ function assertLineMapping(factory: ILineMapperFactory, tabSize: number, breakAf
 	}
 
 	const lineMappingComputer = factory.createLineMappingComputer(tabSize, breakAfter, 2, wrappingIndent);
-	lineMappingComputer.addRequest(rawText);
+	lineMappingComputer.addRequest(rawText, null);
 	const lineMappings = lineMappingComputer.finalize();
 	const mapper = lineMappings[0];
 

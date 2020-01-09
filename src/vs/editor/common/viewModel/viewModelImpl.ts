@@ -202,12 +202,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.LinesInserted: {
 							for (const line of change.detail) {
-								lineMappingComputer.addRequest(line);
+								lineMappingComputer.addRequest(line, null);
 							}
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							lineMappingComputer.addRequest(change.detail);
+							lineMappingComputer.addRequest(change.detail, null);
 							break;
 						}
 					}

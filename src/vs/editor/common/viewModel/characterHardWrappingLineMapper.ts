@@ -72,50 +72,28 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		columnsForFullWidthChar = +columnsForFullWidthChar; //@perf
 
 		let requests: string[] = [];
+		let previousBreakingData: (LineBreakingData | null)[] = [];
 		return {
-			addRequest: (lineText: string) => {
+			addRequest: (lineText: string, previousLineBreakingData: LineBreakingData | null) => {
 				requests.push(lineText);
+				previousBreakingData.push(previousLineBreakingData);
 			},
 			finalize: () => {
 				let result: (LineBreakingData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
-					result[i] = this._createLineMapping(requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
+					result[i] = this._createLineMapping(requests[i], previousBreakingData[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 				}
 				return result;
 			}
 		};
 	}
 
-	private _createLineMapping(lineText: string, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
+	private _createLineMapping(lineText: string, previousBreakingData: LineBreakingData | null, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
 		if (firstLineBreakingColumn === -1) {
 			return null;
 		}
 
-		let firstNonWhitespaceIndex = -1;
-		let wrappedTextIndentLength = 0;
-		if (hardWrappingIndent !== WrappingIndent.None) {
-			firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
-			if (firstNonWhitespaceIndex !== -1) {
-				// Track existing indent
-
-				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-					const charWidth = (lineText.charCodeAt(i) === CharCode.Tab ? tabCharacterWidth(wrappedTextIndentLength, tabSize) : 1);
-					wrappedTextIndentLength += charWidth;
-				}
-
-				// Increase indent of continuation lines, if desired
-				const numberOfAdditionalTabs = (hardWrappingIndent === WrappingIndent.DeepIndent ? 2 : hardWrappingIndent === WrappingIndent.Indent ? 1 : 0);
-				for (let i = 0; i < numberOfAdditionalTabs; i++) {
-					const charWidth = tabCharacterWidth(wrappedTextIndentLength, tabSize);
-					wrappedTextIndentLength += charWidth;
-				}
-
-				// Force sticking to beginning of line if no character would fit except for the indentation
-				if (wrappedTextIndentLength + columnsForFullWidthChar > firstLineBreakingColumn) {
-					wrappedTextIndentLength = 0;
-				}
-			}
-		}
+		const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
 		const wrappedLineBreakingColumn = firstLineBreakingColumn - wrappedTextIndentLength;
 
 		const classifier = this.classifier;
@@ -222,4 +200,32 @@ function canBreakAfter(charCodeClass: CharacterClass, nextCharCodeClass: Charact
 		(charCodeClass === CharacterClass.BREAK_AFTER)
 		|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && nextCharCodeClass !== CharacterClass.BREAK_AFTER)
 	);
+}
+
+function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): number {
+	let wrappedTextIndentLength = 0;
+	if (hardWrappingIndent !== WrappingIndent.None) {
+		const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
+		if (firstNonWhitespaceIndex !== -1) {
+			// Track existing indent
+
+			for (let i = 0; i < firstNonWhitespaceIndex; i++) {
+				const charWidth = (lineText.charCodeAt(i) === CharCode.Tab ? tabCharacterWidth(wrappedTextIndentLength, tabSize) : 1);
+				wrappedTextIndentLength += charWidth;
+			}
+
+			// Increase indent of continuation lines, if desired
+			const numberOfAdditionalTabs = (hardWrappingIndent === WrappingIndent.DeepIndent ? 2 : hardWrappingIndent === WrappingIndent.Indent ? 1 : 0);
+			for (let i = 0; i < numberOfAdditionalTabs; i++) {
+				const charWidth = tabCharacterWidth(wrappedTextIndentLength, tabSize);
+				wrappedTextIndentLength += charWidth;
+			}
+
+			// Force sticking to beginning of line if no character would fit except for the indentation
+			if (wrappedTextIndentLength + columnsForFullWidthChar > firstLineBreakingColumn) {
+				wrappedTextIndentLength = 0;
+			}
+		}
+	}
+	return wrappedTextIndentLength;
 }
