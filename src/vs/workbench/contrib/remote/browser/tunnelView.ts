@@ -364,9 +364,9 @@ class TunnelItem implements ITunnelItem {
 		if (this.name) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel0', "{0}", this.name);
 		} else if (this.localAddress && (this.remoteHost !== 'localhost')) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0}:{1} to {2}", this.remoteHost, this.remotePort, this.localAddress);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0}:{1} \u2192 {2}", this.remoteHost, this.remotePort, this.localAddress);
 		} else if (this.localAddress) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel3', "{0} to {1}", this.remotePort, this.localAddress);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel3', "{0} \u2192 {1}", this.remotePort, this.localAddress);
 		} else if (this.remoteHost !== 'localhost') {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel4', "{0}:{1} not forwarded", this.remoteHost, this.remotePort);
 		} else {
