@@ -94,64 +94,53 @@ function createLineMapping(classifier: WrappingCharacterClassifier, previousBrea
 		return null;
 	}
 
+	const len = lineText.length;
+	if (len <= 1) {
+		return null;
+	}
+
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
 	const wrappedLineBreakingColumn = firstLineBreakingColumn - wrappedTextIndentLength;
 
 	let breakingOffsets: number[] = [];
 	let breakingOffsetsVisibleColumn: number[] = [];
 	let breakingOffsetsCount: number = 0;
-	let visibleColumn = 0;
 	let breakOffset = 0;
 	let breakOffsetVisibleColumn = 0;
-	const len = lineText.length;
-	const len1 = len - 1;
 
 	let breakingColumn = firstLineBreakingColumn;
-	let prevCharCode = CharCode.Null;
-	let prevCharCodeClass = CharacterClass.NONE;
-	let charCode = CharCode.Null;
-	let charCodeClass = CharacterClass.NONE;
-	let nextCharCode = (len > 0 ? lineText.charCodeAt(0) : CharCode.Null);
-	let nextCharCodeClass = classifier.get(nextCharCode);
+	let prevCharCode = lineText.charCodeAt(0);
+	let prevCharCodeClass = classifier.get(prevCharCode);
+	let visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
 
-	for (let i = 0; i < len; i++) {
-		// At this point, there is a certainty that the character before `i` fits on the current line,
-		// but the character at `i` might not fit
+	for (let i = 1; i < len; i++) {
+		const charCode = lineText.charCodeAt(i);
+		const charCodeClass = classifier.get(charCode);
 
-		prevCharCode = charCode;
-		prevCharCodeClass = charCodeClass;
-		charCode = nextCharCode;
-		charCodeClass = nextCharCodeClass;
-		nextCharCode = (i < len1 ? lineText.charCodeAt(i + 1) : CharCode.Null);
-		nextCharCodeClass = classifier.get(nextCharCode);
-
-		if (strings.isLowSurrogate(charCode)) {
+		if (strings.isHighSurrogate(prevCharCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
 			visibleColumn += 1;
+			prevCharCode = charCode;
+			prevCharCodeClass = charCodeClass;
 			continue;
 		}
 
-		if (prevCharCode !== CharCode.Null && canBreakBefore(charCodeClass, prevCharCodeClass)) {
+		if (canBreak(prevCharCodeClass, charCodeClass)) {
 			breakOffset = i;
 			breakOffsetVisibleColumn = visibleColumn;
 		}
 
-		const charColumnSize = (
-			charCode === CharCode.Tab
-				? tabCharacterWidth(visibleColumn, tabSize)
-				: (strings.isFullWidthCharacter(charCode) ? columnsForFullWidthChar : 1)
-		);
-
-		visibleColumn += charColumnSize;
+		const charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
+		visibleColumn += charWidth;
 
 		// check if adding character at `i` will go over the breaking column
-		if (visibleColumn > breakingColumn && i !== 0) {
+		if (visibleColumn > breakingColumn) {
 			// We need to break at least before character at `i`:
 
 			if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakingColumn) {
 				// Cannot break at `breakOffset`, must break at `i`
 				breakOffset = i;
-				breakOffsetVisibleColumn = visibleColumn - charColumnSize;
+				breakOffsetVisibleColumn = visibleColumn - charWidth;
 			}
 
 			breakingOffsets[breakingOffsetsCount] = breakOffset;
@@ -161,11 +150,8 @@ function createLineMapping(classifier: WrappingCharacterClassifier, previousBrea
 			breakOffset = 0;
 		}
 
-		// At this point, there is a certainty that the character at `i` fits on the current line
-		if (nextCharCode !== CharCode.Null && canBreakAfter(charCodeClass, nextCharCodeClass)) {
-			breakOffset = i + 1;
-			breakOffsetVisibleColumn = visibleColumn;
-		}
+		prevCharCode = charCode;
+		prevCharCodeClass = charCodeClass;
 	}
 
 	if (breakingOffsetsCount === 0) {
@@ -176,28 +162,33 @@ function createLineMapping(classifier: WrappingCharacterClassifier, previousBrea
 	breakingOffsets[breakingOffsetsCount] = len;
 	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
 
-	return new LineBreakingData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+	return new LineBreakingData(firstLineBreakingColumn, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+}
+
+function computeCharWidth(charCode: number, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number): number {
+	if (charCode === CharCode.Tab) {
+		return (tabSize - (visibleColumn % tabSize));
+	}
+	if (strings.isFullWidthCharacter(charCode)) {
+		return columnsForFullWidthChar;
+	}
+	return 1;
 }
 
 function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
 	return (tabSize - (visibleColumn % tabSize));
 }
 
-function canBreakBefore(charCodeClass: CharacterClass, prevCharCodeClass: CharacterClass): boolean {
-	// This is a character that indicates that a break should happen before it
-	// (or) CJK breaking : before break : Kinsoku Shori : Don't break after a leading character, like an open bracket
+/**
+ * Kinsoku Shori : Don't break after a leading character, like an open bracket
+ * Kinsoku Shori : Don't break before a trailing character, like a period
+ */
+function canBreak(prevCharCodeClass: CharacterClass, charCodeClass: CharacterClass): boolean {
 	return (
-		(charCodeClass === CharacterClass.BREAK_BEFORE)
+		(prevCharCodeClass === CharacterClass.BREAK_AFTER)
+		|| (prevCharCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && charCodeClass !== CharacterClass.BREAK_AFTER)
+		|| (charCodeClass === CharacterClass.BREAK_BEFORE)
 		|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && prevCharCodeClass !== CharacterClass.BREAK_BEFORE)
-	);
-}
-
-function canBreakAfter(charCodeClass: CharacterClass, nextCharCodeClass: CharacterClass): boolean {
-	// This is a character that indicates that a break should happen after it
-	// (or) CJK breaking : after break : Kinsoku Shori : Don't break before a trailing character, like a period
-	return (
-		(charCodeClass === CharacterClass.BREAK_AFTER)
-		|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && nextCharCodeClass !== CharacterClass.BREAK_AFTER)
 	);
 }
 

@@ -28,6 +28,7 @@ export class OutputPosition {
 
 export class LineBreakingData {
 	constructor(
+		public readonly breakingColumn: number,
 		public readonly breakOffsets: number[],
 		public readonly breakingOffsetsVisibleColumn: number[],
 		public readonly wrappedTextIndentLength: number

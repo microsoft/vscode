@@ -781,7 +781,7 @@ function createLineMapping(breakingLengths: number[], breakingOffsetsVisibleColu
 	for (let i = 0; i < breakingLengths.length; i++) {
 		sums[i] = (i > 0 ? sums[i - 1] : 0) + breakingLengths[i];
 	}
-	return new LineBreakingData(sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth);
+	return new LineBreakingData(0, sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth);
 }
 
 function createModel(text: string): ISimpleModel {
