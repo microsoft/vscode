@@ -211,7 +211,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 					this.webview!.element.style.top = `${scrollTop}px`;
 					let updateItems: { top: number, id: string }[] = [];
 
-					const date = new Date();
+					// const date = new Date();
 					this.webview?.mapping.forEach((item) => {
 						let index = this.model!.getNotebook().cells.indexOf(item.cell.cell);
 						let top = this.list?.getElementTop(index) || 0;
