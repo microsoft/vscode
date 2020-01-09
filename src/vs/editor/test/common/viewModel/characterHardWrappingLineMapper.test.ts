@@ -147,6 +147,13 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 			57, 'An his legere persecuti, oblique delicata efficiantur ex |vix, vel at graecis officiis maluisset. Et per impedit |voluptua, usu discere maiorum at. Ut assum ornatus |temporibus vis, an sea melius pericula. Ea dicunt |oblique phaedrum nam, eu duo movet nobis. His melius |facilis eu, vim malorum temporibus ne. Nec no sale |regione, meliore civibus placerat id eam. Mea alii |fabulas definitionem te, agam volutpat ad vis, et per |bonorum nonumes repudiandae.',
 			58, 'An his legere persecuti, oblique delicata efficiantur ex |vix, vel at graecis officiis maluisset. Et per impedit |voluptua, usu discere maiorum at. Ut assum ornatus |temporibus vis, an sea melius pericula. Ea dicunt oblique |phaedrum nam, eu duo movet nobis. His melius facilis eu, |vim malorum temporibus ne. Nec no sale regione, meliore |civibus placerat id eam. Mea alii fabulas definitionem te,| agam volutpat ad vis, et per bonorum nonumes repudiandae.'
 		);
+
+		assertIncrementalLineMapping(
+			factory, '\t\t"owner": "vscode",', 4,
+			14, '\t\t"owner|": |"vscod|e",',
+			16, '\t\t"owner":| |"vscode"|,',
+			WrappingIndent.Same
+		);
 	});
 
 
