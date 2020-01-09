@@ -238,25 +238,9 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 			return undefined;
 		}
 
-		return new Promise<any>((resolve, reject) => {
-
-			progress.report({ message: localize('formatting', "Formatting") });
-
-			const source = new CancellationTokenSource(token);
-			const editorOrModel = findEditor(model, this._codeEditorService) || model;
-			const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', overrides) * 1000;
-			const request = this._instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, source.token);
-
-			setTimeout(() => {
-				reject(new SaveParticipantError(
-					localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout),
-					'editor.formatOnSaveTimeout'
-				));
-				source.cancel();
-			}, timeout);
-
-			request.then(resolve, reject);
-		});
+		progress.report({ message: localize('formatting', "Formatting") });
+		const editorOrModel = findEditor(model, this._codeEditorService) || model;
+		await this._instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, token);
 	}
 }
 
@@ -305,25 +289,8 @@ class CodeActionOnSaveParticipant implements ISaveParticipantParticipant {
 			.filter(x => setting[x] === false)
 			.map(x => new CodeActionKind(x));
 
-		const tokenSource = new CancellationTokenSource(token);
-
-		const timeout = this._configurationService.getValue<number>('editor.codeActionsOnSaveTimeout', settingsOverrides);
-
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
-
-		return Promise.race([
-			new Promise<void>((_resolve, reject) =>
-				setTimeout(() => {
-					tokenSource.cancel();
-					reject(new SaveParticipantError(
-						localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout),
-						'editor.codeActionsOnSaveTimeout'
-					));
-				}, timeout)),
-			this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, tokenSource.token)
-		]).finally(() => {
-			tokenSource.cancel();
-		});
+		await this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, token);
 	}
 
 	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], token: CancellationToken): Promise<void> {
