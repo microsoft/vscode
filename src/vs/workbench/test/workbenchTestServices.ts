@@ -95,8 +95,6 @@ import { find } from 'vs/base/common/arrays';
 import { WorkingCopyService, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { MockDebugService } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -326,7 +324,6 @@ export function workbenchInstantiationService(): ITestInstantiationService {
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 	instantiationService.stub(IViewletService, new TestViewletService());
 	instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
-	instantiationService.stub(IDebugService, new MockDebugService());
 
 	return instantiationService;
 }

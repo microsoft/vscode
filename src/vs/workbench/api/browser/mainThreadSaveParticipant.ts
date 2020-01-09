@@ -27,7 +27,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ISaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -37,6 +37,8 @@ import { IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/sta
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SettingsEditor2 } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 
 export interface ICodeActionsOnSaveOptions {
 	[kind: string]: boolean;
@@ -48,8 +50,8 @@ class SaveParticipantError extends Error {
 	}
 }
 
-export interface ISaveParticipantParticipant extends ISaveParticipant {
-	// progressMessage: string;
+export interface ISaveParticipantParticipant {
+	participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void>;
 }
 
 class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
@@ -92,7 +94,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 			return; // Nothing to do
 		}
 
-		model.pushEditOperations(prevSelection, ops, (edits) => prevSelection);
+		model.pushEditOperations(prevSelection, ops, (_edits) => prevSelection);
 	}
 }
 
@@ -123,7 +125,7 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 		// Nothing
 	}
 
-	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+	async participate(model: IResolvedTextFileEditorModel, _env: { reason: SaveReason; }): Promise<void> {
 		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
@@ -209,7 +211,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 			return;
 		}
 
-		model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], edits => prevSelection);
+		model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], _edits => prevSelection);
 
 		if (editor) {
 			editor.setSelections(prevSelection);
@@ -227,7 +229,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		// Nothing
 	}
 
-	async participate(editorModel: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+	async participate(editorModel: IResolvedTextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		const model = editorModel.textEditorModel;
 		const overrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri };
@@ -236,26 +238,13 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 			return undefined;
 		}
 
-		return new Promise<any>((resolve, reject) => {
-			const source = new CancellationTokenSource();
-			const editorOrModel = findEditor(model, this._codeEditorService) || model;
-			const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', overrides);
-			const request = this._instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, source.token);
-
-			setTimeout(() => {
-				reject(new SaveParticipantError(
-					localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout),
-					'editor.formatOnSaveTimeout'
-				));
-				source.cancel();
-			}, timeout);
-
-			request.then(resolve, reject);
-		});
+		progress.report({ message: localize('formatting', "Formatting") });
+		const editorOrModel = findEditor(model, this._codeEditorService) || model;
+		await this._instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, token);
 	}
 }
 
-class CodeActionOnSaveParticipant implements ISaveParticipant {
+class CodeActionOnSaveParticipant implements ISaveParticipantParticipant {
 
 	constructor(
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -264,7 +253,7 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
 
-	async participate(editorModel: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+	async participate(editorModel: IResolvedTextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (env.reason === SaveReason.AUTO) {
 			return undefined;
 		}
@@ -300,23 +289,8 @@ class CodeActionOnSaveParticipant implements ISaveParticipant {
 			.filter(x => setting[x] === false)
 			.map(x => new CodeActionKind(x));
 
-		const tokenSource = new CancellationTokenSource();
-
-		const timeout = this._configurationService.getValue<number>('editor.codeActionsOnSaveTimeout', settingsOverrides);
-
-		return Promise.race([
-			new Promise<void>((_resolve, reject) =>
-				setTimeout(() => {
-					tokenSource.cancel();
-					reject(new SaveParticipantError(
-						localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout),
-						'editor.codeActionsOnSaveTimeout'
-					));
-				}, timeout)),
-			this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, tokenSource.token)
-		]).finally(() => {
-			tokenSource.cancel();
-		});
+		progress.report({ message: localize('codeaction', "Quick Fixes") });
+		await this.applyOnSaveActions(model, codeActionsOnSave, excludedActions, token);
 	}
 
 	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], token: CancellationToken): Promise<void> {
@@ -354,7 +328,7 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
-	async participate(editorModel: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+	async participate(editorModel: IResolvedTextFileEditorModel, env: { reason: SaveReason; }, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		if (!shouldSynchronizeModel(editorModel.textEditorModel)) {
 			// the model never made it to the extension
@@ -363,6 +337,9 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 		}
 
 		return new Promise<any>((resolve, reject) => {
+
+			token.onCancellationRequested(() => reject(canceled()));
+
 			setTimeout(
 				() => reject(new SaveParticipantError(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms"))),
 				1750
@@ -388,7 +365,8 @@ export class SaveParticipant implements ISaveParticipant {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		this._saveParticipants = new IdleValue(() => [
 			instantiationService.createInstance(TrimWhitespaceParticipant),
@@ -408,23 +386,41 @@ export class SaveParticipant implements ISaveParticipant {
 	}
 
 	async participate(model: IResolvedTextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		return this._progressService.withProgress({ location: ProgressLocation.Window }, async progress => {
-			progress.report({ message: localize('saveParticipants', "Running Save Participants...") });
+
+		const cts = new CancellationTokenSource();
+
+		return this._progressService.withProgress({
+			title: localize('saveParticipants', "Running Save Participants for '{0}'", this._labelService.getUriLabel(model.resource, { relative: true })),
+			location: ProgressLocation.Notification,
+			cancellable: true,
+			delay: model.isDirty() ? 3000 : 5000
+		}, async progress => {
 
 			let firstError: SaveParticipantError | undefined;
-
 			for (let p of this._saveParticipants.getValue()) {
+
+				if (cts.token.isCancellationRequested) {
+					break;
+				}
+
 				try {
-					await p.participate(model, env);
+					await p.participate(model, env, progress, cts.token);
+
 				} catch (err) {
-					this._logService.warn(err);
-					firstError = !firstError && err instanceof SaveParticipantError ? err : firstError;
+					if (!isPromiseCanceledError(err)) {
+						this._logService.warn(err);
+						firstError = !firstError && err instanceof SaveParticipantError ? err : firstError;
+					}
 				}
 			}
 
 			if (firstError) {
 				this._showParticipantError(firstError);
 			}
+
+		}, () => {
+			// user cancel
+			cts.dispose(true);
 		});
 	}
 

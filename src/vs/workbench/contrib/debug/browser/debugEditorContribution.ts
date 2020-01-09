@@ -36,7 +36,7 @@ import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 
 const HOVER_DELAY = 300;
-const LAUNCH_JSON_REGEX = /launch\.json$/;
+const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
