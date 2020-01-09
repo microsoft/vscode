@@ -56,7 +56,7 @@ export interface ITunnelViewModel {
 	readonly forwarded: TunnelItem[];
 	readonly detected: TunnelItem[];
 	readonly candidates: Promise<TunnelItem[]>;
-	readonly input: ITunnelItem | ITunnelGroup | undefined;
+	readonly input: TunnelItem;
 	groups(): Promise<ITunnelGroup[]>;
 }
 
@@ -64,16 +64,23 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	private _onForwardedPortsChanged: Emitter<void> = new Emitter();
 	public onForwardedPortsChanged: Event<void> = this._onForwardedPortsChanged.event;
 	private model: TunnelModel;
-	private _input: ITunnelItem | ITunnelGroup | undefined;
+	private _input: TunnelItem;
 
 	constructor(
-		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService) {
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
 		super();
 		this.model = remoteExplorerService.tunnelModel;
 		this._register(this.model.onForwardPort(() => this._onForwardedPortsChanged.fire()));
 		this._register(this.model.onClosePort(() => this._onForwardedPortsChanged.fire()));
 		this._register(this.model.onPortName(() => this._onForwardedPortsChanged.fire()));
 		this._register(this.model.onCandidatesChanged(() => this._onForwardedPortsChanged.fire()));
+		this._input = {
+			label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
+			tunnelType: TunnelType.Add,
+			remoteHost: 'localhost',
+			remotePort: 0,
+			description: ''
+		};
 	}
 
 	async groups(): Promise<ITunnelGroup[]> {
@@ -100,20 +107,20 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 				items: candidates
 			});
 		}
-		if (!this._input) {
-			this._input = {
-				label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
-				tunnelType: TunnelType.Add,
-			};
+		if (groups.length === 0) {
+			groups.push(this._input);
 		}
-		groups.push(this._input);
 		return groups;
 	}
 
 	get forwarded(): TunnelItem[] {
-		return Array.from(this.model.forwarded.values()).map(tunnel => {
+		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
 			return new TunnelItem(TunnelType.Forwarded, tunnel.remoteHost, tunnel.remotePort, tunnel.localAddress, tunnel.closeable, tunnel.name, tunnel.description);
 		});
+		if (this.remoteExplorerService.getEditableData(undefined)) {
+			forwarded.push(this._input);
+		}
+		return forwarded;
 	}
 
 	get detected(): TunnelItem[] {
@@ -135,7 +142,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		});
 	}
 
-	get input(): ITunnelItem | ITunnelGroup | undefined {
+	get input(): TunnelItem {
 		return this._input;
 	}
 
@@ -522,6 +529,7 @@ export class TunnelPanel extends ViewPane {
 			this.tunnelCloseableContext.set(!!node.closeable);
 		} else {
 			this.tunnelTypeContext.set(TunnelType.Add);
+			this.tunnelCloseableContext.set(false);
 		}
 
 		const actions: IAction[] = [];
