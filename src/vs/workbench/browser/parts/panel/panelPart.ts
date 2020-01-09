@@ -98,6 +98,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
@@ -156,14 +157,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.panelFocusContextKey = PanelFocusContext.bindTo(contextKeyService);
 
 		this.registerListeners();
-
-		setTimeout(() => {
-			this.onDidRegisterPanels([...this.getPanels()]);
-		}, 1);
+		this.onDidRegisterPanels([...this.getPanels()]);
 	}
 
 	private onDidRegisterPanels(panels: PanelDescriptor[]): void {
-		const viewsService = this.instantiationService.invokeFunction(accessor => accessor.get(IViewsService));
 		for (const panel of panels) {
 			const cachedPanel = this.getCachedPanels().filter(({ id }) => id === panel.id)[0];
 			const activePanel = this.getActivePanel();
@@ -187,7 +184,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			this.enableCompositeActions(panel);
 			const viewContainer = this.getViewContainer(panel.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = viewsService.getViewDescriptors(viewContainer);
+				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
 				if (viewDescriptors) {
 					this.onDidChangeActiveViews(panel, viewDescriptors);
 					this.panelDisposables.set(panel.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors)));

@@ -23,6 +23,8 @@ import { toggleClass, addClass } from 'vs/base/browser/dom';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { Extensions as PanelExtensions, PanelRegistry } from 'vs/workbench/browser/panel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 function filterViewRegisterEvent(container: ViewContainer, event: Event<{ viewContainer: ViewContainer, views: IViewDescriptor[]; }>): Event<IViewDescriptor[]> {
 	return Event.chain(event)
@@ -651,7 +653,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
-		@IPanelService private readonly panelService: IPanelService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
@@ -732,10 +734,12 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private async openComposite(compositeId: string, location: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
+		const panelService = this.instantiationService.invokeFunction(accessor => accessor.get(IPanelService));
+
 		if (location === ViewContainerLocation.Sidebar) {
 			return this.viewletService.openViewlet(compositeId, focus);
 		} else if (location === ViewContainerLocation.Panel) {
-			return this.panelService.openPanel(compositeId, focus) as IPaneComposite;
+			return panelService.openPanel(compositeId, focus) as IPaneComposite;
 		}
 		return undefined;
 	}
@@ -744,7 +748,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		if (location === ViewContainerLocation.Sidebar) {
 			return this.viewletService.getViewlet(compositeId);
 		} else if (location === ViewContainerLocation.Panel) {
-			return this.panelService.getPanel(compositeId);
+			return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanel(compositeId);
 		}
 
 		return undefined;
