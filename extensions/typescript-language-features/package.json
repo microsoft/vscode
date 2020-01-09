@@ -20,7 +20,8 @@
     "rimraf": "^2.6.3",
     "semver": "5.5.1",
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-nls": "^4.0.0"
+    "vscode-nls": "^4.0.0",
+    "typescript-vscode-sh-plugin":"^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^12.11.7",
@@ -952,6 +953,11 @@
             "title": "%codeActions.source.organizeImports.title%"
           }
         ]
+      }
+    ],
+    "typescriptServerPlugins": [
+      {
+        "name": "typescript-vscode-sh-plugin"
       }
     ]
   }

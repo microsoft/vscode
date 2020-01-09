@@ -56,13 +56,18 @@ class SemanticTokensProvider implements vscode.SemanticTokensProvider {
 			return null;
 		}
 
+		const versionBeforeRequest = document.version;
+
+		if (_options.ranges) {
+
+			//			const allArgs =  _options.ranges.map(r => ({file, start: document.offsetAt(r.start), length: document.offsetAt(r.end) - document.offsetAt(r.start)}));
+		}
+
 		const args: ExperimentalProtocol.EncodedSemanticClassificationsRequestArgs = {
 			file: file,
 			start: 0,
 			length: document.getText().length,
 		};
-
-		const versionBeforeRequest = document.version;
 
 		const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', args, token);
 		const versionAfterRequest = document.version;
@@ -84,22 +89,32 @@ class SemanticTokensProvider implements vscode.SemanticTokensProvider {
 		const tsTokens = response.body.spans;
 		for (let i = 0, len = Math.floor(tsTokens.length / 3); i < len; i++) {
 
-			const tokenType = tokenTypeMap[tsTokens[3 * i + 2]];
-			if (typeof tokenType === 'number') {
-				console.log(TokenType[tokenType]);
-				const offset = tsTokens[3 * i];
-				const length = tsTokens[3 * i + 1];
-
-				// we can use the document's range conversion methods because
-				// the result is at the same version as the document
-				const startPos = document.positionAt(offset);
-				const endPos = document.positionAt(offset + length);
-
-				for (let line = startPos.line; line <= endPos.line; line++) {
-					const startCharacter = (line === startPos.line ? startPos.character : 0);
-					const endCharacter = (line === endPos.line ? endPos.character : document.lineAt(line).text.length);
-					builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, 0);
+			const tsClassification = tsTokens[3 * i + 2];
+			let tokenType = 0;
+			let tokenModifiers = 0;
+			if (tsClassification > 0xFF) {
+				// classifications as returned by the typescript-vscode-sh-plugin
+				tokenType = (tsClassification >> 8) - 1;
+				tokenModifiers = tsClassification & 0xFF;
+			} else {
+				tokenType = tokenTypeMap[tsClassification];
+				if (tokenType === undefined) {
+					continue;
 				}
+			}
+
+			const offset = tsTokens[3 * i];
+			const length = tsTokens[3 * i + 1];
+
+			// we can use the document's range conversion methods because
+			// the result is at the same version as the document
+			const startPos = document.positionAt(offset);
+			const endPos = document.positionAt(offset + length);
+
+			for (let line = startPos.line; line <= endPos.line; line++) {
+				const startCharacter = (line === startPos.line ? startPos.character : 0);
+				const endCharacter = (line === endPos.line ? endPos.character : document.lineAt(line).text.length);
+				builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, tokenModifiers);
 			}
 		}
 
