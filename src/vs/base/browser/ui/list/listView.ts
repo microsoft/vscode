@@ -199,6 +199,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private readonly _willScroll = new Emitter<ScrollEvent>();
 	get onWillScroll(): Event<ScrollEvent> { return this._willScroll.event; }
 
+	private _isRendering: boolean = false;
+	get isRendering(): boolean {
+		return this._isRendering;
+	}
+
+	set isRendering(newState: boolean) {
+		this._isRendering = newState;
+	}
+
 	constructor(
 		container: HTMLElement,
 		private virtualDelegate: IListVirtualDelegate<T>,
@@ -1038,6 +1047,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
 	private _rerender(renderTop: number, renderHeight: number): void {
+		this.isRendering = true;
 		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 
 		// Let's remember the second element's position, this helps in scrolling up
@@ -1108,6 +1118,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				}
 
 				this._onDidChangeContentHeight.fire(this.contentHeight);
+				this.isRendering = false;
 				return;
 			}
 		}
