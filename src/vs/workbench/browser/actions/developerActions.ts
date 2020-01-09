@@ -144,7 +144,7 @@ class ToggleScreencastModeAction extends Action {
 
 		const updateKeyboardFontSize = () => {
 			keyboardMarker.style.fontSize = `${this.configurationService.getValue<number>('screencastMode.fontSize')}px`;
-			keyboardMarker.style.height = keyboardMarker.style.lineHeight = `${this.configurationService.getValue<number>('screencastMode.fontSize') + 44}px`;
+			keyboardMarker.style.height = keyboardMarker.style.lineHeight = `${this.configurationService.getValue<number>('screencastMode.fontSize') / 0.56}px`;
 		};
 
 		const updateKeyboardMarker = () => {
