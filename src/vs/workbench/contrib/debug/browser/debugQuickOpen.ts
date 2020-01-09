@@ -96,18 +96,24 @@ export class DebugQuickOpenHandler extends QuickOpenHandler {
 		const configurations: QuickOpenEntry[] = [];
 
 		const configManager = this.debugService.getConfigurationManager();
-		const launches = configManager.getLaunches();
-		for (let launch of launches) {
-			launch.getConfigurationNames().map(config => ({ config: config, highlights: matchesFuzzy(input, config, true) || undefined }))
-				.filter(({ highlights }) => !!highlights)
-				.forEach(({ config, highlights }) => {
-					if (launch === configManager.selectedConfiguration.launch && config === configManager.selectedConfiguration.name) {
-						this.autoFocusIndex = configurations.length;
-					}
-					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.notificationService, launch, config, highlights));
-				});
+		const allConfigurations = configManager.getAllConfigurations();
+		let lastGroup: string | undefined;
+		for (let config of allConfigurations) {
+			const highlights = matchesFuzzy(input, config.name, true);
+			if (highlights) {
+				if (config.launch === configManager.selectedConfiguration.launch && config.name === configManager.selectedConfiguration.name) {
+					this.autoFocusIndex = configurations.length;
+				}
+				let entry: QuickOpenEntry = new StartDebugEntry(this.debugService, this.contextService, this.notificationService, config.launch, config.name, highlights);
+				if (lastGroup !== config.presentation?.group) {
+					entry = new QuickOpenEntryGroup(entry, undefined, true);
+					lastGroup = config.presentation?.group;
+				}
+				configurations.push(entry);
+			}
 		}
-		launches.filter(l => !l.hidden).forEach((l, index) => {
+
+		configManager.getLaunches().filter(l => !l.hidden).forEach((l, index) => {
 
 			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, matchesFuzzy(input, label, true) || undefined);

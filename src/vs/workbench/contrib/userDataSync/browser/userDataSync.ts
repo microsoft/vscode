@@ -161,9 +161,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		let priority: number | undefined = undefined;
 
 		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.configurationService.getValue<boolean>(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING) && this.authTokenService.status === AuthTokenStatus.SignedOut) {
-			badge = new NumberBadge(1, () => localize('sign in', "Sync: Sign in..."));
+			badge = new NumberBadge(1, () => localize('sign in to sync', "Sign in to Sync"));
 		} else if (this.authTokenService.status === AuthTokenStatus.SigningIn) {
-			badge = new ProgressBadge(() => localize('signing in', "Signin in..."));
+			badge = new ProgressBadge(() => localize('signing in', "Signing in..."));
 			clazz = 'progress-badge';
 			priority = 1;
 		} else if (this.userDataSyncService.status === SyncStatus.HasConflicts) {
@@ -212,6 +212,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}, {
 				id: 'sync.enableKeybindings',
 				label: localize('user keybindings', "User Keybindings")
+			}, {
+				id: 'sync.enableUIState',
+				label: localize('ui state', "UI State"),
+				description: localize('ui state description', "Display Language (Only)")
 			}, {
 				id: 'sync.enableExtensions',
 				label: localize('extensions', "Extensions")
@@ -315,17 +319,24 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerActions(): void {
 
-		const startSyncMenuItem: IMenuItem = {
+		const turnOnSyncCommandId = 'workbench.userData.actions.syncStart';
+		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.notEqualsTo(AuthTokenStatus.SigningIn));
+		CommandsRegistry.registerCommand(turnOnSyncCommandId, () => this.turnOn());
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {
-				id: 'workbench.userData.actions.syncStart',
-				title: localize('start sync', "Sync: Turn On")
+				id: turnOnSyncCommandId,
+				title: localize('global activity turn on sync', "Turn on sync...")
 			},
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.not(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.notEqualsTo(AuthTokenStatus.SigningIn)),
-		};
-		CommandsRegistry.registerCommand(startSyncMenuItem.command.id, () => this.turnOn());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, startSyncMenuItem);
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, startSyncMenuItem);
+			when: turnOnSyncWhenContext,
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: turnOnSyncCommandId,
+				title: localize('turn on sync', "Sync: Turn on sync...")
+			},
+			when: turnOnSyncWhenContext,
+		});
 
 		const signInCommandId = 'workbench.userData.actions.signin';
 		const signInWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.SignedOut));
@@ -334,14 +345,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: signInCommandId,
-				title: localize('global activity sign in', "Sync: Sign in... (1)")
+				title: localize('global activity sign in', "Sign in to sync... (1)")
 			},
 			when: signInWhenContext,
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: signInCommandId,
-				title: localize('sign in', "Sync: Sign in...")
+				title: localize('sign in', "Sync: Sign in to sync...")
 			},
 			when: signInWhenContext,
 		});
@@ -352,24 +363,27 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: signingInCommandId,
-				title: localize('signinig in', "Sync: Signing in..."),
+				title: localize('signinig in', "Signing in..."),
 				precondition: FalseContext
 			},
 			when: CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.SigningIn)
 		});
 
-		const stopSyncCommand = {
-			id: 'workbench.userData.actions.stopSync',
-			title: localize('stop sync', "Sync: Turn Off")
-		};
-		CommandsRegistry.registerCommand(stopSyncCommand.id, () => this.turnOff());
+		const stopSyncCommandId = 'workbench.userData.actions.stopSync';
+		CommandsRegistry.registerCommand(stopSyncCommandId, () => this.turnOff());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
-			command: stopSyncCommand,
+			command: {
+				id: stopSyncCommandId,
+				title: localize('global activity stop sync', "Turn off sync")
+			},
 			when: ContextKeyExpr.and(ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`), CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.SignedIn), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.HasConflicts))
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: stopSyncCommand,
+			command: {
+				id: stopSyncCommandId,
+				title: localize('stop sync', "Sync: Turn off sync")
+			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
 		});
 
@@ -380,14 +394,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: resolveConflictsCommandId,
-				title: localize('resolveConflicts_global', "Sync: Resolve Conflicts (1)"),
+				title: localize('resolveConflicts_global', "Resolve sync conflicts (1)"),
 			},
 			when: resolveConflictsWhenContext,
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: resolveConflictsCommandId,
-				title: localize('resolveConflicts', "Sync: Resolve Conflicts"),
+				title: localize('resolveConflicts', "Sync: Resolve sync conflicts"),
 			},
 			when: resolveConflictsWhenContext,
 		});
@@ -397,14 +411,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue")
+				title: localize('continue sync', "Sync: Continue sync")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.isEqualTo(SyncStatus.HasConflicts)),
 		});
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue"),
+				title: localize('continue sync', "Sync: Continue sync"),
 				icon: {
 					light: SYNC_PUSH_LIGHT_ICON_URI,
 					dark: SYNC_PUSH_DARK_ICON_URI
@@ -417,7 +431,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			command: {
 				id: continueSyncCommandId,
-				title: localize('continue sync', "Sync: Continue"),
+				title: localize('continue sync', "Sync: Continue sync"),
 				icon: {
 					light: SYNC_PUSH_LIGHT_ICON_URI,
 					dark: SYNC_PUSH_DARK_ICON_URI
@@ -432,7 +446,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			group: '5_sync',
 			command: {
 				id: 'workbench.userData.actions.signout',
-				title: localize('sign out', "Sign Out")
+				title: localize('sign out', "Sync: Sign out")
 			},
 			when: ContextKeyExpr.and(CONTEXT_AUTH_TOKEN_STATE.isEqualTo(AuthTokenStatus.SignedIn)),
 		};

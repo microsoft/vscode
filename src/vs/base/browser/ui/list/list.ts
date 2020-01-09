@@ -130,6 +130,8 @@ export abstract class CachedListVirtualDelegate<T extends object> implements ILi
 	abstract getTemplateId(element: T): string;
 
 	setDynamicHeight(element: T, height: number): void {
-		this.cache.set(element, height);
+		if (height > 0) {
+			this.cache.set(element, height);
+		}
 	}
 }

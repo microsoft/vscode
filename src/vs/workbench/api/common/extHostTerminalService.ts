@@ -310,9 +310,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
-		this._bufferer = new TerminalDataBufferer();
-
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
+		this._bufferer = new TerminalDataBufferer(this._proxy.$sendProcessData);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
@@ -477,7 +476,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
-		this._bufferer.startBuffering(id, p.onProcessData, this._proxy.$sendProcessData);
+		this._bufferer.startBuffering(id, p.onProcessData);
 		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
 
 		if (p.onProcessOverrideDimensions) {

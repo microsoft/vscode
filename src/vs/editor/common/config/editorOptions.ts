@@ -465,7 +465,7 @@ export interface IEditorOptions {
 	 */
 	codeActionsOnSaveTimeout?: number;
 	/**
-	 * Enable code folding
+	 * Enable code folding.
 	 * Defaults to true.
 	 */
 	folding?: boolean;
@@ -474,6 +474,11 @@ export interface IEditorOptions {
 	 * Defaults to 'auto'.
 	 */
 	foldingStrategy?: 'auto' | 'indentation';
+	/**
+	 * Enable highlight for folded regions.
+	 * Defaults to true.
+	 */
+	foldingHighlight?: boolean;
 	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
@@ -656,7 +661,7 @@ export interface IEnvironmentalOptions {
 export interface IEditorOption<K1 extends EditorOption, V> {
 	readonly id: K1;
 	readonly name: string;
-	readonly defaultValue: V;
+	defaultValue: V;
 	/**
 	 * @internal
 	 */
@@ -990,6 +995,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 
 /**
  * The kind of animation in which the editor's cursor should be rendered.
+ * @internal
  */
 export const enum TextEditorCursorBlinkingStyle {
 	/**
@@ -1034,6 +1040,7 @@ function _cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' 
 
 /**
  * The style in which the editor's cursor should be rendered.
+ * @internal
  */
 export enum TextEditorCursorStyle {
 	/**
@@ -1110,6 +1117,9 @@ class EditorClassName extends ComputedEditorOption<EditorOption.editorClassName,
 		} else if (options.get(EditorOption.mouseStyle) === 'copy') {
 			className += ' mouse-copy';
 		}
+		if (options.get(EditorOption.showUnused)) {
+			className += ' showUnused';
+		}
 		return className;
 	}
 }
@@ -1159,6 +1169,9 @@ export interface IEditorFindOptions {
 	globalFindClipboard?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
 class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> {
@@ -1346,6 +1359,9 @@ export interface IGotoLocationOptions {
 	alternativeReferenceCommand?: string;
 }
 
+/**
+ * @internal
+ */
 export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
 
 class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoToLocationOptions> {
@@ -1475,6 +1491,9 @@ export interface IEditorHoverOptions {
 	sticky?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
 
 class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOptions> {
@@ -1851,6 +1870,9 @@ export interface IEditorLightbulbOptions {
 	enabled?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
 
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLightbulbOptions> {
@@ -1942,6 +1964,9 @@ export interface IEditorMinimapOptions {
 	scale?: number;
 }
 
+/**
+ * @internal
+ */
 export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
 
 class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimapOptions> {
@@ -2043,6 +2068,9 @@ export interface IEditorParameterHintOptions {
 	cycle?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
 
 class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints, InternalParameterHintOptions> {
@@ -2109,6 +2137,9 @@ export interface IQuickSuggestionsOptions {
 	strings: boolean;
 }
 
+/**
+ * @internal
+ */
 export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
@@ -2185,6 +2216,9 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 
 export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 
+/**
+ * @internal
+ */
 export const enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,
@@ -2193,6 +2227,9 @@ export const enum RenderLineNumbersType {
 	Custom = 4
 }
 
+/**
+ * @internal
+ */
 export interface InternalEditorRenderLineNumbersOptions {
 	readonly renderType: RenderLineNumbersType;
 	readonly renderFn: ((lineNumber: number) => string) | null;
@@ -2322,6 +2359,11 @@ export interface IEditorScrollbarOptions {
 	 */
 	handleMouseWheel?: boolean;
 	/**
+	 * Always consume mouse wheel events (always call preventDefault() and stopPropagation() on the browser events).
+	 * Defaults to true.
+	 */
+	alwaysConsumeMouseWheel?: boolean;
+	/**
 	 * Height in pixels for the horizontal scrollbar.
 	 * Defaults to 10 (px).
 	 */
@@ -2343,6 +2385,9 @@ export interface IEditorScrollbarOptions {
 	horizontalSliderSize?: number;
 }
 
+/**
+ * @internal
+ */
 export interface InternalEditorScrollbarOptions {
 	readonly arrowSize: number;
 	readonly vertical: ScrollbarVisibility;
@@ -2351,6 +2396,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalHasArrows: boolean;
 	readonly horizontalHasArrows: boolean;
 	readonly handleMouseWheel: boolean;
+	readonly alwaysConsumeMouseWheel: boolean;
 	readonly horizontalScrollbarSize: number;
 	readonly horizontalSliderSize: number;
 	readonly verticalScrollbarSize: number;
@@ -2385,6 +2431,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 				verticalScrollbarSize: 14,
 				verticalSliderSize: 14,
 				handleMouseWheel: true,
+				alwaysConsumeMouseWheel: true
 			}
 		);
 	}
@@ -2404,6 +2451,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 			verticalHasArrows: EditorBooleanOption.boolean(input.verticalHasArrows, this.defaultValue.verticalHasArrows),
 			horizontalHasArrows: EditorBooleanOption.boolean(input.horizontalHasArrows, this.defaultValue.horizontalHasArrows),
 			handleMouseWheel: EditorBooleanOption.boolean(input.handleMouseWheel, this.defaultValue.handleMouseWheel),
+			alwaysConsumeMouseWheel: EditorBooleanOption.boolean(input.alwaysConsumeMouseWheel, this.defaultValue.alwaysConsumeMouseWheel),
 			horizontalScrollbarSize: horizontalScrollbarSize,
 			horizontalSliderSize: EditorIntOption.clampedInt(input.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
 			verticalScrollbarSize: verticalScrollbarSize,
@@ -2554,6 +2602,9 @@ export interface ISuggestOptions {
 	showSnippets?: boolean;
 }
 
+/**
+ * @internal
+ */
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
 
 class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSuggestOptions> {
@@ -2847,6 +2898,7 @@ class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode,
 
 /**
  * Describes how to indent wrapped lines.
+ * @internal
  */
 export const enum WrappingIndent {
 	/**
@@ -2880,6 +2932,9 @@ function _wrappingIndentFromString(wrappingIndent: 'none' | 'same' | 'indent' | 
 
 //#region wrappingInfo
 
+/**
+ * @internal
+ */
 export interface EditorWrappingInfo {
 	readonly isDominatedByLongLines: boolean;
 	readonly isWordWrapMinified: boolean;
@@ -3033,6 +3088,7 @@ export const enum EditorOption {
 	fixedOverflowWidgets,
 	folding,
 	foldingStrategy,
+	foldingHighlight,
 	fontFamily,
 	fontInfo,
 	fontLigatures,
@@ -3300,6 +3356,10 @@ export const EditorOptions = {
 		['auto', 'indentation'] as const,
 		{ markdownDescription: nls.localize('foldingStrategy', "Controls the strategy for computing folding ranges. `auto` uses a language specific folding strategy, if available. `indentation` uses the indentation based folding strategy.") }
 	)),
+	foldingHighlight: register(new EditorBooleanOption(
+		EditorOption.foldingHighlight, 'foldingHighlight', true,
+		{ description: nls.localize('foldingHighlight', "Controls whether the editor should highlight folded ranges.") }
+	)),
 	fontFamily: register(new EditorStringOption(
 		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
 		{ description: nls.localize('fontFamily', "Controls the font family.") }
@@ -3350,7 +3410,7 @@ export const EditorOptions = {
 	lineNumbers: register(new EditorRenderLineNumbersOption()),
 	lineNumbersMinChars: register(new EditorIntOption(
 		EditorOption.lineNumbersMinChars, 'lineNumbersMinChars',
-		5, 1, 10
+		5, 1, 300
 	)),
 	links: register(new EditorBooleanOption(
 		EditorOption.links, 'links', true,

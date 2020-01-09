@@ -36,6 +36,10 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService
 	) { }
 
+	public canSerialize(input: WebviewInput): boolean {
+		return this._webviewWorkbenchService.shouldPersist(input);
+	}
+
 	public serialize(input: WebviewInput): string | undefined {
 		if (!this._webviewWorkbenchService.shouldPersist(input)) {
 			return undefined;

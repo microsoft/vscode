@@ -29,7 +29,7 @@ import { dirname, basename } from 'vs/base/common/resources';
 import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
 import { textLinkForeground, textCodeBlockBackground, focusBorder, listFilterMatchHighlight, listFilterMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -43,7 +43,7 @@ import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
-export class CustomTreeViewPane extends ViewletPane {
+export class CustomTreeViewPane extends ViewPane {
 
 	private treeView: ITreeView;
 
@@ -55,7 +55,7 @@ export class CustomTreeViewPane extends ViewletPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super({ ...(options as IViewletPaneOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService, contextKeyService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
@@ -357,6 +357,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			// Pass Focus to Viewer
 			this.tree.domFocus();
+		} else if (this.tree) {
+			this.tree.domFocus();
 		} else {
 			this.domNode.focus();
 		}
@@ -495,14 +497,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private showMessage(message: string): void {
 		DOM.removeClass(this.messageElement, 'hide');
-		if (this._messageValue !== message) {
-			this.resetMessageElement();
-			this._messageValue = message;
-			if (!isFalsyOrWhitespace(this._message)) {
-				this.messageElement.textContent = this._messageValue;
-			}
-			this.layout(this._height, this._width);
+		this.resetMessageElement();
+		this._messageValue = message;
+		if (!isFalsyOrWhitespace(this._message)) {
+			this.messageElement.textContent = this._messageValue;
 		}
+		this.layout(this._height, this._width);
 	}
 
 	private hideMessage(): void {

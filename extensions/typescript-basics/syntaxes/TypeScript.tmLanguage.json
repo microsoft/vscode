@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/dc5fe357ee5582244b798917a5fc9d7cd73e6220",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/b7ef0941e38d56292d19ee7706a558dbff6c3a35",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -28,12 +28,6 @@
 		"statements": {
 			"patterns": [
 				{
-					"include": "#string"
-				},
-				{
-					"include": "#comment"
-				},
-				{
 					"include": "#declaration"
 				},
 				{
@@ -53,6 +47,12 @@
 				},
 				{
 					"include": "#punctuation-semicolon"
+				},
+				{
+					"include": "#string"
+				},
+				{
+					"include": "#comment"
 				}
 			]
 		},
@@ -1822,7 +1822,7 @@
 		},
 		"access-modifier": {
 			"name": "storage.modifier.ts",
-			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(abstract|public|protected|private|readonly|static)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(abstract|public|protected|private|readonly|static|declare)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"property-accessor": {
 			"name": "storage.type.property.ts",
@@ -2753,6 +2753,39 @@
 							]
 						},
 						{
+							"begin": "(?<=:)\\s*(async)?\\s*(?=\\<\\s*$)",
+							"beginCaptures": {
+								"1": {
+									"name": "storage.modifier.async.ts"
+								}
+							},
+							"end": "(?<=\\>)",
+							"patterns": [
+								{
+									"include": "#type-parameters"
+								}
+							]
+						},
+						{
+							"begin": "(?<=\\>)\\s*(\\()(?=\\s*((([\\{\\[]\\s*)?$)|((\\{([^\\{\\}]|(\\{[^\\{\\}]*\\}))*\\})\\s*((:\\s*\\{?$)|((\\s*([^<>\\(\\)\\{\\}]|\\<([^<>]|\\<[^<>]+\\>)+\\>|\\([^\\(\\)]+\\)|\\{[^\\{\\}]+\\})+\\s*)?=\\s*)))|((\\[([^\\[\\]]|(\\[[^\\[\\]]*\\]))*\\])\\s*((:\\s*\\[?$)|((\\s*([^<>\\(\\)\\{\\}]|\\<([^<>]|\\<[^<>]+\\>)+\\>|\\([^\\(\\)]+\\)|\\{[^\\{\\}]+\\})+\\s*)?=\\s*)))))",
+							"beginCaptures": {
+								"1": {
+									"name": "meta.brace.round.ts"
+								}
+							},
+							"end": "\\)",
+							"endCaptures": {
+								"0": {
+									"name": "meta.brace.round.ts"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#expression-inside-possibly-arrow-parens"
+								}
+							]
+						},
+						{
 							"include": "#possibly-arrow-return-type"
 						},
 						{
@@ -3209,6 +3242,17 @@
 				{
 					"name": "keyword.operator.relational.ts",
 					"match": "<=|>=|<>|<|>"
+				},
+				{
+					"match": "(\\!)\\s*(/)(?![/*])",
+					"captures": {
+						"1": {
+							"name": "keyword.operator.logical.ts"
+						},
+						"2": {
+							"name": "keyword.operator.arithmetic.ts"
+						}
+					}
 				},
 				{
 					"name": "keyword.operator.logical.ts",

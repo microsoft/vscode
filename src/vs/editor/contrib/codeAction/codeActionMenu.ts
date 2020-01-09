@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
@@ -14,7 +15,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId, organizeImportsCommandId, fixAllCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { codeActionCommandId, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -83,8 +84,7 @@ export class CodeActionMenu extends Disposable {
 		this._visible = true;
 		this._showingActions.value = codeActions;
 
-		const menuActions = actionsToShow.map(action =>
-			new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
+		const menuActions = this.getMenuActions(actionsToShow);
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
 		const resolver = this._keybindingResolver.getResolver();
@@ -99,6 +99,24 @@ export class CodeActionMenu extends Disposable {
 			autoSelectFirstItem: true,
 			getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
 		});
+	}
+
+	private getMenuActions(actionsToShow: readonly CodeAction[]): IAction[] {
+		const allActions = actionsToShow
+			.map(action => new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
+
+		// Treat documentation actions as special
+		const result: IAction[] = allActions
+			.filter(action => !action.action.kind || !CodeActionKind.RefactorDocumentation.contains(new CodeActionKind(action.action.kind)));
+
+		const documentationActions = allActions
+			.filter(action => action.action.kind && CodeActionKind.RefactorDocumentation.contains(new CodeActionKind(action.action.kind)));
+
+		if (documentationActions.length) {
+			result.push(new Separator(), ...documentationActions);
+		}
+
+		return result;
 	}
 
 	private _toCoords(position: IPosition): { x: number, y: number } {

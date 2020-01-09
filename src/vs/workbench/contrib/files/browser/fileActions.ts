@@ -18,7 +18,7 @@ import { VIEWLET_ID, IExplorerService, IFilesConfiguration } from 'vs/workbench/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
-import { ExplorerViewlet } from 'vs/workbench/contrib/files/browser/explorerViewlet';
+import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -33,14 +33,14 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, getConfirmMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult, getFileNamesMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/base/common/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { coalesce } from 'vs/base/common/arrays';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { onUnexpectedError, getErrorMessage } from 'vs/base/common/errors';
+import { getErrorMessage } from 'vs/base/common/errors';
 import { asDomUri, triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -199,11 +199,17 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 
 	// Confirm for moving to trash
 	else if (useTrash) {
-		const message = getMoveToTrashMessage(distinctElements);
+		let { message, detail } = getMoveToTrashMessage(distinctElements);
+		detail += detail ? '\n' : '';
+		if (isWindows) {
+			detail += nls.localize('undoBin', "You can restore from the Recycle Bin.");
+		} else {
+			detail += nls.localize('undoTrash', "You can restore from the Trash.");
+		}
 
 		confirmDeletePromise = dialogService.confirm({
 			message,
-			detail: isWindows ? nls.localize('undoBin', "You can restore from the Recycle Bin.") : nls.localize('undoTrash', "You can restore from the Trash."),
+			detail,
 			primaryButton,
 			checkbox: {
 				label: nls.localize('doNotAskAgain', "Do not ask me again")
@@ -214,10 +220,12 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 
 	// Confirm for deleting permanently
 	else {
-		const message = getDeleteMessage(distinctElements);
+		let { message, detail } = getDeleteMessage(distinctElements);
+		detail += detail ? '\n' : '';
+		detail += nls.localize('irreversible', "This action is irreversible!");
 		confirmDeletePromise = dialogService.confirm({
 			message,
-			detail: nls.localize('irreversible', "This action is irreversible!"),
+			detail,
 			primaryButton,
 			type: 'warning'
 		});
@@ -280,44 +288,62 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 	});
 }
 
-function getMoveToTrashMessage(distinctElements: ExplorerItem[]): string {
+function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
-		return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		return {
+			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length),
+			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		};
 	}
 
 	if (distinctElements.length > 1) {
 		if (distinctElements[0].isDirectory) {
-			return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			return {
+				message: nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length),
+				detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+			};
 		}
 
-		return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		return {
+			message: nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length),
+			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		};
 	}
 
 	if (distinctElements[0].isDirectory) {
-		return nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
+		return { message: nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 
-	return nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
+	return { message: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
-function getDeleteMessage(distinctElements: ExplorerItem[]): string {
+function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
-		return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		return {
+			message: nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length),
+			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		};
 	}
 
 	if (distinctElements.length > 1) {
 		if (distinctElements[0].isDirectory) {
-			return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			return {
+				message: nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length),
+				detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+			};
 		}
 
-		return getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		return {
+			message: nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length),
+			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
+		};
 	}
 
 	if (distinctElements[0].isDirectory) {
-		return nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name);
+		return { message: nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 
-	return nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
+	return { message: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
 function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
@@ -328,12 +354,12 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
+export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
 	while (true && !fileToPaste.allowOverwrite) {
-		if (!targetFolder.root.find(candidate)) {
+		if (!explorerService.findClosest(candidate)) {
 			break;
 		}
 
@@ -652,7 +678,7 @@ export class CollapseExplorerView extends Action {
 	}
 
 	async run(): Promise<any> {
-		const explorerViewlet = await this.viewletService.openViewlet(VIEWLET_ID) as ExplorerViewlet;
+		const explorerViewlet = (await this.viewletService.openViewlet(VIEWLET_ID))?.getViewPaneContainer() as ExplorerViewPaneContainer;
 		const explorerView = explorerViewlet.getExplorerView();
 		if (explorerView) {
 			explorerView.collapseAll();
@@ -870,8 +896,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		throw new Error('Parent folder is readonly.');
 	}
 
-	const newStat = new NewExplorerItem(folder, isFolder);
-	await folder.fetchChildren(fileService, explorerService);
+	const newStat = new NewExplorerItem(fileService, folder, isFolder);
+	const sortOrder = explorerService.sortOrder;
+	await folder.fetchChildren(sortOrder);
 
 	folder.addChild(newStat);
 
@@ -915,6 +942,7 @@ CommandsRegistry.registerCommand({
 export const renameHandler = (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const textFileService = accessor.get(ITextFileService);
+	const notificationService = accessor.get(INotificationService);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -924,12 +952,17 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 
 	explorerService.setEditable(stat, {
 		validationMessage: value => validateFileName(stat, value),
-		onFinish: (value, success) => {
+		onFinish: async (value, success) => {
 			if (success) {
 				const parentResource = stat.parent!.resource;
 				const targetResource = resources.joinPath(parentResource, value);
 				if (stat.resource.toString() !== targetResource.toString()) {
-					textFileService.move(stat.resource, targetResource).then(() => refreshIfSeparator(value, explorerService), onUnexpectedError);
+					try {
+						await textFileService.move(stat.resource, targetResource);
+						refreshIfSeparator(value, explorerService);
+					} catch (e) {
+						notificationService.error(e);
+					}
 				}
 			}
 			explorerService.setEditable(stat, null);
@@ -1049,7 +1082,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			}
 
 			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
+			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
 
 			// Move/Copy File
 			if (pasteShouldMove) {
@@ -1066,6 +1099,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	if (pasteShouldMove) {
 		// Cut is done. Make sure to clear cut state.
 		explorerService.setToCopy([], false);
+		pasteShouldMove = false;
 	}
 	if (stats.length >= 1) {
 		const stat = stats[0];

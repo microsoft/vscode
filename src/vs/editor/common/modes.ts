@@ -436,7 +436,7 @@ export interface CompletionItem {
 	preselect?: boolean;
 	/**
 	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion.
+	 * this completion. When `falsy` the [label](#CompletionItem.label)
 	 * is used.
 	 */
 	insertText: string;
@@ -1246,9 +1246,9 @@ export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
 }
 
 export interface ResourceFileEdit {
-	oldUri: URI;
-	newUri: URI;
-	options: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
+	oldUri?: URI;
+	newUri?: URI;
+	options?: { overwrite?: boolean, ignoreIfNotExists?: boolean, ignoreIfExists?: boolean, recursive?: boolean };
 }
 
 export interface ResourceTextEdit {

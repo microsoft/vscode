@@ -8,7 +8,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ViewContainer, IViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor } from 'vs/workbench/common/views';
+import { ViewContainer, IViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor, ViewContainerLocation } from 'vs/workbench/common/views';
 import { CustomTreeViewPane, CustomTreeView } from 'vs/workbench/browser/parts/views/customView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
@@ -22,21 +22,20 @@ import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
 import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -313,35 +312,30 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 		if (!viewContainer) {
 
-			viewContainer = this.viewContainersRegistry.registerViewContainer(id, true, extensionId);
 
-			// Register as viewlet
-			class CustomViewlet extends ViewContainerViewlet {
+			class CustomViewPaneContainer extends ViewPaneContainer {
 				constructor(
-					@IConfigurationService configurationService: IConfigurationService,
 					@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 					@ITelemetryService telemetryService: ITelemetryService,
-					@IWorkspaceContextService contextService: IWorkspaceContextService,
-					@IStorageService storageService: IStorageService,
-					@IEditorService editorService: IEditorService,
-					@IInstantiationService instantiationService: IInstantiationService,
+					@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+					@IStorageService protected storageService: IStorageService,
+					@IConfigurationService configurationService: IConfigurationService,
+					@IInstantiationService protected instantiationService: IInstantiationService,
 					@IThemeService themeService: IThemeService,
 					@IContextMenuService contextMenuService: IContextMenuService,
-					@IExtensionService extensionService: IExtensionService
+					@IExtensionService extensionService: IExtensionService,
 				) {
-					super(id, `${id}.state`, true, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+					super(id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 				}
 			}
-			const viewletDescriptor = ViewletDescriptor.create(
-				CustomViewlet,
-				id,
-				title,
-				undefined,
-				order,
-				icon
-			);
 
-			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
+			viewContainer = this.viewContainersRegistry.registerViewContainer({
+				id,
+				name: title, extensionId,
+				ctorDescriptor: { ctor: CustomViewPaneContainer },
+				hideIfEmpty: true,
+				icon,
+			}, ViewContainerLocation.Sidebar);
 
 			// Register Action to Open Viewlet
 			class OpenCustomViewletAction extends ShowViewletAction {
@@ -415,8 +409,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 					const order = ExtensionIdentifier.equals(extension.description.identifier, container.extensionId)
 						? index + 1
-						: container.orderDelegate
-							? container.orderDelegate.getOrder(item.group)
+						: container.viewOrderDelegate
+							? container.viewOrderDelegate.getOrder(item.group)
 							: undefined;
 
 					const viewDescriptor = <ICustomViewDescriptor>{

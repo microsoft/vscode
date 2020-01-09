@@ -16,7 +16,7 @@ const _enableTracing = false;
 // PROXY
 // Ghetto-declare of the global Proxy object. This isn't the proper way
 // but allows us to run this code in the browser without IE11.
-declare var Proxy: any;
+declare const Proxy: any;
 const _canUseProxy = typeof Proxy === 'function';
 
 class CyclicDependencyError extends Error {

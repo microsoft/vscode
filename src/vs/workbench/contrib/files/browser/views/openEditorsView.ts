@@ -33,7 +33,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext as ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { ViewletPane, IViewletPaneOptions } from 'vs/workbench/browser/parts/views/paneViewlet';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
@@ -41,12 +41,13 @@ import { ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/browser
 import { URI } from 'vs/base/common/uri';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { isWeb } from 'vs/base/common/platform';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 const $ = dom.$;
 
-export class OpenEditorsView extends ViewletPane {
+export class OpenEditorsView extends ViewPane {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	static readonly ID = 'workbench.explorer.openEditorsView';
@@ -76,10 +77,11 @@ export class OpenEditorsView extends ViewletPane {
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super({
-			...(options as IViewletPaneOptions),
+			...(options as IViewPaneOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
 		}, keybindingService, contextMenuService, configurationService, contextKeyService);
 
@@ -100,7 +102,7 @@ export class OpenEditorsView extends ViewletPane {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
-		this._register(this.workingCopyService.onDidChangeDirty(() => this.updateDirtyIndicator()));
+		this._register(this.workingCopyService.onDidChangeDirty(c => this.updateDirtyIndicator(c)));
 	}
 
 	private registerUpdateEvents(): void {
@@ -197,7 +199,7 @@ export class OpenEditorsView extends ViewletPane {
 		this.updateDirtyIndicator();
 	}
 
-	public renderBody(container: HTMLElement): void {
+	renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'explorer-open-editors');
 		dom.addClass(container, 'show-file-icons');
 
@@ -247,7 +249,7 @@ export class OpenEditorsView extends ViewletPane {
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
 				const resource = element.getResource();
-				this.dirtyEditorFocusedContext.set(element.editor.isDirty());
+				this.dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
 				this.readonlyEditorFocusedContext.set(element.editor.isReadonly());
 				this.resourceContext.set(withUndefinedAsNull(resource));
 			} else if (!!element) {
@@ -297,7 +299,7 @@ export class OpenEditorsView extends ViewletPane {
 		}));
 	}
 
-	public getActions(): IAction[] {
+	getActions(): IAction[] {
 		return [
 			this.instantiationService.createInstance(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL),
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
@@ -305,12 +307,12 @@ export class OpenEditorsView extends ViewletPane {
 		];
 	}
 
-	public focus(): void {
+	focus(): void {
 		super.focus();
 		this.list.domFocus();
 	}
 
-	public getList(): WorkbenchList<OpenEditor | IEditorGroup> {
+	getList(): WorkbenchList<OpenEditor | IEditorGroup> {
 		return this.list;
 	}
 
@@ -414,7 +416,14 @@ export class OpenEditorsView extends ViewletPane {
 		this.maximumBodySize = this.getMaxExpandedBodySize();
 	}
 
-	private updateDirtyIndicator(): void {
+	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
+		if (workingCopy) {
+			const gotDirty = workingCopy.isDirty();
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+				return; // do not indicate dirty of working copies that are auto saved after short delay
+			}
+		}
+
 		let dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
 			dom.addClass(this.dirtyCountElement, 'hidden');
@@ -447,11 +456,11 @@ export class OpenEditorsView extends ViewletPane {
 		return itemsToShow * OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 
-	public setStructuralRefreshDelay(delay: number): void {
+	setStructuralRefreshDelay(delay: number): void {
 		this.structuralRefreshDelay = delay;
 	}
 
-	public getOptimalWidth(): number {
+	getOptimalWidth(): number {
 		let parentNode = this.list.getHTMLElement();
 		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
@@ -489,7 +498,7 @@ class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGr
 
 	public static readonly ITEM_HEIGHT = 22;
 
-	getHeight(element: OpenEditor | IEditorGroup): number {
+	getHeight(_element: OpenEditor | IEditorGroup): number {
 		return OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 
@@ -533,7 +542,7 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 		return editorGroupTemplate;
 	}
 
-	renderElement(editorGroup: IEditorGroup, index: number, templateData: IEditorGroupTemplateData): void {
+	renderElement(editorGroup: IEditorGroup, _index: number, templateData: IEditorGroupTemplateData): void {
 		templateData.editorGroup = editorGroup;
 		templateData.name.textContent = editorGroup.label;
 		templateData.actionBar.context = { groupId: editorGroup.id };
@@ -575,9 +584,9 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		return editorTemplate;
 	}
 
-	renderElement(editor: OpenEditor, index: number, templateData: IOpenEditorTemplateData): void {
+	renderElement(editor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
 		templateData.actionRunner.editor = editor;
-		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
+		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		templateData.root.setEditor(editor.editor, {
 			italic: editor.isPreview(),
 			extraClasses: ['open-editor'],
@@ -644,7 +653,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
+	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof DesktopDragAndDropData) {
 			if (isWeb) {
 				return false; // dropping files into editor is unsupported on web
@@ -656,7 +665,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		return true;
 	}
 
-	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, targetIndex: number, originalEvent: DragEvent): void {
+	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): void {
 		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement;
 		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
 

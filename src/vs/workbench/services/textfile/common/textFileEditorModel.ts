@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
-import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export interface IBackupMetaData {
@@ -63,6 +63,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
+
 	static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
 	static WHITELIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
 
@@ -81,7 +82,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	readonly capabilities = WorkingCopyCapabilities.AutoSave;
+	readonly capabilities = 0;
 
 	private contentEncoding: string | undefined; // encoding as reported from disk
 
@@ -743,7 +744,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: lastResolvedFileStat.mtime,
 				encoding: this.getEncoding(),
-				etag: lastResolvedFileStat.etag,
+				etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 				writeElevated: options.writeElevated
 			}).then(stat => {
 				this.logService.trace(`doSave(${versionId}) - after write()`, this.resource);
@@ -957,6 +958,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			case ModelState.SAVED:
 				return !this.dirty;
 		}
+	}
+
+	getMode(): string | undefined {
+		if (this.textEditorModel) {
+			return this.textEditorModel.getModeId();
+		}
+
+		return this.preferredMode;
 	}
 
 	getEncoding(): string | undefined {

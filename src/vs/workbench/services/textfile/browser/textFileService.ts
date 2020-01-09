@@ -33,7 +33,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -92,17 +92,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Lifecycle
 		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
-
-		// Auto save changes
-		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
-	}
-
-	private onAutoSaveConfigurationChange(): void {
-
-		// save all dirty when enabling auto save
-		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
-			this.saveAll();
-		}
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -229,7 +218,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Handle untitled resources
 		await Promise.all(untitledResources
 			.filter(untitled => this.untitledTextEditorService.exists(untitled))
-			.map(async untitled => (await this.untitledTextEditorService.loadOrCreate({ resource: untitled })).backup()));
+			.map(async untitled => (await this.untitledTextEditorService.createOrGet({ resource: untitled }).resolve()).backup()));
 	}
 
 	private async confirmBeforeShutdown(): Promise<boolean> {
@@ -416,7 +405,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// remember each source model to load again after move is done
 		// with optional content to restore if it was dirty
-		type ModelToRestore = { resource: URI; snapshot?: ITextSnapshot };
+		type ModelToRestore = { resource: URI; snapshot?: ITextSnapshot; encoding?: string; mode?: string };
 		const modelsToRestore: ModelToRestore[] = [];
 		for (const sourceModel of sourceModels) {
 			const sourceModelResource = sourceModel.resource;
@@ -433,7 +422,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				modelToRestoreResource = joinPath(target, sourceModelResource.path.substr(source.path.length + 1));
 			}
 
-			const modelToRestore: ModelToRestore = { resource: modelToRestoreResource };
+			const modelToRestore: ModelToRestore = { resource: modelToRestoreResource, encoding: sourceModel.getEncoding() };
 			if (sourceModel.isDirty()) {
 				modelToRestore.snapshot = sourceModel.createSnapshot();
 			}
@@ -469,7 +458,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			// we know the file has changed on disk after the move and the
 			// model might have still existed with the previous state. this
 			// ensures we are not tracking a stale state.
-			const restoredModel = await this.models.loadOrCreate(modelToRestore.resource, { reload: { async: false } });
+			const restoredModel = await this.models.loadOrCreate(modelToRestore.resource, { reload: { async: false }, encoding: modelToRestore.encoding, mode: modelToRestore.mode });
 
 			// restore previous dirty content if any and ensure to mark
 			// the model as dirty
@@ -721,7 +710,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		if (this.fileService.canHandleResource(resource)) {
 			model = this._models.get(resource);
 		} else if (resource.scheme === Schemas.untitled && this.untitledTextEditorService.exists(resource)) {
-			model = await this.untitledTextEditorService.loadOrCreate({ resource });
+			model = await this.untitledTextEditorService.createOrGet({ resource }).resolve();
 		}
 
 		// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
@@ -766,7 +755,16 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				await this.create(target, '');
 			}
 
-			targetModel = await this.models.loadOrCreate(target);
+			// Carry over the mode if this is an untitled file and the mode was picked by the user
+			let mode: string | undefined;
+			if (sourceModel instanceof UntitledTextEditorModel) {
+				mode = sourceModel.getMode();
+				if (mode === PLAINTEXT_MODE_ID) {
+					mode = undefined; // never enforce plain text mode when moving as it is unspecific
+				}
+			}
+
+			targetModel = await this.models.loadOrCreate(target, { encoding: sourceModel.getEncoding(), mode });
 		}
 
 		try {

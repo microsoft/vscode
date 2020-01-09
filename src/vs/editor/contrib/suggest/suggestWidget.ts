@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/suggest';
+import 'vs/base/browser/ui/codiconLabel/codiconLabel'; // The codicon symbol styles are defined here and must be loaded
+import 'vs/editor/contrib/documentSymbols/outlineTree'; // The codicon symbol colors are defined here and must be loaded
 import * as nls from 'vs/nls';
 import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
@@ -131,6 +133,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			const options = this.editor.getOptions();
 			const fontInfo = options.get(EditorOption.fontInfo);
 			const fontFamily = fontInfo.fontFamily;
+			const fontFeatureSettings = fontInfo.fontFeatureSettings;
 			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 			const fontWeight = fontInfo.fontWeight;
@@ -140,6 +143,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			data.root.style.fontSize = fontSizePx;
 			data.root.style.fontWeight = fontWeight;
 			main.style.fontFamily = fontFamily;
+			main.style.fontFeatureSettings = fontFeatureSettings;
 			main.style.lineHeight = lineHeightPx;
 			data.icon.style.height = lineHeightPx;
 			data.icon.style.width = lineHeightPx;
@@ -407,6 +411,7 @@ class SuggestionDetails {
 
 		this.el.style.fontSize = fontSizePx;
 		this.el.style.fontWeight = fontWeight;
+		this.el.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		this.type.style.fontFamily = fontFamily;
 		this.close.style.height = lineHeightPx;
 		this.close.style.width = lineHeightPx;

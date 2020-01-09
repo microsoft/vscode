@@ -90,7 +90,6 @@ export class FoldingModel {
 			};
 			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed) });
 		};
-
 		let i = 0;
 		let nextCollapsed = () => {
 			while (i < this._regions.length) {
@@ -274,7 +273,7 @@ export function toggleCollapseState(foldingModel: FoldingModel, levels: number, 
  * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
  * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
  */
-export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollapse: boolean, levels = Number.MAX_VALUE, lineNumbers?: number[]) {
+export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollapse: boolean, levels = Number.MAX_VALUE, lineNumbers?: number[]): void {
 	let toToggle: FoldingRegion[] = [];
 	if (lineNumbers && lineNumbers.length > 0) {
 		for (let lineNumber of lineNumbers) {
@@ -300,13 +299,29 @@ export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollaps
  * Collapse or expand the regions at the given locations including all parents.
  * @param doCollapse Wheter to collase or expand
  * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
- * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
+ * @param lineNumbers the location of the regions to collapse or expand.
  */
-export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse: boolean, levels: number, lineNumbers: number[]) {
+export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse: boolean, levels: number, lineNumbers: number[]): void {
 	let toToggle: FoldingRegion[] = [];
 	for (let lineNumber of lineNumbers) {
 		let regions = foldingModel.getAllRegionsAtLine(lineNumber, (region, level) => region.isCollapsed !== doCollapse && level <= levels);
 		toToggle.push(...regions);
+	}
+	foldingModel.toggleCollapseState(toToggle);
+}
+
+/**
+ * Collapse or expand a region at the given locations. If the inner most region is already collapsed/expanded, uses the first parent instead.
+ * @param doCollapse Wheter to collase or expand
+ * @param lineNumbers the location of the regions to collapse or expand.
+ */
+export function setCollapseStateUp(foldingModel: FoldingModel, doCollapse: boolean, lineNumbers: number[]): void {
+	let toToggle: FoldingRegion[] = [];
+	for (let lineNumber of lineNumbers) {
+		let regions = foldingModel.getAllRegionsAtLine(lineNumber, (region, ) => region.isCollapsed !== doCollapse);
+		if (regions.length > 0) {
+			toToggle.push(regions[0]);
+		}
 	}
 	foldingModel.toggleCollapseState(toToggle);
 }

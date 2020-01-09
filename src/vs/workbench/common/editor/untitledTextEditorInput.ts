@@ -28,19 +28,21 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 
 	private static readonly MEMOIZER = createMemoizer();
 
-	private cachedModel: UntitledTextEditorModel | null = null;
-	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | null = null;
-
 	private readonly _onDidModelChangeContent = this._register(new Emitter<void>());
 	readonly onDidModelChangeContent = this._onDidModelChangeContent.event;
 
 	private readonly _onDidModelChangeEncoding = this._register(new Emitter<void>());
 	readonly onDidModelChangeEncoding = this._onDidModelChangeEncoding.event;
 
+	private cachedModel: UntitledTextEditorModel | null = null;
+	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | null = null;
+
+	private preferredMode: string | undefined;
+
 	constructor(
 		resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
-		private preferredMode: string | undefined,
+		preferredMode: string | undefined,
 		private readonly initialValue: string | undefined,
 		private preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -51,6 +53,10 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super(resource, editorService, editorGroupService, textFileService);
+
+		if (preferredMode) {
+			this.setMode(preferredMode);
+		}
 
 		this.registerListeners();
 	}
@@ -163,7 +169,7 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, async () => {
+		return this.doSaveAs(group, options, async () => {
 
 			// With associated file path, save to the path that is
 			// associated. Make sure to convert the result using
@@ -182,7 +188,7 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		return this.doSaveAs(group, () => this.textFileService.saveAs(this.resource, undefined, options), true /* replace editor across all groups */);
+		return this.doSaveAs(group, options, () => this.textFileService.saveAs(this.resource, undefined, options), true /* replace editor across all groups */);
 	}
 
 	async revert(options?: IRevertOptions): Promise<boolean> {
@@ -225,10 +231,20 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	setMode(mode: string): void {
-		this.preferredMode = mode;
+		let actualMode: string | undefined = undefined;
+		if (mode === '${activeEditorLanguage}') {
+			// support the special '${activeEditorLanguage}' mode by
+			// looking up the language mode from the currently
+			// active text editor if any
+			actualMode = this.editorService.activeTextEditorMode;
+		} else {
+			actualMode = mode;
+		}
 
-		if (this.cachedModel) {
-			this.cachedModel.setMode(mode);
+		this.preferredMode = actualMode;
+
+		if (this.preferredMode && this.cachedModel) {
+			this.cachedModel.setMode(this.preferredMode);
 		}
 	}
 

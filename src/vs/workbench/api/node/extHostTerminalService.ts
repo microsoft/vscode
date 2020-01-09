@@ -59,7 +59,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
-		const fetchSetting = (key: string) => {
+		const fetchSetting = (key: string): { userValue: string | string[] | undefined, value: string | string[] | undefined, defaultValue: string | string[] | undefined } => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
 				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
@@ -79,7 +79,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	private _getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
-		const fetchSetting = (key: string) => {
+		const fetchSetting = (key: string): { userValue: string | string[] | undefined, value: string | string[] | undefined, defaultValue: string | string[] | undefined } => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
 				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
@@ -91,11 +91,11 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _apiInspectConfigToPlain<T>(
 		config: { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, workspaceFolderValue?: T } | undefined
-	): { user: T | undefined, value: T | undefined, default: T | undefined } {
+	): { userValue: T | undefined, value: T | undefined, defaultValue: T | undefined } {
 		return {
-			user: config ? config.globalValue : undefined,
+			userValue: config ? config.globalValue : undefined,
 			value: config ? config.workspaceValue : undefined,
-			default: config ? config.defaultValue : undefined,
+			defaultValue: config ? config.defaultValue : undefined,
 		};
 	}
 
@@ -156,7 +156,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		}
 
 		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
-		let lastActiveWorkspace: IWorkspaceFolder | null = null;
+		let lastActiveWorkspace: IWorkspaceFolder | undefined;
 		if (activeWorkspaceRootUriComponents && activeWorkspaceRootUri) {
 			// Get the environment
 			const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
@@ -175,7 +175,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// Get the initial cwd
 		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
 
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), lastActiveWorkspace ? lastActiveWorkspace : undefined, this._variableResolver, activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
+		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), lastActiveWorkspace, this._variableResolver, activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
 		shellLaunchConfig.cwd = initialCwd;
 
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
