@@ -213,11 +213,12 @@ export class BackLayerWebView extends Disposable {
 			if (data.type === 'dimension') {
 				let cell = this.mapping.get(data.id)?.cell;
 				let height = data.data.height;
+				let outputHeight = height === 0 ? 0 : height + 32;
 				if (cell) {
 					const lineNum = cell.lineCount;
 					const totalHeight = Math.max(lineNum + 1, 5) * 21;
-					cell.setDynamicHeight(totalHeight + 32 + height);
-					this.notebookHandler.layoutElement(cell, totalHeight + 32 + height);
+					cell.setDynamicHeight(totalHeight + 8 /* code cell padding */ + outputHeight);
+					this.notebookHandler.layoutElement(cell, totalHeight + 8 /* code cell padding */ + outputHeight);
 				}
 			} else if (data.type === 'scroll-ack') {
 				// const date = new Date();
