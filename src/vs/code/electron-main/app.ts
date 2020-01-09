@@ -191,7 +191,8 @@ export class CodeApplication extends Disposable {
 				webPreferences.nodeIntegration = false;
 
 				// Verify URLs being loaded
-				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preload)) {
+				// https://github.com/electron/electron/issues/21553
+				if (isValidWebviewSource(params.src) && isValidWebviewSource((webPreferences as { preloadURL: string }).preloadURL)) {
 					return;
 				}
 
