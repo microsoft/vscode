@@ -111,6 +111,27 @@ export class BackLayerWebView extends Disposable {
 		}
 	};
 
+	let observers = [];
+
+	const resizeObserve = (container, id) => {
+		const resizeObserver = new ResizeObserver(entries => {
+			for (let entry of entries) {
+				if (entry.target.id === id && entry.contentRect) {
+					vscode.postMessage({
+							type: 'dimension',
+							id: id,
+							data: {
+								height: entry.contentRect.height
+							}
+						});
+				}
+			}
+		});
+
+		resizeObserver.observe(container);
+		observers.push(resizeObserver);
+	}
+
 	window.addEventListener('message', event => {
 		let id = event.data.id;
 
@@ -134,16 +155,15 @@ export class BackLayerWebView extends Disposable {
 
 					// eval
 					domEval(outputNode);
+					resizeObserve(cellOutputContainer, id);
 
-					setTimeout(() => {
-						vscode.postMessage({
-							type: 'dimension',
-							id: id,
-							data: {
-								height: cellOutputContainer.clientHeight
-							}
-						});
-					}, 200);
+					vscode.postMessage({
+						type: 'dimension',
+						id: id,
+						data: {
+							height: cellOutputContainer.clientHeight
+						}
+					});
 				}
 				break;
 			case 'view-scroll':
@@ -168,6 +188,11 @@ export class BackLayerWebView extends Disposable {
 				}
 			case 'clear':
 				document.getElementById('container').innerHTML = '';
+				for (let i = 0; i < observers.length; i++) {
+					observers[i].disconnect;
+				}
+
+				observers = [];
 				break;
 		}
 	});

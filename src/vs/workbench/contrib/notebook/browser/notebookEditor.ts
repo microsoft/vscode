@@ -226,13 +226,13 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 					});
 
 					if (updateItems.length > 0) {
-						console.log('----- did scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+						// console.log('----- did scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 						this.webview?.updateViewScrollTop(-scrollTop, updateItems);
 					}
 				};
 				this.localStore.add(this.list!.onWillScroll(e => {
-					const date = new Date();
-					console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+					// const date = new Date();
+					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 					this.webview?.updateViewScrollTop(-e.scrollTop, []);
 				}));
 				this.localStore.add(this.list!.onDidScroll(() => updateScrollPosition()));
