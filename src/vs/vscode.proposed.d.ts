@@ -1431,6 +1431,8 @@ declare module 'vscode' {
 			workspaceLanguageValue?: T;
 			workspaceFolderLanguageValue?: T;
 
+			languages?: string[];
+
 		} | undefined;
 
 		/**

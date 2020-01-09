@@ -45,6 +45,8 @@ type ConfigurationInspect<T> = {
 	userLanguageValue?: T;
 	workspaceLanguageValue?: T;
 	workspaceFolderLanguageValue?: T;
+
+	languages?: string[];
 };
 
 function isUri(thing: any): thing is vscode.Uri {
@@ -264,6 +266,8 @@ export class ExtHostConfigProvider {
 						userLanguageValue: config.user?.override,
 						workspaceLanguageValue: config.workspace?.override,
 						workspaceFolderLanguageValue: config.workspaceFolder?.override,
+
+						languages: config.overrideIdentifiers
 					};
 				}
 				return undefined;
