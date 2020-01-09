@@ -278,7 +278,7 @@ configurationRegistry.registerConfiguration({
 			default: 56,
 			minimum: 20,
 			maximum: 100,
-			description: nls.localize('screencastMode.fontSize', "Controls font size of the screencast mode keyboard shortcuts")
+			description: nls.localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
 		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
