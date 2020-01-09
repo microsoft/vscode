@@ -59,7 +59,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
-		const fetchSetting = (key: string) => {
+		const fetchSetting = (key: string): { userValue: string | string[] | undefined, value: string | string[] | undefined, defaultValue: string | string[] | undefined } => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
 				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
@@ -79,7 +79,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	private _getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
-		const fetchSetting = (key: string) => {
+		const fetchSetting = (key: string): { userValue: string | string[] | undefined, value: string | string[] | undefined, defaultValue: string | string[] | undefined } => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
 				.inspect<string | string[]>(key.substr(key.lastIndexOf('.') + 1));
@@ -91,11 +91,11 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _apiInspectConfigToPlain<T>(
 		config: { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, workspaceFolderValue?: T } | undefined
-	): { user: T | undefined, value: T | undefined, default: T | undefined } {
+	): { userValue: T | undefined, value: T | undefined, defaultValue: T | undefined } {
 		return {
-			user: config ? config.globalValue : undefined,
+			userValue: config ? config.globalValue : undefined,
 			value: config ? config.workspaceValue : undefined,
-			default: config ? config.defaultValue : undefined,
+			defaultValue: config ? config.defaultValue : undefined,
 		};
 	}
 

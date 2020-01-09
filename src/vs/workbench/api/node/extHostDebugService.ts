@@ -87,22 +87,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			}
 
 			const configProvider = await this._configurationService.getConfigProvider();
-			const terminalConfig = configProvider.getConfiguration('terminal');
-
-			let shell;
-			const automationShellConfig = terminalConfig.integrated.automationShell;
-			if (automationShellConfig) {
-				if (env.isWindows) {
-					shell = automationShellConfig.windows;
-				} else if (env.isLinux) {
-					shell = automationShellConfig.linux;
-				} else if (env.isMacintosh) {
-					shell = automationShellConfig.osx;
-				}
-			}
-			if (!shell) {
-				shell = this._terminalService.getDefaultShell(true, configProvider);
-			}
+			const shell = this._terminalService.getDefaultShell(true, configProvider);
 
 			if (needNewTerminal || !this._integratedTerminalInstance) {
 

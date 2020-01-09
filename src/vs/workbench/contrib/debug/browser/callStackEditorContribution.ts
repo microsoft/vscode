@@ -13,7 +13,6 @@ import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
@@ -82,7 +81,7 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, topStack
 	return result;
 }
 
-class CallStackEditorContribution implements IEditorContribution {
+export class CallStackEditorContribution implements IEditorContribution {
 	private toDispose: IDisposable[] = [];
 	private decorationIds: string[] = [];
 	private topStackFrameRange: Range | undefined;
@@ -147,5 +146,3 @@ registerThemingParticipant((theme, collector) => {
 
 const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#fff600' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
 const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#cee7ce' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
-
-registerEditorContribution('editor.contrib.callStack', CallStackEditorContribution);

@@ -59,8 +59,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		// Update editors from disk changes
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
-		// Open editors from dirty text file models
-		this._register(this.textFileService.models.onModelsDirty(e => this.onTextFilesDirty(e)));
+		// Ensure dirty text file models are always opened as editors
+		this._register(this.textFileService.models.onModelsDirty(e => this.ensureDirtyTextFilesAreOpened(e)));
+		this._register(this.textFileService.models.onModelsSaveError(e => this.ensureDirtyTextFilesAreOpened(e)));
 
 		// Out of workspace file watchers
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
@@ -263,29 +264,19 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	//#endregion
 
-	//#region Text File Dirty: Ensure every dirty text file is opened in an editor
+	//#region Text File: Ensure every dirty text file is opened in an editor
 
-	private onTextFilesDirty(events: ReadonlyArray<TextFileModelChangeEvent>): void {
-
-		// If files become dirty but are not opened, we open it in the background unless there are pending to be saved
-		this.doOpenDirtyResourcesInBackground(distinct(events.filter(({ resource }) => {
-
-			// Only dirty models that are not PENDING_SAVE
+	private ensureDirtyTextFilesAreOpened(events: ReadonlyArray<TextFileModelChangeEvent>): void {
+		this.editorService.openEditors(distinct(events.filter(({ resource }) => {
 			const model = this.textFileService.models.get(resource);
-			const shouldOpen = model?.isDirty() && !model.hasState(ModelState.PENDING_SAVE);
 
-			// Only if not open already
-			return shouldOpen && !this.editorService.isOpen({ resource });
-		}).map(event => event.resource), resource => resource.toString()));
-	}
-
-	private doOpenDirtyResourcesInBackground(resources: URI[]): void {
-		this.editorService.openEditors(resources.map(resource => {
-			return {
-				resource,
-				options: { inactive: true, pinned: true, preserveFocus: true }
-			};
-		}));
+			return model?.hasState(ModelState.DIRTY) &&		// model must be dirty
+				!model.hasState(ModelState.PENDING_SAVE) &&	// model should not be saving currently
+				!this.editorService.isOpen({ resource });	// model is not currently opened as editor
+		}).map(event => event.resource), resource => resource.toString()).map(resource => ({
+			resource,
+			options: { inactive: true, pinned: true, preserveFocus: true }
+		})));
 	}
 
 	//#endregion

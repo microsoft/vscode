@@ -130,7 +130,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					const cwd = fs.readlinkSync(resources.joinPath(childUri, 'cwd').fsPath);
 					const rawCmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					const nullIndex = rawCmd.indexOf('\0');
-					const cmd = rawCmd.substr(0, nullIndex > 0 ? nullIndex : rawCmd.length);
+					const cmd = rawCmd.substr(0, nullIndex > 0 ? nullIndex : rawCmd.length).trim();
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {
@@ -183,7 +183,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 							ip: this.parseIpAddress(address[0]),
 							port: parseInt(address[1], 16)
 						};
-					}).map(port => [port.port, port])
+					}).map(port => [port.ip + ':' + port.port, port])
 			).values()
 		];
 	}

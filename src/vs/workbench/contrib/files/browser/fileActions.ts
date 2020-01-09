@@ -1099,6 +1099,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	if (pasteShouldMove) {
 		// Cut is done. Make sure to clear cut state.
 		explorerService.setToCopy([], false);
+		pasteShouldMove = false;
 	}
 	if (stats.length >= 1) {
 		const stat = stats[0];

@@ -226,7 +226,8 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	}
 
 	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
-		templateData.iconLabel.setLabel(node.label, node.description, { title: node.label + ' - ' + node.description, extraClasses: ['tunnel-view-label'] });
+		const label = node.label + (node.description ? (' - ' + node.description) : '');
+		templateData.iconLabel.setLabel(node.label, node.description, { title: label, extraClasses: ['tunnel-view-label'] });
 		templateData.actionBar.context = node;
 		const contextKeyService = this._register(this.contextKeyService.createScoped());
 		contextKeyService.createKey('view', this.viewId);
@@ -355,10 +356,14 @@ class TunnelItem implements ITunnelItem {
 	get label(): string {
 		if (this.name) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel0', "{0}", this.name);
+		} else if (this.localAddress && (this.remoteHost !== 'localhost')) {
+			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0}:{1} to {2}", this.remoteHost, this.remotePort, this.localAddress);
 		} else if (this.localAddress) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0} to {1}", this.remotePort, this.localAddress);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel3', "{0} to {1}", this.remotePort, this.localAddress);
+		} else if (this.remoteHost !== 'localhost') {
+			return nls.localize('remote.tunnelsView.forwardedPortLabel4', "{0}:{1} not forwarded", this.remoteHost, this.remotePort);
 		} else {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel3', "{0} not forwarded", this.remotePort);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel5', "{0} not forwarded", this.remotePort);
 		}
 	}
 
