@@ -507,7 +507,7 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	private onContextMenu(treeEvent: ITreeContextMenuEvent<ITunnelItem | ITunnelGroup>, actionRunner: ActionRunner): void {
-		if (!(treeEvent.element instanceof TunnelItem)) {
+		if ((treeEvent.element !== null) && !(treeEvent.element instanceof TunnelItem)) {
 			return;
 		}
 		const node: ITunnelItem | null = treeEvent.element;
@@ -516,9 +516,13 @@ export class TunnelPanel extends ViewPane {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this.tree!.setFocus([node]);
-		this.tunnelTypeContext.set(node.tunnelType);
-		this.tunnelCloseableContext.set(!!node.closeable);
+		if (node) {
+			this.tree!.setFocus([node]);
+			this.tunnelTypeContext.set(node.tunnelType);
+			this.tunnelCloseableContext.set(!!node.closeable);
+		} else {
+			this.tunnelTypeContext.set(TunnelType.Add);
+		}
 
 		const actions: IAction[] = [];
 		this._register(createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService));
@@ -793,7 +797,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		id: ForwardPortAction.INLINE_ID,
 		title: ForwardPortAction.LABEL,
 	},
-	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
+	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Candidate), TunnelTypeContextKey.isEqualTo(TunnelType.Add))
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
