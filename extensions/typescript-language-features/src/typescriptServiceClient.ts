@@ -22,7 +22,7 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
-import TelemetryReporter, { VSCodeTelemetryReporter } from './utils/telemetry';
+import TelemetryReporter, { VSCodeTelemetryReporter, TelemetrtyProperties } from './utils/telemetry';
 import Tracer from './utils/tracer';
 import { inferredProjectCompilerOptions } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
@@ -79,6 +79,11 @@ namespace ServerState {
 
 	export type State = typeof None | Running | Errored;
 }
+
+// TODO: Remove this hardcoded type once we update to TS 3.8+ that brings in the proper types
+type TS38ResponseWithPerfMetadata = Proto.Response & {
+	updateGraphDurationMs?: number;
+};
 
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${fileSchemes.walkThroughSnippet}:`;
@@ -271,7 +276,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.logger.error(message, data);
 	}
 
-	private logTelemetry(eventName: string, properties?: { readonly [prop: string]: string }) {
+	private logTelemetry(eventName: string, properties?: TelemetrtyProperties) {
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
@@ -698,7 +703,30 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
 		this.bufferSyncSupport.beforeCommand(command);
 		const runningServerState = this.service();
-		return runningServerState.server.executeImpl(command, args, executeInfo);
+		return runningServerState.server.executeImpl(command, args, executeInfo).then(result => {
+			if (result?.type === 'response') {
+				this.reportRequestTelemetry(result, command);
+			}
+			return result;
+		});
+	}
+
+	private reportRequestTelemetry(result: TS38ResponseWithPerfMetadata, command: string): void {
+		if (typeof result.updateGraphDurationMs === 'number') {
+			/* __GDPR__
+				"updateGraphPerformance" : {
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					],
+					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"updateGraphDurationMs" : { "classification": "SystemMetaData", "purpose": "updateGraphDurationMs" }
+				}
+			*/
+			this.logTelemetry('updateGraphPerformance', {
+				command,
+				updateGraphDurationMs: result.updateGraphDurationMs
+			});
+		}
 	}
 
 	public interruptGetErr<R>(f: () => R): R {
@@ -711,7 +739,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				"${include}": [
 					"${TypeScriptCommonProperties}",
 					"${TypeScriptRequestErrorProperties}"
-				]
+				],
+				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			}
 		*/
 		this.logTelemetry('fatalError', { command, ...(error instanceof TypeScriptServerError ? error.telemetry : {}) });

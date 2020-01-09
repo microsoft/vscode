@@ -13,8 +13,12 @@ interface PackageInfo {
 	readonly aiKey: string;
 }
 
+export interface TelemetrtyProperties {
+	readonly [prop: string]: string | number;
+}
+
 export default interface TelemetryReporter {
-	logTelemetry(eventName: string, properties?: { readonly [prop: string]: string }): void;
+	logTelemetry(eventName: string, properties?: TelemetrtyProperties): void;
 
 	dispose(): void;
 }
