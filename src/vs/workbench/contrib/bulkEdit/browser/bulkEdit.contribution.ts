@@ -15,6 +15,9 @@ import { localize } from 'vs/nls';
 import { ViewPaneContainer, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { PaneCompositePanel } from 'vs/workbench/browser/panel';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 
 class BulkEditPreviewContribution {
 
@@ -24,6 +27,7 @@ class BulkEditPreviewContribution {
 
 	constructor(
 		@IPanelService private _panelService: IPanelService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -33,6 +37,8 @@ class BulkEditPreviewContribution {
 
 	private async _previewEdit(edit: WorkspaceEdit) {
 		this._ctxEnabled.set(true);
+		const oldActivePanel = this._panelService.getActivePanel();
+
 		try {
 
 			let view: ViewPane | undefined;
@@ -50,15 +56,32 @@ class BulkEditPreviewContribution {
 				return { edits: [] };
 			}
 
-			// todo@joh/steVen add view state
-			// if (this._panelService.getLastActivePanelId() === BulkEditPanel.ID) {
-			// 	this._panelService.hideActivePanel();
-			// }
-
 			return newEditOrUndefined;
 
 		} finally {
+			// restore UX state
+
+			// (1) hide refactor panel
 			this._ctxEnabled.set(false);
+
+			// (2) restore previous panel
+			if (oldActivePanel) {
+				this._panelService.openPanel(oldActivePanel.getId());
+			} else {
+				this._panelService.hideActivePanel();
+			}
+
+			// (3) close preview editors
+			for (let group of this._editorGroupsService.groups) {
+				for (let input of group.editors) {
+					if (!group.isPinned(input)
+						&& input instanceof DiffEditorInput
+						&& input.modifiedInput.getResource()?.scheme === BulkEditPreviewProvider.Schema
+					) {
+						group.closeEditor(input, { preserveFocus: true });
+					}
+				}
+			}
 		}
 	}
 }
