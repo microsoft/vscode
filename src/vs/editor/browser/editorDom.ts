@@ -205,3 +205,87 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 		});
 	}
 }
+
+
+// Dynamically polyfill the `caretRangeFromPoint` method
+if (typeof ShadowRoot.prototype.caretRangeFromPoint === 'undefined') {
+    /**
+     * The `best I can do` polyfill for this method
+     */
+    ShadowRoot.prototype.caretRangeFromPoint = function (x, y) {
+
+		let range = document.createRange();
+
+        // Get the element under the point
+		let el:Element | null = this.elementFromPoint(x, y);
+
+		if (el !== null) {
+			// Get the last child of the element until its firstChild is a text node
+			// This assumes that the pointer is on the right of the line, out of the tokens
+			// and that we want to get the offset of the last token of the line
+			while ((el as any).firstChild.nodeType !== (el as any).firstChild.TEXT_NODE) {
+				el = (el as any).lastChild;
+			}
+
+			// Grab its rect
+			let rect = (el as any).getBoundingClientRect();
+
+			// And its font
+			let font = window.getComputedStyle(el as any, null).getPropertyValue('font');
+
+			// And also its txt content
+			let text = (el as any).innerText;
+
+			// Position the pixel cursor at the left of the element
+			let pixelCursor = rect.left;
+			let offset = 0;
+			let step;
+
+			// If the point is on the right of the box put the cursor after the last character
+			if (x > rect.left + rect.width) {
+				offset = text.length;
+			} else {
+				// Goes through all the characters of the innerText, and checks if the x of the point
+				// belongs to the character.
+				for (let i = 0; i < text.length + 1; i++) {
+					// The step is half the width of the character
+					step = (window as any)._getCharWidth(text.charAt(i), font) / 2;
+					// Move to the center of the character
+					pixelCursor += step;
+					// If the x of the point is smaller that the position of the cursor, the point is over that character
+					if (x < pixelCursor) {
+						offset = i;
+						break;
+					}
+					// Move between the current character and the next
+					pixelCursor += step;
+				}
+			}
+
+			// Creates a range with the text node of the element and set the offset found
+			range.setStart((el as any).firstChild, offset);
+			range.setEnd((el as any).firstChild, offset);
+		}
+
+        return range;
+    };
+}
+
+(function (window) {
+    (window as any)._getCharWidth = (char:any, font:any) => {
+        let cacheKey = char + font;
+        if ((window as any)._getCharWidth._cache[cacheKey]) {
+            return (window as any)._getCharWidth._cache[cacheKey];
+        }
+
+		let context = (window as any)._getCharWidth._canvas.getContext("2d");
+        context.font = font;
+        let metrics = context.measureText(char);
+        let width = metrics.width;
+        (window as any)._getCharWidth._cache[cacheKey] = width;
+        return width;
+    }
+
+    (window as any)._getCharWidth._cache = {};
+    (window as any)._getCharWidth._canvas = document.createElement('canvas');
+})(window);

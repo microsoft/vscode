@@ -810,7 +810,7 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 			}
 		}
 
-		node = <HTMLElement>node.parentNode;
+		node = <HTMLElement>node.parentNode || (node as any).host;
 	}
 
 	return null;
@@ -820,7 +820,16 @@ export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazz
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
 }
 
-export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement): HTMLStyleElement {
+	if (!container) {
+		if ((window as any).monacoShadowRoot) {
+			container = (window as any).monacoShadowRoot.querySelector('head');
+		}
+		else {
+			container = document.getElementsByTagName('head')[0]
+		}
+	}
+
 	let style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
@@ -979,7 +988,7 @@ export function saveParentsScrollTop(node: Element): number[] {
 	let r: number[] = [];
 	for (let i = 0; node && node.nodeType === node.ELEMENT_NODE; i++) {
 		r[i] = node.scrollTop;
-		node = <Element>node.parentNode;
+		node = <Element>node.parentNode || (node as any).host;
 	}
 	return r;
 }
@@ -989,7 +998,7 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 		if (node.scrollTop !== state[i]) {
 			node.scrollTop = state[i];
 		}
-		node = <Element>node.parentNode;
+		node = <Element>node.parentNode || (node as any).host;
 	}
 }
 
@@ -1172,7 +1181,7 @@ function findParentWithAttribute(node: Node | null, attribute: string): HTMLElem
 			return node;
 		}
 
-		node = node.parentNode;
+		node = node.parentNode || (node as any).host;
 	}
 
 	return null;

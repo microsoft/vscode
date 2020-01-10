@@ -836,7 +836,10 @@ export class MouseTargetFactory {
 
 	private static _actualDoHitTestWithCaretRangeFromPoint(ctx: HitTestContext, coords: ClientCoordinates): IHitTestResult {
 
-		const range: Range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
+		const docOrRoot = (window as any).monacoShadowRoot || document;
+		const range: Range = docOrRoot.caretRangeFromPoint(coords.clientX, coords.clientY);
+
+		//const range: Range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
 
 		if (!range || !range.startContainer) {
 			return {
