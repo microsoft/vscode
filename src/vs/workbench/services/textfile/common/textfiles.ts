@@ -258,11 +258,6 @@ export const enum ModelState {
 	PENDING_SAVE,
 
 	/**
-	 * A model is marked for being saved after a specific timeout.
-	 */
-	PENDING_AUTO_SAVE,
-
-	/**
 	 * A model is in conflict mode when changes cannot be saved because the
 	 * underlying file has changed. Models in conflict mode are always dirty.
 	 */

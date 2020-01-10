@@ -787,7 +787,8 @@ class SuggestAdapter {
 				x: pid,
 				b: [],
 				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				c: list.isIncomplete || undefined
+				c: list.isIncomplete || undefined,
+				d: list.isDetailsResolved || undefined
 			};
 
 			for (let i = 0; i < list.items.length; i++) {

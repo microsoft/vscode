@@ -45,11 +45,15 @@ export interface Tunnel {
 	closeable?: boolean;
 }
 
-export function MakeAddress(host: string, port: number): string {
+function ToLocalHost(host: string): string {
 	if (host === '127.0.0.1') {
 		host = 'localhost';
 	}
-	return host + ':' + port;
+	return host;
+}
+
+export function MakeAddress(host: string, port: number): string {
+	return ToLocalHost(host) + ':' + port;
 }
 
 export class TunnelModel extends Disposable {
@@ -201,7 +205,13 @@ export class TunnelModel extends Disposable {
 			return;
 		}
 		if (this._candidateFinder) {
-			this._candidates = await this._candidateFinder();
+			this._candidates = (await this._candidateFinder()).map(value => {
+				return {
+					host: ToLocalHost(value.host),
+					port: value.port,
+					detail: value.detail
+				};
+			});
 		}
 	}
 
@@ -286,7 +296,9 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	}
 
 	getEditableData(tunnelItem: ITunnelItem | undefined): IEditableData | undefined {
-		return (this._editable && (!tunnelItem || (this._editable.tunnelItem?.remotePort === tunnelItem.remotePort) && (this._editable.tunnelItem.remoteHost === tunnelItem.remoteHost))) ?
+		return (this._editable &&
+			((!tunnelItem && (tunnelItem === this._editable.tunnelItem)) ||
+				(tunnelItem && (this._editable.tunnelItem?.remotePort === tunnelItem.remotePort) && (this._editable.tunnelItem.remoteHost === tunnelItem.remoteHost)))) ?
 			this._editable.data : undefined;
 	}
 

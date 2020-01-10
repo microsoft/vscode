@@ -47,6 +47,9 @@ export class CompletionItem {
 	idx?: number;
 	word?: string;
 
+	//
+	readonly isDetailsResolved: boolean;
+
 	constructor(
 		readonly position: IPosition,
 		readonly completion: modes.CompletionItem,
@@ -69,6 +72,8 @@ export class CompletionItem {
 			this.editInsertEnd = new Position(completion.range.insert.endLineNumber, completion.range.insert.endColumn);
 			this.editReplaceEnd = new Position(completion.range.replace.endLineNumber, completion.range.replace.endColumn);
 		}
+
+		this.isDetailsResolved = container.isDetailsResolved || typeof provider.resolveCompletionItem === 'undefined';
 
 		// create the suggestion resolver
 		const { resolveCompletionItem } = provider;

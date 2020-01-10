@@ -13,6 +13,7 @@ const webviewId = 'myWebview';
 
 const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
 
+// TODO: Re-enable after https://github.com/microsoft/vscode/issues/88415
 suite.skip('Webview tests', () => {
 	const disposables: vscode.Disposable[] = [];
 

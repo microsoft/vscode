@@ -13,6 +13,7 @@ import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
@@ -25,7 +26,7 @@ import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, 
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CustomFileEditorInput } from './customEditorInput';
@@ -81,8 +82,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IFileService fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWebviewService private readonly webviewService: IWebviewService,
@@ -112,6 +115,13 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._webviewHasOwnEditFunctions = webviewHasOwnEditFunctionsContext.bindTo(contextKeyService);
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContexts()));
+
+		this._register(fileService.onAfterOperation(e => {
+			if (e.isOperation(FileOperation.MOVE)) {
+				this.handleMovedFileInOpenedFileEditors(e.resource, e.target.resource);
+			}
+		}));
+
 		this.updateContexts();
 	}
 
@@ -261,6 +271,31 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._hasCustomEditor.set(possibleEditors.length > 0);
 		this._focusedCustomEditorIsEditable.set(activeControl?.input instanceof CustomFileEditorInput);
 		this._webviewHasOwnEditFunctions.set(true);
+	}
+
+	private handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): void {
+		for (const group of this.editorGroupService.groups) {
+			for (const editor of group.editors) {
+				if (!(editor instanceof CustomFileEditorInput)) {
+					continue;
+				}
+
+				const editorInfo = this._editorInfoStore.get(editor.viewType);
+				if (!editorInfo) {
+					continue;
+				}
+
+				if (!editorInfo.matches(newResource)) {
+					continue;
+				}
+
+				const replacement = this.createInput(newResource, editor.viewType, group);
+				this.editorService.replaceEditors([{
+					editor: editor,
+					replacement: replacement,
+				}], group);
+			}
+		}
 	}
 }
 

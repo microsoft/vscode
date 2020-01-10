@@ -25,6 +25,7 @@ import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/tes
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 
 const H = Handler;
 
@@ -152,7 +153,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = createTextModel(text);
 		thisConfiguration = new TestConfiguration({});
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null!);
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, MonospaceLineBreaksComputerFactory.create(thisConfiguration.options), null!);
 
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
@@ -776,7 +777,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = new ViewModel(0, config, model, MonospaceLineBreaksComputerFactory.create(config.options), null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -816,7 +817,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = new ViewModel(0, config, model, MonospaceLineBreaksComputerFactory.create(config.options), null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -880,7 +881,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = new ViewModel(0, config, model, MonospaceLineBreaksComputerFactory.create(config.options), null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -929,7 +930,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = new ViewModel(0, config, model, MonospaceLineBreaksComputerFactory.create(config.options), null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -2074,7 +2075,7 @@ suite('Editor Controller - Regression tests', () => {
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = new ViewModel(0, config, model, MonospaceLineBreaksComputerFactory.create(config.options), null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 43, false);
@@ -3834,7 +3835,7 @@ function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cur
 	let model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
 	let config = new TestConfiguration(opts.editorOpts || {});
-	let viewModel = new ViewModel(0, config, model, null!);
+	let viewModel = new ViewModel(0, config, model, MonospaceLineBreaksComputerFactory.create(config.options), null!);
 	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);

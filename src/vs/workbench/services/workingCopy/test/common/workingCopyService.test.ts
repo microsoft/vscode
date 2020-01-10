@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TestWorkingCopyService } from 'vs/workbench/test/workbenchTestServices';
+import type { ISaveOptions } from 'vs/workbench/common/editor';
 
 suite('WorkingCopyService', () => {
 
@@ -39,6 +40,10 @@ suite('WorkingCopyService', () => {
 
 		isDirty(): boolean {
 			return this.dirty;
+		}
+
+		async save(options?: ISaveOptions): Promise<boolean> {
+			return true;
 		}
 
 		dispose(): void {
