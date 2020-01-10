@@ -146,10 +146,7 @@ export class ProgressService extends Disposable implements IProgressService {
 	private withNotificationProgress<P extends Promise<R>, R = unknown>(options: IProgressNotificationOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: (choice?: number) => void): P {
 		const toDispose = new DisposableStore();
 
-		const createNotification = (message: string | undefined, increment?: number): INotificationHandle | undefined => {
-			if (!message) {
-				return undefined; // we need a message at least
-			}
+		const createNotification = (message: string, increment?: number): INotificationHandle => {
 
 			const primaryActions = options.primaryActions ? Array.from(options.primaryActions) : [];
 			const secondaryActions = options.secondaryActions ? Array.from(options.secondaryActions) : [];
@@ -222,21 +219,34 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		let handle: INotificationHandle | undefined;
+		let handleSoon: any | undefined;
+
+		let titleAndMessage: string | undefined; // hoisted to make sure a delayed notification shows the most recent message
+
 		const updateNotification = (message?: string, increment?: number): void => {
-			if (!handle) {
-				handle = createNotification(message, increment);
+
+			// full message (inital or update)
+			if (message && options.title) {
+				titleAndMessage = `${options.title}: ${message}`; // always prefix with overall title if we have it (https://github.com/Microsoft/vscode/issues/50932)
 			} else {
-				if (typeof message === 'string') {
-					let newMessage: string;
-					if (typeof options.title === 'string') {
-						newMessage = `${options.title}: ${message}`; // always prefix with overall title if we have it (https://github.com/Microsoft/vscode/issues/50932)
-					} else {
-						newMessage = message;
+				titleAndMessage = options.title || message;
+			}
+
+			if (!handle && titleAndMessage) {
+				// create notification now or after a delay
+				if (typeof options.delay === 'number' && options.delay > 0) {
+					if (typeof handleSoon !== 'number') {
+						handleSoon = setTimeout(() => handle = createNotification(titleAndMessage!, increment), options.delay);
 					}
-
-					handle.updateMessage(newMessage);
+				} else {
+					handle = createNotification(titleAndMessage, increment);
 				}
+			}
 
+			if (handle) {
+				if (titleAndMessage) {
+					handle.updateMessage(titleAndMessage);
+				}
 				if (typeof increment === 'number') {
 					updateProgress(handle, increment);
 				}
@@ -244,7 +254,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		// Show initially
-		updateNotification(options.title);
+		updateNotification();
 
 		// Update based on progress
 		const promise = callback({
@@ -255,6 +265,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		// Show progress for at least 800ms and then hide once done or canceled
 		Promise.all([timeout(800), promise]).finally(() => {
+			clearTimeout(handleSoon);
 			if (handle) {
 				handle.close();
 			}

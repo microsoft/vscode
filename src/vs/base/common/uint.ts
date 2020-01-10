@@ -57,12 +57,3 @@ export function toUint32(v: number): number {
 	}
 	return v | 0;
 }
-
-export function toUint32Array(arr: number[]): Uint32Array {
-	const len = arr.length;
-	const r = new Uint32Array(len);
-	for (let i = 0; i < len; i++) {
-		r[i] = toUint32(arr[i]);
-	}
-	return r;
-}

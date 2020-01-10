@@ -481,6 +481,7 @@ export interface CompletionItem {
 export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
+	isDetailsResolved?: boolean;
 	dispose?(): void;
 }
 

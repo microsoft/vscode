@@ -37,10 +37,11 @@ import { isFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 // TODO@sbatten https://github.com/microsoft/vscode/issues/81360
-// tslint:disable-next-line: import-patterns layering TODO@sbatten
+// eslint-disable-next-line code-layering, code-import-patterns
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-// tslint:disable-next-line: import-patterns layering TODO@sbatten
+// TODO@sbatten
+// eslint-disable-next-line code-layering, code-import-patterns
 import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 

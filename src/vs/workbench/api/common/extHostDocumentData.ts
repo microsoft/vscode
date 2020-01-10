@@ -16,8 +16,13 @@ import { equals } from 'vs/base/common/arrays';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
-	_modeId2WordDefinition.set(modeId, wordDefinition);
+	if (!wordDefinition) {
+		_modeId2WordDefinition.delete(modeId);
+	} else {
+		_modeId2WordDefinition.set(modeId, wordDefinition);
+	}
 }
+
 export function getWordDefinitionFor(modeId: string): RegExp | undefined {
 	return _modeId2WordDefinition.get(modeId);
 }

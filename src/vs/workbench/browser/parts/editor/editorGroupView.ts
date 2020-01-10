@@ -226,8 +226,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			const activeEditor = this._group.activeEditor;
 			if (activeEditor) {
-				groupActiveEditorDirtyContextKey.set(activeEditor.isDirty());
-				activeEditorListener.value = activeEditor.onDidChangeDirty(() => groupActiveEditorDirtyContextKey.set(activeEditor.isDirty()));
+				groupActiveEditorDirtyContextKey.set(activeEditor.isDirty() && !activeEditor.isSaving());
+				activeEditorListener.value = activeEditor.onDidChangeDirty(() => groupActiveEditorDirtyContextKey.set(activeEditor.isDirty() && !activeEditor.isSaving()));
 			} else {
 				groupActiveEditorDirtyContextKey.set(false);
 			}
@@ -823,7 +823,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Guard against invalid inputs. Disposed inputs
 		// should never open because they emit no events
-		// e.g. to indicate dirty changes. 
+		// e.g. to indicate dirty changes.
 		if (editor.isDisposed()) {
 			return Promise.resolve(undefined);
 		}
@@ -864,15 +864,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			restoreGroup = !activateGroup;
 		}
 
-		// Do this before we open the editor in the group to prevent a false
-		// active editor change event before the editor is loaded
-		// (see https://github.com/Microsoft/vscode/issues/51679)
-		if (activateGroup) {
-			this.accessor.activateGroup(this);
-		} else if (restoreGroup) {
-			this.accessor.restoreGroup(this);
-		}
-
 		// Actually move the editor if a specific index is provided and we figure
 		// out that the editor is already opened at a different index. This
 		// ensures the right set of events are fired to the outside.
@@ -889,7 +880,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const openedEditor = this._group.openEditor(editor, openEditorOptions);
 
 		// Show editor
-		return this.doShowEditor(openedEditor, !!openEditorOptions.active, options);
+		const showEditorResult = this.doShowEditor(openedEditor, !!openEditorOptions.active, options);
+
+		// Finally make sure the group is active or restored as instructed
+		if (activateGroup) {
+			this.accessor.activateGroup(this);
+		} else if (restoreGroup) {
+			this.accessor.restoreGroup(this);
+		}
+
+		return showEditorResult;
 	}
 
 	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditor | undefined> {
@@ -1271,8 +1271,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private async doHandleDirtyClosing(editor: EditorInput): Promise<boolean /* veto */> {
-		if (!editor.isDirty()) {
-			return false; // editor must be dirty
+		if (!editor.isDirty() || editor.isSaving()) {
+			return false; // editor must be dirty and not saving
 		}
 
 		if (editor instanceof SideBySideEditorInput && this.isOpened(editor.master)) {
@@ -1309,11 +1309,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 		const res = await this.fileDialogService.showSaveConfirm(editorResource ? [editorResource] : [editor.getName()]);
 
-		// It could be that the editor saved meanwhile, so we check again
-		// to see if anything needs to happen before closing for good.
+		// It could be that the editor saved meanwhile or is saving, so we check
+		// again to see if anything needs to happen before closing for good.
 		// This can happen for example if autoSave: onFocusChange is configured
 		// so that the save happens when the dialog opens.
-		if (!editor.isDirty()) {
+		if (!editor.isDirty() || editor.isSaving()) {
 			return res === ConfirmResult.CANCEL ? true : false;
 		}
 
@@ -1376,9 +1376,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		let editorsToClose = this._group.getEditors(hasDirection ? EditorsOrder.SEQUENTIAL : EditorsOrder.MOST_RECENTLY_ACTIVE); // in MRU order only if direction is not specified
 
-		// Filter: saved only
+		// Filter: saved or saving only
 		if (filter.savedOnly) {
-			editorsToClose = editorsToClose.filter(e => !e.isDirty());
+			editorsToClose = editorsToClose.filter(e => !e.isDirty() || e.isSaving());
 		}
 
 		// Filter: direction (left / right)
@@ -1471,7 +1471,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let activeReplacement: EditorReplacement | undefined;
 		const inactiveReplacements: EditorReplacement[] = [];
 		editors.forEach(({ editor, replacement, options }) => {
-			if (editor.isDirty()) {
+			if (editor.isDirty() && !editor.isSaving()) {
 				return; // we do not handle dirty in this method, so ignore all dirty
 			}
 

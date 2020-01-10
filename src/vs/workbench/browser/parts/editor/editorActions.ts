@@ -632,7 +632,7 @@ export abstract class BaseCloseAllAction extends Action {
 		// can review if the files should be changed or not.
 		await Promise.all(this.groupsToClose.map(async groupToClose => {
 			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (editor.isDirty()) {
+				if (editor.isDirty() && !editor.isSaving() /* ignore editors that are being saved */) {
 					return groupToClose.openEditor(editor);
 				}
 			}
@@ -644,8 +644,8 @@ export abstract class BaseCloseAllAction extends Action {
 		const dirtyEditorsToConfirmByResource = new ResourceMap();
 
 		for (const editor of this.editorService.editors) {
-			if (!editor.isDirty()) {
-				continue; // only interested in dirty editors
+			if (!editor.isDirty() || editor.isSaving()) {
+				continue; // only interested in dirty editors (unless in the process of saving)
 			}
 
 			const resource = editor.getResource();

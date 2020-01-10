@@ -5,7 +5,6 @@
 
 import * as cp from 'child_process';
 import * as env from 'vs/base/common/platform';
-import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
@@ -76,35 +75,22 @@ export function hasChildProcesses(processId: number | undefined): Promise<boolea
 
 const enum ShellType { cmd, powershell, bash }
 
-export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, shell: string, configProvider: ExtHostConfigProvider): string {
+export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, shell: string): string {
 
-	let shellType = env.isWindows ? ShellType.cmd : ShellType.bash;	// pick a good default
-
-	if (shell) {
-
-		const config = configProvider.getConfiguration('terminal');
-
-		// get the shell configuration for the current platform
-		const shell_config = config.integrated.shell;
-		if (env.isWindows) {
-			shell = shell_config.windows || getSystemShell(env.Platform.Windows);
-		} else if (env.isLinux) {
-			shell = shell_config.linux || getSystemShell(env.Platform.Linux);
-		} else if (env.isMacintosh) {
-			shell = shell_config.osx || getSystemShell(env.Platform.Mac);
-		} else {
-			throw new Error('Unknown platform');
-		}
-	}
+	shell = shell.trim().toLowerCase();
 
 	// try to determine the shell type
-	shell = shell.trim().toLowerCase();
+	let shellType;
 	if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0) {
 		shellType = ShellType.powershell;
 	} else if (shell.indexOf('cmd.exe') >= 0) {
 		shellType = ShellType.cmd;
 	} else if (shell.indexOf('bash') >= 0) {
 		shellType = ShellType.bash;
+	} else if (env.isWindows) {
+		shellType = ShellType.cmd; // pick a good default for Windows
+	} else {
+		shellType = ShellType.bash;	// pick a good default for anything else
 	}
 
 	let quote: (s: string) => string;

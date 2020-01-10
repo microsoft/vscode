@@ -40,10 +40,13 @@ declare module 'vscode' {
 		label?: string;
 	}
 
-	export interface Tunnel {
+	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string };
 		//The complete local address(ex. localhost:1234)
 		localAddress: string;
+	}
+
+	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
 		dispose(): void;
@@ -58,7 +61,9 @@ declare module 'vscode' {
 		 * The localAddress should be the complete local address (ex. localhost:1234) for connecting to the port. Tunnels provided through
 		 * detected are read-only from the forwarded ports UI.
 		 */
-		environmentTunnels?: { remoteAddress: { port: number, host: string }, localAddress: string }[];
+		environmentTunnels?: TunnelDescription[];
+
+		hideCandidatePorts?: boolean;
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -790,24 +795,6 @@ declare module 'vscode' {
 
 	//#region Debug:
 
-	export interface DebugConfigurationProvider {
-
-		/**
-		 * This hook is directly called after 'resolveDebugConfiguration' but with all variables substituted.
-		 * It can be used to resolve or verify a [debug configuration](#DebugConfiguration) by filling in missing values or by adding/changing/removing attributes.
-		 * If more than one debug configuration provider is registered for the same type, the 'resolveDebugConfigurationWithSubstitutedVariables' calls are chained
-		 * in arbitrary order and the initial debug configuration is piped through the chain.
-		 * Returning the value 'undefined' prevents the debug session from starting.
-		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
-		 *
-		 * @param folder The workspace folder from which the configuration originates from or `undefined` for a folderless setup.
-		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
-		 * @param token A cancellation token.
-		 * @return The resolved debug configuration or undefined or null.
-		 */
-		resolveDebugConfigurationWithSubstitutedVariables?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
-	}
-
 	// deprecated
 
 	export interface DebugConfigurationProvider {
@@ -1318,7 +1305,7 @@ declare module 'vscode' {
 
 	//#region Language specific settings: https://github.com/microsoft/vscode/issues/26707
 
-	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { resource: Uri, languageId: string };
+	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri, languageId: string };
 
 	/**
 	 * An event describing the change in Configuration
@@ -1444,6 +1431,8 @@ declare module 'vscode' {
 			workspaceLanguageValue?: T;
 			workspaceFolderLanguageValue?: T;
 
+			languages?: string[];
+
 		} | undefined;
 
 		/**
@@ -1514,5 +1503,16 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
 	}
+
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/39441
+
+	export interface CompletionList {
+		isDetailsResolved?: boolean;
+	}
+
+	//#endregion
 
 }
