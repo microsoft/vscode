@@ -44,7 +44,8 @@ function toAnnotatedText(text: string, lineBreakingData: LineBreakingData | null
 
 function getLineBreakingData(factory: ILineMapperFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakingData: LineBreakingData | null): LineBreakingData | null {
 	const lineMappingComputer = factory.createLineMappingComputer(tabSize, breakAfter, columnsForFullWidthChar, wrappingIndent);
-	lineMappingComputer.addRequest(text, previousLineBreakingData);
+	const previousLineBreakingDataClone = previousLineBreakingData ? new LineBreakingData(previousLineBreakingData.breakOffsets.slice(0), previousLineBreakingData.breakingOffsetsVisibleColumn.slice(0), previousLineBreakingData.wrappedTextIndentLength) : null;
+	lineMappingComputer.addRequest(text, previousLineBreakingDataClone);
 	return lineMappingComputer.finalize()[0];
 }
 
