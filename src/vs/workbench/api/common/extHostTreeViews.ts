@@ -50,8 +50,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	constructor(
 		private _proxy: MainThreadTreeViewsShape,
 		private commands: ExtHostCommands,
-		private logService: ILogService,
-		private leadingDebounce: boolean = true
+		private logService: ILogService
 	) {
 
 		function isTreeViewItemHandleArg(arg: any): boolean {
@@ -143,7 +142,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	}
 
 	private createExtHostTreeView<T>(id: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): ExtHostTreeView<T> {
-		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension, this.leadingDebounce);
+		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension);
 		this.treeViews.set(id, treeView);
 		return treeView;
 	}
@@ -203,7 +202,6 @@ class ExtHostTreeView<T> extends Disposable {
 		private commands: CommandsConverter,
 		private logService: ILogService,
 		private extension: IExtensionDescription,
-		private leadingDebounce: boolean
 	) {
 		super();
 		if (extension.contributes && extension.contributes.views) {
@@ -239,7 +237,7 @@ class ExtHostTreeView<T> extends Disposable {
 				result.message = true;
 			}
 			return result;
-		}, 200, this.leadingDebounce)(({ message, elements }) => {
+		}, 200, true)(({ message, elements }) => {
 			if (elements.length) {
 				this.refreshQueue = this.refreshQueue.then(() => {
 					const _promiseCallback = promiseCallback;
