@@ -165,7 +165,7 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 					charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
 				}
 
-				if (canBreak(prevCharCodeClass, charCodeClass)) {
+				if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass)) {
 					breakOffset = charStartOffset;
 					breakOffsetVisibleColumn = visibleColumn;
 				}
@@ -243,7 +243,7 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 						break;
 					}
 
-					if (canBreak(prevCharCodeClass, charCodeClass)) {
+					if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass)) {
 						breakOffset = charStartOffset;
 						breakOffsetVisibleColumn = visibleColumn;
 						break;
@@ -370,7 +370,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, lineText: str
 			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
 		}
 
-		if (canBreak(prevCharCodeClass, charCodeClass)) {
+		if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass)) {
 			breakOffset = charStartOffset;
 			breakOffsetVisibleColumn = visibleColumn;
 		}
@@ -427,12 +427,15 @@ function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
  * Kinsoku Shori : Don't break after a leading character, like an open bracket
  * Kinsoku Shori : Don't break before a trailing character, like a period
  */
-function canBreak(prevCharCodeClass: CharacterClass, charCodeClass: CharacterClass): boolean {
+function canBreak(prevCharCode: number, prevCharCodeClass: CharacterClass, charCode: number, charCodeClass: CharacterClass): boolean {
 	return (
-		(prevCharCodeClass === CharacterClass.BREAK_AFTER)
-		|| (prevCharCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && charCodeClass !== CharacterClass.BREAK_AFTER)
-		|| (charCodeClass === CharacterClass.BREAK_BEFORE)
-		|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && prevCharCodeClass !== CharacterClass.BREAK_BEFORE)
+		charCode !== CharCode.Space
+		&& (
+			(prevCharCodeClass === CharacterClass.BREAK_AFTER)
+			|| (prevCharCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && charCodeClass !== CharacterClass.BREAK_AFTER)
+			|| (charCodeClass === CharacterClass.BREAK_BEFORE)
+			|| (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && prevCharCodeClass !== CharacterClass.BREAK_BEFORE)
+		)
 	);
 }
 
