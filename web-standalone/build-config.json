@@ -1,0 +1,26 @@
+{
+	"EXTENSIONS": [
+		"theme-defaults",
+		"css",
+		"css-language-features",
+		"javascript",
+		"typescript-basics",
+		"typescript-language-features",
+		"json",
+		"json-language-features",
+		"html",
+		"html-language-features",
+		"markdown-basics",
+		"markdown-language-features"
+	],
+	"WEB_EXTENSIONS": ["web-api"],
+	"REMOTE": [
+		"onigasm-umd",
+		"semver-umd",
+		"vscode-textmate",
+		"xterm",
+		"xterm-addon-search",
+		"xterm-addon-web-links",
+		"xterm-addon-webgl"
+	]
+}
