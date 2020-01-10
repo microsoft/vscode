@@ -83,10 +83,7 @@ class BulkEditPreviewContribution {
 			// (3) close preview editors
 			for (let group of this._editorGroupsService.groups) {
 				for (let input of group.editors) {
-					if (!group.isPinned(input)
-						&& input instanceof DiffEditorInput
-						&& input.modifiedInput.getResource()?.scheme === BulkEditPreviewProvider.Schema
-					) {
+					if (input instanceof DiffEditorInput && input.modifiedInput.getResource()?.scheme === BulkEditPreviewProvider.Schema) {
 						group.closeEditor(input, { preserveFocus: true });
 					}
 				}
