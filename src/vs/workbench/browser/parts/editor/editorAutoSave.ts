@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IFilesConfigurationService, AutoSaveMode, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { SaveReason, IEditorIdentifier, IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class EditorAutoSave extends Disposable implements IWorkbenchContribution {
 
+	// Auto save: after delay
+	private autoSaveAfterDelay: number | undefined;
+	private readonly pendingAutoSavesAfterDelay = new Map<IWorkingCopy, IDisposable>();
+
+	// Auto save: focus change & window change
 	private lastActiveEditor: IEditorInput | undefined = undefined;
 	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
 	private lastActiveEditorControlDisposable = this._register(new DisposableStore());
@@ -22,9 +28,13 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IHostService private readonly hostService: IHostService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super();
+
+		// Figure out initial auto save config
+		this.onAutoSaveConfigurationChange(filesConfigurationService.getAutoSaveConfiguration(), false);
 
 		this.registerListeners();
 	}
@@ -32,7 +42,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	private registerListeners(): void {
 		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
-		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.onAutoSaveConfigurationChange(config, true)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidWorkingCopyChangeDirty(workingCopy)));
 	}
 
 	private onWindowFocusChange(focused: boolean): void {
@@ -85,24 +96,55 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		}
 	}
 
-	private onAutoSaveConfigurationChange(): void {
-		let reason: SaveReason | undefined = undefined;
-		switch (this.filesConfigurationService.getAutoSaveMode()) {
-			case AutoSaveMode.ON_FOCUS_CHANGE:
-				reason = SaveReason.FOCUS_CHANGE;
-				break;
-			case AutoSaveMode.ON_WINDOW_CHANGE:
-				reason = SaveReason.WINDOW_CHANGE;
-				break;
-			case AutoSaveMode.AFTER_SHORT_DELAY:
-			case AutoSaveMode.AFTER_LONG_DELAY:
-				reason = SaveReason.AUTO;
-				break;
-		}
+	private onAutoSaveConfigurationChange(config: IAutoSaveConfiguration, fromEvent: boolean): void {
+
+		// Update auto save after delay config
+		this.autoSaveAfterDelay = (typeof config.autoSaveDelay === 'number') && config.autoSaveDelay > 0 ? config.autoSaveDelay : undefined;
 
 		// Trigger a save-all when auto save is enabled
-		if (reason) {
-			this.editorService.saveAll({ reason });
+		if (fromEvent) {
+			let reason: SaveReason | undefined = undefined;
+			switch (this.filesConfigurationService.getAutoSaveMode()) {
+				case AutoSaveMode.ON_FOCUS_CHANGE:
+					reason = SaveReason.FOCUS_CHANGE;
+					break;
+				case AutoSaveMode.ON_WINDOW_CHANGE:
+					reason = SaveReason.WINDOW_CHANGE;
+					break;
+				case AutoSaveMode.AFTER_SHORT_DELAY:
+				case AutoSaveMode.AFTER_LONG_DELAY:
+					reason = SaveReason.AUTO;
+					break;
+			}
+
+			if (reason) {
+				this.editorService.saveAll({ reason });
+			}
+		}
+	}
+
+	private onDidWorkingCopyChangeDirty(workingCopy: IWorkingCopy): void {
+		if (typeof this.autoSaveAfterDelay !== 'number') {
+			return; // auto save after delay must be enabled
+		}
+
+		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
+			return; // we never auto save untitled working copies
+		}
+
+		// Clear any running auto save operation
+		dispose(this.pendingAutoSavesAfterDelay.get(workingCopy));
+		this.pendingAutoSavesAfterDelay.delete(workingCopy);
+
+		// Working copy got dirty - start auto save
+		if (workingCopy.isDirty()) {
+			const handle = setTimeout(() => {
+				if (workingCopy.isDirty()) {
+					workingCopy.save({ reason: SaveReason.AUTO });
+				}
+			}, this.autoSaveAfterDelay);
+
+			this.pendingAutoSavesAfterDelay.set(workingCopy, toDisposable(() => clearTimeout(handle)));
 		}
 	}
 }
