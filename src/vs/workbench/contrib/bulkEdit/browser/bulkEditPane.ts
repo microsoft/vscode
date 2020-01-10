@@ -26,6 +26,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 const enum State {
 	Data = 'data',
@@ -54,6 +57,7 @@ export class BulkEditPane extends ViewPane {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -140,8 +144,9 @@ export class BulkEditPane extends ViewPane {
 
 		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
 		const provider = this._instaService.createInstance(BulkEditPreviewProvider, input);
-
 		this._sessionDisposables.add(provider);
+		this._sessionDisposables.add(input);
+
 		this._currentInput = input;
 
 		this._acceptAction.enabled = true;
@@ -167,7 +172,21 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	accept(): void {
-		this._done(true);
+
+		const conflicts = this._currentInput?.conflicts.list();
+
+		if (isFalsyOrEmpty(conflicts)) {
+			this._done(true);
+		}
+
+		let message: string;
+		if (conflicts!.length === 1) {
+			message = localize('conflict.1', "Cannot apply refactoring because '{0}' has changed in the meantime.", this._labelService.getUriLabel(conflicts![0], { relative: true }));
+		} else {
+			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts!.length);
+		}
+
+		this._dialogService.show(Severity.Warning, message, []).finally(() => this._done(false));
 	}
 
 	discard() {
@@ -182,19 +201,19 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _done(accept: boolean): void {
-		this._setState(State.Message);
-		this._sessionDisposables.clear();
 		if (this._currentResolve) {
 			this._currentResolve(accept ? this._currentInput?.asWorkspaceEdit() : undefined);
 			this._acceptAction.enabled = false;
 			this._discardAction.enabled = false;
+			this._currentInput = undefined;
 		}
+		this._setState(State.Message);
+		this._sessionDisposables.clear();
 	}
 
 	private async _previewTextEditElement(element: TextEditElement): Promise<void> {
 
 		let leftResource: URI;
-
 		try {
 			(await this._textModelService.createModelReference(element.parent.uri)).dispose();
 			leftResource = element.parent.uri;

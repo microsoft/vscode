@@ -17,6 +17,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IFileService } from 'vs/platform/files/common/files';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
 
 class CheckedObject {
 
@@ -88,10 +89,19 @@ export class BulkFileOperations {
 
 	readonly fileOperations: BulkFileOperation[] = [];
 
+	readonly conflicts: ConflictDetector;
+
 	constructor(
 		private readonly _bulkEdit: WorkspaceEdit,
 		@IFileService private readonly _fileService: IFileService,
-	) { }
+		@IInstantiationService instaService: IInstantiationService,
+	) {
+		this.conflicts = instaService.createInstance(ConflictDetector, _bulkEdit);
+	}
+
+	dispose(): void {
+		this.conflicts.dispose();
+	}
 
 	async _init() {
 		const operationByResource = new Map<string, BulkFileOperation>();

@@ -25,25 +25,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { Recording } from 'vs/workbench/services/bulkEdit/browser/conflicts';
 
-abstract class Recording {
-
-	static start(fileService: IFileService): Recording {
-
-		let _changes = new Set<string>();
-		let subscription = fileService.onAfterOperation(e => {
-			_changes.add(e.resource.toString());
-		});
-
-		return {
-			stop() { return subscription.dispose(); },
-			hasChanged(resource) { return _changes.has(resource.toString()); }
-		};
-	}
-
-	abstract stop(): void;
-	abstract hasChanged(resource: URI): boolean;
-}
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
 
