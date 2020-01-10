@@ -132,6 +132,24 @@ export class OpenAPICommand {
 }
 CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
 
+export class OpenWithAPICommand {
+	public static readonly ID = 'vscode.openWith';
+	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, column?: vscode.ViewColumn): Promise<any> {
+		let position: EditorViewColumn | undefined;
+
+		if (typeof column === 'number') {
+			position = typeConverters.ViewColumn.from(column);
+		}
+
+		return executor.executeCommand('_workbench.openWith', [
+			resource,
+			viewType,
+			position
+		]);
+	}
+}
+CommandsRegistry.registerCommand(OpenWithAPICommand.ID, adjustHandler(OpenWithAPICommand.execute));
+
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
 	const workspacesService = accessor.get(IWorkspacesService);
 	return workspacesService.removeFromRecentlyOpened([uri]);
