@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISettingsSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
@@ -30,7 +30,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _conflictsSource: SyncSource | null = null;
 	get conflictsSource(): SyncSource | null { return this._conflictsSource; }
 
-	private readonly settingsSynchroniser: SettingsSynchroniser;
 	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
 	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
 	private readonly globalStateSynchroniser: GlobalStateSynchroniser;
@@ -39,9 +38,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
+		@ISettingsSyncService private readonly settingsSynchroniser: ISettingsSyncService,
 	) {
 		super();
-		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
 		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
 		this.globalStateSynchroniser = this._register(this.instantiationService.createInstance(GlobalStateSynchroniser));
 		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));

@@ -148,10 +148,10 @@ suite('Workbench untitled text editors', () => {
 		input.dispose();
 	});
 
-	test('Untitled via loadOrCreate', async () => {
+	test('Untitled via createOrGet options', async () => {
 		const service = accessor.untitledTextEditorService;
 
-		const model1 = await service.loadOrCreate();
+		const model1 = await service.createOrGet().resolve();
 
 		model1.textEditorModel!.setValue('foo bar');
 		assert.ok(model1.isDirty());
@@ -159,17 +159,17 @@ suite('Workbench untitled text editors', () => {
 		model1.textEditorModel!.setValue('');
 		assert.ok(!model1.isDirty());
 
-		const model2 = await service.loadOrCreate({ initialValue: 'Hello World' });
+		const model2 = await service.createOrGet({ initialValue: 'Hello World' }).resolve();
 		assert.equal(snapshotToString(model2.createSnapshot()!), 'Hello World');
 
 		const input = service.createOrGet();
 
-		const model3 = await service.loadOrCreate({ resource: input.getResource() });
+		const model3 = await service.createOrGet({ resource: input.getResource() }).resolve();
 
 		assert.equal(model3.resource.toString(), input.getResource().toString());
 
 		const file = URI.file(join('C:\\', '/foo/file44.txt'));
-		const model4 = await service.loadOrCreate({ resource: file });
+		const model4 = await service.createOrGet({ resource: file }).resolve();
 		assert.ok(service.hasAssociatedFilePath(model4.resource));
 		assert.ok(model4.isDirty());
 

@@ -249,7 +249,7 @@ export class OpenEditorsView extends ViewPane {
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
 				const resource = element.getResource();
-				this.dirtyEditorFocusedContext.set(element.editor.isDirty());
+				this.dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
 				this.readonlyEditorFocusedContext.set(element.editor.isReadonly());
 				this.resourceContext.set(withUndefinedAsNull(resource));
 			} else if (!!element) {
@@ -419,7 +419,7 @@ export class OpenEditorsView extends ViewPane {
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
 		if (workingCopy) {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !!(workingCopy.capabilities & WorkingCopyCapabilities.AutoSave) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 		}
@@ -586,7 +586,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 
 	renderElement(editor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
 		templateData.actionRunner.editor = editor;
-		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
+		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		templateData.root.setEditor(editor.editor, {
 			italic: editor.isPreview(),
 			extraClasses: ['open-editor'],

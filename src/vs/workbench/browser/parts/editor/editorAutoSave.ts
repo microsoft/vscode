@@ -32,6 +32,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	private registerListeners(): void {
 		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
 	}
 
 	private onWindowFocusChange(focused: boolean): void {
@@ -81,6 +82,27 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			} else {
 				this.editorService.saveAll({ reason });
 			}
+		}
+	}
+
+	private onAutoSaveConfigurationChange(): void {
+		let reason: SaveReason | undefined = undefined;
+		switch (this.filesConfigurationService.getAutoSaveMode()) {
+			case AutoSaveMode.ON_FOCUS_CHANGE:
+				reason = SaveReason.FOCUS_CHANGE;
+				break;
+			case AutoSaveMode.ON_WINDOW_CHANGE:
+				reason = SaveReason.WINDOW_CHANGE;
+				break;
+			case AutoSaveMode.AFTER_SHORT_DELAY:
+			case AutoSaveMode.AFTER_LONG_DELAY:
+				reason = SaveReason.AUTO;
+				break;
+		}
+
+		// Trigger a save-all when auto save is enabled
+		if (reason) {
+			this.editorService.saveAll({ reason });
 		}
 	}
 }

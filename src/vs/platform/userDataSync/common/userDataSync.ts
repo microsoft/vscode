@@ -57,7 +57,7 @@ export function registerConfiguration(): IDisposable {
 			},
 			'sync.enableUIState': {
 				type: 'boolean',
-				description: localize('sync.enableUIState', "Enable synchronizing UI state."),
+				description: localize('sync.enableUIState', "Enable synchronizing UI state (Only Display Language)."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 			},
@@ -135,12 +135,9 @@ export function getUserDataSyncStore(configurationService: IConfigurationService
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
-
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
-
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
-
 	read(key: string, oldValue: IUserData | null): Promise<IUserData>;
 	write(key: string, content: string, ref: string | null): Promise<string>;
 }
@@ -170,40 +167,42 @@ export const enum SyncStatus {
 }
 
 export interface ISynchroniser {
-
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	readonly onDidChangeLocal: Event<void>;
-
 	sync(_continue?: boolean): Promise<boolean>;
 	stop(): void;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
-
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
 	readonly conflictsSource: SyncSource | null;
-
 	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
-
 export interface IUserDataSyncUtilService {
-
 	_serviceBrand: undefined;
-
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
-
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
-
 }
 
 export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');
+export interface IUserDataSyncLogService extends ILogService { }
 
-export interface IUserDataSyncLogService extends ILogService {
+export interface IConflictSetting {
+	key: string;
+	localValue: any | undefined;
+	remoteValue: any | undefined;
+}
 
+export const ISettingsSyncService = createDecorator<ISettingsSyncService>('ISettingsSyncService');
+export interface ISettingsSyncService extends ISynchroniser {
+	_serviceBrand: any;
+	readonly onDidChangeConflicts: Event<IConflictSetting[]>;
+	readonly conflicts: IConflictSetting[];
+	resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void>;
 }
 
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
