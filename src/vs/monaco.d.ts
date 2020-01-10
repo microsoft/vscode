@@ -2504,7 +2504,7 @@ declare namespace monaco.editor {
 		 * Render vertical lines at the specified columns.
 		 * Defaults to empty array.
 		 */
-		rulers?: number[];
+		rulers?: IRulerOption[];
 		/**
 		 * A string containing the word separators used when doing word navigation.
 		 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
@@ -3281,6 +3281,13 @@ declare namespace monaco.editor {
 		comments: boolean;
 		strings: boolean;
 	}
+
+	export interface IRulerColorOption {
+		readonly size: number;
+		readonly color: string;
+	}
+
+	export type IRulerOption = number | IRulerColorOption;
 
 	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 

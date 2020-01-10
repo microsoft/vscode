@@ -59,7 +59,7 @@ export interface IEditorOptions {
 	 * Render vertical lines at the specified columns.
 	 * Defaults to empty array.
 	 */
-	rulers?: number[];
+	rulers?: IRulerOption[];
 	/**
 	 * A string containing the word separators used when doing word navigation.
 	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
@@ -2212,6 +2212,15 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 
 //#endregion
 
+//#region rulers
+export interface IRulerColorOption {
+	readonly size: number;
+	readonly color: string;
+}
+
+export type IRulerOption = number | IRulerColorOption;
+//#endregion
+
 //#region renderLineNumbers
 
 export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
@@ -2285,30 +2294,52 @@ class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNu
 
 //#region rulers
 
-class EditorRulers extends SimpleEditorOption<EditorOption.rulers, number[]> {
+class EditorRulers extends SimpleEditorOption<EditorOption.rulers, IRulerOption[]> {
 
 	constructor() {
-		const defaults: number[] = [];
+		const defaults: IRulerOption[] = [];
+		const sizeSchema: IJSONSchema = { type: 'number', description: nls.localize('rulers.size', "Number of monospace characters at which this editor ruler will render.") };
+
 		super(
 			EditorOption.rulers, 'rulers', defaults,
 			{
 				type: 'array',
-				items: {
-					type: 'number'
-				},
+				items: [
+					sizeSchema,
+					{
+						type: [
+							'object'
+						],
+						properties: {
+							size: sizeSchema,
+							color: {
+								type: 'string',
+								description: nls.localize('rulers.color', "Color of this editor ruler."),
+								format: 'color-hex'
+							}
+						}
+					}
+				],
 				default: defaults,
 				description: nls.localize('rulers', "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if array is empty.")
 			}
 		);
 	}
 
-	public validate(input: any): number[] {
+	public validate(input: any): IRulerOption[] {
 		if (Array.isArray(input)) {
-			let rulers: number[] = [];
+			let rulers: IRulerOption[] = [];
 			for (let value of input) {
-				rulers.push(EditorIntOption.clampedInt(value, 0, 0, 10000));
+				let clamped;
+				if (typeof value === 'number') {
+					clamped = EditorIntOption.clampedInt(value, 0, 0, 10000);
+				} else {
+					clamped = value;
+					clamped.size = EditorIntOption.clampedInt(value.size, 0, 0, 10000);
+				}
+				rulers.push(clamped);
 			}
-			rulers.sort((a, b) => a - b);
+			rulers.sort((a, b) => ((typeof a === 'number') ? a : a.size) - ((typeof b === 'number') ? b : b.size));
 			return rulers;
 		}
 		return this.defaultValue;

@@ -11,13 +11,13 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IRulerOption } from 'vs/editor/common/config/editorOptions';
 
 export class Rulers extends ViewPart {
 
 	public domNode: FastDomNode<HTMLElement>;
 	private readonly _renderedRulers: FastDomNode<HTMLElement>[];
-	private _rulers: number[];
+	private _rulers: IRulerOption[];
 	private _typicalHalfwidthCharacterWidth: number;
 
 	constructor(context: ViewContext) {
@@ -92,9 +92,19 @@ export class Rulers extends ViewPart {
 
 		for (let i = 0, len = this._rulers.length; i < len; i++) {
 			const node = this._renderedRulers[i];
+			const srcNode = this._rulers[i];
 
+			let rulerSize, rulerColor = '';
+			if (typeof srcNode === 'number') {
+				rulerSize = srcNode;
+			} else {
+				rulerSize = srcNode.size;
+				rulerColor = `1px 0 0 0 ${srcNode.color} inset`;
+			}
+
+			node.setBoxShadow(rulerColor);
 			node.setHeight(Math.min(ctx.scrollHeight, 1000000));
-			node.setLeft(this._rulers[i] * this._typicalHalfwidthCharacterWidth);
+			node.setLeft(rulerSize * this._typicalHalfwidthCharacterWidth);
 		}
 	}
 }
