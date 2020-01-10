@@ -51,6 +51,9 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 	}
 }
 
+let arrPool1: number[] = [];
+let arrPool2: number[] = [];
+
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
@@ -88,14 +91,14 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 						result[i] = createLineBreaks(this.classifier, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 					}
 				}
+				arrPool1.length = 0;
+				arrPool2.length = 0;
 				return result;
 			}
 		};
 	}
 }
 
-let arrPool1: number[] = [];
-let arrPool2: number[] = [];
 function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: LineBreakData, lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
 	if (firstLineBreakColumn === -1) {
 		return null;

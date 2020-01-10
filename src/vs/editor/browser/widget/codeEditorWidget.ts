@@ -51,8 +51,10 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
+import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 
 let EDITOR_ID = 0;
+const useDOMLineBreaksComputerFactory = false;
 
 export interface ICodeEditorWidgetOptions {
 	/**
@@ -1337,7 +1339,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		model.onBeforeAttached();
 
-		const viewModel = new ViewModel(this._id, this._configuration, model, MonospaceLineBreaksComputerFactory.create(this._configuration.options), (callback) => dom.scheduleAtNextAnimationFrame(callback));
+		const viewModel = new ViewModel(
+			this._id,
+			this._configuration,
+			model,
+			(
+				useDOMLineBreaksComputerFactory
+					? DOMLineBreaksComputerFactory.create(this._configuration.options)
+					: MonospaceLineBreaksComputerFactory.create(this._configuration.options)
+			),
+			(callback) => dom.scheduleAtNextAnimationFrame(callback)
+		);
 
 		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
 		listenersToRemove.push(model.onDidChangeLanguage((e) => {
