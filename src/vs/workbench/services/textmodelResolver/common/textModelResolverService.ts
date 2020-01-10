@@ -175,6 +175,10 @@ export class TextModelResolverService implements ITextModelService {
 	}
 
 	hasTextModelContentProvider(scheme: string): boolean {
+		if (scheme === network.Schemas.untitled || scheme === network.Schemas.inMemory) {
+			return true; // we handle untitled:// and inMemory:// within
+		}
+
 		return this.resourceModelCollection.hasTextModelContentProvider(scheme);
 	}
 }

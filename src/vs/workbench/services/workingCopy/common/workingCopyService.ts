@@ -9,18 +9,24 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { ISaveOptions } from 'vs/workbench/common/editor';
 
 export const enum WorkingCopyCapabilities {
 
 	/**
 	 * Signals that the working copy requires
 	 * additional input when saving, e.g. an
-	 * associated path to save to. 
+	 * associated path to save to.
 	 */
 	Untitled = 1 << 1
 }
 
 export interface IWorkingCopy {
+
+	readonly resource: URI;
+
+	readonly capabilities: WorkingCopyCapabilities;
+
 
 	//#region Dirty Tracking
 
@@ -31,9 +37,11 @@ export interface IWorkingCopy {
 	//#endregion
 
 
-	readonly resource: URI;
+	//#region Save
 
-	readonly capabilities: WorkingCopyCapabilities;
+	save(options?: ISaveOptions): Promise<boolean>;
+
+	//#endregion
 }
 
 export const IWorkingCopyService = createDecorator<IWorkingCopyService>('workingCopyService');

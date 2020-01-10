@@ -20,7 +20,7 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 			if (node.kind === ts.SyntaxKind.Identifier) {
 				const symbol = typeChecker.getSymbolAtLocation(node);
 				if (symbol) {
-					const decl = symbol.valueDeclaration || symbol.declarations[0];
+					const decl = symbol.valueDeclaration || symbol.declarations && symbol.declarations[0];
 					if (decl) {
 						let typeIdx = tokenFromDeclarationMapping[decl.kind];
 						let modifierSet = 0;

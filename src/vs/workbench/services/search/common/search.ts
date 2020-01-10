@@ -335,6 +335,7 @@ export interface ISearchConfigurationProperties {
 	searchOnType: boolean;
 	searchOnTypeDebouncePeriod: number;
 	enableSearchEditorPreview: boolean;
+	searchEditorPreview: { doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide' };
 	searchEditorPreviewForceAbsolutePaths: boolean;
 	sortOrder: SearchSortOrder;
 }
