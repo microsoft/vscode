@@ -36,8 +36,9 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "build": "webpack-cli --config extension.webpack.config.js"
+    "watch": "npm run build-lib && gulp watch-extension:notebook-test",
+    "build": "webpack-cli --config extension.webpack.config.js",
+    "build-lib": "webpack --mode production"
   },
   "dependencies": {
     "@jupyter-widgets/base": "^2.0.2",
