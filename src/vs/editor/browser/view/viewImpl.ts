@@ -510,8 +510,8 @@ export class View extends ViewEventHandler {
 		this._textAreaHandler.refreshFocusState();
 	}
 
-	public setAria(options: IEditorAriaOptions): void {
-		this._textAreaHandler.setAria(options);
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		this._textAreaHandler.setAriaOptions(options);
 	}
 
 	public addContentWidget(widgetData: IContentWidgetData): void {

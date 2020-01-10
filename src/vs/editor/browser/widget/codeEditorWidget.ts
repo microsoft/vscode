@@ -1315,7 +1315,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
-		this._modelData.view.setAria(options);
+		this._modelData.view.setAriaOptions(options);
 	}
 
 	public applyFontInfo(target: HTMLElement): void {

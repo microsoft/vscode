@@ -425,7 +425,7 @@ export class TextAreaHandler extends ViewPart {
 		return this._lastRenderPosition;
 	}
 
-	public setAria(options: IEditorAriaOptions): void {
+	public setAriaOptions(options: IEditorAriaOptions): void {
 		if (options.activeDescendant) {
 			this.textArea.setAttribute('aria-haspopup', 'true');
 			this.textArea.setAttribute('aria-autocomplete', 'list');
