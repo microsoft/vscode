@@ -28,24 +28,9 @@
 }
 
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox {
-	height: 16px;
-	width: 16px;
-	min-height: 16px;
-	min-width: 16px;
 	align-self: center;
-	margin-right: 4px;
-	border: 1px solid transparent;
-	border-radius: 2px;
 }
 
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox.disabled {
 	opacity: .5;
-}
-
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox.codicon[class*='codicon-'] {
-	font-size: 13px;
-}
-
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox.codicon:not(.checked)::before  {
-	opacity: 0;
 }

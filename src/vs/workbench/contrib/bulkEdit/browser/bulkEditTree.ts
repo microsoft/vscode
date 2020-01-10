@@ -6,9 +6,8 @@
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IResourceLabel, ResourceLabels, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
+import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,9 +17,6 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { localize } from 'vs/nls';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { FileKind } from 'vs/platform/files/common/files';
 
 // --- VIEW MODEL
@@ -141,24 +137,29 @@ class FileElementTemplate {
 	private readonly _disposables = new DisposableStore();
 	private readonly _localDisposables = new DisposableStore();
 
-	constructor(
-		private readonly _checkbox: Checkbox,
-		private readonly _label: IResourceLabel,
-		@IThemeService themeService: IThemeService
-	) {
-		this._disposables.add(attachCheckboxStyler(_checkbox, themeService));
+	private readonly _checkbox: HTMLInputElement;
+	private readonly _label: IResourceLabel;
+
+	constructor(container: HTMLElement, resourceLabels: ResourceLabels) {
+
+		this._checkbox = document.createElement('input');
+		this._checkbox.className = 'edit-checkbox';
+		this._checkbox.type = 'checkbox';
+		this._checkbox.setAttribute('role', 'checkbox');
+		container.appendChild(this._checkbox);
+
+		this._label = resourceLabels.create(container, { supportHighlights: true });
 	}
 
 	dispose(): void {
 		this._localDisposables.dispose();
 		this._disposables.dispose();
-		this._checkbox.dispose();
 		this._label.dispose();
 	}
 
 	set(element: FileElement, score: FuzzyScore | undefined) {
 		this._localDisposables.clear();
-		this._localDisposables.add(this._checkbox.onChange(() => element.edit.updateChecked(this._checkbox.checked)));
+		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', (() => element.edit.updateChecked(this._checkbox.checked))));
 		this._checkbox.checked = element.edit.isChecked();
 
 		const extraClasses: string[] = [];
@@ -187,24 +188,10 @@ export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScor
 
 	readonly templateId: string = FileElementRenderer.id;
 
-	private readonly _resourceLabels: ResourceLabels;
-
-	constructor(
-		@IInstantiationService private _instaService: IInstantiationService
-	) {
-		this._resourceLabels = _instaService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
-	}
-
-	dispose(): void {
-		this._resourceLabels.dispose();
-	}
+	constructor(private readonly _resourceLabels: ResourceLabels) { }
 
 	renderTemplate(container: HTMLElement): FileElementTemplate {
-		const checkbox = new Checkbox({ actionClassName: 'codicon-check edit-checkbox', isChecked: true, title: '' });
-		container.appendChild(checkbox.domNode);
-
-		const label = this._resourceLabels.create(container, { supportHighlights: true });
-		return this._instaService.createInstance(FileElementTemplate, checkbox, label);
+		return new FileElementTemplate(container, this._resourceLabels);
 	}
 
 	renderElement(node: ITreeNode<FileElement, FuzzyScore>, _index: number, template: FileElementTemplate): void {
@@ -221,26 +208,30 @@ class TextEditElementTemplate {
 	private readonly _disposables = new DisposableStore();
 	private readonly _localDisposables = new DisposableStore();
 
-	constructor(
-		private readonly _checkbox: Checkbox,
-		private readonly _label: HighlightedLabel,
-		@IThemeService themeService: IThemeService
-	) {
+	private readonly _checkbox: HTMLInputElement;
+	private readonly _label: HighlightedLabel;
 
-		this._disposables.add(attachCheckboxStyler(_checkbox, themeService));
+	constructor(container: HTMLElement) {
+		this._checkbox = document.createElement('input');
+		this._checkbox.className = 'edit-checkbox';
+		this._checkbox.type = 'checkbox';
+		this._checkbox.setAttribute('role', 'checkbox');
+		container.appendChild(this._checkbox);
+
+		this._label = new HighlightedLabel(container, false);
+		dom.addClass(this._label.element, 'textedit');
 	}
 
 	dispose(): void {
 		this._localDisposables.dispose();
 		this._disposables.dispose();
-		this._checkbox.dispose();
 	}
 
 	set(element: TextEditElement) {
 		this._localDisposables.clear();
-		this._localDisposables.add(this._checkbox.onChange(() => element.edit.updateChecked(this._checkbox.checked)));
+		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => element.edit.updateChecked(this._checkbox.checked)));
 		this._checkbox.checked = element.edit.isChecked();
-		dom.toggleClass(this._checkbox.domNode, 'disabled', !element.edit.parent.isChecked());
+		dom.toggleClass(this._checkbox, 'disabled', !element.edit.parent.isChecked());
 
 		let value = '';
 		value += element.prefix;
@@ -261,15 +252,8 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 
 	readonly templateId: string = TextEditElementRenderer.id;
 
-	constructor(@IInstantiationService private readonly _instaService: IInstantiationService) { }
-
 	renderTemplate(container: HTMLElement): TextEditElementTemplate {
-		const checkbox = new Checkbox({ actionClassName: 'codicon-check edit-checkbox', isChecked: true, title: '' });
-		container.appendChild(checkbox.domNode);
-
-		const label = new HighlightedLabel(container, false);
-		dom.addClass(label.element, 'textedit');
-		return this._instaService.createInstance(TextEditElementTemplate, checkbox, label);
+		return new TextEditElementTemplate(container);
 	}
 
 	renderElement({ element }: ITreeNode<TextEditElement, FuzzyScore>, _index: number, template: TextEditElementTemplate): void {

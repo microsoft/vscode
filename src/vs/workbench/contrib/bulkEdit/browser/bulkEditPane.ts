@@ -25,6 +25,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 
 const enum State {
 	Data = 'data',
@@ -71,6 +72,12 @@ export class BulkEditPane extends ViewPane {
 	protected renderBody(parent: HTMLElement): void {
 		parent.classList.add('bulk-edit-panel', 'show-file-icons');
 
+		const resourceLabels = this._instaService.createInstance(
+			ResourceLabels,
+			<IResourceLabelsContainer>{ onDidChangeVisibility: this.onDidChangeBodyVisibility }
+		);
+		this._disposables.add(resourceLabels);
+
 		// tree
 		const treeContainer = document.createElement('div');
 		treeContainer.className = 'tree';
@@ -81,7 +88,7 @@ export class BulkEditPane extends ViewPane {
 		this._tree = this._instaService.createInstance(
 			WorkbenchAsyncDataTree, this.id, treeContainer,
 			new BulkEditDelegate(),
-			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer)],
+			[new TextEditElementRenderer(), new FileElementRenderer(resourceLabels)],
 			this._instaService.createInstance(BulkEditDataSource),
 			{
 				identityProvider: new BulkEditIdentityProvider(),
