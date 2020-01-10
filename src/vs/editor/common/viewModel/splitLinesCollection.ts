@@ -28,10 +28,10 @@ export class OutputPosition {
 
 export class LineBreakingData {
 	constructor(
-		public readonly breakingColumn: number,
-		public readonly breakOffsets: number[],
-		public readonly breakingOffsetsVisibleColumn: number[],
-		public readonly wrappedTextIndentLength: number
+		public breakingColumn: number,
+		public breakOffsets: number[],
+		public breakingOffsetsVisibleColumn: number[],
+		public wrappedTextIndentLength: number
 	) { }
 
 	assertEqual(other: LineBreakingData | null): void {

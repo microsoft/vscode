@@ -94,6 +94,8 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 	}
 }
 
+let arrPool1: number[] = [];
+let arrPool2: number[] = [];
 function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterClassifier, previousBreakingData: LineBreakingData, lineText: string, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
 	if (firstLineBreakingColumn === -1) {
 		return null;
@@ -110,8 +112,8 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
 	const wrappedLineBreakingColumn = firstLineBreakingColumn - wrappedTextIndentLength;
 
-	let breakingOffsets: number[] = [];
-	let breakingOffsetsVisibleColumn: number[] = [];
+	let breakingOffsets: number[] = arrPool1;
+	let breakingOffsetsVisibleColumn: number[] = arrPool2;
 	let breakingOffsetsCount: number = 0;
 
 	let breakingColumn = firstLineBreakingColumn;
@@ -307,7 +309,19 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 		return null;
 	}
 
-	return new LineBreakingData(firstLineBreakingColumn, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+	// Doing here some object reuse which ends up helping a huge deal with GC pauses!
+	breakingOffsets.length = breakingOffsetsCount;
+	breakingOffsetsVisibleColumn.length = breakingOffsetsCount;
+	arrPool1 = previousBreakingData.breakOffsets;
+	arrPool2 = previousBreakingData.breakingOffsetsVisibleColumn;
+	previousBreakingData.breakingColumn = firstLineBreakingColumn;
+	previousBreakingData.breakOffsets = breakingOffsets;
+	previousBreakingData.breakingOffsetsVisibleColumn = breakingOffsetsVisibleColumn;
+	previousBreakingData.wrappedTextIndentLength = wrappedTextIndentLength;
+	return previousBreakingData;
+
+	// return new LineBreakingData(firstLineBreakingColumn, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+
 	// const expected = createLineMapping(classifier, lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
 	// const actual = new LineBreakingData(firstLineBreakingColumn, breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
 	// try {
