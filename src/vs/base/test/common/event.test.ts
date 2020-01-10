@@ -242,9 +242,7 @@ suite('Event', function () {
 		let debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, /*leading=*/true);
 
 		let calls: number[] = [];
-		debounced((e) => {
-			calls.push(e);
-		});
+		debounced((e) => calls.push(e));
 
 		emitter.fire(1);
 		emitter.fire(1);
