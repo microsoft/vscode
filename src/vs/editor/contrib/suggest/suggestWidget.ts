@@ -650,7 +650,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.focusedItem = null;
 			}
 
-			this.editor.setAria({ activeDescendent: undefined });
+			this.editor.setAriaOptions({ activeDescendant: undefined });
 			return;
 		}
 
@@ -699,7 +699,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					removeClass(this.element, 'docs-side');
 				}
 
-				this.editor.setAria({ activeDescendent: getAriaId(index) });
+				this.editor.setAriaOptions({ activeDescendant: getAriaId(index) });
 			}).catch(onUnexpectedError);
 		}
 

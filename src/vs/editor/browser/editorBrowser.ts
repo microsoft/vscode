@@ -321,9 +321,10 @@ export interface IOverviewRuler {
 
 /**
  * Editor aria options.
+ * @internal
  */
 export interface IEditorAriaOptions {
-	activeDescendent: string | undefined;
+	activeDescendant: string | undefined;
 }
 
 /**
@@ -700,7 +701,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Sets the editor aria options, primarily the active descendent.
 	 * @internal
 	 */
-	setAria(options: IEditorAriaOptions): void;
+	setAriaOptions(options: IEditorAriaOptions): void;
 
 	/**
 	 * @internal

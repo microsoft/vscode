@@ -1311,7 +1311,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.view.render(true, forceRedraw);
 	}
 
-	public setAria(options: editorBrowser.IEditorAriaOptions): void {
+	public setAriaOptions(options: editorBrowser.IEditorAriaOptions): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
