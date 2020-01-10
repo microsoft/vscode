@@ -27,8 +27,18 @@ export class Cell implements vscode.ICell {
 		});
 	}
 
+	insertDependencies(dependency: vscode.IOutput) {
+		this._outputs.unshift(dependency);
+	}
+
 	fillInOutputs() {
-		this.outputs = this._outputs;
+		if (this._outputs && this.outputs.length !== this._outputs.length) {
+			this.outputs = this._outputs;
+		}
+	}
+
+	outputsFullFilled() {
+		return this._outputs && this.outputs.length === this._outputs.length;
 	}
 }
 
@@ -81,17 +91,21 @@ export class NotebookProvider implements vscode.NotebookProvider {
 			let notebook = this._notebooks.get(resource.fsPath);
 			let preloadScript = false;
 			notebook!.cells.forEach(cell => {
+				if (cell.outputsFullFilled()) {
+					return;
+				}
+
 				if (!preloadScript) {
 					let containHTML = cell.containHTML();
 					if (containHTML) {
 						preloadScript = true;
-						cell.fillInOutputs();
 						const scriptPathOnDisk = vscode.Uri.file(
 							path.join(this._extensionPath, 'dist', 'ipywidgets.js')
 						);
 
 						let scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
-						cell.outputs.unshift(
+
+						cell.insertDependencies(
 							{
 								'output_type': 'display_data',
 								'data': {
@@ -101,6 +115,8 @@ export class NotebookProvider implements vscode.NotebookProvider {
 								}
 							}
 						);
+
+						cell.fillInOutputs();
 					} else {
 						cell.fillInOutputs();
 					}
