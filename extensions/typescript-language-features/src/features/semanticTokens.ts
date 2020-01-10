@@ -10,10 +10,9 @@ import * as Proto from '../protocol';
 export function register(selector: vscode.DocumentSelector, client: ITypeScriptServiceClient) {
 	const provider = new SemanticTokensProvider(client);
 	return vscode.languages.registerSemanticTokensProvider(selector, provider, provider.getLegend());
-
 }
 
-/*
+/**
  * Prototype of a SemanticTokensProvider, relying on the experimental `encodedSemanticClassifications-full` request from the TypeScript server.
  * As the results retured by the TypeScript server are limited, we also add a Typescript plugin (typescript-vscode-sh-plugin) to enrich the returned token.
  */
@@ -49,7 +48,7 @@ class SemanticTokensProvider implements vscode.SemanticTokensProvider {
 			requestArgs = _options.ranges.map(r => { const start = document.offsetAt(r.start); const length = document.offsetAt(r.end) - start; return { file, start, length }; });
 			requestArgs = requestArgs.sort((a1, a2) => a1.start - a2.start);
 		} else {
-			requestArgs = [{ file, start: 0, length: document.getText().length }]; // full file
+			requestArgs = [{ file, start: 0, length: document.getText().length }]; // full document
 		}
 		for (const requestArg of requestArgs) {
 			const response = await (this.client as ExperimentalProtocol.IExtendedTypeScriptServiceClient).execute('encodedSemanticClassifications-full', requestArg, token);
@@ -102,6 +101,7 @@ class SemanticTokensProvider implements vscode.SemanticTokensProvider {
 	}
 }
 
+// Don't change TokenType and TokenModifier enums without adopting typescript-vscode-sh-plugin
 enum TokenType {
 	'class',
 	'enum',
@@ -136,7 +136,7 @@ tokenTypeMap[ExperimentalProtocol.ClassificationType.typeParameterName] = TokenT
 tokenTypeMap[ExperimentalProtocol.ClassificationType.typeAliasName] = TokenType.type;
 tokenTypeMap[ExperimentalProtocol.ClassificationType.parameterName] = TokenType.parameter;
 
-export namespace ExperimentalProtocol {
+namespace ExperimentalProtocol {
 
 	export interface IExtendedTypeScriptServiceClient {
 		execute<K extends keyof ExperimentalProtocol.ExtendedTsServerRequests>(
