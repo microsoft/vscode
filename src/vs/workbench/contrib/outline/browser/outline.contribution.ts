@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
+import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewContainer, IViewContainersRegistry, ViewContainerLocation, IViewsService, IViewOpenerService } from 'vs/workbench/common/views';
 import { OutlinePane } from './outlinePane';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -77,7 +77,8 @@ export class ToggleOutlinePositionAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IViewOpenerService private readonly viewOpenerService: IViewOpenerService
 	) {
 		super(id, label, '', true);
 	}
@@ -85,13 +86,13 @@ export class ToggleOutlinePositionAction extends Action {
 	async run(): Promise<void> {
 		if (!inPanel) {
 			this.viewsService.moveViews([_outlineDesc], VIEW_CONTAINER_PANEL);
-			this.viewsService.openView(OutlineViewId, true);
+			this.viewOpenerService.openView(OutlineViewId, true);
 			inPanel = true;
 			// Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).moveViews([_outlineDesc], VIEW_CONTAINER_PANEL);
 		} else {
 			// Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).moveViews([_outlineDesc], VIEW_CONTAINER);
 			this.viewsService.moveViews([_outlineDesc], VIEW_CONTAINER);
-			this.viewsService.openView(OutlineViewId, true);
+			this.viewOpenerService.openView(OutlineViewId, true);
 
 			inPanel = false;
 		}

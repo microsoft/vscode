@@ -281,7 +281,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private onPanelOpen(panel: IPanel): void {
-		const viewsService = this.instantiationService.invokeFunction(accessor => accessor.get(IViewsService));
 		this.activePanelContextKey.set(panel.getId());
 
 		const foundPanel = this.panelRegistry.getPanel(panel.getId());
@@ -296,7 +295,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (panelDescriptor) {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = viewsService.getViewDescriptors(viewContainer);
+				const viewDescriptors = this.viewsService.getViewDescriptors(viewContainer);
 				if (viewDescriptors?.activeViewDescriptors.length === 0) {
 					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
 				}

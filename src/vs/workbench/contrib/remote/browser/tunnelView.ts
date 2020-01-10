@@ -6,7 +6,7 @@
 import 'vs/css!./media/tunnelView';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IViewDescriptor, IEditableData, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptor, IEditableData, IViewOpenerService } from 'vs/workbench/common/views';
 import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -665,9 +665,9 @@ namespace ForwardPortAction {
 		return async (accessor, arg) => {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const notificationService = accessor.get(INotificationService);
-			const viewsService = accessor.get(IViewsService);
+			const viewOpener = accessor.get(IViewOpenerService);
 			const quickInputService = accessor.get(IQuickInputService);
-			await viewsService.openView(TunnelPanel.ID, true);
+			await viewOpener.openView(TunnelPanel.ID, true);
 			const value = await quickInputService.input({
 				prompt: forwardPrompt,
 				validateInput: (value) => Promise.resolve(validateInput(value))

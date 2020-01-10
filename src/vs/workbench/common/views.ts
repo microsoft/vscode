@@ -345,8 +345,18 @@ export interface IViewsViewlet extends IViewlet {
 }
 
 export const IViewsService = createDecorator<IViewsService>('viewsService');
+export const IViewOpenerService = createDecorator<IViewOpenerService>('viewOpenerService');
+
+
+export interface IViewOpenerService {
+	_serviceBrand: undefined;
+
+	openView(id: string, focus?: boolean): Promise<IView | null>;
+}
+
 
 export interface IViewsService {
+
 	_serviceBrand: undefined;
 
 	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
@@ -357,11 +367,11 @@ export interface IViewsService {
 
 	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	openView(id: string, focus?: boolean): Promise<IView | null>;
-
 	getViews(container: ViewContainer): IViewDescriptor[];
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection | null;
+
+	getViewContainer(viewId: string): ViewContainer | null;
 }
 
 // Custom views
