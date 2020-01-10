@@ -28,7 +28,6 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 const enum State {
 	Data = 'data',
@@ -175,15 +174,16 @@ export class BulkEditPane extends ViewPane {
 
 		const conflicts = this._currentInput?.conflicts.list();
 
-		if (isFalsyOrEmpty(conflicts)) {
+		if (!conflicts || conflicts.length === 0) {
 			this._done(true);
+			return;
 		}
 
 		let message: string;
-		if (conflicts!.length === 1) {
-			message = localize('conflict.1', "Cannot apply refactoring because '{0}' has changed in the meantime.", this._labelService.getUriLabel(conflicts![0], { relative: true }));
+		if (conflicts.length === 1) {
+			message = localize('conflict.1', "Cannot apply refactoring because '{0}' has changed in the meantime.", this._labelService.getUriLabel(conflicts[0], { relative: true }));
 		} else {
-			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts!.length);
+			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
 		}
 
 		this._dialogService.show(Severity.Warning, message, []).finally(() => this._done(false));
