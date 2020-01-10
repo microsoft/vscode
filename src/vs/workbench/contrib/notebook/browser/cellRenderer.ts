@@ -373,7 +373,7 @@ class StatefullMarkdownCell extends Disposable {
 		this._register(viewCell.onDidChangeEditingState(() => {
 			if (viewCell.isEditing) {
 				// switch to editing mode
-				const width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
+				const width = templateData.cellContainer.clientWidth - 24 /** for scrollbar and margin right */;
 				const lineNum = viewCell.lineCount;
 				const totalHeight = Math.max(lineNum + 1, 5) * 21;
 
