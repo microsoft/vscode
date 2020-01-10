@@ -57,7 +57,8 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { assertType } from 'vs/base/common/types';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { SearchEditor, SearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { SearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
+import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
