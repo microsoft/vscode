@@ -426,10 +426,10 @@ export class TextAreaHandler extends ViewPart {
 	}
 
 	public setAria(options: IEditorAriaOptions): void {
-		if (options.activeDescendent) {
+		if (options.activeDescendant) {
 			this.textArea.setAttribute('aria-haspopup', 'true');
 			this.textArea.setAttribute('aria-autocomplete', 'list');
-			this.textArea.setAttribute('aria-activedescendant', options.activeDescendent);
+			this.textArea.setAttribute('aria-activedescendant', options.activeDescendant);
 		} else {
 			this.textArea.setAttribute('aria-haspopup', 'false');
 			this.textArea.setAttribute('aria-autocomplete', 'both');
