@@ -24,13 +24,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
 const enum State {
 	Data = 'data',
 	Message = 'message'
 }
 
-export class BulkEditPanel extends ViewPane {
+export class BulkEditPane extends ViewPane {
 
 	static readonly ID = 'refactorPreview';
 
@@ -46,6 +47,7 @@ export class BulkEditPanel extends ViewPane {
 	private _currentInput?: BulkFileOperations;
 
 	constructor(
+		options: IViewletViewOptions,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -56,7 +58,7 @@ export class BulkEditPanel extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(
-			{ id: BulkEditPanel.ID, title: localize('title', "Refactor Preview") },
+			options,
 			keybindingService, contextMenuService, configurationService, contextKeyService
 		);
 	}
