@@ -42,8 +42,8 @@ export class BulkEditPane extends ViewPane {
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _message!: HTMLSpanElement;
 
-	private readonly _acceptAction = new Action('ok', localize('ok', "Apply Refactoring"), 'codicon-check', false, async () => this.accept());
-	private readonly _discardAction = new Action('discard', localize('discard', "Discard"), 'codicon-trash', false, async () => this.discard());
+	private readonly _acceptAction = new Action('ok', localize('ok', "Apply Changes"), 'codicon-check', false, async () => this.accept());
+	private readonly _discardAction = new Action('discard', localize('discard', "Discard Changes"), 'codicon-clear-all', false, async () => this.discard());
 
 	private readonly _disposables = new DisposableStore();
 
