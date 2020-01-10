@@ -32,7 +32,7 @@ const enum State {
 
 export class BulkEditPanel extends ViewPane {
 
-	static readonly ID = 'BulkEditPanel';
+	static readonly ID = 'refactorPreview';
 
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _message!: HTMLSpanElement;

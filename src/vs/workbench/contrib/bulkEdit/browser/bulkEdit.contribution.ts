@@ -14,39 +14,52 @@ import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewCon
 import { localize } from 'vs/nls';
 import { ViewPaneContainer, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { PaneCompositePanel } from 'vs/workbench/browser/panel';
+import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 class BulkEditPreviewContribution {
+
+	static readonly ctxEnabled = new RawContextKey('refactorPreviewIsEnabled', false);
+
+	private readonly _ctxEnabled: IContextKey<boolean>;
 
 	constructor(
 		@IPanelService private _panelService: IPanelService,
 		@IBulkEditService bulkEditService: IBulkEditService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		bulkEditService.setPreviewHandler(edit => this._previewEdit(edit));
+		this._ctxEnabled = BulkEditPreviewContribution.ctxEnabled.bindTo(contextKeyService);
 	}
 
 	private async _previewEdit(edit: WorkspaceEdit) {
+		this._ctxEnabled.set(true);
+		try {
 
-		let view: ViewPane | undefined;
-		const activePanel = this._panelService.openPanel(BulkEditPane.ID, true);
-		if (activePanel instanceof PaneCompositePanel) {
-			view = activePanel.getViewPaneContainer().getView(BulkEditPane.ID);
+			let view: ViewPane | undefined;
+			const activePanel = this._panelService.openPanel(BulkEditPane.ID, true);
+			if (activePanel instanceof PaneCompositePanel) {
+				view = activePanel.getViewPaneContainer().getView(BulkEditPane.ID);
+			}
+
+			if (!(view instanceof BulkEditPane)) {
+				return edit;
+			}
+
+			const newEditOrUndefined = await view.setInput(edit);
+			if (!newEditOrUndefined) {
+				return { edits: [] };
+			}
+
+			// todo@joh/steVen add view state
+			// if (this._panelService.getLastActivePanelId() === BulkEditPanel.ID) {
+			// 	this._panelService.hideActivePanel();
+			// }
+
+			return newEditOrUndefined;
+
+		} finally {
+			this._ctxEnabled.set(false);
 		}
-
-		if (!(view instanceof BulkEditPane)) {
-			return edit;
-		}
-
-		const newEditOrUndefined = await view.setInput(edit);
-		if (!newEditOrUndefined) {
-			return { edits: [] };
-		}
-
-		// todo@joh/steVen add view state
-		// if (this._panelService.getLastActivePanelId() === BulkEditPanel.ID) {
-		// 	this._panelService.hideActivePanel();
-		// }
-
-		return newEditOrUndefined;
 	}
 }
 
@@ -58,16 +71,17 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: BulkEditPane.ID,
 	name: localize('panel', "Refactor Preview"),
+	hideIfEmpty: true,
 	ctorDescriptor: {
 		ctor: ViewPaneContainer,
-		arguments: [BulkEditPane.ID, '', { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
+		arguments: [BulkEditPane.ID, BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
 	}
 }, ViewContainerLocation.Panel);
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: BulkEditPane.ID,
 	name: localize('panel', "Refactor Preview"),
-	canToggleVisibility: false,
+	when: BulkEditPreviewContribution.ctxEnabled,
 	ctorDescriptor: { ctor: BulkEditPane },
 }], container);
 
