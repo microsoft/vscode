@@ -213,6 +213,7 @@ export class ViewLine implements IVisibleLine {
 			lineData.tokens,
 			actualInlineDecorations,
 			lineData.tabSize,
+			lineData.startVisibleColumn,
 			options.spaceWidth,
 			options.stopRenderingLineAfter,
 			options.renderWhitespace,

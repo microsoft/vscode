@@ -9,7 +9,7 @@ import { Emitter, AsyncEmitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason, IRevertOptions } from 'vs/workbench/common/editor';
+import { SaveReason, IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService, FileOperationError, FileOperationResult, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
@@ -37,6 +37,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -76,7 +77,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super();
 
@@ -676,68 +678,77 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.getFileModels(resources).filter(model => model.isDirty());
 	}
 
-	async saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
+	async saveAs(source: URI, target?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 
 		// Get to target resource
-		if (!targetResource) {
-			let dialogPath = resource;
-			if (resource.scheme === Schemas.untitled) {
-				dialogPath = this.suggestFileName(resource);
+		if (!target) {
+			let dialogPath = source;
+			if (source.scheme === Schemas.untitled) {
+				dialogPath = this.suggestFileName(source);
 			}
 
-			targetResource = await this.promptForPath(resource, dialogPath, options ? options.availableFileSystems : undefined);
+			target = await this.promptForPath(source, dialogPath, options ? options.availableFileSystems : undefined);
 		}
 
-		if (!targetResource) {
+		if (!target) {
 			return; // user canceled
 		}
 
 		// Just save if target is same as models own resource
-		if (resource.toString() === targetResource.toString()) {
-			await this.save(resource, options);
+		if (source.toString() === target.toString()) {
+			await this.save(source, options);
 
-			return resource;
+			return source;
 		}
 
 		// Do it
-		return this.doSaveAs(resource, targetResource, options);
+		return this.doSaveAs(source, target, options);
 	}
 
-	private async doSaveAs(resource: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI> {
+	private async doSaveAs(source: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI> {
+		let success = false;
 
-		// Retrieve text model from provided resource if any
-		let model: ITextFileEditorModel | UntitledTextEditorModel | undefined;
-		if (this.fileService.canHandleResource(resource)) {
-			model = this._models.get(resource);
-		} else if (resource.scheme === Schemas.untitled && this.untitledTextEditorService.exists(resource)) {
-			model = await this.untitledTextEditorService.createOrGet({ resource }).resolve();
+		// If the source is an existing text file model, we can directly
+		// use that model to copy the contents to the target destination
+		const textFileModel = this._models.get(source);
+		if (textFileModel && textFileModel.isResolved()) {
+			success = await this.doSaveAsTextFile(textFileModel, source, target, options);
 		}
 
-		// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
-		let result: boolean;
-		if (model) {
-			result = await this.doSaveTextFileAs(model, resource, target, options);
+		// Otherwise if the source can be handled by the file service
+		// we can simply invoke the copy() function to save as
+		else if (this.fileService.canHandleResource(source)) {
+			await this.fileService.copy(source, target);
+
+			success = true;
 		}
 
-		// Otherwise we can only copy
-		else {
-			await this.fileService.copy(resource, target);
+		// Finally, if the source does not seem to be a file, we have to
+		// try to resolve a text model from the resource to get at the
+		// contents and additional meta data (e.g. encoding).
+		else if (this.textModelService.hasTextModelContentProvider(source.scheme)) {
+			const modelReference = await this.textModelService.createModelReference(source);
+			success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
 
-			result = true;
+			modelReference.dispose(); // free up our use of the reference
 		}
 
-		// Return early if the operation was not running
-		if (!result) {
-			return target;
+		// Revert the source if result is success
+		if (success) {
+			await this.revert(source);
 		}
-
-		// Revert the source
-		await this.revert(resource);
 
 		return target;
 	}
 
-	private async doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledTextEditorModel, resource: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+
+		// Find source encoding if any
+		let sourceModelEncoding: string | undefined = undefined;
+		const sourceModelWithEncodingSupport = (sourceModel as unknown as IEncodingSupport);
+		if (typeof sourceModelWithEncodingSupport.getEncoding === 'function') {
+			sourceModelEncoding = sourceModelWithEncodingSupport.getEncoding();
+		}
 
 		// Prefer an existing model if it is already loaded for the given target resource
 		let targetExists: boolean = false;
@@ -764,7 +775,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				}
 			}
 
-			targetModel = await this.models.loadOrCreate(target, { encoding: sourceModel.getEncoding(), mode });
+			targetModel = await this.models.loadOrCreate(target, { encoding: sourceModelEncoding, mode });
 		}
 
 		try {
@@ -785,7 +796,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			}
 
 			// take over model value, encoding and mode (only if more specific) from source model
-			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
+			targetModel.updatePreferredEncoding(sourceModelEncoding);
 			if (sourceModel.isResolved() && targetModel.isResolved()) {
 				this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
 
@@ -809,7 +820,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			) {
 				await this.fileService.del(target);
 
-				return this.doSaveTextFileAs(sourceModel, resource, target, options);
+				return this.doSaveAsTextFile(sourceModel, source, target, options);
 			}
 
 			throw error;
