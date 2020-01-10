@@ -549,9 +549,7 @@ export class FolderMatch extends Disposable {
 
 	replaceAll(): Promise<any> {
 		const matches = this.matches();
-		return this.replaceService.replace(matches).then(() => {
-			matches.forEach(match => this.doRemove(match, false, true));
-		});
+		return this.replaceService.replace(matches).then(() => this.doRemove(matches));
 	}
 
 	matches(): FileMatch[] {
