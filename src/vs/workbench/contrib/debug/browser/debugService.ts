@@ -727,33 +727,8 @@ export class DebugService implements IDebugService {
 
 	//---- focus management
 
-	async focusStackFrame(stackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession, explicit?: boolean): Promise<void> {
-		if (!session) {
-			if (stackFrame || thread) {
-				session = stackFrame ? stackFrame.thread.session : thread!.session;
-			} else {
-				const sessions = this.model.getSessions();
-				const stoppedSession = sessions.filter(s => s.state === State.Stopped).shift();
-				session = stoppedSession || (sessions.length ? sessions[0] : undefined);
-			}
-		}
-
-		if (!thread) {
-			if (stackFrame) {
-				thread = stackFrame.thread;
-			} else {
-				const threads = session ? session.getAllThreads() : undefined;
-				const stoppedThread = threads && threads.filter(t => t.stopped).shift();
-				thread = stoppedThread || (threads && threads.length ? threads[0] : undefined);
-			}
-		}
-
-		if (!stackFrame) {
-			if (thread) {
-				const callStack = thread.getCallStack();
-				stackFrame = first(callStack, sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'), undefined);
-			}
-		}
+	async focusStackFrame(_stackFrame: IStackFrame | undefined, _thread?: IThread, _session?: IDebugSession, explicit?: boolean): Promise<void> {
+		const { stackFrame, thread, session } = getStackFrameThreadAndSessionToFocus(this.model, _stackFrame, _thread, _session);
 
 		if (stackFrame) {
 			const editor = await stackFrame.openInEditor(this.editorService, true);
@@ -1116,4 +1091,35 @@ export class DebugService implements IDebugService {
 			hasLogMessage: !!breakpoint.logMessage
 		});
 	}
+}
+
+export function getStackFrameThreadAndSessionToFocus(model: IDebugModel, stackFrame: IStackFrame | undefined, thread?: IThread, session?: IDebugSession): { stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession | undefined } {
+	if (!session) {
+		if (stackFrame || thread) {
+			session = stackFrame ? stackFrame.thread.session : thread!.session;
+		} else {
+			const sessions = model.getSessions();
+			const stoppedSession = sessions.filter(s => s.state === State.Stopped).shift();
+			session = stoppedSession || (sessions.length ? sessions[0] : undefined);
+		}
+	}
+
+	if (!thread) {
+		if (stackFrame) {
+			thread = stackFrame.thread;
+		} else {
+			const threads = session ? session.getAllThreads() : undefined;
+			const stoppedThread = threads && threads.filter(t => t.stopped).shift();
+			thread = stoppedThread || (threads && threads.length ? threads[0] : undefined);
+		}
+	}
+
+	if (!stackFrame) {
+		if (thread) {
+			const callStack = thread.getCallStack();
+			stackFrame = first(callStack, sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'), undefined);
+		}
+	}
+
+	return { session, thread, stackFrame };
 }

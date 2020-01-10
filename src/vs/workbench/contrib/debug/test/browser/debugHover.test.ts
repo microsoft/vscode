@@ -51,6 +51,7 @@ suite('Debug - Hover', () => {
 		}(session, 1, scope, 2, 'A', 'A', undefined!, 0, 0, {}, 'string');
 		variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined!, 0, 0, {}, 'string');
 
+		assert.equal(await findExpressionInStackFrame(stackFrame, []), undefined);
 		assert.equal(await findExpressionInStackFrame(stackFrame, ['A']), variableA);
 		assert.equal(await findExpressionInStackFrame(stackFrame, ['doesNotExist', 'no']), undefined);
 		assert.equal(await findExpressionInStackFrame(stackFrame, ['a']), undefined);
