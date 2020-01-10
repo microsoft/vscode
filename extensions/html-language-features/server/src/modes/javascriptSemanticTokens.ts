@@ -55,35 +55,40 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 	return resultTokens;
 }
 
+enum TokenType {
+	'class',
+	'enum',
+	'interface',
+	'namespace',
+	'typeParameter',
+	'type',
+	'parameter',
+	'variable',
+	'property',
+	'constant',
+	'function',
+	'member',
+	_sentinel
+}
+
+
+enum TokenModifier {
+	'declaration',
+	'static',
+	'async',
+	_sentinel
+}
 
 export function getSemanticTokenLegend() {
+	const tokenTypes = [];
+	for (let i = 0; i < TokenType._sentinel; i++) {
+		tokenTypes.push(TokenType[i]);
+	}
+	const tokenModifiers = [];
+	for (let i = 0; i < TokenModifier._sentinel; i++) {
+		tokenModifiers.push(TokenModifier[i]);
+	}
 	return { types: tokenTypes, modifiers: tokenModifiers };
-}
-
-
-const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'typeParameter', 'type', 'parameter', 'variable', 'property', 'constant', 'function', 'member'];
-const tokenModifiers: string[] = ['declaration', 'static', 'async'];
-
-const enum TokenType {
-	'class' = 0,
-	'enum' = 1,
-	'interface' = 2,
-	'namespace' = 3,
-	'typeParameter' = 4,
-	'type' = 5,
-	'parameter' = 6,
-	'variable' = 7,
-	'property' = 8,
-	'constant' = 9,
-	'function' = 10,
-	'member' = 11
-}
-
-
-const enum TokenModifier {
-	'declaration' = 0x01,
-	'static' = 0x02,
-	'async' = 0x04,
 }
 
 const tokenFromDeclarationMapping: { [name: string]: TokenType } = {
