@@ -406,7 +406,7 @@ export class BulkEditService implements IBulkEditService {
 
 	async apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
-		if (this._previewHandler && !options?.noPreview) {
+		if (this._previewHandler && options?.showPreview) {
 			edit = await this._previewHandler(edit, options);
 		}
 

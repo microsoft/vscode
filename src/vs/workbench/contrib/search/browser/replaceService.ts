@@ -105,7 +105,7 @@ export class ReplaceService implements IReplaceService {
 	replace(match: FileMatchOrMatch, progress?: IProgress<IProgressStep>, resource?: URI): Promise<any>;
 	replace(arg: any, progress: IProgress<IProgressStep> | undefined = undefined, resource: URI | null = null): Promise<any> {
 		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
-		return this.bulkEditorService.apply({ edits }, { progress, noPreview: true }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
+		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
 	}
 
 	openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {

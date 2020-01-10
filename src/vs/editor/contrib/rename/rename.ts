@@ -200,7 +200,7 @@ class RenameController implements IEditorContribution {
 
 			this._bulkEditService.apply(renameResult, {
 				editor: this.editor,
-				noPreview: !inputFieldResult.wantsPreview
+				showPreview: inputFieldResult.wantsPreview
 			}).then(result => {
 				if (result.ariaSummary) {
 					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));
