@@ -18,7 +18,7 @@ import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
-import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineMapperFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { ITheme } from 'vs/platform/theme/common/themeService';
@@ -46,7 +46,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		editorId: number,
 		configuration: editorCommon.IConfiguration,
 		model: ITextModel,
-		lineMapperFactory: ILineMapperFactory,
+		lineMapperFactory: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable
 	) {
 		super();
@@ -197,23 +197,23 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				const versionId = e.versionId;
 
 				// Do a first pass to compute line mappings, and a second pass to actually interpret them
-				const lineMappingComputer = this.lines.createLineMappingComputer();
+				const lineBreaksComputer = this.lines.createLineBreaksComputer();
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.LinesInserted: {
 							for (const line of change.detail) {
-								lineMappingComputer.addRequest(line, null);
+								lineBreaksComputer.addRequest(line, null);
 							}
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							lineMappingComputer.addRequest(change.detail, null);
+							lineBreaksComputer.addRequest(change.detail, null);
 							break;
 						}
 					}
 				}
-				const lineMappings = lineMappingComputer.finalize();
-				let lineMappingsOffset = 0;
+				const lineBreaks = lineBreaksComputer.finalize();
+				let lineBreaksOffset = 0;
 
 				for (const change of changes) {
 
@@ -236,10 +236,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LinesInserted: {
-							const insertedLinesMappings = lineMappings.slice(lineMappingsOffset, lineMappingsOffset + change.detail.length);
-							lineMappingsOffset += change.detail.length;
+							const insertedLineBreaks = lineBreaks.slice(lineBreaksOffset, lineBreaksOffset + change.detail.length);
+							lineBreaksOffset += change.detail.length;
 
-							const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLinesMappings);
+							const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emit(linesInsertedEvent);
 								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
@@ -248,10 +248,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							const changedLineMapping = lineMappings[lineMappingsOffset];
-							lineMappingsOffset++;
+							const changedLineBreakData = lineBreaks[lineBreaksOffset];
+							lineBreaksOffset++;
 
-							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this.lines.onModelLineChanged(versionId, change.lineNumber, changedLineMapping);
+							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this.lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
 							hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
 							if (linesChangedEvent) {
 								eventsCollector.emit(linesChangedEvent);

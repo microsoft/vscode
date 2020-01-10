@@ -7,7 +7,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { ILineMapperFactory, LineBreakingData, ILineMappingComputer } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ILineBreaksComputerFactory, LineBreakData, ILineBreaksComputer } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -51,10 +51,10 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 	}
 }
 
-export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactory {
+export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
-	public static create(options: IComputedEditorOptions): CharacterHardWrappingLineMapperFactory {
-		return new CharacterHardWrappingLineMapperFactory(
+	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
+		return new MonospaceLineBreaksComputerFactory(
 			options.get(EditorOption.wordWrapBreakBeforeCharacters),
 			options.get(EditorOption.wordWrapBreakAfterCharacters)
 		);
@@ -66,26 +66,26 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		this.classifier = new WrappingCharacterClassifier(breakBeforeChars, breakAfterChars);
 	}
 
-	public createLineMappingComputer(tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineMappingComputer {
+	public createLineBreaksComputer(tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
 		tabSize = tabSize | 0; //@perf
 		wrappingColumn = +wrappingColumn; //@perf
 		columnsForFullWidthChar = +columnsForFullWidthChar; //@perf
 
 		let requests: string[] = [];
-		let previousBreakingData: (LineBreakingData | null)[] = [];
+		let previousBreakingData: (LineBreakData | null)[] = [];
 		return {
-			addRequest: (lineText: string, previousLineBreakingData: LineBreakingData | null) => {
+			addRequest: (lineText: string, previousLineBreakData: LineBreakData | null) => {
 				requests.push(lineText);
-				previousBreakingData.push(previousLineBreakingData);
+				previousBreakingData.push(previousLineBreakData);
 			},
 			finalize: () => {
-				let result: (LineBreakingData | null)[] = [];
+				let result: (LineBreakData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
-					const previousLineBreakingData = previousBreakingData[i];
-					if (previousLineBreakingData) {
-						result[i] = createLineMappingFromPreviousLineMapping(this.classifier, previousLineBreakingData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
+					const previousLineBreakData = previousBreakingData[i];
+					if (previousLineBreakData) {
+						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 					} else {
-						result[i] = createLineMapping(this.classifier, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
+						result[i] = createLineBreaks(this.classifier, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 					}
 				}
 				return result;
@@ -96,8 +96,8 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 let arrPool1: number[] = [];
 let arrPool2: number[] = [];
-function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterClassifier, previousBreakingData: LineBreakingData, lineText: string, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
-	if (firstLineBreakingColumn === -1) {
+function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: LineBreakData, lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
+	if (firstLineBreakColumn === -1) {
 		return null;
 	}
 
@@ -107,16 +107,16 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 	}
 
 	const prevBreakingOffsets = previousBreakingData.breakOffsets;
-	const prevBreakingOffsetsVisibleColumn = previousBreakingData.breakingOffsetsVisibleColumn;
+	const prevBreakingOffsetsVisibleColumn = previousBreakingData.breakOffsetsVisibleColumn;
 
-	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
-	const wrappedLineBreakingColumn = firstLineBreakingColumn - wrappedTextIndentLength;
+	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
+	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
 
 	let breakingOffsets: number[] = arrPool1;
 	let breakingOffsetsVisibleColumn: number[] = arrPool2;
 	let breakingOffsetsCount: number = 0;
 
-	let breakingColumn = firstLineBreakingColumn;
+	let breakingColumn = firstLineBreakColumn;
 	const prevLen = prevBreakingOffsets.length;
 	let prevIndex = 0;
 
@@ -178,7 +178,7 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 					forcedBreakOffset = charStartOffset;
 					forcedBreakOffsetVisibleColumn = visibleColumn - charWidth;
 
-					if (visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakingColumn) {
+					if (visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakColumn) {
 						// Cannot break at `breakOffset` => reset it if it was set
 						breakOffset = 0;
 					}
@@ -238,7 +238,7 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 						forcedBreakOffsetVisibleColumn = visibleColumn;
 					}
 
-					if (visibleColumn <= breakingColumn - wrappedLineBreakingColumn) {
+					if (visibleColumn <= breakingColumn - wrappedLineBreakColumn) {
 						// went too far!
 						break;
 					}
@@ -256,7 +256,7 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 			}
 
 			if (breakOffset !== 0) {
-				const remainingWidthOfNextLine = wrappedLineBreakingColumn - (forcedBreakOffsetVisibleColumn - breakOffsetVisibleColumn);
+				const remainingWidthOfNextLine = wrappedLineBreakColumn - (forcedBreakOffsetVisibleColumn - breakOffsetVisibleColumn);
 				if (remainingWidthOfNextLine <= tabSize) {
 					const charCodeAtForcedBreakOffset = lineText.charCodeAt(forcedBreakOffset);
 					let charWidth: number;
@@ -289,7 +289,7 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 		breakingOffsets[breakingOffsetsCount] = breakOffset;
 		breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
 		breakingOffsetsCount++;
-		breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakingColumn;
+		breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakColumn;
 
 		while (prevIndex < 0 || (prevIndex < prevLen && prevBreakingOffsetsVisibleColumn[prevIndex] < breakOffsetVisibleColumn)) {
 			prevIndex++;
@@ -314,15 +314,15 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 	breakingOffsets.length = breakingOffsetsCount;
 	breakingOffsetsVisibleColumn.length = breakingOffsetsCount;
 	arrPool1 = previousBreakingData.breakOffsets;
-	arrPool2 = previousBreakingData.breakingOffsetsVisibleColumn;
+	arrPool2 = previousBreakingData.breakOffsetsVisibleColumn;
 	previousBreakingData.breakOffsets = breakingOffsets;
-	previousBreakingData.breakingOffsetsVisibleColumn = breakingOffsetsVisibleColumn;
+	previousBreakingData.breakOffsetsVisibleColumn = breakingOffsetsVisibleColumn;
 	previousBreakingData.wrappedTextIndentLength = wrappedTextIndentLength;
 	return previousBreakingData;
 }
 
-function createLineMapping(classifier: WrappingCharacterClassifier, lineText: string, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): LineBreakingData | null {
-	if (firstLineBreakingColumn === -1) {
+function createLineBreaks(classifier: WrappingCharacterClassifier, lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
+	if (firstLineBreakColumn === -1) {
 		return null;
 	}
 
@@ -331,8 +331,8 @@ function createLineMapping(classifier: WrappingCharacterClassifier, lineText: st
 		return null;
 	}
 
-	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakingColumn, columnsForFullWidthChar, hardWrappingIndent);
-	const wrappedLineBreakingColumn = firstLineBreakingColumn - wrappedTextIndentLength;
+	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
+	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
 
 	let breakingOffsets: number[] = [];
 	let breakingOffsetsVisibleColumn: number[] = [];
@@ -340,7 +340,7 @@ function createLineMapping(classifier: WrappingCharacterClassifier, lineText: st
 	let breakOffset = 0;
 	let breakOffsetVisibleColumn = 0;
 
-	let breakingColumn = firstLineBreakingColumn;
+	let breakingColumn = firstLineBreakColumn;
 	let prevCharCode = lineText.charCodeAt(0);
 	let prevCharCodeClass = classifier.get(prevCharCode);
 	let visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
@@ -381,7 +381,7 @@ function createLineMapping(classifier: WrappingCharacterClassifier, lineText: st
 		if (visibleColumn > breakingColumn) {
 			// We need to break at least before character at `i`:
 
-			if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakingColumn) {
+			if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakColumn) {
 				// Cannot break at `breakOffset`, must break at `i`
 				breakOffset = charStartOffset;
 				breakOffsetVisibleColumn = visibleColumn - charWidth;
@@ -390,7 +390,7 @@ function createLineMapping(classifier: WrappingCharacterClassifier, lineText: st
 			breakingOffsets[breakingOffsetsCount] = breakOffset;
 			breakingOffsetsVisibleColumn[breakingOffsetsCount] = breakOffsetVisibleColumn;
 			breakingOffsetsCount++;
-			breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakingColumn;
+			breakingColumn = breakOffsetVisibleColumn + wrappedLineBreakColumn;
 			breakOffset = 0;
 		}
 
@@ -406,7 +406,7 @@ function createLineMapping(classifier: WrappingCharacterClassifier, lineText: st
 	breakingOffsets[breakingOffsetsCount] = len;
 	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
 
-	return new LineBreakingData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
 }
 
 function computeCharWidth(charCode: number, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number): number {
@@ -436,9 +436,9 @@ function canBreak(prevCharCodeClass: CharacterClass, charCodeClass: CharacterCla
 	);
 }
 
-function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakingColumn: number, columnsForFullWidthChar: number, hardWrappingIndent: WrappingIndent): number {
+function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): number {
 	let wrappedTextIndentLength = 0;
-	if (hardWrappingIndent !== WrappingIndent.None) {
+	if (wrappingIndent !== WrappingIndent.None) {
 		const firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 		if (firstNonWhitespaceIndex !== -1) {
 			// Track existing indent
@@ -449,14 +449,14 @@ function computeWrappedTextIndentLength(lineText: string, tabSize: number, first
 			}
 
 			// Increase indent of continuation lines, if desired
-			const numberOfAdditionalTabs = (hardWrappingIndent === WrappingIndent.DeepIndent ? 2 : hardWrappingIndent === WrappingIndent.Indent ? 1 : 0);
+			const numberOfAdditionalTabs = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
 			for (let i = 0; i < numberOfAdditionalTabs; i++) {
 				const charWidth = tabCharacterWidth(wrappedTextIndentLength, tabSize);
 				wrappedTextIndentLength += charWidth;
 			}
 
 			// Force sticking to beginning of line if no character would fit except for the indentation
-			if (wrappedTextIndentLength + columnsForFullWidthChar > firstLineBreakingColumn) {
+			if (wrappedTextIndentLength + columnsForFullWidthChar > firstLineBreakColumn) {
 				wrappedTextIndentLength = 0;
 			}
 		}

@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 
 suite('Cursor move command test', () => {
 
@@ -33,7 +33,7 @@ suite('Cursor move command test', () => {
 
 		thisModel = TextModel.createFromString(text);
 		thisConfiguration = new TestConfiguration({});
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, CharacterHardWrappingLineMapperFactory.create(thisConfiguration.options), null!);
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, MonospaceLineBreaksComputerFactory.create(thisConfiguration.options), null!);
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
 

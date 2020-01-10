@@ -13,8 +13,8 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { LineBreakingData, ISimpleModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
+import { LineBreakData, ISimpleModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -95,7 +95,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 
-		const hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
+		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(
 			wordWrapBreakBeforeCharacters,
 			wordWrapBreakAfterCharacters
 		);
@@ -111,7 +111,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 
 		const linesCollection = new SplitLinesCollection(
 			model,
-			hardWrappingLineMapperFactory,
+			lineBreaksComputerFactory,
 			model.getOptions().tabSize,
 			wrappingInfo.wrappingColumn,
 			fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
@@ -747,7 +747,7 @@ suite('SplitLinesCollection', () => {
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
 
-		const factory = new CharacterHardWrappingLineMapperFactory(
+		const factory = new MonospaceLineBreaksComputerFactory(
 			wordWrapBreakBeforeCharacters,
 			wordWrapBreakAfterCharacters
 		);
@@ -773,15 +773,15 @@ function pos(lineNumber: number, column: number): Position {
 }
 
 function createSplitLine(splitLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number, isVisible: boolean = true): SplitLine {
-	return new SplitLine(createLineMapping(splitLengths, breakingOffsetsVisibleColumn, wrappedTextIndentWidth), isVisible);
+	return new SplitLine(createLineBreakData(splitLengths, breakingOffsetsVisibleColumn, wrappedTextIndentWidth), isVisible);
 }
 
-function createLineMapping(breakingLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number): LineBreakingData {
+function createLineBreakData(breakingLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number): LineBreakData {
 	let sums: number[] = [];
 	for (let i = 0; i < breakingLengths.length; i++) {
 		sums[i] = (i > 0 ? sums[i - 1] : 0) + breakingLengths[i];
 	}
-	return new LineBreakingData(sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth);
+	return new LineBreakData(sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth);
 }
 
 function createModel(text: string): ISimpleModel {
