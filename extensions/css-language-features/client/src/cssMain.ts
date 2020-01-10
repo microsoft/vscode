@@ -45,8 +45,8 @@ export function activate(context: ExtensionContext) {
 			dataPaths
 		},
 		middleware: {
-			// testing the replace / insert mode
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				// testing the replace / insert mode
 				function updateRanges(item: CompletionItem) {
 					const range = item.range;
 					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
@@ -54,10 +54,23 @@ export function activate(context: ExtensionContext) {
 						item.range = undefined;
 					}
 				}
+
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
 					if (r) {
 						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+
+						if (!Array.isArray(r)) {
+							r.isDetailsResolved = true;
+							r.items.forEach(i => {
+								if (i.kind === CompletionItemKind.Color) {
+									i.detail = i.documentation?.toString();
+								} else {
+									i.detail = i.label;
+								}
+							});
+						}
 					}
+
 					return r;
 				}
 				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];

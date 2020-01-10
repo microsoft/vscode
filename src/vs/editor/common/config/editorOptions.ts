@@ -2496,6 +2496,10 @@ export interface ISuggestOptions {
 	 */
 	maxVisibleSuggestions?: number;
 	/**
+	 * Always show inline details
+	 */
+	alwaysRevealInlineDetails?: boolean;
+	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -2614,6 +2618,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			maxVisibleSuggestions: 12,
+			alwaysRevealInlineDetails: false,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -2676,7 +2681,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
 					default: defaults.snippetsPreventQuickSuggestions,
-					description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Control whether an active snippet prevents quick suggestions.")
+					description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Controls whether an active snippet prevents quick suggestions.")
 				},
 				'editor.suggest.showIcons': {
 					type: 'boolean',
@@ -2689,6 +2694,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					minimum: 1,
 					maximum: 15,
 					description: nls.localize('suggest.maxVisibleSuggestions', "Controls how many suggestions IntelliSense will show before showing a scrollbar (maximum 15).")
+				},
+				'editor.suggest.alwaysRevealInlineDetails': {
+					type: 'boolean',
+					default: defaults.alwaysRevealInlineDetails,
+					description: nls.localize('suggest.alwaysRevealInlineDetails', "Controls whether to always show inline details")
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',
@@ -2842,6 +2852,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: EditorBooleanOption.boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: EditorBooleanOption.boolean(input.showIcons, this.defaultValue.showIcons),
 			maxVisibleSuggestions: EditorIntOption.clampedInt(input.maxVisibleSuggestions, this.defaultValue.maxVisibleSuggestions, 1, 15),
+			alwaysRevealInlineDetails: EditorBooleanOption.boolean(input.alwaysRevealInlineDetails, this.defaultValue.alwaysRevealInlineDetails),
 			showMethods: EditorBooleanOption.boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: EditorBooleanOption.boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: EditorBooleanOption.boolean(input.showConstructors, this.defaultValue.showConstructors),

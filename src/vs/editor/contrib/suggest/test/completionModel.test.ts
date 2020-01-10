@@ -41,6 +41,7 @@ suite('CompletionModel', function () {
 		shareSuggestSelections: false,
 		showIcons: true,
 		maxVisibleSuggestions: 12,
+		alwaysRevealInlineDetails: false,
 		showMethods: true,
 		showFunctions: true,
 		showConstructors: true,

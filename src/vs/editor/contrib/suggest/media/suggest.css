@@ -143,16 +143,39 @@
 	display: inline;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore,
+/** Inline type Label (details) **/
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label,
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
+	display: none;
+}
+
+.monaco-editor .suggest-widget.always-reveal-inline-details .monaco-list .monaco-list-row > .contents > .main > .type-label,
+.monaco-editor .suggest-widget.always-reveal-inline-details.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
+	display: inline;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
+	display: inline;
+}
+
+/** readMore icon **/
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore,
 .monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .type-label,
 .monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
 	display: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
+	display: inline;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.focused) > .contents > .main > .readMore {
+	display: inline;
+	visibility: hidden;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
 	display: inline;
 }
 

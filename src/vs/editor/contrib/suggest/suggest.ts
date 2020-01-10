@@ -47,7 +47,7 @@ export class CompletionItem {
 	idx?: number;
 	word?: string;
 
-	//
+	// all details resolved, we can show them all
 	readonly isDetailsResolved: boolean;
 
 	constructor(
