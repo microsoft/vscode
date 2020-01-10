@@ -103,14 +103,15 @@ export class NotebookContribution implements IWorkbenchContribution {
 		if (this._resourceMapping.has(resource!.path)) {
 			const input = this._resourceMapping.get(resource!.path);
 
-			return { override: this.editorService.openEditor(input!, { ...options, ignoreOverrides: true }, group) };
+			if (!input!.isDisposed()) {
+				return { override: this.editorService.openEditor(input!, { ...options, ignoreOverrides: true }, group) };
+			}
 		}
-
 
 		const input = this.instantiationService.createInstance(NotebookEditorInput, editor, viewType);
 		this._resourceMapping.set(resource!.path, input);
 
-		return { override: this.editorService.openEditor(input, { ...options, ignoreOverrides: true }, group) };
+		return { override: this.editorService.openEditor(input, options, group) };
 	}
 
 	private registerCommands() {
