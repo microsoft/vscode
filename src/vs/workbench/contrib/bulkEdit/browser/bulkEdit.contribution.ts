@@ -14,14 +14,29 @@ import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewCon
 import { localize } from 'vs/nls';
 import { ViewPaneContainer, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { PaneCompositePanel } from 'vs/workbench/browser/panel';
-import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+
+function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
+	let view: ViewPane | undefined;
+	const activePanel = panelService.openPanel(BulkEditPane.ID, true);
+	if (activePanel instanceof PaneCompositePanel) {
+		view = activePanel.getViewPaneContainer().getView(BulkEditPane.ID);
+	}
+	if (view instanceof BulkEditPane) {
+		return view;
+	}
+	return undefined;
+}
 
 class BulkEditPreviewContribution {
 
-	static readonly ctxEnabled = new RawContextKey('refactorPreviewIsEnabled', false);
+	static readonly ctxEnabled = new RawContextKey('refactorPreview.enabled', false);
 
 	private readonly _ctxEnabled: IContextKey<boolean>;
 
@@ -40,14 +55,8 @@ class BulkEditPreviewContribution {
 		const oldActivePanel = this._panelService.getActivePanel();
 
 		try {
-
-			let view: ViewPane | undefined;
-			const activePanel = this._panelService.openPanel(BulkEditPane.ID, true);
-			if (activePanel instanceof PaneCompositePanel) {
-				view = activePanel.getViewPaneContainer().getView(BulkEditPane.ID);
-			}
-
-			if (!(view instanceof BulkEditPane)) {
+			const view = getBulkEditPane(this._panelService);
+			if (!view) {
 				return edit;
 			}
 
@@ -86,10 +95,37 @@ class BulkEditPreviewContribution {
 	}
 }
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'refactorPreview.apply',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: BulkEditPreviewContribution.ctxEnabled,
+	primary: KeyMod.Shift + KeyCode.Enter,
+	handler(accessor) {
+		const panelService = accessor.get(IPanelService);
+		const view = getBulkEditPane(panelService);
+		if (view) {
+			view.accept();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'refactorPreview.toggleCheckedState',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, WorkbenchListFocusContextKey),
+	primary: KeyCode.Space,
+	handler(accessor) {
+		const panelService = accessor.get(IPanelService);
+		const view = getBulkEditPane(panelService);
+		if (view) {
+			view.toggleChecked();
+		}
+	}
+});
+
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	BulkEditPreviewContribution, LifecyclePhase.Ready
 );
-
 
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: BulkEditPane.ID,

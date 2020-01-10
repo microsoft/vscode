@@ -38,8 +38,8 @@ export class BulkEditPane extends ViewPane {
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _message!: HTMLSpanElement;
 
-	private readonly _acceptAction = new Action('ok', localize('ok', "Apply Refactoring"), 'codicon-check', false, async () => this._done(true));
-	private readonly _discardAction = new Action('discard', localize('discard', "Discard"), 'codicon-trash', false, async () => this._done(false));
+	private readonly _acceptAction = new Action('ok', localize('ok', "Apply Refactoring"), 'codicon-check', false, async () => this.accept());
+	private readonly _discardAction = new Action('discard', localize('discard', "Discard"), 'codicon-trash', false, async () => this.discard());
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _sessionDisposables = new DisposableStore();
@@ -149,7 +149,27 @@ export class BulkEditPane extends ViewPane {
 			if (first instanceof FileElement) {
 				this._tree.expand(first);
 			}
+
+			// refresh when check state changes
+			this._sessionDisposables.add(input.onDidChangeCheckedState(() => {
+				this._tree.updateChildren();
+			}));
 		});
+	}
+
+	accept(): void {
+		this._done(true);
+	}
+
+	discard() {
+		this._done(false);
+	}
+
+	toggleChecked() {
+		const [first] = this._tree.getFocus();
+		if (first) {
+			first.edit.updateChecked(!first.edit.isChecked());
+		}
 	}
 
 	private _done(accept: boolean): void {
@@ -180,10 +200,9 @@ export class BulkEditPane extends ViewPane {
 			rightResource: previewUri,
 			label: localize('edt.title', "{0} (Refactor Preview)", this._labelService.getUriLabel(element.parent.uri)),
 			options: {
-				selection: element.edit.edit.range
-				// preserveFocus,
-				// pinned,
-				// revealIfVisible: true
+				selection: element.edit.edit.range,
+				revealInCenterIfOutsideViewport: true,
+				preserveFocus: true
 			}
 		});
 	}

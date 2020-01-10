@@ -139,30 +139,26 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 class FileElementTemplate {
 
 	private readonly _disposables = new DisposableStore();
-	private _element?: FileElement;
+	private readonly _localDisposables = new DisposableStore();
 
 	constructor(
 		private readonly _checkbox: Checkbox,
 		private readonly _label: IResourceLabel,
 		@IThemeService themeService: IThemeService
 	) {
-		this._disposables.add(_checkbox.onChange(() => {
-			if (this._element) {
-				this._element.edit.updateChecked(_checkbox.checked);
-			}
-		}));
 		this._disposables.add(attachCheckboxStyler(_checkbox, themeService));
 	}
 
 	dispose(): void {
-		this._element = undefined;
+		this._localDisposables.dispose();
 		this._disposables.dispose();
 		this._checkbox.dispose();
 		this._label.dispose();
 	}
 
 	set(element: FileElement, score: FuzzyScore | undefined) {
-		this._element = element;
+		this._localDisposables.clear();
+		this._localDisposables.add(this._checkbox.onChange(() => element.edit.updateChecked(this._checkbox.checked)));
 		this._checkbox.checked = element.edit.isChecked();
 
 		const extraClasses: string[] = [];
@@ -243,9 +239,8 @@ class TextEditElementTemplate {
 	set(element: TextEditElement) {
 		this._localDisposables.clear();
 		this._localDisposables.add(this._checkbox.onChange(() => element.edit.updateChecked(this._checkbox.checked)));
-		this._localDisposables.add(element.edit.parent.parent.onDidChangeCheckedState(() => {
-			dom.toggleClass(this._checkbox.domNode, 'disabled', !element.edit.parent.isChecked());
-		}));
+		this._checkbox.checked = element.edit.isChecked();
+		dom.toggleClass(this._checkbox.domNode, 'disabled', !element.edit.parent.isChecked());
 
 		let value = '';
 		value += element.prefix;
@@ -257,7 +252,6 @@ class TextEditElementTemplate {
 		let insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: 'insert' };
 
 		this._label.set(value, [selectHighlight, insertHighlight], undefined, true);
-		this._checkbox.checked = element.edit.isChecked();
 	}
 }
 
