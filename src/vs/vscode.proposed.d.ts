@@ -1504,4 +1504,15 @@ declare module 'vscode' {
 		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
 	}
 
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/39441
+
+	export interface CompletionList {
+		isDetailsResolved?: boolean;
+	}
+
+	//#endregion
+
 }

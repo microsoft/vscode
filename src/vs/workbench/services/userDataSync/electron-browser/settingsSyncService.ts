@@ -21,6 +21,11 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 	private _onDidChangeStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
 	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangeStatus.event;
 
+	private _conflicts: IConflictSetting[] = [];
+	get conflicts(): IConflictSetting[] { return this._conflicts; }
+	private _onDidChangeConflicts: Emitter<IConflictSetting[]> = this._register(new Emitter<IConflictSetting[]>());
+	readonly onDidChangeConflicts: Event<IConflictSetting[]> = this._onDidChangeConflicts.event;
+
 	get onDidChangeLocal(): Event<void> { return this.channel.listen('onDidChangeLocal'); }
 
 	constructor(
@@ -32,6 +37,12 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 			this.updateStatus(status);
 			this._register(this.channel.listen<SyncStatus>('onDidChangeStatus')(status => this.updateStatus(status)));
 		});
+		this.channel.call<IConflictSetting[]>('_getInitialConflicts').then(conflicts => {
+			if (conflicts.length) {
+				this.updateConflicts(conflicts);
+			}
+			this._register(this.channel.listen<IConflictSetting[]>('onDidChangeConflicts')(conflicts => this.updateConflicts(conflicts)));
+		});
 	}
 
 	sync(_continue?: boolean): Promise<boolean> {
@@ -42,10 +53,6 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		this.channel.call('stop');
 	}
 
-	getConflicts(): Promise<IConflictSetting[]> {
-		return this.channel.call<IConflictSetting[]>('getConflicts');
-	}
-
 	resolveConflicts(conflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		return this.channel.call('resolveConflicts', [conflicts]);
 	}
@@ -53,6 +60,11 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 	private async updateStatus(status: SyncStatus): Promise<void> {
 		this._status = status;
 		this._onDidChangeStatus.fire(status);
+	}
+
+	private async updateConflicts(conflicts: IConflictSetting[]): Promise<void> {
+		this._conflicts = conflicts;
+		this._onDidChangeConflicts.fire(conflicts);
 	}
 
 }

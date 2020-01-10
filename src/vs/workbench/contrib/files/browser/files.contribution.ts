@@ -344,12 +344,6 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
 			scope: ConfigurationScope.RESOURCE_LANGUAGE,
-		},
-		'editor.formatOnSaveTimeout': {
-			'type': 'number',
-			'default': 750,
-			'description': nls.localize('formatOnSaveTimeout', "Timeout in milliseconds after which the formatting that is run on file save is cancelled."),
-			scope: ConfigurationScope.RESOURCE_LANGUAGE,
 		}
 	}
 });
