@@ -197,6 +197,7 @@ function createLineMappingFromPreviousLineMapping(classifier: WrappingCharacterC
 					// Add last segment
 					breakingOffsets[breakingOffsetsCount] = prevBreakingOffsets[prevBreakingOffsets.length - 1];
 					breakingOffsetsVisibleColumn[breakingOffsetsCount] = prevBreakingOffsetsVisibleColumn[prevBreakingOffsets.length - 1];
+					breakingOffsetsCount++;
 				}
 				break;
 			}
