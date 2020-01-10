@@ -60,6 +60,7 @@ export class BulkFileOperation extends CheckedObject {
 	type = BulkFileOperationType.None;
 	textEdits: BulkTextEdit[] = [];
 	originalEdits = new Map<number, ResourceTextEdit | ResourceFileEdit>();
+	newUri?: URI;
 
 	constructor(
 		readonly uri: URI,
@@ -73,6 +74,9 @@ export class BulkFileOperation extends CheckedObject {
 		this.originalEdits.set(index, edit);
 		if (isResourceTextEdit(edit)) {
 			this.textEdits = this.textEdits.concat(edit.edits.map(edit => new BulkTextEdit(this, edit, this._emitter)));
+
+		} else if (type === BulkFileOperationType.Rename) {
+			this.newUri = edit.newUri;
 		}
 	}
 }
@@ -105,6 +109,7 @@ export class BulkFileOperations {
 
 	async _init() {
 		const operationByResource = new Map<string, BulkFileOperation>();
+		const newToOldUri = new Map<string, string>();
 
 		for (let idx = 0; idx < this._bulkEdit.edits.length; idx++) {
 			const edit = this._bulkEdit.edits[idx];
@@ -123,6 +128,9 @@ export class BulkFileOperations {
 					// noop -> "soft" rename to something that already exists
 					continue;
 				}
+				// map newUri onto oldUri so that text-edit appear for
+				// the same file element
+				newToOldUri.set(edit.newUri.toString(), uri.toString());
 
 			} else if (edit.oldUri) {
 				type = BulkFileOperationType.Delete;
@@ -145,8 +153,15 @@ export class BulkFileOperations {
 				continue;
 			}
 
-			const key = uri.toString();
+			let key = uri.toString();
 			let operation = operationByResource.get(key);
+
+			// rename
+			if (!operation && newToOldUri.has(key)) {
+				key = newToOldUri.get(key)!;
+				operation = operationByResource.get(key);
+			}
+
 			if (!operation) {
 				operation = new BulkFileOperation(uri, this);
 				operationByResource.set(key, operation);

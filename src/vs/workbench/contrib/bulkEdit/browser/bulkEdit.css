@@ -34,3 +34,10 @@
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox.disabled {
 	opacity: .5;
 }
+
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents .details {
+	margin-left: .5em;
+	opacity: .7;
+	font-size: 0.9em;
+	white-space: pre
+}

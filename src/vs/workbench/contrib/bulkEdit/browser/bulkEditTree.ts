@@ -16,29 +16,18 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
-import { localize } from 'vs/nls';
 import { FileKind } from 'vs/platform/files/common/files';
+import { localize } from 'vs/nls';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 // --- VIEW MODEL
 
 export class FileElement {
 
-	private static _typeLabels: Record<number, string> = {
-		[BulkFileOperationType.Create]: localize('create', "create"),
-		[BulkFileOperationType.Delete]: localize('delete', "delete"),
-		[BulkFileOperationType.Rename]: localize('rename', "rename"),
-		[BulkFileOperationType.Create | BulkFileOperationType.Delete]: localize('createDelete', "create & delete"),
-		[BulkFileOperationType.Create | BulkFileOperationType.Rename]: localize('createRename', "create & rename"),
-		[BulkFileOperationType.Delete | BulkFileOperationType.Rename]: localize('deleteRename', "delete & rename"),
-		[BulkFileOperationType.Create | BulkFileOperationType.Delete | BulkFileOperationType.Rename]: localize('createRenameDelete', "create, rename, delete"),
-	};
-
 	readonly uri: URI;
-	readonly typeLabel: string;
 
 	constructor(readonly edit: BulkFileOperation) {
 		this.uri = edit.uri;
-		this.typeLabel = FileElement._typeLabels[edit.type] || '';
 	}
 }
 
@@ -139,8 +128,13 @@ class FileElementTemplate {
 
 	private readonly _checkbox: HTMLInputElement;
 	private readonly _label: IResourceLabel;
+	private readonly _details: HTMLSpanElement;
 
-	constructor(container: HTMLElement, resourceLabels: ResourceLabels) {
+	constructor(
+		container: HTMLElement,
+		resourceLabels: ResourceLabels,
+		@ILabelService private readonly _labelService: ILabelService,
+	) {
 
 		this._checkbox = document.createElement('input');
 		this._checkbox.className = 'edit-checkbox';
@@ -149,6 +143,10 @@ class FileElementTemplate {
 		container.appendChild(this._checkbox);
 
 		this._label = resourceLabels.create(container, { supportHighlights: true });
+
+		this._details = document.createElement('span');
+		this._details.className = 'details';
+		container.appendChild(this._details);
 	}
 
 	dispose(): void {
@@ -162,23 +160,22 @@ class FileElementTemplate {
 		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', (() => element.edit.updateChecked(this._checkbox.checked))));
 		this._checkbox.checked = element.edit.isChecked();
 
-		const extraClasses: string[] = [];
-		if (element.edit.type & BulkFileOperationType.Create) {
-			extraClasses.push('create');
-		}
-		if (element.edit.type & BulkFileOperationType.Delete) {
-			extraClasses.push('delete');
-		}
-		if (element.edit.type & BulkFileOperationType.Rename) {
-			extraClasses.push('rename');
-		}
 		this._label.setFile(element.uri, {
 			matches: createMatches(score),
 			fileKind: FileKind.FILE,
 			fileDecorations: { colors: true, badges: false },
-			// parentCount: element.edit.textEdits.length || undefined,
-			extraClasses,
 		});
+
+		// details
+		if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
+			this._details.innerText = localize('detail.rename', "(renaming to {0})", this._labelService.getUriLabel(element.edit.newUri, { relative: true }));
+		} else if (element.edit.type & BulkFileOperationType.Create) {
+			this._details.innerText = localize('detail.create', "(creating)");
+		} else if (element.edit.type & BulkFileOperationType.Create) {
+			this._details.innerText = localize('detail.del', "(deleting)");
+		} else {
+			this._details.innerText = '';
+		}
 	}
 }
 
@@ -188,10 +185,13 @@ export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScor
 
 	readonly templateId: string = FileElementRenderer.id;
 
-	constructor(private readonly _resourceLabels: ResourceLabels) { }
+	constructor(
+		private readonly _resourceLabels: ResourceLabels,
+		@ILabelService private readonly _labelService: ILabelService,
+	) { }
 
 	renderTemplate(container: HTMLElement): FileElementTemplate {
-		return new FileElementTemplate(container, this._resourceLabels);
+		return new FileElementTemplate(container, this._resourceLabels, this._labelService);
 	}
 
 	renderElement(node: ITreeNode<FileElement, FuzzyScore>, _index: number, template: FileElementTemplate): void {

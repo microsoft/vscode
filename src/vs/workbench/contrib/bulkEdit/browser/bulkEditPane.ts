@@ -93,7 +93,7 @@ export class BulkEditPane extends ViewPane {
 		this._tree = this._instaService.createInstance(
 			WorkbenchAsyncDataTree, this.id, treeContainer,
 			new BulkEditDelegate(),
-			[new TextEditElementRenderer(), new FileElementRenderer(resourceLabels)],
+			[new TextEditElementRenderer(), this._instaService.createInstance(FileElementRenderer, resourceLabels)],
 			this._instaService.createInstance(BulkEditDataSource),
 			{
 				identityProvider: new BulkEditIdentityProvider(),
