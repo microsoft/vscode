@@ -198,7 +198,7 @@ class BulkEditModel implements IDisposable {
 				for (const edit of value) {
 					if (makeMinimal) {
 						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, edit.edits);
-						task.addEdit({ ...edit, edits: newEdits! });
+						task.addEdit({ ...edit, edits: newEdits ?? edit.edits });
 
 					} else {
 						task.addEdit(edit);
