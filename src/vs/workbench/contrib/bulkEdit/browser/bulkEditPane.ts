@@ -41,6 +41,7 @@ export class BulkEditPane extends ViewPane {
 
 	private readonly _acceptAction = new Action('ok', localize('ok', "Apply Refactoring"), 'codicon-check', false, async () => this.accept());
 	private readonly _discardAction = new Action('discard', localize('discard', "Discard"), 'codicon-trash', false, async () => this.discard());
+
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _sessionDisposables = new DisposableStore();
@@ -62,6 +63,8 @@ export class BulkEditPane extends ViewPane {
 			options,
 			keybindingService, contextMenuService, configurationService, contextKeyService
 		);
+
+		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
 	}
 
 	dispose(): void {
@@ -70,7 +73,6 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	protected renderBody(parent: HTMLElement): void {
-		parent.classList.add('bulk-edit-panel', 'show-file-icons');
 
 		const resourceLabels = this._instaService.createInstance(
 			ResourceLabels,
@@ -124,10 +126,10 @@ export class BulkEditPane extends ViewPane {
 	}
 
 	private _setState(state: State): void {
-		this.body.dataset['state'] = state;
+		this.element.dataset['state'] = state;
 	}
 
-	async setInput(edit: WorkspaceEdit): Promise<WorkspaceEdit | undefined> {
+	async setInput(edit: WorkspaceEdit, label?: string): Promise<WorkspaceEdit | undefined> {
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
 

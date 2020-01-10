@@ -15,6 +15,7 @@ export interface IBulkEditOptions {
 	editor?: ICodeEditor;
 	progress?: IProgress<IProgressStep>;
 	showPreview?: boolean;
+	label?: string;
 }
 
 export interface IBulkEditResult {

@@ -7,7 +7,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, IBulkEditOptions } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPane';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
@@ -46,11 +46,11 @@ class BulkEditPreviewContribution {
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		bulkEditService.setPreviewHandler(edit => this._previewEdit(edit));
+		bulkEditService.setPreviewHandler((edit, options) => this._previewEdit(edit, options));
 		this._ctxEnabled = BulkEditPreviewContribution.ctxEnabled.bindTo(contextKeyService);
 	}
 
-	private async _previewEdit(edit: WorkspaceEdit) {
+	private async _previewEdit(edit: WorkspaceEdit, options?: IBulkEditOptions) {
 		this._ctxEnabled.set(true);
 		const oldActivePanel = this._panelService.getActivePanel();
 
@@ -60,7 +60,7 @@ class BulkEditPreviewContribution {
 				return edit;
 			}
 
-			const newEditOrUndefined = await view.setInput(edit);
+			const newEditOrUndefined = await view.setInput(edit, options?.label);
 			if (!newEditOrUndefined) {
 				return { edits: [] };
 			}
