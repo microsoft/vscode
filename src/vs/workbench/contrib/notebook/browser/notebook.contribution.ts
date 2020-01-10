@@ -21,7 +21,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { IActiveCodeEditor, isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Action } from 'vs/base/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -116,6 +117,18 @@ export class NotebookContribution implements IWorkbenchContribution {
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 
 		workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ExecuteNotebookAction, ExecuteNotebookAction.ID, ExecuteNotebookAction.LABEL), 'Execute Notebook', 'Notebook');
+
+		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+			command: {
+				id: 'workbench.action.executeNotebook',
+				title: 'Execute Notebook (Run all cells)',
+				icon: { id: 'codicon/debug-start' }
+			},
+			order: -1,
+			group: 'navigation',
+			when: ResourceContextKey.Extension.isEqualTo('.ipynb')
+		});
+
 	}
 }
 
