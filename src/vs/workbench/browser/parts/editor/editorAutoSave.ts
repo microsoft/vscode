@@ -12,6 +12,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class EditorAutoSave extends Disposable implements IWorkbenchContribution {
 
@@ -29,7 +30,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		@IHostService private readonly hostService: IHostService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -88,6 +90,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			(reason === SaveReason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||
 			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
 		) {
+			this.logService.trace(`[editor auto save] triggering auto save with reason ${reason}`);
+
 			if (editorIdentifier) {
 				this.editorService.save(editorIdentifier, { reason });
 			} else {
@@ -138,6 +142,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 		// Working copy got dirty - start auto save
 		if (workingCopy.isDirty()) {
+			this.logService.trace(`[editor auto save] starting auto save after ${this.autoSaveAfterDelay}ms`, workingCopy.resource.toString());
+
 			const handle = setTimeout(() => {
 				if (workingCopy.isDirty()) {
 					workingCopy.save({ reason: SaveReason.AUTO });
@@ -145,6 +151,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			}, this.autoSaveAfterDelay);
 
 			this.pendingAutoSavesAfterDelay.set(workingCopy, toDisposable(() => clearTimeout(handle)));
+		} else {
+			this.logService.trace(`[editor auto save] clearing auto save`, workingCopy.resource.toString());
 		}
 	}
 }
