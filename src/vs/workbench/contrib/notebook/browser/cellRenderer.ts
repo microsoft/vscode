@@ -373,7 +373,7 @@ class StatefullMarkdownCell extends Disposable {
 		this._register(viewCell.onDidChangeEditingState(() => {
 			if (viewCell.isEditing) {
 				// switch to editing mode
-				const width = templateData.container.clientWidth;
+				const width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
 				const lineNum = viewCell.lineCount;
 				const totalHeight = Math.max(lineNum + 1, 5) * 21;
 
@@ -553,7 +553,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	renderElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
 		const innerContent = templateData.cellContainer;
-		const width = innerContent.clientWidth;
+		const width = innerContent.clientWidth - 24 /** for scrollbar and margin right */;
 		const lineNum = element.lineCount;
 		const totalHeight = Math.max(lineNum + 1, 5) * 21;
 		const model = element.getTextModel();

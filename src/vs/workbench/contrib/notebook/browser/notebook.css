@@ -21,12 +21,14 @@
 
 .cell.markdown {
 	transform: translate3d(0, 0, 0);
-	padding: 8px 24px 8px 24px;
+	padding: 8px 0px 8px 24px;
+	margin-right: 24px;
 }
 
 .cell.code {
 	transform: translate3d(0, 0, 0);
-	padding: 8px 24px 0px 24px;
+	padding: 8px 0px 0px 24px;
+	margin-right: 24px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container {
@@ -42,6 +44,7 @@
 
 .monaco-workbench .part.editor > .content .notebook-editor .output {
 	margin-left: 24px;
+	margin-right: 24px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output .error_message {
