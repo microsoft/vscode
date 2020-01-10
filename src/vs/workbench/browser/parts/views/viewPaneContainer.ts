@@ -328,13 +328,25 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
 			return ({ viewDescriptor, index, size, collapsed });
 		});
+
+		let firstPane: string;
+		let singleView: boolean;
 		if (addedViews.length) {
 			this.onDidAddViews(addedViews);
+			firstPane = this.panes[0].id;
+			singleView = this.panes.length === 1;
 		}
 
 		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.areExtensionsReady = true;
+
+			// If we are rendering a single view that matches
+			// the cached version, this update is not necessary
+			if (this.panes.length === 1 && singleView && firstPane === this.panes[0].id) {
+				return;
+			}
+
 			if (this.panes.length) {
 				this.updateTitleArea();
 				this.updateViewHeaders();
