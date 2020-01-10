@@ -61,6 +61,7 @@ suite('WorkingCopyService', () => {
 
 		assert.equal(service.hasDirty, false);
 		assert.equal(service.dirtyCount, 0);
+		assert.equal(service.workingCopies.length, 0);
 		assert.equal(service.isDirty(URI.file('/')), false);
 
 		// resource 1
@@ -68,6 +69,7 @@ suite('WorkingCopyService', () => {
 		const copy1 = new TestWorkingCopy(resource1);
 		const unregister1 = service.registerWorkingCopy(copy1);
 
+		assert.equal(service.workingCopies.length, 1);
 		assert.equal(service.dirtyCount, 0);
 		assert.equal(service.isDirty(resource1), false);
 		assert.equal(service.hasDirty, false);
@@ -89,6 +91,8 @@ suite('WorkingCopyService', () => {
 		assert.equal(onDidChangeDirty[1], copy1);
 
 		unregister1.dispose();
+
+		assert.equal(service.workingCopies.length, 0);
 
 		// resource 2
 		const resource2 = URI.file('/some/folder/file-dirty.txt');
