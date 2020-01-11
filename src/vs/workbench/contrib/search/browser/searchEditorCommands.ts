@@ -25,7 +25,7 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/co
 import { FileMatch, Match, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInputFactory } from 'vs/workbench/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
@@ -42,6 +42,19 @@ export type SearchConfiguration = {
 	useIgnores: boolean,
 	showIncludesExcludes: boolean,
 };
+
+export class SearchEditorInputFactory implements IEditorInputFactory {
+
+	canSerialize() { return true; }
+
+	serialize(input: SearchEditorInput) {
+		return JSON.stringify(input.config);
+	}
+
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
+		return instantiationService.createInstance(SearchEditorInput, JSON.parse(serializedEditorInput));
+	}
+}
 
 let searchEditorInputInstances = 0;
 export class SearchEditorInput extends EditorInput {
@@ -72,7 +85,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	getResource(): URI {
-		return URI.from({ scheme: 'code-search', fragment: `${this.instanceNumber}` });
+		return URI.from({ scheme: 'untitled', authority: 'search-editor', path: this.config.query, fragment: `${this.instanceNumber}` });
 	}
 
 	getName(): string {

@@ -452,8 +452,8 @@ export class SearchWidget extends Widget {
 	}
 
 	setValue(value: string, skipSearchOnChange: boolean) {
-		this.searchInput.setValue(value);
 		this.temporarilySkipSearchOnChange = skipSearchOnChange || this.temporarilySkipSearchOnChange;
+		this.searchInput.setValue(value);
 	}
 
 	setReplaceAllActionState(enabled: boolean): void {
