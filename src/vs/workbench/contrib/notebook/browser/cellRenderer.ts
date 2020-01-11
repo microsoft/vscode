@@ -136,7 +136,8 @@ export class ViewCell {
 
 	save() {
 		if (this._textModel && this.isEditing) {
-			this.cell.source = this._textModel.getLinesContent().map(str => str + '\n');
+			let cnt = this._textModel.getLineCount();
+			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
 		}
 	}
 
@@ -370,7 +371,7 @@ class StatefullMarkdownCell extends Disposable {
 	) {
 		super();
 
-		this._register(viewCell.onDidChangeEditingState(() => {
+		const viewUpdate = () => {
 			if (viewCell.isEditing) {
 				// switch to editing mode
 				const width = templateData.cellContainer.clientWidth - 24 /** for scrollbar and margin right */;
@@ -418,7 +419,13 @@ class StatefullMarkdownCell extends Disposable {
 					templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
 				}
 			}
+		};
+
+		this._register(viewCell.onDidChangeEditingState(() => {
+			viewUpdate();
 		}));
+
+		viewUpdate();
 	}
 }
 

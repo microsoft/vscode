@@ -282,5 +282,8 @@ export class BackLayerWebView extends Disposable {
 		this.webview.sendMessage({
 			type: 'clear'
 		});
+
+		this.mapping = new Map();
+		this.outputMapping = new Map();
 	}
 }

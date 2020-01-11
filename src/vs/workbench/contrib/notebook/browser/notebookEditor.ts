@@ -10,7 +10,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -19,7 +19,7 @@ import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreforma
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { NotebookHandler, ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -27,6 +27,12 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 
 const $ = DOM.$;
+const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
+
+
+interface INotebookEditorViewState {
+	editingCells: { [key: number]: boolean };
+}
 
 export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	static readonly ID: string = 'workbench.editor.notebook';
@@ -39,6 +45,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private model: NotebookEditorModel | undefined;
 	private viewCells: ViewCell[] = [];
 	private localStore: DisposableStore = new DisposableStore();
+	private editorMemento: IEditorMemento<INotebookEditorViewState>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -48,9 +55,12 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		@IModeService private readonly modeService: IModeService,
 		@IStorageService storageService: IStorageService,
 		@IWebviewService private webviewService: IWebviewService,
-		@INotebookService private notebookService: INotebookService
+		@INotebookService private notebookService: INotebookService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
+
+		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
 	get minimumWidth(): number { return 375; }
@@ -155,7 +165,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	}
 
 	onHide() {
-		this.viewCells.forEach(cell => cell.isEditing = false);
+		this.viewCells.forEach(cell => {
+			if (cell.getText() !== '') {
+				cell.isEditing = false;
+			}
+		});
 
 		if (this.webview) {
 			this.localStore.clear();
@@ -169,13 +183,21 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	}
 
 	setVisible(visible: boolean, group?: IEditorGroup): void {
-		super.onHide();
+		super.setVisible(visible, group);
 		if (!visible) {
-			this.viewCells.forEach(cell => cell.isEditing = false);
+			this.viewCells.forEach(cell => {
+				if (cell.getText() !== '') {
+					cell.isEditing = false;
+				}
+			});
 		}
 	}
 
 	setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+		if (this.input instanceof NotebookEditorInput) {
+			this.saveTextEditorViewState(this.input);
+		}
+
 		return super.setInput(input, options, token)
 			.then(() => {
 				return input.resolve();
@@ -202,8 +224,10 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 					this.updateViewCells();
 				}));
 
+				let viewState = this.loadTextEditorViewState(input);
 				this.viewCells = model.getNotebook().cells.map(cell => {
-					return new ViewCell(cell, false, this.modelService, this.modeService);
+					const isEditing = viewState && viewState.editingCells[cell.handle];
+					return new ViewCell(cell, !!isEditing, this.modelService, this.modeService);
 				});
 
 				const updateScrollPosition = () => {
@@ -246,7 +270,9 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	layoutElement(cell: ViewCell, height: number) {
 		let relayout = (cell: ViewCell, height: number) => {
 			let index = this.model!.getNotebook().cells.indexOf(cell.cell);
-			this.list?.updateDynamicHeight(index, cell, height);
+			if (index >= 0) {
+				this.list?.updateDynamicHeight(index, cell, height);
+			}
 		};
 
 		if (this.list?.view.isRendering) {
@@ -309,6 +335,32 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width - 20, dimension.height);
 		this.list?.layout(dimension.height, dimension.width - 20);
+	}
+
+	protected saveState(): void {
+		if (this.input instanceof NotebookEditorInput) {
+			this.saveTextEditorViewState(this.input);
+		}
+
+		super.saveState();
+	}
+
+	private saveTextEditorViewState(input: NotebookEditorInput): void {
+		if (this.group) {
+			let state: { [key: number]: boolean } = {};
+			this.viewCells.filter(cell => cell.isEditing).forEach(cell => state[cell.cell.handle] = true);
+			this.editorMemento.saveEditorState(this.group, input, {
+				editingCells: state
+			});
+		}
+	}
+
+	private loadTextEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
+		if (this.group) {
+			return this.editorMemento.loadEditorState(this.group, input);
+		}
+
+		return;
 	}
 }
 
