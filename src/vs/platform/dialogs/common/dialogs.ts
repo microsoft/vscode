@@ -230,7 +230,7 @@ export interface IFileDialogService {
 	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
-	 * Shows a save file file dialog and save the file at the chosen file URI.
+	 * Shows a save file dialog and save the file at the chosen file URI.
 	 */
 	pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
 
