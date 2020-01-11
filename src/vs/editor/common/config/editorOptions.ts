@@ -2212,15 +2212,6 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 
 //#endregion
 
-//#region rulers
-export interface IRulerColorOption {
-	readonly size: number;
-	readonly color: string;
-}
-
-export type IRulerOption = number | IRulerColorOption;
-//#endregion
-
 //#region renderLineNumbers
 
 export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
@@ -2293,6 +2284,13 @@ class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNu
 //#endregion
 
 //#region rulers
+
+export interface IRulerColorOption {
+	readonly size: number;
+	readonly color: string;
+}
+
+export type IRulerOption = number | IRulerColorOption;
 
 class EditorRulers extends SimpleEditorOption<EditorOption.rulers, IRulerOption[]> {
 
