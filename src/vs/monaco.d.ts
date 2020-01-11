@@ -3282,14 +3282,14 @@ declare namespace monaco.editor {
 		strings: boolean;
 	}
 
+	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
+
 	export interface IRulerColorOption {
 		readonly size: number;
 		readonly color: string;
 	}
 
 	export type IRulerOption = number | IRulerColorOption;
-
-	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 
 	/**
 	 * Configuration options for editor scrollbars
