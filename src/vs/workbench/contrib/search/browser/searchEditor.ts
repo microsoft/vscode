@@ -57,6 +57,7 @@ export class SearchEditor extends BaseEditor {
 
 	private runSearchDelayer = new Delayer(300);
 	private pauseSearching: boolean = false;
+	private showingIncludesExcludes: boolean = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -82,7 +83,7 @@ export class SearchEditor extends BaseEditor {
 		this.queryEditorWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.queryEditorContainer, { _hideReplaceToggle: true, showContextToggle: true }));
 		this._register(this.queryEditorWidget.onReplaceToggled(() => this.reLayout()));
 		this._register(this.queryEditorWidget.onDidHeightChange(() => this.reLayout()));
-		this.queryEditorWidget.onSearchSubmit(() => this.runSearch());
+		this.queryEditorWidget.onSearchSubmit(() => this.runSearch(true)); // onSearchSubmit has an internal delayer, so skip over ours.
 		this.queryEditorWidget.searchInput.onDidOptionChange(() => this.runSearch());
 		this.queryEditorWidget.onDidToggleContext(() => this.runSearch());
 
@@ -92,14 +93,14 @@ export class SearchEditor extends BaseEditor {
 		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand.codicon.codicon-ellipsis', { tabindex: 0, role: 'button', title: localize('moreSearch', "Toggle Search Details") }));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e);
-			this.toggleQueryDetails();
+			this.toggleIncludesExcludes();
 		}));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(e);
-				this.toggleQueryDetails();
+				this.toggleIncludesExcludes();
 			}
 		}));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -159,9 +160,9 @@ export class SearchEditor extends BaseEditor {
 		});
 	}
 
-	private async runSearch() {
+	private async runSearch(instant = false) {
 		if (!this.pauseSearching) {
-			this.runSearchDelayer.trigger(() => this.doRunSearch());
+			this.runSearchDelayer.trigger(() => this.doRunSearch(), instant ? 0 : undefined);
 		}
 	}
 
@@ -176,7 +177,8 @@ export class SearchEditor extends BaseEditor {
 			query: this.queryEditorWidget.searchInput.getValue(),
 			regexp: this.queryEditorWidget.searchInput.getRegex(),
 			wholeWord: this.queryEditorWidget.searchInput.getWholeWords(),
-			useIgnores: this.inputPatternExcludes.useExcludesAndIgnoreFiles()
+			useIgnores: this.inputPatternExcludes.useExcludesAndIgnoreFiles(),
+			showIncludesExcludes: this.showingIncludesExcludes
 		};
 
 		const content: IPatternInfo = {
@@ -264,15 +266,16 @@ export class SearchEditor extends BaseEditor {
 		this.inputPatternExcludes.setValue(newInput.config.excludes);
 		this.inputPatternIncludes.setValue(newInput.config.includes);
 		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(newInput.config.useIgnores);
+		this.toggleIncludesExcludes(newInput.config.showIncludesExcludes);
 
 		this.focusInput();
 		await super.setInput(newInput, options, token);
 		this.pauseSearching = false;
 	}
 
-	toggleQueryDetails(): void {
+	private toggleIncludesExcludes(_shouldShow?: boolean): void {
 		const cls = 'expanded';
-		const shouldShow = !DOM.hasClass(this.includesExcludesContainer, cls);
+		const shouldShow = _shouldShow ?? !DOM.hasClass(this.includesExcludesContainer, cls);
 
 		if (shouldShow) {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'true');
@@ -281,6 +284,8 @@ export class SearchEditor extends BaseEditor {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'false');
 			DOM.removeClass(this.includesExcludesContainer, cls);
 		}
+
+		this.showingIncludesExcludes = DOM.hasClass(this.includesExcludesContainer, cls);
 
 		this.reLayout();
 	}

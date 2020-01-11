@@ -160,7 +160,6 @@ export class SearchWidget extends Widget {
 	private temporarilySkipSearchOnChange = false;
 	private showContextCheckbox!: Checkbox;
 	private contextLinesInput!: InputBox;
-	private _contextLineInputDelayer: Delayer<void>;
 
 	constructor(
 		container: HTMLElement,
@@ -179,7 +178,6 @@ export class SearchWidget extends Widget {
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
-		this._contextLineInputDelayer = new Delayer<void>(300);
 
 		this._searchDelayer = this._register(new Delayer<void>(this.searchConfiguration.searchOnTypeDebouncePeriod));
 		this.render(container, options);
@@ -386,7 +384,7 @@ export class SearchWidget extends Widget {
 				if (this.contextLinesInput.value.includes('-')) {
 					this.contextLinesInput.value = '0';
 				}
-				this._contextLineInputDelayer.trigger(() => this._onDidToggleContext.fire());
+				this._onDidToggleContext.fire();
 			}));
 			dom.append(searchInputContainer, this.showContextCheckbox.domNode);
 		}
@@ -400,6 +398,7 @@ export class SearchWidget extends Widget {
 			this.showContextCheckbox.checked = true;
 			this.contextLinesInput.value = '' + lines;
 		}
+		dom.toggleClass(this.domNode, 'show-context', this.showContextCheckbox.checked);
 	}
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {

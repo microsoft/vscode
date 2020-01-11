@@ -39,7 +39,8 @@ export type SearchConfiguration = {
 	wholeWord: boolean,
 	caseSensitive: boolean,
 	regexp: boolean,
-	useIgnores: boolean
+	useIgnores: boolean,
+	showIncludesExcludes: boolean,
 };
 
 let searchEditorInputInstances = 0;
@@ -57,7 +58,7 @@ export class SearchEditorInput extends EditorInput {
 		super();
 
 		if (config === undefined) {
-			this.config = { query: '', includes: '', excludes: '', contextLines: 0, wholeWord: false, caseSensitive: false, regexp: false, useIgnores: true };
+			this.config = { query: '', includes: '', excludes: '', contextLines: 0, wholeWord: false, caseSensitive: false, regexp: false, useIgnores: true, showIncludesExcludes: false };
 		} else {
 			this.config = config;
 		}
@@ -416,6 +417,7 @@ export const createEditorFromSearchResult =
 					excludes: rawExcludePattern,
 					contextLines: 0,
 					useIgnores: !searchResult.query.userDisabledExcludesAndIgnoreFiles,
+					showIncludesExcludes: !!(rawExcludePattern || rawExcludePattern || searchResult.query.userDisabledExcludesAndIgnoreFiles)
 				}),
 			{ pinned: true }) as SearchEditor;
 
