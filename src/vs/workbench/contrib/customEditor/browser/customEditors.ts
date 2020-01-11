@@ -240,23 +240,25 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		options?: IEditorOptions,
 		group?: IEditorGroup
 	): Promise<IEditor | undefined> {
-		if (group) {
-			const existingEditors = group.editors.filter(editor => editor.getResource() && isEqual(editor.getResource(), resource));
-			if (existingEditors.length) {
-				const existing = existingEditors[0];
-				if (!input.matches(existing)) {
-					await this.editorService.replaceEditors([{
-						editor: existing,
-						replacement: input,
-						options: options ? EditorOptions.create(options) : undefined,
-					}], group);
+		const targetGroup = group || this.editorGroupService.activeGroup;
 
-					if (existing instanceof CustomFileEditorInput) {
-						existing.dispose();
-					}
+		// Try to replace existing editors for resource
+		const existingEditors = targetGroup.editors.filter(editor => editor.getResource() && isEqual(editor.getResource(), resource));
+		if (existingEditors.length) {
+			const existing = existingEditors[0];
+			if (!input.matches(existing)) {
+				await this.editorService.replaceEditors([{
+					editor: existing,
+					replacement: input,
+					options: options ? EditorOptions.create(options) : undefined,
+				}], targetGroup);
+
+				if (existing instanceof CustomFileEditorInput) {
+					existing.dispose();
 				}
 			}
 		}
+
 		return this.editorService.openEditor(input, options, group);
 	}
 
@@ -345,6 +347,17 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		options: ITextEditorOptions | undefined,
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
+		// Check to see if there already an editor for the resource in the group.
+		// If there is, we want to open that instead of creating a new editor.
+		// This ensures that we preserve whatever state the editor was previously in
+		// when the user switches back to it.
+		const existingEditorForResource = group.editors.find(editor => isEqual(resource, editor.getResource()));
+		if (existingEditorForResource) {
+			return {
+				override: this.editorService.openEditor(existingEditorForResource, { ...options, ignoreOverrides: true }, group)
+			};
+		}
+
 		const userConfiguredEditors = this.customEditorService.getUserConfiguredCustomEditors(resource);
 		if (userConfiguredEditors.length) {
 			return {

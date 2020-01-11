@@ -20,18 +20,19 @@ import { defaultEditorId } from 'vs/workbench/contrib/customEditor/browser/custo
 import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
 // #region Open With
 
-CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAccessor, args: [URI, string, EditorViewColumn]) => {
+CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAccessor, args: [URI, string, ITextEditorOptions | undefined, EditorViewColumn | undefined]) => {
 	const customEditorService = accessor.get(ICustomEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
-	const [resource, viewType, position] = args;
+	const [resource, viewType, options, position] = args;
 	const group = viewColumnToEditorGroup(editorGroupService, position);
-	customEditorService.openWith(resource, viewType, undefined, editorGroupService.getGroup(group));
+	customEditorService.openWith(resource, viewType, options, editorGroupService.getGroup(group));
 });
 
 // #endregion

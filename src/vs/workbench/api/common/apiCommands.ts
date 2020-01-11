@@ -134,16 +134,20 @@ CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand
 
 export class OpenWithAPICommand {
 	public static readonly ID = 'vscode.openWith';
-	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, column?: vscode.ViewColumn): Promise<any> {
+	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions): Promise<any> {
+		let options: ITextEditorOptions | undefined;
 		let position: EditorViewColumn | undefined;
 
-		if (typeof column === 'number') {
-			position = typeConverters.ViewColumn.from(column);
+		if (typeof columnOrOptions === 'number') {
+			position = typeConverters.ViewColumn.from(columnOrOptions);
+		} else if (typeof columnOrOptions !== 'undefined') {
+			options = typeConverters.TextEditorOptions.from(columnOrOptions);
 		}
 
 		return executor.executeCommand('_workbench.openWith', [
 			resource,
 			viewType,
+			options,
 			position
 		]);
 	}
