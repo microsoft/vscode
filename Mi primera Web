@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+    <br/>
+    <img src="imagenes/logo online.png" align="center" alt="logotipo Universidad Isabel I" title="Logotipo Propiedad Universidad Isbael I" width="420" height="75"/>
+    <img src="imagenes/Libro.jpg" align="right" alt="logotipo Universidad Isabel I" width="125" height="155"/>
+    <img src="imagenes/Fundamentos.jpg" align="right" alt="logotipo Universidad Isabel I" width="125" height="155"/>
+</br>
+    <head>
+        <title>¡Biblioteca Universidad Isabel I!</title>
+        <style type="text/css">
+        * {
+            padding:0px;
+            margin:0px;
+            }
+
+        #header {
+            margin:auto;
+            width:600px;
+            font-family:Arial, Helvetica, sans-serif;
+            }
+
+        ul, ol {
+            list-style:none;
+            }
+
+        .nav li a {
+            background-color:darkgray;
+            color:black;
+            text-decoration:none;
+            padding:10px 15px;
+            display:block;
+            }
+
+        .nav li a:hover {
+            background-color:dimgray;
+            }
+
+        .nav > li{
+            float:left;
+            }
+
+        .nav li ul {
+            display:none;
+            position:absolute;
+            min-width:140px;
+            }
+
+        .nav li:hover > ul {
+            display:block;
+            }
+
+        .nav li ul li {
+            position:relative;
+            }
+
+        .nav li ul li ul {
+            right:-140px;
+            top:0px;
+            }
+
+        form {
+            margin:auto;
+            width: 90%;
+            max-width:400px;
+            background:goldenrod;
+            padding:20px;
+            border:1px solid rgba(0,0,0,0.2)
+        }
+        h3 {
+            text-align:center;
+            margin-bottom:20px;
+            color:rgba(0,0,0,0.5);
+        }
+        </style>
+    </head>
+<body>
+    <!--El encabezado principal-->
+    <p face="Arial"> 
+        <center><h1>Facultad de Ciencias y Tecnología</h1></center>
+        <br/>
+        <center><img src="imagenes/Biblioteca.jpg" alt="logotipo Universidad Isabel I" title="Logotipo Propiedad Universidad Isbael I" width="50" height="50"/></center>
+        <img src="imagenes/Seguridad.jpg" align="right" alt="logotipo Universidad Isabel I" title="Logotipo Propiedad Universidad Isbael I" width="125" height="155"/>
+        <img src="imagenes/Big data.jpg" align="right" alt="logotipo Universidad Isabel I" title="Logotipo Propiedad Universidad Isbael I" width="125" height="155"/>
+        <center><h2>Biblioteca</h2></center>
+
+    </br>
+        <div id="header">
+            <ul class="nav">
+                <li><a href="">Listado de libros</a>
+                    <ul>
+                        <li><a href="">Título</a></li>
+                        <li><a href="">Autor</a></li>
+                        <li><a href="">ISBN</a></li>
+                        <li><a href="">Ejemplares disponibles</a></li>
+                    </ul>
+                </li>
+                <li><a href="">Libro</a>
+                    <ul>
+                        <li><a href="">Año</a></li>
+                        <li><a href="">Editorial</a></li>
+                        <li><a href="">Encuadernación</a></li>
+                        <li><a href="">Idioma</a></li>
+                    </ul>
+                </li>
+                <li><a href="">Listado de Prestamo</a>
+                    <ul>
+                        <li><a href="">Título Prestado</a>
+                            <ul>
+                                <li><a href="">Profesor</a></li>
+                                <li><a href="">Alumno</a></li>
+                            </ul>
+                        </li>
+                        <li><a href="">Persona</a></li>
+                        <li><a href="">Número Carnet</a></li>
+                        <li><a href="">Fecha prestamo</a></li>
+                        <li><a href="">Fecha devolución</a></li>
+                        <li><a href="">Estado del libro</a></li>
+                        <li><a href="">Penalización</a></li>
+                    </ul>
+                </li>
+                <li><a href="">Solicitar información</a>
+                    <ul>
+                        <li><a href="">Formulario Registro</a></li>
+                    </ul>
+                </li>
+            </ul>
+            <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/></br>
+    </p>
+     <!--Este es el codigo para la creación de un formulario de acceso-->
+    <form action="">
+        <h3>Formulario de login</h3>
+        <input type="text" placeholder="&#128272; Usuario"name="usuario">
+        <input type="password" placeholder="&#128272; Contraseña" name="clave">
+        <input type="submit" value="Ingresar">
+    </form>
+    <br/><br/>
+    
+    </div>
+</body>
+</html>
