@@ -25,6 +25,11 @@ import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentW
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { getZoomLevel } from 'vs/base/browser/browser';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -46,6 +51,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private viewCells: ViewCell[] = [];
 	private localStore: DisposableStore = new DisposableStore();
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
+	private fontInfo: BareFontInfo | undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -56,7 +62,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		@IStorageService storageService: IStorageService,
 		@IWebviewService private webviewService: IWebviewService,
 		@INotebookService private notebookService: INotebookService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
@@ -74,6 +81,12 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = DOM.append(parent, $('.notebook-editor'));
 		this.createBody(this.rootElement);
+		this.generateFontInfo();
+	}
+
+	private generateFontInfo(): void {
+		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+		this.fontInfo = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel());
 	}
 
 	private createBody(parent: HTMLElement): void {
@@ -131,6 +144,10 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this);
 		this.list.view.rowsContainer.appendChild(this.webview.element);
 		this._register(this.list);
+	}
+
+	getFontInfo(): BareFontInfo | undefined {
+		return this.fontInfo;
 	}
 
 	triggerWheel(event: IMouseWheelEvent) {
@@ -294,7 +311,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		}
 	}
 
-	insertEmptyNotebookCell(cell: ViewCell, type: 'code' | 'markdown', direction: 'above' | 'below') {
+	insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'code' | 'markdown', direction: 'above' | 'below') {
 		let newCell = new ViewCell({
 			handle: -1,
 			cell_type: type,
@@ -302,7 +319,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			outputs: []
 		}, false, this.modelService, this.modeService);
 
-		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
+		let index = listIndex ? listIndex : this.model!.getNotebook().cells.indexOf(cell.cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 
 		this.viewCells!.splice(insertIndex, 0, newCell);
@@ -314,15 +331,15 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		}
 	}
 
-	editNotebookCell(cell: ViewCell): void {
+	editNotebookCell(listIndex: number | undefined, cell: ViewCell): void {
 		cell.isEditing = true;
 	}
 
-	saveNotebookCell(cell: ViewCell): void {
+	saveNotebookCell(listIndex: number | undefined, cell: ViewCell): void {
 		cell.isEditing = false;
 	}
 
-	deleteNotebookCell(cell: ViewCell) {
+	deleteNotebookCell(listIndex: number | undefined, cell: ViewCell) {
 		let index = this.model!.getNotebook().cells.indexOf(cell.cell);
 
 		this.viewCells!.splice(index, 1);
@@ -362,6 +379,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 
 		return;
 	}
+
 }
 
 const embeddedEditorBackground = 'walkThrough.embeddedEditorBackground';

@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import * as marked from 'vs/base/common/marked/marked';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { URI } from 'vs/base/common/uri';
@@ -20,11 +20,6 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/outputRenderer';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ITextModel } from 'vs/editor/common/model';
@@ -181,14 +176,15 @@ export class ViewCell {
 }
 
 export interface NotebookHandler {
-	insertEmptyNotebookCell(cell: ViewCell, type: 'markdown' | 'code', direction: 'above' | 'below'): void;
-	deleteNotebookCell(cell: ViewCell): void;
-	editNotebookCell(cell: ViewCell): void;
-	saveNotebookCell(cell: ViewCell): void;
+	insertEmptyNotebookCell(listIndex: number | undefined, cell: ViewCell, type: 'markdown' | 'code', direction: 'above' | 'below'): void;
+	deleteNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
+	editNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
+	saveNotebookCell(listIndex: number | undefined, cell: ViewCell): void;
 	layoutElement(cell: ViewCell, height: number): void;
 	createContentWidget(cell: ViewCell, index: number, shadowContent: string, offset: number): void;
 	disposeViewCell(cell: ViewCell): void;
 	triggerWheel(event: IMouseWheelEvent): void;
+	getFontInfo(): BareFontInfo | undefined;
 }
 
 export interface CellRenderTemplate {
@@ -260,7 +256,7 @@ class AbstractCellRenderer {
 		};
 	}
 
-	showContextMenu(element: ViewCell, x: number, y: number) {
+	showContextMenu(listIndex: number | undefined, element: ViewCell, x: number, y: number) {
 		const actions: Action[] = [];
 		const insertAbove = new Action(
 			'workbench.notebook.code.insertCellAbove',
@@ -268,7 +264,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(element, 'code', 'above');
+				this.handler.insertEmptyNotebookCell(listIndex, element, 'code', 'above');
 			}
 		);
 		actions.push(insertAbove);
@@ -279,7 +275,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(element, 'code', 'below');
+				this.handler.insertEmptyNotebookCell(listIndex, element, 'code', 'below');
 			}
 		);
 		actions.push(insertBelow);
@@ -290,7 +286,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(element, 'markdown', 'above');
+				this.handler.insertEmptyNotebookCell(listIndex, element, 'markdown', 'above');
 			}
 		);
 		actions.push(insertMarkdownAbove);
@@ -301,7 +297,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.insertEmptyNotebookCell(element, 'markdown', 'below');
+				this.handler.insertEmptyNotebookCell(listIndex, element, 'markdown', 'below');
 			}
 		);
 		actions.push(insertMarkdownBelow);
@@ -313,7 +309,7 @@ class AbstractCellRenderer {
 				undefined,
 				true,
 				async () => {
-					this.handler.editNotebookCell(element);
+					this.handler.editNotebookCell(listIndex, element);
 				}
 			);
 
@@ -325,7 +321,7 @@ class AbstractCellRenderer {
 				undefined,
 				true,
 				async () => {
-					this.handler.saveNotebookCell(element);
+					this.handler.saveNotebookCell(listIndex, element);
 				}
 			);
 
@@ -338,7 +334,7 @@ class AbstractCellRenderer {
 			undefined,
 			true,
 			async () => {
-				this.handler.deleteNotebookCell(element);
+				this.handler.deleteNotebookCell(listIndex, element);
 			}
 		);
 
@@ -376,7 +372,8 @@ class StatefullMarkdownCell extends Disposable {
 				// switch to editing mode
 				const width = templateData.cellContainer.clientWidth - 24 /** for scrollbar and margin right */;
 				const lineNum = viewCell.lineCount;
-				const totalHeight = Math.max(lineNum + 1, 5) * 21;
+				const lineHeight = handler.getFontInfo()?.lineHeight ?? 18;
+				const totalHeight = Math.max(lineNum + 1, 5) * lineHeight;
 
 				if (this.editor) {
 					// not first time, we don't need to create editor or bind listeners
@@ -395,7 +392,7 @@ class StatefullMarkdownCell extends Disposable {
 					this.editor.setModel(model);
 					templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
 
-					model.onDidChangeContent(e => {
+					model.onDidChangeContent(() => {
 						viewCell.setText(model.getLinesContent());
 						templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
 
@@ -488,7 +485,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 				const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
 				e.preventDefault();
 
-				this.showContextMenu(element, e.posx, top + height);
+				const listIndexAttr = templateData.menuContainer?.parentElement?.getAttribute('data-index');
+				const listIndex = listIndexAttr ? Number(listIndexAttr) : undefined;
+				this.showContextMenu(listIndex, element, e.posx, top + height);
 			}));
 
 			elementDisposable!.add(new StatefullMarkdownCell(this.handler, element, templateData, this.editorOptions, this.instantiationService));
@@ -513,7 +512,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	private count = 0;
 
 	constructor(
-		handler: NotebookHandler,
+		protected handler: NotebookHandler,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -562,7 +561,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const innerContent = templateData.cellContainer;
 		const width = innerContent.clientWidth - 24 /** for scrollbar and margin right */;
 		const lineNum = element.lineCount;
-		const totalHeight = Math.max(lineNum + 1, 5) * 21;
+		const lineHeight = this.handler.getFontInfo()?.lineHeight ?? 18;
+		const totalHeight = Math.max(lineNum + 1, 5) * lineHeight;
 		const model = element.getTextModel();
 		templateData.editor?.setModel(model);
 		templateData.editor?.layout(
@@ -573,10 +573,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		);
 
 		let listener = DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
-			const { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
+			let { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
 			e.preventDefault();
 
-			this.showContextMenu(element, e.posx, top + height);
+			const listIndexAttr = templateData.menuContainer?.parentElement?.getAttribute('data-index');
+			const listIndex = listIndexAttr ? Number(listIndexAttr) : undefined;
+
+			this.showContextMenu(listIndex, element, e.posx, top + height);
 		});
 
 		let rerenderOutput = element.onDidChangeOutputs(() => {
@@ -621,6 +624,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				}
 			}
 		});
+
+		this.disposables.set(templateData.menuContainer!, listener!);
 
 		this.disposables.set(templateData.cellContainer, {
 			dispose: () => {
@@ -682,6 +687,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 
 	disposeElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
+		let menuContainer = this.disposables.get(templateData.menuContainer!);
+
+		if (menuContainer) {
+			menuContainer.dispose();
+			this.disposables.delete(templateData.menuContainer!);
+		}
+
 		let cellDisposable = this.disposables.get(templateData.cellContainer);
 
 		if (cellDisposable) {
@@ -699,18 +711,5 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 
 		this.handler.disposeViewCell(element);
-	}
-
-	getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
-		return {
-			isSimpleWidget: false,
-			contributions: <IEditorContributionDescription[]>[
-				{ id: MenuPreventer.ID, ctor: MenuPreventer },
-				{ id: SuggestController.ID, ctor: SuggestController },
-				// { id: ModesHoverController.ID, ctor: ModesHoverController },
-				{ id: SnippetController2.ID, ctor: SnippetController2 },
-				{ id: TabCompletionController.ID, ctor: TabCompletionController },
-			]
-		};
 	}
 }
