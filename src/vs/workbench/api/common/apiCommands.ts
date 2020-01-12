@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -131,6 +131,28 @@ export class OpenAPICommand {
 	}
 }
 CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
+
+export class OpenWithAPICommand {
+	public static readonly ID = 'vscode.openWith';
+	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions): Promise<any> {
+		let options: ITextEditorOptions | undefined;
+		let position: EditorViewColumn | undefined;
+
+		if (typeof columnOrOptions === 'number') {
+			position = typeConverters.ViewColumn.from(columnOrOptions);
+		} else if (typeof columnOrOptions !== 'undefined') {
+			options = typeConverters.TextEditorOptions.from(columnOrOptions);
+		}
+
+		return executor.executeCommand('_workbench.openWith', [
+			resource,
+			viewType,
+			options,
+			position
+		]);
+	}
+}
+CommandsRegistry.registerCommand(OpenWithAPICommand.ID, adjustHandler(OpenWithAPICommand.execute));
 
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
 	const workspacesService = accessor.get(IWorkspacesService);

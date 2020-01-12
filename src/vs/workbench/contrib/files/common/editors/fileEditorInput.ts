@@ -69,14 +69,16 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 
 	private registerListeners(): void {
 
-		// Model changes
+		// Dirty changes
 		this._register(this.textFileService.models.onModelDirty(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
-		this._register(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
+
+		// Label changes
 		this._register(this.labelService.onDidChangeFormatters(() => FileEditorInput.MEMOIZER.clear()));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => FileEditorInput.MEMOIZER.clear()));
+		this._register(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {

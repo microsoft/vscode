@@ -258,11 +258,6 @@ export const enum ModelState {
 	PENDING_SAVE,
 
 	/**
-	 * A model is marked for being saved after a specific timeout.
-	 */
-	PENDING_AUTO_SAVE,
-
-	/**
 	 * A model is in conflict mode when changes cannot be saved because the
 	 * underlying file has changed. Models in conflict mode are always dirty.
 	 */
@@ -282,12 +277,10 @@ export const enum ModelState {
 
 export const enum StateChange {
 	DIRTY,
-	SAVING,
 	SAVE_ERROR,
 	SAVED,
 	REVERTED,
 	ENCODING,
-	CONTENT_CHANGE,
 	ORPHANED_CHANGE
 }
 
@@ -384,20 +377,17 @@ export interface IModelLoadOrCreateOptions {
 
 export interface ITextFileEditorModelManager {
 
-	readonly onModelDisposed: Event<URI>;
-	readonly onModelContentChanged: Event<TextFileModelChangeEvent>;
 	readonly onModelEncodingChanged: Event<TextFileModelChangeEvent>;
+	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
 
 	readonly onModelDirty: Event<TextFileModelChangeEvent>;
 	readonly onModelSaveError: Event<TextFileModelChangeEvent>;
 	readonly onModelSaved: Event<TextFileModelChangeEvent>;
 	readonly onModelReverted: Event<TextFileModelChangeEvent>;
-	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
 
 	readonly onModelsDirty: Event<readonly TextFileModelChangeEvent[]>;
 	readonly onModelsSaveError: Event<readonly TextFileModelChangeEvent[]>;
 	readonly onModelsSaved: Event<readonly TextFileModelChangeEvent[]>;
-	readonly onModelsReverted: Event<readonly TextFileModelChangeEvent[]>;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 
@@ -435,8 +425,7 @@ export interface ILoadOptions {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
 
-	readonly onDidContentChange: Event<StateChange>;
-	readonly onDidStateChange: Event<StateChange>;
+	readonly onDidChangeState: Event<StateChange>;
 
 	hasState(state: ModelState): boolean;
 

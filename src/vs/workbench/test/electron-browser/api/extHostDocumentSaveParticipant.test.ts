@@ -11,7 +11,7 @@ import { MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { SaveReason } from 'vs/workbench/common/editor';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';

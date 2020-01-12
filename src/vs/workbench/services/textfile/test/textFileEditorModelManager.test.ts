@@ -136,9 +136,6 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('events', async function () {
-		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
-		TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 0;
-
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
 		const resource1 = toResource.call(this, '/path/index.txt');
@@ -148,8 +145,6 @@ suite('Files - TextFileEditorModelManager', () => {
 		let revertedCounter = 0;
 		let savedCounter = 0;
 		let encodingCounter = 0;
-		let disposeCounter = 0;
-		let contentCounter = 0;
 
 		manager.onModelDirty(e => {
 			if (e.resource.toString() === resource1.toString()) {
@@ -175,16 +170,6 @@ suite('Files - TextFileEditorModelManager', () => {
 			}
 		});
 
-		manager.onModelContentChanged(e => {
-			if (e.resource.toString() === resource1.toString()) {
-				contentCounter++;
-			}
-		});
-
-		manager.onModelDisposed(e => {
-			disposeCounter++;
-		});
-
 		const model1 = await manager.loadOrCreate(resource1, { encoding: 'utf8' });
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }]));
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
@@ -199,7 +184,6 @@ suite('Files - TextFileEditorModelManager', () => {
 		await model1.save();
 		model1.dispose();
 		model2.dispose();
-		assert.equal(disposeCounter, 2);
 
 		await model1.revert();
 		assert.equal(dirtyCounter, 2);
@@ -207,8 +191,6 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.equal(savedCounter, 1);
 		assert.equal(encodingCounter, 2);
 
-		await timeout(10);
-		assert.equal(contentCounter, 2);
 		model1.dispose();
 		model2.dispose();
 		assert.ok(!accessor.modelService.getModel(resource1));
@@ -222,18 +204,10 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource2 = toResource.call(this, '/path/other.txt');
 
 		let dirtyCounter = 0;
-		let revertedCounter = 0;
 		let savedCounter = 0;
-
-		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
 
 		manager.onModelsDirty(e => {
 			dirtyCounter += e.length;
-			assert.equal(e[0].resource.toString(), resource1.toString());
-		});
-
-		manager.onModelsReverted(e => {
-			revertedCounter += e.length;
 			assert.equal(e[0].resource.toString(), resource1.toString());
 		});
 
@@ -257,7 +231,6 @@ suite('Files - TextFileEditorModelManager', () => {
 		await model1.revert();
 		await timeout(20);
 		assert.equal(dirtyCounter, 2);
-		assert.equal(revertedCounter, 1);
 		assert.equal(savedCounter, 1);
 		model1.dispose();
 		model2.dispose();

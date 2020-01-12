@@ -52,6 +52,34 @@ suite('Files - TextFileEditorModel', () => {
 		accessor.fileService.setContent(content);
 	});
 
+	test('basic events', async function () {
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await model.load();
+
+		let onDidChangeContentCounter = 0;
+		model.onDidChangeContent(() => onDidChangeContentCounter++);
+
+		let onDidChangeDirtyCounter = 0;
+		model.onDidChangeDirty(() => onDidChangeDirtyCounter++);
+
+		model.textEditorModel?.setValue('bar');
+
+		assert.equal(onDidChangeContentCounter, 1);
+		assert.equal(onDidChangeDirtyCounter, 1);
+
+		model.textEditorModel?.setValue('foo');
+
+		assert.equal(onDidChangeContentCounter, 2);
+		assert.equal(onDidChangeDirtyCounter, 1);
+
+		await model.revert();
+
+		assert.equal(onDidChangeDirtyCounter, 2);
+
+		model.dispose();
+	});
+
 	test('save', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
@@ -67,7 +95,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 
 		let savedEvent = false;
-		model.onDidStateChange(e => {
+		model.onDidChangeState(e => {
 			if (e === StateChange.SAVED) {
 				savedEvent = true;
 			}
@@ -104,7 +132,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.load();
 
 		let savedEvent = false;
-		model.onDidStateChange(e => {
+		model.onDidChangeState(e => {
 			if (e === StateChange.SAVED) {
 				savedEvent = true;
 			}
@@ -178,7 +206,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8', undefined);
 		assert.ok(model.hasState(ModelState.SAVED));
 
-		model.onDidStateChange(e => {
+		model.onDidChangeState(e => {
 			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
 		});
 
@@ -206,7 +234,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidStateChange(e => {
+		model.onDidChangeState(e => {
 			if (e === StateChange.REVERTED) {
 				eventCounter++;
 			}
@@ -243,7 +271,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidStateChange(e => {
+		model.onDidChangeState(e => {
 			if (e === StateChange.REVERTED) {
 				eventCounter++;
 			}
@@ -303,7 +331,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.revert({ soft: true });
 		assert.ok(!model.isDirty());
 
-		model.onDidStateChange(e => {
+		model.onDidChangeState(e => {
 			if (e === StateChange.DIRTY) {
 				eventCounter++;
 			}
@@ -388,7 +416,7 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidStateChange(e => {
+		model.onDidChangeState(e => {
 			if (e === StateChange.SAVED) {
 				assert.equal(snapshotToString(model.createSnapshot()!), 'bar');
 				assert.ok(!model.isDirty());

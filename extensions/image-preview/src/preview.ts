@@ -108,6 +108,12 @@ class Preview extends Disposable {
 						this.update();
 						break;
 					}
+
+				case 'reopen-as-text':
+					{
+						vscode.commands.executeCommand('vscode.openWith', resource, 'default', webviewEditor.viewColumn);
+						break;
+					}
 			}
 		}));
 
@@ -218,7 +224,10 @@ class Preview extends Disposable {
 </head>
 <body class="container image scale-to-fit loading">
 	<div class="loading-indicator"></div>
-	<div class="image-load-error-message">${localize('preview.imageLoadError', "An error occurred while loading the image")}</div>
+	<div class="image-load-error">
+		<p>${localize('preview.imageLoadError', "An error occurred while loading the image.")}</p>
+		<a href="#" class="open-file-link">${localize('preview.imageLoadErrorLink', "Open file using VS Code's standard text/binary editor?")}</a>
+	</div>
 	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;

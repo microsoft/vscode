@@ -3,58 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { firstOrDefault } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { URI } from 'vs/base/common/uri';
 import { Command } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { defaultEditorId } from 'vs/workbench/contrib/customEditor/browser/customEditors';
 import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
-import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
+import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
 // #region Open With
 
-const OPEN_WITH_COMMAND_ID = 'openWith';
-// const OPEN_WITH_TITLE = { value: nls.localize('openWith.title', 'Open With'), original: 'Open With' };
+CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAccessor, args: [URI, string, ITextEditorOptions | undefined, EditorViewColumn | undefined]) => {
+	const customEditorService = accessor.get(ICustomEditorService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: OPEN_WITH_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: EditorContextKeys.focus.toNegated(),
-	handler: async (accessor: ServicesAccessor, resource: URI | object) => {
-		const editorService = accessor.get(IEditorService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IExplorerService));
-		const targetResource = firstOrDefault(resources);
-		if (!targetResource) {
-			return;
-		}
-		return accessor.get(ICustomEditorService).promptOpenWith(targetResource, undefined, undefined);
-	}
+	const [resource, viewType, options, position] = args;
+	const group = viewColumnToEditorGroup(editorGroupService, position);
+	customEditorService.openWith(resource, viewType, options, editorGroupService.getGroup(group));
 });
-
-// MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-// 	group: 'navigation',
-// 	order: 20,
-// 	command: {
-// 		id: OPEN_WITH_COMMAND_ID,
-// 		title: OPEN_WITH_TITLE,
-// 	},
-// 	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
-// });
 
 // #endregion
 

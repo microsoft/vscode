@@ -14,7 +14,7 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
-import { BackupModelTracker } from 'vs/workbench/contrib/backup/common/backupModelTracker';
+import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -60,7 +60,7 @@ class ServiceAccessor {
 	}
 }
 
-suite('BackupModelRestorer', () => {
+suite('BackupRestorer', () => {
 	let accessor: ServiceAccessor;
 
 	let disposables: IDisposable[] = [];
@@ -111,7 +111,9 @@ suite('BackupModelRestorer', () => {
 
 		accessor = instantiationService.createInstance(ServiceAccessor);
 
-		const tracker = instantiationService.createInstance(BackupModelTracker);
+		await part.whenRestored;
+
+		const tracker = instantiationService.createInstance(BackupTracker);
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
 
 		// Backup 2 normal files and 2 untitled file
