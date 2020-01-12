@@ -278,10 +278,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		let detail: string, primaryButton: string;
 		if (this.authTokenService.status === AuthTokenStatus.SignedIn) {
 			detail = this.getTurnOnDetailString();
-			primaryButton = localize('turn on sync', "Turn on Sync");
+			primaryButton = localize('turn on', "Turn on");
 		} else {
 			detail = this.getSignInAndTurnOnDetailString();
-			primaryButton = localize('sign in and turn on sync', "Sign in & Turn on Sync");
+			primaryButton = localize('sign in and turn on sync', "Sign in & Turn on");
 		}
 		const result = await this.dialogService.show(Severity.Info, message, [primaryButton, localize('cancel', "Cancel"), localize('configure', "Configure")], { detail, cancelId: 1 });
 		switch (result.choice) {
@@ -341,7 +341,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async turnOff(): Promise<void> {
-		await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, false);
+		const result = await this.dialogService.confirm({
+			type: 'info',
+			message: localize('turn off sync confirmation', "Turn off Sync"),
+			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and more will no longer be synced."),
+			primaryButton: localize('turn off', "Turn off")
+		});
+		if (result.confirmed) {
+			await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, false);
+		}
 	}
 
 	private async signIn(): Promise<void> {
