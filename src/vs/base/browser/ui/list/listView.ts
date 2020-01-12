@@ -287,7 +287,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	updateDynamicHeight(index: number, element: T, size: number): void {
 		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-
 		this.rangeMap.splice(index, 1, [
 			{
 				size: size
@@ -1129,7 +1128,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					this.scrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta!;
 				}
 
-				if (this.rowsContainer.getElementsByClassName('monaco-list-row').length > (renderRange.end - renderRange.start)) {
+				if (this.rowsContainer.getElementsByClassName('monaco-list-row').length !== (renderRange.end - renderRange.start)) {
 					// there are zombie list rows
 					// console.log('remove zombie rows');
 					this.removeZombieRows(renderRange);
@@ -1145,9 +1144,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private removeZombieRows(renderRange: IRange) {
 		let elements = this.rowsContainer.getElementsByClassName('monaco-list-row');
 		let rowsToRemove = [];
+		let rowsRendered = new Set<number>();
 		for (let i = 0; i < elements.length; i++) {
 			let index = Number(elements[i].getAttribute('data-index'));
 			if (index >= renderRange.start && index < renderRange.end) {
+				rowsRendered.add(index);
 				continue;
 			} else {
 				rowsToRemove.push(index);
@@ -1158,6 +1159,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			let index = rowsToRemove[i];
 			if (this.items[index].row) {
 				this.removeItemFromDOM(index);
+			}
+		}
+
+		for (let i = renderRange.start; i < renderRange.end; i++) {
+			if (rowsRendered.has(i)) {
+				continue;
+			} else {
+				// @TODO: why?
+				this.insertItemInDOM(i, null);
 			}
 		}
 	}
