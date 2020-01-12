@@ -18,6 +18,9 @@ suite('WorkingCopyService', () => {
 		private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 		readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
+		private readonly _onDidChangeContent = this._register(new Emitter<void>());
+		readonly onDidChangeContent = this._onDidChangeContent.event;
+
 		private readonly _onDispose = this._register(new Emitter<void>());
 		readonly onDispose = this._onDispose.event;
 
@@ -38,6 +41,10 @@ suite('WorkingCopyService', () => {
 			}
 		}
 
+		setContent(content: string): void {
+			this._onDidChangeContent.fire();
+		}
+
 		isDirty(): boolean {
 			return this.dirty;
 		}
@@ -45,6 +52,8 @@ suite('WorkingCopyService', () => {
 		async save(options?: ISaveOptions): Promise<boolean> {
 			return true;
 		}
+
+		async backup(): Promise<void> { }
 
 		dispose(): void {
 			this._onDispose.fire();
@@ -59,6 +68,15 @@ suite('WorkingCopyService', () => {
 		const onDidChangeDirty: IWorkingCopy[] = [];
 		service.onDidChangeDirty(copy => onDidChangeDirty.push(copy));
 
+		const onDidChangeContent: IWorkingCopy[] = [];
+		service.onDidChangeContent(copy => onDidChangeContent.push(copy));
+
+		const onDidRegister: IWorkingCopy[] = [];
+		service.onDidRegister(copy => onDidRegister.push(copy));
+
+		const onDidUnregister: IWorkingCopy[] = [];
+		service.onDidUnregister(copy => onDidUnregister.push(copy));
+
 		assert.equal(service.hasDirty, false);
 		assert.equal(service.dirtyCount, 0);
 		assert.equal(service.workingCopies.length, 0);
@@ -70,6 +88,9 @@ suite('WorkingCopyService', () => {
 		const unregister1 = service.registerWorkingCopy(copy1);
 
 		assert.equal(service.workingCopies.length, 1);
+		assert.equal(service.workingCopies[0], copy1);
+		assert.equal(onDidRegister.length, 1);
+		assert.equal(onDidRegister[0], copy1);
 		assert.equal(service.dirtyCount, 0);
 		assert.equal(service.isDirty(resource1), false);
 		assert.equal(service.hasDirty, false);
@@ -82,6 +103,11 @@ suite('WorkingCopyService', () => {
 		assert.equal(onDidChangeDirty.length, 1);
 		assert.equal(onDidChangeDirty[0], copy1);
 
+		copy1.setContent('foo');
+
+		assert.equal(onDidChangeContent.length, 1);
+		assert.equal(onDidChangeContent[0], copy1);
+
 		copy1.setDirty(false);
 
 		assert.equal(service.dirtyCount, 0);
@@ -92,6 +118,8 @@ suite('WorkingCopyService', () => {
 
 		unregister1.dispose();
 
+		assert.equal(onDidUnregister.length, 1);
+		assert.equal(onDidUnregister[0], copy1);
 		assert.equal(service.workingCopies.length, 0);
 
 		// resource 2
@@ -99,6 +127,8 @@ suite('WorkingCopyService', () => {
 		const copy2 = new TestWorkingCopy(resource2, true);
 		const unregister2 = service.registerWorkingCopy(copy2);
 
+		assert.equal(onDidRegister.length, 2);
+		assert.equal(onDidRegister[1], copy2);
 		assert.equal(service.dirtyCount, 1);
 		assert.equal(service.isDirty(resource2), true);
 		assert.equal(service.hasDirty, true);
@@ -106,7 +136,15 @@ suite('WorkingCopyService', () => {
 		assert.equal(onDidChangeDirty.length, 3);
 		assert.equal(onDidChangeDirty[2], copy2);
 
+		copy2.setContent('foo');
+
+		assert.equal(onDidChangeContent.length, 2);
+		assert.equal(onDidChangeContent[1], copy2);
+
 		unregister2.dispose();
+
+		assert.equal(onDidUnregister.length, 2);
+		assert.equal(onDidUnregister[1], copy2);
 		assert.equal(service.dirtyCount, 0);
 		assert.equal(service.hasDirty, false);
 		assert.equal(onDidChangeDirty.length, 4);

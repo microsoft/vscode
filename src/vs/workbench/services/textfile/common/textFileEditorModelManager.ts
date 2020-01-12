@@ -18,12 +18,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
-	private readonly _onModelDisposed = this._register(new Emitter<URI>());
-	readonly onModelDisposed = this._onModelDisposed.event;
-
-	private readonly _onModelContentChanged = this._register(new Emitter<TextFileModelChangeEvent>());
-	readonly onModelContentChanged = this._onModelContentChanged.event;
-
 	private readonly _onModelDirty = this._register(new Emitter<TextFileModelChangeEvent>());
 	readonly onModelDirty = this._onModelDirty.event;
 
@@ -67,15 +61,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 
 		return this._onModelsSaved;
-	}
-
-	private _onModelsReverted: Event<ReadonlyArray<TextFileModelChangeEvent>> | undefined;
-	get onModelsReverted(): Event<ReadonlyArray<TextFileModelChangeEvent>> {
-		if (!this._onModelsReverted) {
-			this._onModelsReverted = this.debounce(this.onModelReverted);
-		}
-
-		return this._onModelsReverted;
 	}
 
 	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
@@ -183,7 +168,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			modelPromise = model.load(options);
 
 			// Install state change listener
-			this.mapResourceToStateChangeListener.set(resource, model.onDidStateChange(state => {
+			this.mapResourceToStateChangeListener.set(resource, model.onDidChangeState(state => {
 				const event = new TextFileModelChangeEvent(newModel, state);
 				switch (state) {
 					case StateChange.DIRTY:
@@ -205,11 +190,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						this._onModelOrphanedChanged.fire(event);
 						break;
 				}
-			}));
-
-			// Install model content change listener
-			this.mapResourceToModelContentChangeListener.set(resource, model.onDidContentChange(e => {
-				this._onModelContentChanged.fire(new TextFileModelChangeEvent(newModel, e));
 			}));
 		}
 
@@ -281,10 +261,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// store in cache but remove when model gets disposed
 		this.mapResourceToModel.set(resource, model);
-		this.mapResourceToDisposeListener.set(resource, model.onDispose(() => {
-			this.remove(resource);
-			this._onModelDisposed.fire(resource);
-		}));
+		this.mapResourceToDisposeListener.set(resource, model.onDispose(() => this.remove(resource)));
 	}
 
 	remove(resource: URI): void {

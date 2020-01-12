@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { BackupFilesModel } from 'vs/workbench/services/backup/common/backupFileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -57,6 +57,9 @@ export class NodeTestBackupFileService extends BackupFileService {
 
 	readonly fileService: IFileService;
 
+	private backupResourceJoiners: Function[];
+	private discardBackupJoiners: Function[];
+
 	constructor(workspaceBackupPath: string) {
 		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
 		const fileService = new FileService(new NullLogService());
@@ -67,10 +70,36 @@ export class NodeTestBackupFileService extends BackupFileService {
 		super(environmentService, fileService);
 
 		this.fileService = fileService;
+		this.backupResourceJoiners = [];
+		this.discardBackupJoiners = [];
 	}
 
 	toBackupResource(resource: URI): URI {
 		return super.toBackupResource(resource);
+	}
+
+	joinBackupResource(): Promise<void> {
+		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
+	}
+
+	async backupResource(resource: URI, content: ITextSnapshot, versionId?: number, meta?: any): Promise<void> {
+		await super.backupResource(resource, content, versionId, meta);
+
+		while (this.backupResourceJoiners.length) {
+			this.backupResourceJoiners.pop()!();
+		}
+	}
+
+	joinDiscardBackup(): Promise<void> {
+		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
+	}
+
+	async discardResourceBackup(resource: URI): Promise<void> {
+		await super.discardResourceBackup(resource);
+
+		while (this.discardBackupJoiners.length) {
+			this.discardBackupJoiners.pop()!();
+		}
 	}
 }
 

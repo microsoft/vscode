@@ -9,16 +9,13 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -32,8 +29,10 @@ import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textF
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
+import { toResource } from 'vs/base/test/common/utils';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -41,26 +40,33 @@ const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
 const workspaceResource = URI.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
 const workspaceBackupPath = path.join(backupHome, hashPath(workspaceResource));
-const fooFile = URI.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
-const barFile = URI.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
-const untitledFile1 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
-const untitledFile2 = URI.from({ scheme: Schemas.untitled, path: 'Untitled-2' });
-
-class TestBackupRestorer extends BackupRestorer {
-	async doRestoreBackups(): Promise<URI[] | undefined> {
-		return super.doRestoreBackups();
-	}
-}
 
 class ServiceAccessor {
 	constructor(
 		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService
+		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService,
+		@IEditorService public editorService: IEditorService,
+		@IBackupFileService public backupFileService: NodeTestBackupFileService
 	) {
 	}
 }
 
-suite('BackupRestorer', () => {
+class TestBackupTracker extends BackupTracker {
+
+	constructor(
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@ILogService logService: ILogService
+	) {
+		super(backupFileService, filesConfigurationService, workingCopyService, logService);
+
+		// Reduce timeout for tests
+		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
+	}
+}
+
+suite('BackupTracker', () => {
 	let accessor: ServiceAccessor;
 
 	let disposables: IDisposable[] = [];
@@ -93,9 +99,7 @@ suite('BackupRestorer', () => {
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
 
-	test('Restore backups', async function () {
-		this.timeout(20000);
-
+	async function createTracker(): Promise<[ServiceAccessor, EditorPart, BackupTracker]> {
 		const backupFileService = new NodeTestBackupFileService(workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
@@ -113,43 +117,56 @@ suite('BackupRestorer', () => {
 
 		await part.whenRestored;
 
-		const tracker = instantiationService.createInstance(BackupTracker);
-		const restorer = instantiationService.createInstance(TestBackupRestorer);
+		const tracker = instantiationService.createInstance(TestBackupTracker);
 
-		// Backup 2 normal files and 2 untitled file
-		await backupFileService.backupResource(untitledFile1, createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backupResource(untitledFile2, createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backupResource(fooFile, createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backupResource(barFile, createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).createSnapshot(false));
+		return [accessor, part, tracker];
+	}
 
-		// Verify backups restored and opened as dirty
-		await restorer.doRestoreBackups();
-		assert.equal(editorService.count, 4);
-		assert.ok(editorService.editors.every(editor => editor.isDirty()));
+	test('Track backups (untitled)', async function () {
+		this.timeout(20000);
 
-		let counter = 0;
-		for (const editor of editorService.editors) {
-			const resource = editor.getResource();
-			if (isEqual(resource, untitledFile1)) {
-				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
-				assert.equal(model.textEditorModel.getValue(), 'untitled-1');
-				counter++;
-			} else if (isEqual(resource, untitledFile2)) {
-				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
-				assert.equal(model.textEditorModel.getValue(), 'untitled-2');
-				counter++;
-			} else if (isEqual(resource, fooFile)) {
-				const model = await accessor.textFileService.models.get(resource!)?.load();
-				assert.equal(model?.textEditorModel?.getValue(), 'fooFile');
-				counter++;
-			} else {
-				const model = await accessor.textFileService.models.get(resource!)?.load();
-				assert.equal(model?.textEditorModel?.getValue(), 'barFile');
-				counter++;
-			}
-		}
+		const [accessor, part, tracker] = await createTracker();
 
-		assert.equal(counter, 4);
+		const untitledEditor = accessor.untitledTextEditorService.createOrGet();
+		await accessor.editorService.openEditor(untitledEditor, { pinned: true });
+
+		const untitledModel = await untitledEditor.resolve();
+		untitledModel.textEditorModel.setValue('Super Good');
+
+		await accessor.backupFileService.joinBackupResource();
+
+		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.getResource()), true);
+
+		untitledModel.dispose();
+
+		await accessor.backupFileService.joinDiscardBackup();
+
+		assert.equal(accessor.backupFileService.hasBackupSync(untitledEditor.getResource()), false);
+
+		part.dispose();
+		tracker.dispose();
+	});
+
+	test('Track backups (file)', async function () {
+		this.timeout(20000);
+
+		const [accessor, part, tracker] = await createTracker();
+
+		const resource = toResource.call(this, '/path/index.txt');
+		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+
+		const fileModel = accessor.textFileService.models.get(resource);
+		fileModel?.textEditorModel?.setValue('Super Good');
+
+		await accessor.backupFileService.joinBackupResource();
+
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), true);
+
+		fileModel?.dispose();
+
+		await accessor.backupFileService.joinDiscardBackup();
+
+		assert.equal(accessor.backupFileService.hasBackupSync(resource), false);
 
 		part.dispose();
 		tracker.dispose();

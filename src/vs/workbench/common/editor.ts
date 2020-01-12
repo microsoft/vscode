@@ -317,7 +317,7 @@ export interface ISaveOptions {
 	context?: SaveContext;
 
 	/**
-	 * Forces to load the contents of the working copy
+	 * Forces to save the contents of the working copy
 	 * again even if the working copy is not dirty.
 	 */
 	force?: boolean;
@@ -571,10 +571,6 @@ export abstract class TextEditorInput extends EditorInput {
 	}
 
 	async save(groupId: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		if (this.isReadonly()) {
-			return false; // return early if editor is readonly
-		}
-
 		return this.textFileService.save(this.resource, options);
 	}
 

@@ -28,18 +28,27 @@ export interface IWorkingCopy {
 	readonly capabilities: WorkingCopyCapabilities;
 
 
-	//#region Dirty Tracking
+	//#region Events
 
 	readonly onDidChangeDirty: Event<void>;
+
+	readonly onDidChangeContent: Event<void>;
+
+	//#endregion
+
+
+	//#region Dirty Tracking
 
 	isDirty(): boolean;
 
 	//#endregion
 
 
-	//#region Save
+	//#region Save / Backup
 
 	save(options?: ISaveOptions): Promise<boolean>;
+
+	backup(): Promise<void>;
 
 	//#endregion
 }
@@ -51,9 +60,20 @@ export interface IWorkingCopyService {
 	_serviceBrand: undefined;
 
 
-	//#region Dirty Tracking
+	//#region Events
+
+	readonly onDidRegister: Event<IWorkingCopy>;
+
+	readonly onDidUnregister: Event<IWorkingCopy>;
 
 	readonly onDidChangeDirty: Event<IWorkingCopy>;
+
+	readonly onDidChangeContent: Event<IWorkingCopy>;
+
+	//#endregion
+
+
+	//#region Dirty Tracking
 
 	readonly dirtyCount: number;
 
@@ -77,10 +97,24 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	_serviceBrand: undefined;
 
-	//#region Dirty Tracking
+	//#region Events
+
+	private readonly _onDidRegister = this._register(new Emitter<IWorkingCopy>());
+	readonly onDidRegister = this._onDidRegister.event;
+
+	private readonly _onDidUnregister = this._register(new Emitter<IWorkingCopy>());
+	readonly onDidUnregister = this._onDidUnregister.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IWorkingCopy>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	private readonly _onDidChangeContent = this._register(new Emitter<IWorkingCopy>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+
+	//#endregion
+
+
+	//#region Dirty Tracking
 
 	isDirty(resource: URI): boolean {
 		const workingCopies = this.mapResourceToWorkingCopy.get(resource.toString());
@@ -141,8 +175,12 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 		this._workingCopies.add(workingCopy);
 
-		// Dirty Events
+		// Wire in Events
+		disposables.add(workingCopy.onDidChangeContent(() => this._onDidChangeContent.fire(workingCopy)));
 		disposables.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
+
+		// Send some initial events
+		this._onDidRegister.fire(workingCopy);
 		if (workingCopy.isDirty()) {
 			this._onDidChangeDirty.fire(workingCopy);
 		}
@@ -150,6 +188,9 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		return toDisposable(() => {
 			this.unregisterWorkingCopy(workingCopy);
 			dispose(disposables);
+
+			// Signal as event
+			this._onDidUnregister.fire(workingCopy);
 		});
 	}
 

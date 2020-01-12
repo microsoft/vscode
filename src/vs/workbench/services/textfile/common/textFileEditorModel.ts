@@ -8,19 +8,19 @@ import { Emitter } from 'vs/base/common/event';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
-import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { hash } from 'vs/base/common/hash';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -60,9 +60,6 @@ type TelemetryData = {
  */
 export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
 
-	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
-	static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
-
 	static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
 	static WHITELIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
 
@@ -72,11 +69,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static saveParticipant: ISaveParticipant | null;
 	static setSaveParticipant(handler: ISaveParticipant | null): void { TextFileEditorModel.saveParticipant = handler; }
 
-	private readonly _onDidContentChange = this._register(new Emitter<StateChange>());
-	readonly onDidContentChange = this._onDidContentChange.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidStateChange = this._register(new Emitter<StateChange>());
-	readonly onDidStateChange = this._onDidStateChange.event;
+	private readonly _onDidChangeState = this._register(new Emitter<StateChange>());
+	readonly onDidChangeState = this._onDidChangeState.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -93,9 +90,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private readonly saveSequentializer = new SaveSequentializer();
 	private lastSaveAttemptTime = 0;
-
-	private readonly contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidContentChange.fire(StateChange.CONTENT_CHANGE), TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
-	private readonly orphanedChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE), TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY));
 
 	private dirty = false;
 	private inConflictMode = false;
@@ -132,18 +126,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private registerListeners(): void {
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 		this._register(this.filesConfigurationService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
-		this._register(this.onDidStateChange(e => this.onStateChange(e)));
-	}
-
-	private onStateChange(e: StateChange): void {
-		if (e === StateChange.REVERTED) {
-
-			// Cancel any content change event promises as they are no longer valid.
-			this.contentChangeEventScheduler.cancel();
-
-			// Refire state change reverted events as content change events
-			this._onDidContentChange.fire(StateChange.REVERTED);
-		}
 	}
 
 	private async onFileChanges(e: FileChangesEvent): Promise<void> {
@@ -194,7 +176,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private setOrphaned(orphaned: boolean): void {
 		if (this.inOrphanMode !== orphaned) {
 			this.inOrphanMode = orphaned;
-			this.orphanedChangeEventScheduler.schedule();
+			this._onDidChangeState.fire(StateChange.ORPHANED_CHANGE);
 		}
 	}
 
@@ -262,7 +244,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Emit file change event
-		this._onDidStateChange.fire(StateChange.REVERTED);
+		this._onDidChangeState.fire(StateChange.REVERTED);
 
 		// Emit dirty change event
 		if (wasDirty) {
@@ -419,7 +401,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.preferredEncoding) {
 			this.updatePreferredEncoding(this.contentEncoding); // make sure to reflect the real encoding of the file (never out of sync)
 		} else if (oldEncoding !== this.contentEncoding) {
-			this._onDidStateChange.fire(StateChange.ENCODING);
+			this._onDidChangeState.fire(StateChange.ENCODING);
 		}
 
 		// Update Existing Model
@@ -522,20 +504,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Emit event
 			if (wasDirty) {
-				this._onDidStateChange.fire(StateChange.REVERTED);
+				this._onDidChangeState.fire(StateChange.REVERTED);
 				this._onDidChangeDirty.fire();
 			}
+		} else {
+			this.logService.trace('[text file model] onModelContentChanged() - model content changed and marked as dirty', this.resource.toString());
 
-			return;
+			// Mark as dirty
+			this.doMakeDirty();
 		}
 
-		this.logService.trace('[text file model] onModelContentChanged() - model content changed and marked as dirty', this.resource.toString());
-
-		// Mark as dirty
-		this.doMakeDirty();
-
-		// Handle content change events
-		this.contentChangeEventScheduler.schedule();
+		// Emit as event
+		this._onDidChangeContent.fire();
 	}
 
 	makeDirty(): void {
@@ -554,7 +534,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
-			this._onDidStateChange.fire(StateChange.DIRTY);
+			this._onDidChangeState.fire(StateChange.DIRTY);
 			this._onDidChangeDirty.fire();
 		}
 	}
@@ -564,19 +544,37 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return false;
 		}
 
+		if (this.isReadonly()) {
+			this.logService.trace('[text file model] save() - ignoring request for readonly resource', this.resource.toString());
+
+			return false; // if model is readonly we do not attempt to save at all
+		}
+
+		if (
+			(this.hasState(ModelState.CONFLICT) || this.hasState(ModelState.ERROR)) &&
+			(options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)
+		) {
+			this.logService.trace('[text file model] save() - ignoring auto save request for model that is in conflict or error', this.resource.toString());
+
+			return false; // if model is in save conflict or error, do not save unless save reason is explicit
+		}
+
 		this.logService.trace('[text file model] save() - enter', this.resource.toString());
 
-		await this.doSave(this.versionId, options);
+		await this.doSave(options);
+
+		this.logService.trace('[text file model] save() - exit', this.resource.toString());
 
 		return true;
 	}
 
-	private doSave(versionId: number, options: ITextFileSaveOptions): Promise<void> {
-		if (isUndefinedOrNull(options.reason)) {
+	private doSave(options: ITextFileSaveOptions): Promise<void> {
+		if (typeof options.reason !== 'number') {
 			options.reason = SaveReason.EXPLICIT;
 		}
 
-		this.logService.trace(`[text file model] doSave(${versionId}) - enter with versionId ' + versionId`, this.resource.toString());
+		let versionId = this.versionId;
+		this.logService.trace(`[text file model] doSave(${versionId}) - enter with versionId ${versionId}`, this.resource.toString());
 
 		// Lookup any running pending save for this versionId and return it if found
 		//
@@ -589,14 +587,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return this.saveSequentializer.pendingSave || Promise.resolve();
 		}
 
-		// Return early if not dirty (unless forced) or version changed meanwhile
+		// Return early if not dirty (unless forced)
 		//
-		// Scenario A: user invoked save action even though the model is not dirty
-		// Scenario B: auto save was triggered for a certain change by the user but meanwhile the user changed
-		//             the contents and the version for which auto save was started is no longer the latest.
-		//             Thus we avoid spawning multiple auto saves and only take the latest.
-		//
-		if ((!options.force && !this.dirty) || versionId !== this.versionId) {
+		// Scenario: user invoked save action even though the model is not dirty
+		if (!options.force && !this.dirty) {
 			this.logService.trace(`[text file model] doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource.toString());
 
 			return Promise.resolve();
@@ -614,7 +608,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.logService.trace(`[text file model] doSave(${versionId}) - exit - because busy saving`, this.resource.toString());
 
 			// Register this as the next upcoming save and return
-			return this.saveSequentializer.setNext(() => this.doSave(this.versionId /* make sure to use latest version id here */, options));
+			return this.saveSequentializer.setNext(() => this.doSave(options));
 		}
 
 		// Push all edit operations to the undo stack so that the user has a chance to
@@ -702,11 +696,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// Updated resolved stat with updated stat
 				this.updateLastResolvedFileStat(stat);
 
-				// Cancel any content change event promises as they are no longer valid
-				this.contentChangeEventScheduler.cancel();
-
 				// Emit Events
-				this._onDidStateChange.fire(StateChange.SAVED);
+				this._onDidChangeState.fire(StateChange.SAVED);
 				this._onDidChangeDirty.fire();
 
 				// Telemetry
@@ -735,7 +726,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.onSaveError(error);
 
 				// Emit as event
-				this._onDidStateChange.fire(StateChange.SAVE_ERROR);
+				this._onDidChangeState.fire(StateChange.SAVE_ERROR);
 			}));
 		}));
 	}
@@ -809,7 +800,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.updateLastResolvedFileStat(stat);
 
 			// Emit File Saved Event
-			this._onDidStateChange.fire(StateChange.SAVED);
+			this._onDidChangeState.fire(StateChange.SAVED);
 
 		}, error => onUnexpectedError(error) /* just log any error but do not notify the user since the file was not dirty */));
 	}
@@ -957,7 +948,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.preferredEncoding = encoding;
 
 		// Emit
-		this._onDidStateChange.fire(StateChange.ENCODING);
+		this._onDidChangeState.fire(StateChange.ENCODING);
 	}
 
 	private isNewEncoding(encoding: string | undefined): boolean {

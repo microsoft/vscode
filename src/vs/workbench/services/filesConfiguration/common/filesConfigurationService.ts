@@ -41,9 +41,9 @@ export interface IFilesConfigurationService {
 
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 
-	getAutoSaveMode(): AutoSaveMode;
-
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+
+	getAutoSaveMode(): AutoSaveMode;
 
 	toggleAutoSave(): Promise<void>;
 
