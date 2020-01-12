@@ -552,5 +552,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		};
 		CommandsRegistry.registerCommand(signOutMenuItem.command.id, () => this.signOut());
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, signOutMenuItem);
+
+		const configureSyncCommandId = 'workbench.userData.actions.configureSync';
+		CommandsRegistry.registerCommand(configureSyncCommandId, () => this.configureSyncOptions());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: configureSyncCommandId,
+				title: localize('configure sync', "Sync: Configure")
+			},
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
+		});
 	}
 }
