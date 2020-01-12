@@ -213,7 +213,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 					done(isEnter, true);
 				}
 			}),
-			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, (e) => {
+			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
 				done(true, true);
 			}),
 			dom.addDisposableListener(inputBox.inputElement, dom.EventType.CLICK, e => {
