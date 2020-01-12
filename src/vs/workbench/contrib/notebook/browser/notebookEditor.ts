@@ -26,7 +26,6 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getZoomLevel } from 'vs/base/browser/browser';
