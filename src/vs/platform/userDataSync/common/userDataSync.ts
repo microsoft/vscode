@@ -167,9 +167,10 @@ export interface IGlobalState {
 }
 
 export const enum SyncSource {
-	Settings = 1,
-	Keybindings,
-	Extensions
+	Settings = 'Settings',
+	Keybindings = 'Keybindings',
+	Extensions = 'Extensions',
+	UIState = 'UI State'
 }
 
 export const enum SyncStatus {
