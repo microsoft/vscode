@@ -53,7 +53,9 @@ registerMineTypeRenderer(['stream'], {
 		webviewService: IWebviewService
 	) => {
 		const outputNode = document.createElement('div');
-		outputNode.innerText = output.text;
+		const contentNode = document.createElement('p');
+		contentNode.innerText = output.text;
+		outputNode.appendChild(contentNode);
 		return {
 			element: outputNode,
 			hasDynamicHeight: false

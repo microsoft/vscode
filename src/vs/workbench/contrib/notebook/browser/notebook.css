@@ -47,6 +47,10 @@
 	margin-right: 24px;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .output p {
+	white-space: initial;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .output .error_message {
 	color: red;
 }
