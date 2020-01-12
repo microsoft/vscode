@@ -279,7 +279,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				this.localStore.add(this.list!.onDidScroll(() => updateScrollPosition()));
 				this.localStore.add(this.list!.onDidChangeContentHeight(() => updateScrollPosition()));
 
-				this.list?.splice(0, this.list?.length, this.viewCells);
+				this.list?.splice(0, this.list?.length);
+				this.list?.splice(0, 0, this.viewCells);
 				this.list?.layout();
 			});
 	}

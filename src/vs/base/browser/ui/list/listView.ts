@@ -286,6 +286,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	updateDynamicHeight(index: number, element: T, size: number): void {
+		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+
 		this.rangeMap.splice(index, 1, [
 			{
 				size: size
@@ -294,10 +296,20 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.items[index].size = size;
 
-		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight + size);
 		for (let i = renderRange.start; i < renderRange.end; i++) {
 			if (this.items[i].row) {
 				this.updateItemInDOM(this.items[i], i);
+			}
+		}
+
+		const newRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const removeRanges = Range.relativeComplement(renderRange, newRenderRange);
+
+		for (const range of removeRanges) {
+			for (let i = range.start; i < range.end; i++) {
+				if (this.items[i].row) {
+					this.removeItemFromDOM(i);
+				}
 			}
 		}
 
@@ -1117,9 +1129,35 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					this.scrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta!;
 				}
 
+				if (this.rowsContainer.getElementsByClassName('monaco-list-row').length > (renderRange.end - renderRange.start)) {
+					// there are zombie list rows
+					// console.log('remove zombie rows');
+					this.removeZombieRows(renderRange);
+				}
+
 				this._onDidChangeContentHeight.fire(this.contentHeight);
 				this.isRendering = false;
 				return;
+			}
+		}
+	}
+
+	private removeZombieRows(renderRange: IRange) {
+		let elements = this.rowsContainer.getElementsByClassName('monaco-list-row');
+		let rowsToRemove = [];
+		for (let i = 0; i < elements.length; i++) {
+			let index = Number(elements[i].getAttribute('data-index'));
+			if (index >= renderRange.start && index < renderRange.end) {
+				continue;
+			} else {
+				rowsToRemove.push(index);
+			}
+		}
+
+		for (let i = 0; i < rowsToRemove.length; i++) {
+			let index = rowsToRemove[i];
+			if (this.items[index].row) {
+				this.removeItemFromDOM(index);
 			}
 		}
 	}
