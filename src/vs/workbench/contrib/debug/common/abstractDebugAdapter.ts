@@ -141,12 +141,13 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	 * Reads and dispatches items from the queue until it is empty.
 	 */
 	private async processQueue() {
+		let message: DebugProtocol.ProtocolMessage | undefined;
 		while (this.queue.length) {
-			if (this.queue.length < 2 || this.needsTaskBoundaryBetween(this.queue[0], this.queue[1])) {
+			if (!message || this.needsTaskBoundaryBetween(this.queue[0], message)) {
 				await timeout(0);
 			}
 
-			const message = this.queue.shift();
+			message = this.queue.shift();
 			if (!message) {
 				return; // may have been disposed of
 			}
