@@ -89,9 +89,7 @@ export class ToggleOutlinePositionAction extends Action {
 			this.viewDescriptorService.moveViews([_outlineDesc], VIEW_CONTAINER_PANEL);
 			this.viewsService.openView(OutlineViewId, true);
 			inPanel = true;
-			// Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).moveViews([_outlineDesc], VIEW_CONTAINER_PANEL);
 		} else {
-			// Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).moveViews([_outlineDesc], VIEW_CONTAINER);
 			this.viewDescriptorService.moveViews([_outlineDesc], VIEW_CONTAINER);
 			this.viewsService.openView(OutlineViewId, true);
 
