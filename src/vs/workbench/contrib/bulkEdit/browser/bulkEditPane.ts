@@ -98,7 +98,8 @@ export class BulkEditPane extends ViewPane {
 			{
 				accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
 				identityProvider: new BulkEditIdentityProvider(),
-				expandOnlyOnTwistieClick: true
+				expandOnlyOnTwistieClick: true,
+				multipleSelectionSupport: false
 			}
 		);
 
