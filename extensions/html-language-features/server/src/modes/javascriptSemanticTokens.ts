@@ -40,7 +40,7 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 						if (modifiers & ts.ModifierFlags.Async) {
 							modifierSet |= TokenModifier.async;
 						}
-						if ((modifiers & ts.ModifierFlags.Readonly) || (nodeFlags & ts.NodeFlags.Const)) {
+						if ((modifiers & ts.ModifierFlags.Readonly) || (nodeFlags & ts.NodeFlags.Const) || (symbol.getFlags() & ts.SymbolFlags.EnumMember)) {
 							modifierSet |= TokenModifier.readonly;
 						}
 						resultTokens.push({ start: currentTextDocument.positionAt(node.getStart()), length: node.getWidth(), typeIdx, modifierSet });

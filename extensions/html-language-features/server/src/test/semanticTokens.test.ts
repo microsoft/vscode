@@ -155,6 +155,7 @@ suite('HTML Semantic Tokens', () => {
 		assertTokens(input, [
 			t(3, 8, 1, 'variable.declaration.readonly'),
 			t(4, 8, 1, 'class.declaration'), t(4, 28, 1, 'property.declaration.static.readonly'), t(4, 42, 3, 'property.declaration.static'), t(4, 47, 3, 'interface'),
+			t(5, 13, 1, 'enum.declaration'), t(5, 17, 1, 'property.declaration.readonly'), t(5, 24, 1, 'property.declaration.readonly'), t(5, 28, 1, 'property.readonly'),
 			t(6, 8, 1, 'variable.declaration.readonly'), t(6, 12, 1, 'variable.readonly'), t(6, 16, 1, 'class'), t(6, 18, 1, 'property.static.readonly'), t(6, 22, 1, 'class'), t(6, 24, 3, 'property.static'), t(6, 28, 6, 'property.readonly'),
 		]);
 	});
