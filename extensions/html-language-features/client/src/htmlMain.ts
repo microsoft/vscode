@@ -289,6 +289,16 @@ export function activate(context: ExtensionContext) {
 			return results;
 		}
 	});
+
+	// TODO
+	languages.registerOnTypeRenameProvider(documentSelector, {
+		async provideOnTypeRenameRanges(_doc, _pos) {
+			return [
+				new Range(12, 5, 12, 8),
+				new Range(14, 6, 14, 9),
+			];
+		}
+	});
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | null {

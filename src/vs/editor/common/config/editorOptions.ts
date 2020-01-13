@@ -239,6 +239,11 @@ export interface IEditorOptions {
 	 */
 	automaticLayout?: boolean;
 	/**
+	 * Rename matching regions on type.
+	 * Defaults to false.
+	 */
+	autoRename?: boolean;
+	/**
 	 * Control the wrapping of the editor.
 	 * When `wordWrap` = "off", the lines will never wrap.
 	 * When `wordWrap` = "on", the lines will wrap at the viewport width.
@@ -3311,6 +3316,7 @@ export const enum EditorOption {
 	autoClosingQuotes,
 	autoIndent,
 	automaticLayout,
+	autoRename,
 	autoSurround,
 	codeLens,
 	colorDecorators,
@@ -3517,6 +3523,10 @@ export const EditorOptions = {
 	)),
 	automaticLayout: register(new EditorBooleanOption(
 		EditorOption.automaticLayout, 'automaticLayout', false,
+	)),
+	autoRename: register(new EditorBooleanOption(
+		EditorOption.autoRename, 'autoRename', false,
+		{ description: nls.localize('autoRename', "Controls whether the editor auto renames on type.") }
 	)),
 	autoSurround: register(new EditorStringEnumOption(
 		EditorOption.autoSurround, 'autoSurround',

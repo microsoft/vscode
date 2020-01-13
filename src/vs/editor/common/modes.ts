@@ -790,6 +790,13 @@ export interface DocumentHighlightProvider {
 }
 
 /**
+ * Returns the ranges that should be linked/modified on type together.
+ */
+export interface OnTypeRenameProvider {
+	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+}
+
+/**
  * Value-object that contains additional information when
  * requesting references.
  */
@@ -1641,6 +1648,11 @@ export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<Docume
  * @internal
  */
 export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
+
+/**
+ * @internal
+ */
+export const OnTypeRenameProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameProvider>();
 
 /**
  * @internal

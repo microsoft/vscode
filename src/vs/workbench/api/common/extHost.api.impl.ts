@@ -360,6 +360,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentHighlightProvider(extension, checkSelector(selector), provider);
 			},
+			registerOnTypeRenameProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerOnTypeRenameProvider(extension, checkSelector(selector), provider);
+			},
 			registerReferenceProvider(selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerReferenceProvider(extension, checkSelector(selector), provider);
 			},

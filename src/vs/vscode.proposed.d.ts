@@ -1214,6 +1214,18 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/88424
+
+	export interface OnTypeRenameProvider {
+		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+	}
+
+	namespace languages {
+		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider): Disposable;
+	}
+
+	//#endregion
+
 	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	// TODO:
