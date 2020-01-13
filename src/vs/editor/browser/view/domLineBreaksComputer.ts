@@ -84,15 +84,18 @@ function renderLine(lineIndex: number, lineContent: string, tabSize: number, sb:
 	// 	sb.appendASCIIString('" dir="ltr');
 	// }
 
+	const len = lineContent.length;
 	let visibleColumn = 0;
 	let charOffset = 0;
 	let charOffsets: number[] = [];
 	let visibleColumns: number[] = [];
+	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 
-	for (let charIndex = 0, len = lineContent.length; charIndex < len; charIndex++) {
+	for (let charIndex = 0; charIndex < len; charIndex++) {
 		charOffsets[charIndex] = charOffset;
 		visibleColumns[charIndex] = visibleColumn;
-		const charCode = lineContent.charCodeAt(charIndex);
+		const charCode = nextCharCode;
+		nextCharCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
 		let producedCharacters = 1;
 		let charWidth = 1;
 		switch (charCode) {
@@ -100,14 +103,20 @@ function renderLine(lineIndex: number, lineContent: string, tabSize: number, sb:
 				producedCharacters = (tabSize - (visibleColumn % tabSize));
 				charWidth = producedCharacters;
 				for (let space = 1; space <= producedCharacters; space++) {
-					sb.appendASCII(CharCode.Space);
-					// sb.write1(0xA0); // &nbsp;
+					if (space < producedCharacters) {
+						sb.write1(0xA0); // &nbsp;
+					} else {
+						sb.appendASCII(CharCode.Space);
+					}
 				}
 				break;
 
 			case CharCode.Space:
-				sb.appendASCII(CharCode.Space);
-				// sb.write1(0xA0); // &nbsp;
+				if (nextCharCode === CharCode.Space) {
+					sb.write1(0xA0); // &nbsp;
+				} else {
+					sb.appendASCII(CharCode.Space);
+				}
 				break;
 
 			case CharCode.LessThan:
