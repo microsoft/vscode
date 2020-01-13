@@ -17,7 +17,7 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 		const typeChecker = program.getTypeChecker();
 
 		function visit(node: ts.Node) {
-			if (node.kind === ts.SyntaxKind.Identifier) {
+			if (ts.isIdentifier(node)) {
 				const symbol = typeChecker.getSymbolAtLocation(node);
 				if (symbol) {
 					let typeIdx = classifySymbol(symbol);
@@ -76,7 +76,7 @@ function classifySymbol(symbol: ts.Symbol) {
 		}
 	}
 	const decl = symbol.valueDeclaration || symbol.declarations && symbol.declarations[0];
-	return tokenFromDeclarationMapping[decl.kind];
+	return decl && tokenFromDeclarationMapping[decl.kind];
 }
 
 
