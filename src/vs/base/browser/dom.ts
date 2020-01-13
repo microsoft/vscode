@@ -820,7 +820,7 @@ export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazz
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
 }
 
-export function createStyleSheet(container: HTMLElement | null): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement | null = null): HTMLStyleElement {
 	if (!container) {
 		if ((window as any).monacoShadowRoot) {
 			container = (window as any).monacoShadowRoot.querySelector('head');
@@ -846,7 +846,7 @@ export function createMetaElement(container: HTMLElement = document.getElementsB
 let _sharedStyleSheet: HTMLStyleElement | null = null;
 function getSharedStyleSheet(): HTMLStyleElement {
 	if (!_sharedStyleSheet) {
-		_sharedStyleSheet = createStyleSheet(null);
+		_sharedStyleSheet = createStyleSheet();
 	}
 	return _sharedStyleSheet;
 }
