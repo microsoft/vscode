@@ -75,9 +75,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				this.model,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
+				fontInfo,
 				this.model.getOptions().tabSize,
 				wrappingInfo.wrappingColumn,
-				fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 				wrappingIndent
 			);
 		}
@@ -157,7 +157,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
-		if (this.lines.setWrappingSettings(wrappingIndent, wrappingInfo.wrappingColumn, fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth)) {
+		if (this.lines.setWrappingSettings(fontInfo, wrappingInfo.wrappingColumn, wrappingIndent)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());

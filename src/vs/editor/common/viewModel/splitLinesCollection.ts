@@ -15,6 +15,7 @@ import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComp
 import { ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
 
 export class OutputPosition {
 	outputLineIndex: number;
@@ -75,7 +76,7 @@ export interface ILineBreaksComputer {
 }
 
 export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;
+	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;
 }
 
 export interface ISimpleModel {
@@ -108,7 +109,7 @@ export interface ISplitLine {
 export interface IViewModelLinesCollection extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
-	setWrappingSettings(wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean;
+	setWrappingSettings(fontInfo: FontInfo, wrappingColumn: number, wrappingIndent: WrappingIndent): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: Range[]): boolean;
@@ -274,10 +275,10 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
 	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
 
-	private wrappingColumn: number;
-	private columnsForFullWidthChar: number;
-	private wrappingIndent: WrappingIndent;
+	private fontInfo: FontInfo;
 	private tabSize: number;
+	private wrappingColumn: number;
+	private wrappingIndent: WrappingIndent;
 	private lines!: ISplitLine[];
 
 	private prefixSumComputer!: LineNumberMapper;
@@ -288,18 +289,18 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		fontInfo: FontInfo,
 		tabSize: number,
 		wrappingColumn: number,
-		columnsForFullWidthChar: number,
 		wrappingIndent: WrappingIndent
 	) {
 		this.model = model;
 		this._validModelVersionId = -1;
 		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
 		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
+		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
 		this.wrappingColumn = wrappingColumn;
-		this.columnsForFullWidthChar = columnsForFullWidthChar;
 		this.wrappingIndent = wrappingIndent;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
@@ -482,16 +483,19 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return true;
 	}
 
-	public setWrappingSettings(wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean {
-		if (this.wrappingIndent === wrappingIndent && this.wrappingColumn === wrappingColumn && this.columnsForFullWidthChar === columnsForFullWidthChar) {
+	public setWrappingSettings(fontInfo: FontInfo, wrappingColumn: number, wrappingIndent: WrappingIndent): boolean {
+		const equalFontInfo = this.fontInfo.equals(fontInfo);
+		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
+		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
+		if (equalFontInfo && equalWrappingColumn && equalWrappingIndent) {
 			return false;
 		}
 
-		const onlyWrappingColumnChanged = (this.wrappingIndent === wrappingIndent && this.wrappingColumn !== wrappingColumn && this.columnsForFullWidthChar === columnsForFullWidthChar);
+		const onlyWrappingColumnChanged = (equalFontInfo && !equalWrappingColumn && equalWrappingIndent);
 
-		this.wrappingIndent = wrappingIndent;
+		this.fontInfo = fontInfo;
 		this.wrappingColumn = wrappingColumn;
-		this.columnsForFullWidthChar = columnsForFullWidthChar;
+		this.wrappingIndent = wrappingIndent;
 
 		let previousLineBreaks: ((LineBreakData | null)[]) | null = null;
 		if (onlyWrappingColumnChanged) {
@@ -512,7 +516,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 				? this._domLineBreaksComputerFactory
 				: this._monospaceLineBreaksComputerFactory
 		);
-		return lineBreaksComputerFactory.createLineBreaksComputer(this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent);
+		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent);
 	}
 
 	public onModelFlushed(): void {
@@ -1453,7 +1457,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		return false;
 	}
 
-	public setWrappingSettings(_wrappingIndent: WrappingIndent, _wrappingColumn: number, _columnsForFullWidthChar: number): boolean {
+	public setWrappingSettings(_fontInfo: FontInfo, _wrappingColumn: number, _wrappingIndent: WrappingIndent): boolean {
 		return false;
 	}
 

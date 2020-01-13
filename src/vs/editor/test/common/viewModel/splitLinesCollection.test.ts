@@ -109,9 +109,9 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
+			fontInfo,
 			model.getOptions().tabSize,
 			wrappingInfo.wrappingColumn,
-			fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 			wrappingIndent
 		);
 
@@ -750,9 +750,9 @@ suite('SplitLinesCollection', () => {
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
+			fontInfo,
 			model.getOptions().tabSize,
 			wrappingInfo.wrappingColumn,
-			fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 			wrappingIndent
 		);
 

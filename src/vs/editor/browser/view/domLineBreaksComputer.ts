@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILineBreaksComputerFactory, LineBreakData, ILineBreaksComputer } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { IComputedEditorOptions, EditorOption, WrappingIndent } from 'vs/editor/common/config/editorOptions';
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { CharCode } from 'vs/base/common/charCode';
@@ -13,22 +13,16 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 
 export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 
-	public static create(options: IComputedEditorOptions): DOMLineBreaksComputerFactory {
-		return new DOMLineBreaksComputerFactory(
-			options.get(EditorOption.fontInfo)
-		);
+	public static create(): DOMLineBreaksComputerFactory {
+		return new DOMLineBreaksComputerFactory();
 	}
 
-	private _fontInfo: FontInfo;
-
-	constructor(fontInfo: FontInfo) {
-		this._fontInfo = fontInfo;
+	constructor() {
 	}
 
-	public createLineBreaksComputer(tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
+	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
 		tabSize = tabSize | 0; //@perf
 		wrappingColumn = +wrappingColumn; //@perf
-		columnsForFullWidthChar = +columnsForFullWidthChar; //@perf
 
 		let requests: string[] = [];
 		return {
@@ -36,7 +30,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				requests.push(lineText);
 			},
 			finalize: () => {
-				return createLineBreaks(requests, this._fontInfo, tabSize, wrappingColumn, wrappingIndent);
+				return createLineBreaks(requests, fontInfo, tabSize, wrappingColumn, wrappingIndent);
 			}
 		};
 	}
