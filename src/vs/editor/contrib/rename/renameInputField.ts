@@ -81,7 +81,7 @@ export class RenameInputField implements IContentWidget {
 			const updateLabel = () => {
 				const [accept, preview] = this._acceptKeybindings;
 				this._keybindingService.lookupKeybinding(accept);
-				this._label!.innerText = localize('label', "Press {0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
+				this._label!.innerText = localize('label', "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
 			};
 			updateLabel();
 			this._disposables.add(this._keybindingService.onDidUpdateKeybindings(updateLabel));
