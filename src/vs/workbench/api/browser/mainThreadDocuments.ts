@@ -109,14 +109,9 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 				this._proxy.$acceptModelSaved(e.model.resource);
 			}
 		}));
-		this._toDispose.add(textFileService.models.onDidRevert(m => {
-			if (this._shouldHandleFileEvent(m.resource)) {
-				this._proxy.$acceptDirtyStateChanged(m.resource, false);
-			}
-		}));
 		this._toDispose.add(textFileService.models.onDidChangeDirty(m => {
 			if (this._shouldHandleFileEvent(m.resource)) {
-				this._proxy.$acceptDirtyStateChanged(m.resource, true);
+				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
 			}
 		}));
 

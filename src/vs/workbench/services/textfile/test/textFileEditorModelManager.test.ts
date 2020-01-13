@@ -134,7 +134,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource2 = toResource.call(this, '/path/other.txt');
 
 		let loadedCounter = 0;
-		let dirtyCounter = 0;
+		let gotDirtyCounter = 0;
+		let gotNonDirtyCounter = 0;
 		let revertedCounter = 0;
 		let savedCounter = 0;
 		let encodingCounter = 0;
@@ -147,7 +148,11 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		manager.onDidChangeDirty(model => {
 			if (model.resource.toString() === resource1.toString()) {
-				dirtyCounter++;
+				if (model.isDirty()) {
+					gotDirtyCounter++;
+				} else {
+					gotNonDirtyCounter++;
+				}
 			}
 		});
 
@@ -189,7 +194,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		model2.dispose();
 
 		await model1.revert();
-		assert.equal(dirtyCounter, 4);
+		assert.equal(gotDirtyCounter, 2);
+		assert.equal(gotNonDirtyCounter, 2);
 		assert.equal(revertedCounter, 1);
 		assert.equal(savedCounter, 1);
 		assert.equal(encodingCounter, 2);
