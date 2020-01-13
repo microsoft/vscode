@@ -124,8 +124,8 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		this._register(configurationTelemetry(telemetryService, configurationService));
 
 		//  Files Telemetry
-		this._register(textFileService.models.onModelLoaded(m => this.onTextFileModelLoaded(m)));
-		this._register(textFileService.models.onModelSaved(m => this.onTextFileModelSaved(m)));
+		this._register(textFileService.models.onDidLoad(m => this.onTextFileModelLoaded(m)));
+		this._register(textFileService.models.onDidSave(m => this.onTextFileModelSaved(m)));
 
 		// Lifecycle
 		this._register(lifecycleService.onShutdown(() => this.dispose()));

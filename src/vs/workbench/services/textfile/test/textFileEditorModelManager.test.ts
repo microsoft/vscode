@@ -127,7 +127,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 	});
 
-	test('events', async function () {
+	test('pasero events', async function () {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource1 = toResource.call(this, '/path/index.txt');
@@ -139,31 +139,31 @@ suite('Files - TextFileEditorModelManager', () => {
 		let savedCounter = 0;
 		let encodingCounter = 0;
 
-		manager.onModelLoaded(model => {
+		manager.onDidLoad(model => {
 			if (model.resource.toString() === resource1.toString()) {
 				loadedCounter++;
 			}
 		});
 
-		manager.onModelDirty(model => {
+		manager.onDidChangeDirty(model => {
 			if (model.resource.toString() === resource1.toString()) {
 				dirtyCounter++;
 			}
 		});
 
-		manager.onModelReverted(model => {
+		manager.onDidRevert(model => {
 			if (model.resource.toString() === resource1.toString()) {
 				revertedCounter++;
 			}
 		});
 
-		manager.onModelSaved(model => {
+		manager.onDidSave(model => {
 			if (model.resource.toString() === resource1.toString()) {
 				savedCounter++;
 			}
 		});
 
-		manager.onModelEncodingChanged(model => {
+		manager.onDidChangeEncoding(model => {
 			if (model.resource.toString() === resource1.toString()) {
 				encodingCounter++;
 			}
@@ -189,7 +189,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model2.dispose();
 
 		await model1.revert();
-		assert.equal(dirtyCounter, 2);
+		assert.equal(dirtyCounter, 4);
 		assert.equal(revertedCounter, 1);
 		assert.equal(savedCounter, 1);
 		assert.equal(encodingCounter, 2);

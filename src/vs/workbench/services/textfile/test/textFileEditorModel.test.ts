@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextFileService, ModelState, StateChange, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { workbenchInstantiationService, TestTextFileService, createFileInput, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -95,10 +95,8 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 
 		let savedEvent = false;
-		model.onDidChangeState(e => {
-			if (e === StateChange.SAVED) {
-				savedEvent = true;
-			}
+		model.onDidSave(e => {
+			savedEvent = true;
 		});
 
 		let workingCopyEvent = false;
@@ -132,10 +130,8 @@ suite('Files - TextFileEditorModel', () => {
 		await model.load();
 
 		let savedEvent = false;
-		model.onDidChangeState(e => {
-			if (e === StateChange.SAVED) {
-				savedEvent = true;
-			}
+		model.onDidSave(e => {
+			savedEvent = true;
 		});
 
 		let workingCopyEvent = false;
@@ -206,8 +202,12 @@ suite('Files - TextFileEditorModel', () => {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8', undefined);
 		assert.ok(model.hasState(ModelState.SAVED));
 
-		model.onDidChangeState(e => {
-			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
+		model.onDidSave(e => {
+			assert.fail();
+		});
+
+		model.onDidChangeDirty(e => {
+			assert.fail();
 		});
 
 		await model.load();
@@ -234,10 +234,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidChangeState(e => {
-			if (e === StateChange.REVERTED) {
-				eventCounter++;
-			}
+		model.onDidRevert(e => {
+			eventCounter++;
 		});
 
 		let workingCopyEvent = false;
@@ -271,10 +269,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidChangeState(e => {
-			if (e === StateChange.REVERTED) {
-				eventCounter++;
-			}
+		model.onDidRevert(e => {
+			eventCounter++;
 		});
 
 		let workingCopyEvent = false;
@@ -331,10 +327,8 @@ suite('Files - TextFileEditorModel', () => {
 		await model.revert({ soft: true });
 		assert.ok(!model.isDirty());
 
-		model.onDidChangeState(e => {
-			if (e === StateChange.DIRTY) {
-				eventCounter++;
-			}
+		model.onDidChangeDirty(e => {
+			eventCounter++;
 		});
 
 		let workingCopyEvent = false;
@@ -416,12 +410,10 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidChangeState(e => {
-			if (e === StateChange.SAVED) {
-				assert.equal(snapshotToString(model.createSnapshot()!), 'bar');
-				assert.ok(!model.isDirty());
-				eventCounter++;
-			}
+		model.onDidSave(e => {
+			assert.equal(snapshotToString(model.createSnapshot()!), 'bar');
+			assert.ok(!model.isDirty());
+			eventCounter++;
 		});
 
 		TextFileEditorModel.setSaveParticipant({

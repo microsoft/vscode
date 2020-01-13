@@ -70,15 +70,15 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	private registerListeners(): void {
 
 		// Dirty changes
-		this._register(this.textFileService.models.onModelDirty(m => this.onDirtyStateChange(m)));
-		this._register(this.textFileService.models.onModelSaveError(m => this.onDirtyStateChange(m)));
-		this._register(this.textFileService.models.onModelSaved(m => this.onDirtyStateChange(m)));
-		this._register(this.textFileService.models.onModelReverted(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.models.onDidChangeDirty(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.models.onDidSaveError(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.models.onDidSave(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.models.onDidRevert(m => this.onDirtyStateChange(m)));
 
 		// Label changes
 		this._register(this.labelService.onDidChangeFormatters(() => FileEditorInput.MEMOIZER.clear()));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => FileEditorInput.MEMOIZER.clear()));
-		this._register(this.textFileService.models.onModelOrphanedChanged(model => this.onModelOrphanedChanged(model)));
+		this._register(this.textFileService.models.onDidChangeOrphaned(model => this.onModelOrphanedChanged(model)));
 	}
 
 	private onDirtyStateChange(model: ITextFileEditorModel): void {

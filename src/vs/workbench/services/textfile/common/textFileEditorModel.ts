@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined } from 'vs/base/common/types';
-import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange, ITextFileStreamContent, ILoadOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, ITextFileStreamContent, ILoadOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -44,14 +44,33 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static saveParticipant: ISaveParticipant | null;
 	static setSaveParticipant(handler: ISaveParticipant | null): void { TextFileEditorModel.saveParticipant = handler; }
 
+	//#region Events
+
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeState = this._register(new Emitter<StateChange>());
-	readonly onDidChangeState = this._onDidChangeState.event;
+	private readonly _onDidLoad = this._register(new Emitter<void>());
+	readonly onDidLoad = this._onDidLoad.event;
+
+	private readonly _onDidSaveError = this._register(new Emitter<void>());
+	readonly onDidSaveError = this._onDidSaveError.event;
+
+	private readonly _onDidSave = this._register(new Emitter<void>());
+	readonly onDidSave = this._onDidSave.event;
+
+	private readonly _onDidRevert = this._register(new Emitter<void>());
+	readonly onDidRevert = this._onDidRevert.event;
+
+	private readonly _onDidChangeEncoding = this._register(new Emitter<void>());
+	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
+
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
+	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	//#endregion
 
 	readonly capabilities = 0;
 
@@ -147,7 +166,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private setOrphaned(orphaned: boolean): void {
 		if (this.inOrphanMode !== orphaned) {
 			this.inOrphanMode = orphaned;
-			this._onDidChangeState.fire(StateChange.ORPHANED_CHANGE);
+			this._onDidChangeOrphaned.fire();
 		}
 	}
 
@@ -215,7 +234,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Emit file change event
-		this._onDidChangeState.fire(StateChange.REVERTED);
+		this._onDidRevert.fire();
 
 		// Emit dirty change event
 		if (wasDirty) {
@@ -372,7 +391,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.preferredEncoding) {
 			this.updatePreferredEncoding(this.contentEncoding); // make sure to reflect the real encoding of the file (never out of sync)
 		} else if (oldEncoding !== this.contentEncoding) {
-			this._onDidChangeState.fire(StateChange.ENCODING);
+			this._onDidChangeEncoding.fire();
 		}
 
 		// Update Existing Model
@@ -386,7 +405,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Emit as event
-		this._onDidChangeState.fire(StateChange.LOADED);
+		this._onDidLoad.fire();
 
 		return this;
 	}
@@ -464,7 +483,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Emit event
 			if (wasDirty) {
-				this._onDidChangeState.fire(StateChange.REVERTED);
+				this._onDidRevert.fire();
 				this._onDidChangeDirty.fire();
 			}
 		} else {
@@ -494,7 +513,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
-			this._onDidChangeState.fire(StateChange.DIRTY);
 			this._onDidChangeDirty.fire();
 		}
 	}
@@ -657,7 +675,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.updateLastResolvedFileStat(stat);
 
 				// Emit Events
-				this._onDidChangeState.fire(StateChange.SAVED);
+				this._onDidSave.fire();
 				this._onDidChangeDirty.fire();
 			}, error => {
 				this.logService.error(`[text file model] doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString());
@@ -674,7 +692,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.onSaveError(error);
 
 				// Emit as event
-				this._onDidChangeState.fire(StateChange.SAVE_ERROR);
+				this._onDidSaveError.fire();
 			}));
 		}));
 	}
@@ -695,7 +713,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.updateLastResolvedFileStat(stat);
 
 			// Emit File Saved Event
-			this._onDidChangeState.fire(StateChange.SAVED);
+			this._onDidSave.fire();
 
 		}, error => onUnexpectedError(error) /* just log any error but do not notify the user since the file was not dirty */));
 	}
@@ -850,7 +868,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.preferredEncoding = encoding;
 
 		// Emit
-		this._onDidChangeState.fire(StateChange.ENCODING);
+		this._onDidChangeEncoding.fire();
 	}
 
 	private isNewEncoding(encoding: string | undefined): boolean {

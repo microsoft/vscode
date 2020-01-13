@@ -448,7 +448,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				}
 			}, 250));
 
-			const onSaveHandler = this._register(this.textFileService.models.onModelSaved(m => onModelsSavedWorker.work(m)));
+			const onSaveHandler = this._register(this.textFileService.models.onDidSave(m => onModelsSavedWorker.work(m)));
 			return ExperimentState.Evaluating;
 		});
 	}
