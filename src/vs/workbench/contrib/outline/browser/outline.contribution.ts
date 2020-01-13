@@ -10,13 +10,14 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { OutlineConfigKeys, OutlineViewId } from 'vs/editor/contrib/documentSymbols/outline';
 import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 // import './outlineNavigation';
 
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
-	ctorDescriptor: { ctor: OutlinePane },
+	ctorDescriptor: new SyncDescriptor(OutlinePane),
 	canToggleVisibility: true,
 	hideByDefault: false,
 	collapsed: true,

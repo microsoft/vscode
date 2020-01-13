@@ -263,6 +263,11 @@ export interface IEditorOptions {
 	 */
 	wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 	/**
+	 * Controls the wrapping algorithm to use.
+	 * Defaults to 'monospace'.
+	 */
+	wrappingAlgorithm?: 'monospace' | 'dom';
+	/**
 	 * Configure word wrapping characters. A break will be introduced before these characters.
 	 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 	 */
@@ -3158,6 +3163,7 @@ export const enum EditorOption {
 	wordWrapColumn,
 	wordWrapMinified,
 	wrappingIndent,
+	wrappingAlgorithm,
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
@@ -3720,6 +3726,18 @@ export const EditorOptions = {
 				nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
 			],
 			description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
+		}
+	)),
+	wrappingAlgorithm: register(new EditorStringEnumOption(
+		EditorOption.wrappingAlgorithm, 'wrappingAlgorithm',
+		'monospace' as 'monospace' | 'dom',
+		['monospace', 'dom'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('wrappingAlgorithm.monospace', "Assumes that all characters are of the same width. This is a fast algorithm."),
+				nls.localize('wrappingAlgorithm.dom', "Delegates wrapping points computation to the DOM. This is a slow algorithm, that might cause freezes for large files.")
+			],
+			description: nls.localize('wrappingAlgorithm', "Controls the algorithm that computes wrapping points.")
 		}
 	)),
 

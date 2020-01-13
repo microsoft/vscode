@@ -11,16 +11,8 @@ import { workbenchInstantiationService, TestFileService } from 'vs/workbench/tes
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-
-export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
-
-	protected debounceDelay(): number {
-		return 10;
-	}
-}
 
 class ServiceAccessor {
 	constructor(
@@ -41,7 +33,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('add, remove, clear, get, getAll', function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);
@@ -96,7 +88,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('loadOrCreate', async () => {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
@@ -116,7 +108,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('removed from cache when model disposed', function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);
@@ -136,7 +128,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('events', async function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource1 = toResource.call(this, '/path/index.txt');
 		const resource2 = toResource.call(this, '/path/other.txt');
@@ -147,32 +139,32 @@ suite('Files - TextFileEditorModelManager', () => {
 		let savedCounter = 0;
 		let encodingCounter = 0;
 
-		manager.onModelLoaded(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelLoaded(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				loadedCounter++;
 			}
 		});
 
-		manager.onModelDirty(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelDirty(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				dirtyCounter++;
 			}
 		});
 
-		manager.onModelReverted(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelReverted(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				revertedCounter++;
 			}
 		});
 
-		manager.onModelSaved(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelSaved(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				savedCounter++;
 			}
 		});
 
-		manager.onModelEncodingChanged(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelEncodingChanged(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				encodingCounter++;
 			}
 		});
@@ -208,49 +200,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.ok(!accessor.modelService.getModel(resource2));
 	});
 
-	test('events debounced', async function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
-
-		const resource1 = toResource.call(this, '/path/index.txt');
-		const resource2 = toResource.call(this, '/path/other.txt');
-
-		let dirtyCounter = 0;
-		let savedCounter = 0;
-
-		manager.onModelsDirty(e => {
-			dirtyCounter += e.length;
-			assert.equal(e[0].resource.toString(), resource1.toString());
-		});
-
-		manager.onModelsSaved(e => {
-			savedCounter += e.length;
-			assert.equal(e[0].resource.toString(), resource1.toString());
-		});
-
-		const model1 = await manager.loadOrCreate(resource1, { encoding: 'utf8' });
-		const model2 = await manager.loadOrCreate(resource2, { encoding: 'utf8' });
-		model1.textEditorModel!.setValue('changed');
-		model1.updatePreferredEncoding('utf16');
-
-		await model1.revert();
-		model1.textEditorModel!.setValue('changed again');
-
-		await model1.save();
-		model1.dispose();
-		model2.dispose();
-
-		await model1.revert();
-		await timeout(20);
-		assert.equal(dirtyCounter, 2);
-		assert.equal(savedCounter, 1);
-		model1.dispose();
-		model2.dispose();
-		assert.ok(!accessor.modelService.getModel(resource1));
-		assert.ok(!accessor.modelService.getModel(resource2));
-	});
-
 	test('disposing model takes it out of the manager', async function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
@@ -262,7 +213,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('dispose prevents dirty model from getting disposed', async function () {
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
@@ -282,7 +233,7 @@ suite('Files - TextFileEditorModelManager', () => {
 			id: mode,
 		});
 
-		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 

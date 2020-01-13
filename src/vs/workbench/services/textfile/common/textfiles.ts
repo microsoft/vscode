@@ -285,22 +285,6 @@ export const enum StateChange {
 	ORPHANED_CHANGE
 }
 
-export class TextFileModelChangeEvent {
-	private _resource: URI;
-
-	constructor(model: ITextFileEditorModel, private _kind: StateChange) {
-		this._resource = model.resource;
-	}
-
-	get resource(): URI {
-		return this._resource;
-	}
-
-	get kind(): StateChange {
-		return this._kind;
-	}
-}
-
 export interface ITextFileOperationResult {
 	results: IResult[];
 }
@@ -378,18 +362,14 @@ export interface IModelLoadOrCreateOptions {
 
 export interface ITextFileEditorModelManager {
 
-	readonly onModelEncodingChanged: Event<TextFileModelChangeEvent>;
-	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
+	readonly onModelEncodingChanged: Event<ITextFileEditorModel>;
+	readonly onModelOrphanedChanged: Event<ITextFileEditorModel>;
 
-	readonly onModelLoaded: Event<TextFileModelChangeEvent>;
-	readonly onModelDirty: Event<TextFileModelChangeEvent>;
-	readonly onModelSaveError: Event<TextFileModelChangeEvent>;
-	readonly onModelSaved: Event<TextFileModelChangeEvent>;
-	readonly onModelReverted: Event<TextFileModelChangeEvent>;
-
-	readonly onModelsDirty: Event<readonly TextFileModelChangeEvent[]>;
-	readonly onModelsSaveError: Event<readonly TextFileModelChangeEvent[]>;
-	readonly onModelsSaved: Event<readonly TextFileModelChangeEvent[]>;
+	readonly onModelLoaded: Event<ITextFileEditorModel>;
+	readonly onModelDirty: Event<ITextFileEditorModel>;
+	readonly onModelSaveError: Event<ITextFileEditorModel>;
+	readonly onModelSaved: Event<ITextFileEditorModel>;
+	readonly onModelReverted: Event<ITextFileEditorModel>;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 

@@ -21,6 +21,7 @@ import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/b
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
 	let view: ViewPane | undefined;
@@ -128,16 +129,16 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 	id: BulkEditPane.ID,
 	name: localize('panel', "Refactor Preview"),
 	hideIfEmpty: true,
-	ctorDescriptor: {
-		ctor: ViewPaneContainer,
-		arguments: [BulkEditPane.ID, BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
-	}
+	ctorDescriptor: new SyncDescriptor(
+		ViewPaneContainer,
+		[BulkEditPane.ID, BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
+	)
 }, ViewContainerLocation.Panel);
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: BulkEditPane.ID,
 	name: localize('panel', "Refactor Preview"),
 	when: BulkEditPreviewContribution.ctxEnabled,
-	ctorDescriptor: { ctor: BulkEditPane },
+	ctorDescriptor: new SyncDescriptor(BulkEditPane),
 }], container);
 

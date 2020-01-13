@@ -30,6 +30,7 @@ export class CompletionItem {
 	_brand!: 'ISuggestionItem';
 
 	readonly resolve: (token: CancellationToken) => Promise<void>;
+	isResolved: boolean = false;
 
 	//
 	readonly editStart: IPosition;
@@ -44,7 +45,6 @@ export class CompletionItem {
 	// sorting, filtering
 	score: FuzzyScore = FuzzyScore.Default;
 	distance: number = 0;
-	isResolved: boolean = false;
 	idx?: number;
 	word?: string;
 

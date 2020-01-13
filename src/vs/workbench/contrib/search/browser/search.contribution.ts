@@ -512,7 +512,7 @@ class ShowAllSymbolsAction extends Action {
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: nls.localize('name', "Search"),
-	ctorDescriptor: { ctor: SearchViewPaneContainer },
+	ctorDescriptor: new SyncDescriptor(SearchViewPaneContainer),
 	hideIfEmpty: true,
 	icon: 'codicon-search',
 	order: 1
@@ -550,7 +550,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 				}
 			} else {
 				Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(PANEL_ID);
-				viewsRegistry.registerViews([{ id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: { ctor: SearchView, arguments: [SearchViewPosition.SideBar] }, canToggleVisibility: false }], viewContainer);
+				viewsRegistry.registerViews([{ id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: new SyncDescriptor(SearchView, [SearchViewPosition.SideBar]), canToggleVisibility: false }], viewContainer);
 				if (open) {
 					viewletService.openViewlet(VIEWLET_ID);
 				}

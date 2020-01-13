@@ -7,7 +7,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { URI } from 'vs/base/common/uri';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration, SideBySideEditor as SideBySideEditorChoice } from 'vs/workbench/common/editor';
-import { ITextFileService, TextFileModelChangeEvent, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -26,6 +26,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -60,9 +61,9 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Ensure dirty text file and untitled models are always opened as editors
-		this._register(this.textFileService.models.onModelsDirty(e => this.ensureDirtyTextFilesAreOpened(e)));
-		this._register(this.textFileService.models.onModelsSaveError(e => this.ensureDirtyTextFilesAreOpened(e)));
-		this._register(this.untitledTextEditorService.onDidChangeDirty(e => this.ensureDirtyUntitledTextFilesAreOpenedWorker.work(e)));
+		this._register(this.textFileService.models.onModelDirty(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
+		this._register(this.textFileService.models.onModelSaveError(m => this.ensureDirtyFilesAreOpenedWorker.work(m.resource)));
+		this._register(this.untitledTextEditorService.onDidChangeDirty(r => this.ensureDirtyFilesAreOpenedWorker.work(r)));
 
 		// Out of workspace file watchers
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
@@ -277,22 +278,30 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
 
-	private readonly ensureDirtyUntitledTextFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyUntitledTextFilesAreOpened(units), 250));
+	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyFilesAreOpened(units), 250));
 
-	private ensureDirtyTextFilesAreOpened(events: ReadonlyArray<TextFileModelChangeEvent>): void {
-		this.doEnsureDirtyFilesAreOpened(distinct(events.filter(({ resource }) => {
-			const model = this.textFileService.models.get(resource);
-
-			return model?.hasState(ModelState.DIRTY) &&		// model must be dirty
-				!model.hasState(ModelState.PENDING_SAVE) &&	// model should not be saving currently
-				!this.editorService.isOpen({ resource });	// model is not currently opened as editor
-		}).map(event => event.resource), resource => resource.toString()));
-	}
-
-	private ensureDirtyUntitledTextFilesAreOpened(resources: URI[]): void {
+	private ensureDirtyFilesAreOpened(resources: URI[]): void {
 		this.doEnsureDirtyFilesAreOpened(distinct(resources.filter(resource => {
-			return this.untitledTextEditorService.isDirty(resource) &&	// untitled must be dirty
-				!this.editorService.isOpen({ resource });				// untitled is not currently opened as editor
+			if (resource.scheme === Schemas.untitled) {
+				if (!this.untitledTextEditorService.isDirty(resource)) {
+					return false; // untitled must be dirty
+				}
+			} else {
+				const model = this.textFileService.models.get(resource);
+				if (!model) {
+					return false; // only for text file models
+				}
+
+				if (!model?.hasState(ModelState.DIRTY) || model.hasState(ModelState.PENDING_SAVE)) {
+					return false; // model must be dirty and not being saved
+				}
+			}
+
+			if (this.editorService.isOpen({ resource })) {
+				return false; // model must not be opened already
+			}
+
+			return true;
 		}), resource => resource.toString()));
 	}
 
