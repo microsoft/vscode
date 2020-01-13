@@ -34,6 +34,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
+import { Constants } from 'vs/base/common/uint';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -2341,7 +2342,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return null;
 	}
 
-	public findEnclosingBrackets(_position: IPosition): [Range, Range] | null {
+	public findEnclosingBrackets(_position: IPosition, maxDuration = Constants.MAX_SAFE_SMALL_INTEGER): [Range, Range] | null {
 		const position = this.validatePosition(_position);
 		const lineCount = this.getLineCount();
 		const savedCounts = new Map<number, number[]>();
@@ -2385,7 +2386,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		let languageId: LanguageId = -1;
 		let modeBrackets: RichEditBrackets | null = null;
+		const startTime = Date.now();
 		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
+			const elapsedTime = Date.now() - startTime;
+			if (elapsedTime > maxDuration) {
+				return null;
+			}
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this._buffer.getLineContent(lineNumber);

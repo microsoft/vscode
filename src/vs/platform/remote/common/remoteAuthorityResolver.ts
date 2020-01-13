@@ -17,9 +17,19 @@ export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
 }
 
+export interface TunnelDescription {
+	remoteAddress: { port: number, host: string };
+	localAddress: string;
+}
+export interface TunnelInformation {
+	environmentTunnels?: TunnelDescription[];
+	hideCandidatePorts?: boolean;
+}
+
 export interface ResolverResult {
 	authority: ResolvedAuthority;
 	options?: ResolvedOptions;
+	tunnelInformation?: TunnelInformation;
 }
 
 export enum RemoteAuthorityResolverErrorCode {

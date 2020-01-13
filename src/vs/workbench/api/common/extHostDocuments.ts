@@ -11,7 +11,7 @@ import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsSh
 import { ExtHostDocumentData, setWordDefinitionFor } from 'vs/workbench/api/common/extHostDocumentData';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { assertIsDefined } from 'vs/base/common/types';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {

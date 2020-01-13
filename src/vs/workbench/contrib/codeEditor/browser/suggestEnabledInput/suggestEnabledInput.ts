@@ -72,7 +72,6 @@ interface SuggestEnabledInputOptions {
 	 * Context key tracking the focus state of this element
 	 */
 	focusContextKey?: IContextKey<boolean>;
-	fixedOverflowWidgets?: boolean;
 }
 
 export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
@@ -127,7 +126,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
 		const editorOptions: IEditorOptions = mixin(
-			getSimpleEditorOptions(!!options.fixedOverflowWidgets),
+			getSimpleEditorOptions(),
 			getSuggestEnabledInputOptions(ariaLabel));
 
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
@@ -227,8 +226,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	public style(colors: ISuggestEnabledInputStyles): void {
 		this.placeholderText.style.backgroundColor =
 			this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
-		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
+		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
+		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : '';
 
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';

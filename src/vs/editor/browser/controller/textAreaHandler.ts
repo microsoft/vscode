@@ -29,6 +29,7 @@ import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalPosition | null;
@@ -422,6 +423,18 @@ export class TextAreaHandler extends ViewPart {
 
 	public getLastRenderData(): Position | null {
 		return this._lastRenderPosition;
+	}
+
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		if (options.activeDescendant) {
+			this.textArea.setAttribute('aria-haspopup', 'true');
+			this.textArea.setAttribute('aria-autocomplete', 'list');
+			this.textArea.setAttribute('aria-activedescendant', options.activeDescendant);
+		} else {
+			this.textArea.setAttribute('aria-haspopup', 'false');
+			this.textArea.setAttribute('aria-autocomplete', 'both');
+			this.textArea.removeAttribute('aria-activedescendant');
+		}
 	}
 
 	// --- end view API

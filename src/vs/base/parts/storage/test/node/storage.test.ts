@@ -137,14 +137,14 @@ suite('Storage Library', () => {
 		changes.clear();
 
 		// Delete is accepted
-		change.set('foo', undefined);
+		change.set('foo', undefined!);
 		database.fireDidChangeItemsExternal({ items: change });
 		ok(changes.has('foo'));
 		equal(storage.get('foo', null!), null);
 		changes.clear();
 
 		// Nothing happens if changing to same value
-		change.set('foo', undefined);
+		change.set('foo', undefined!);
 		database.fireDidChangeItemsExternal({ items: change });
 		equal(changes.size, 0);
 

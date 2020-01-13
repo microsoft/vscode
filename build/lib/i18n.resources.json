@@ -31,6 +31,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/bulkEdit",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/cli",
 			"project": "vscode-workbench"
 		},
@@ -56,6 +60,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/emmet",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/experiments",
 			"project": "vscode-workbench"
 		},
 		{
@@ -264,6 +272,10 @@
 		},
 		{
 			"name": "vs/workbench/services/remote",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/search",
 			"project": "vscode-workbench"
 		},
 		{

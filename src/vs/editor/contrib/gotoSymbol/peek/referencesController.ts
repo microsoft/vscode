@@ -23,7 +23,8 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -173,6 +174,18 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		});
 	}
 
+	changeFocusBetweenPreviewAndReferences() {
+		if (!this._widget) {
+			// can be called while still resolving...
+			return;
+		}
+		if (this._widget.isPreviewEditorFocused()) {
+			this._widget.focusOnReferenceTree();
+		} else {
+			this._widget.focusOnPreviewEditor();
+		}
+	}
+
 	async goToNextOrPreviousReference(fwd: boolean) {
 		if (!this._editor.hasModel() || !this._model || !this._widget) {
 			// can be called while still resolving...
@@ -229,7 +242,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 			if (this._editor === openedEditor) {
 				//
 				this._widget.show(range);
-				this._widget.focus();
+				this._widget.focusOnReferenceTree();
 
 			} else {
 				// we opened a different editor instance which means a different controller instance.
@@ -279,24 +292,23 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'goToNextReference',
+	id: 'changePeekFocus',
 	weight: KeybindingWeight.WorkbenchContrib + 50,
-	primary: KeyCode.F4,
-	secondary: [KeyCode.F12],
-	when: ctxReferenceSearchVisible,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.F2),
+	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
 	handler(accessor) {
 		withController(accessor, controller => {
-			controller.goToNextOrPreviousReference(true);
+			controller.changeFocusBetweenPreviewAndReferences();
 		});
 	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'goToNextReferenceFromEmbeddedEditor',
-	weight: KeybindingWeight.EditorContrib + 50,
+	id: 'goToNextReference',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.F4,
 	secondary: [KeyCode.F12],
-	when: PeekContext.inPeekEditor,
+	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
 	handler(accessor) {
 		withController(accessor, controller => {
 			controller.goToNextOrPreviousReference(true);
@@ -309,7 +321,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
 	secondary: [KeyMod.Shift | KeyCode.F12],
-	when: ctxReferenceSearchVisible,
+	when: ContextKeyExpr.or(ctxReferenceSearchVisible, PeekContext.inPeekEditor),
 	handler(accessor) {
 		withController(accessor, controller => {
 			controller.goToNextOrPreviousReference(false);
@@ -317,40 +329,31 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'goToPreviousReferenceFromEmbeddedEditor',
-	weight: KeybindingWeight.EditorContrib + 50,
-	primary: KeyMod.Shift | KeyCode.F4,
-	secondary: [KeyMod.Shift | KeyCode.F12],
-	when: PeekContext.inPeekEditor,
-	handler(accessor) {
-		withController(accessor, controller => {
-			controller.goToNextOrPreviousReference(false);
-		});
-	}
-});
+// commands that aren't needed anymore because there is now ContextKeyExpr.OR
+CommandsRegistry.registerCommandAlias('goToNextReferenceFromEmbeddedEditor', 'goToNextReference');
+CommandsRegistry.registerCommandAlias('goToPreviousReferenceFromEmbeddedEditor', 'goToPreviousReference');
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+// close
+CommandsRegistry.registerCommandAlias('closeReferenceSearchEditor', 'closeReferenceSearch');
+CommandsRegistry.registerCommand(
+	'closeReferenceSearch',
+	accessor => withController(accessor, controller => controller.closeWidget())
+);
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'closeReferenceSearch',
+	weight: KeybindingWeight.EditorContrib - 101,
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape],
+	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek'))
+});
+KeybindingsRegistry.registerKeybindingRule({
 	id: 'closeReferenceSearch',
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
-	handler(accessor: ServicesAccessor) {
-		withController(accessor, controller => controller.closeWidget());
-	}
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'closeReferenceSearchEditor',
-	weight: KeybindingWeight.EditorContrib - 101,
-	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek')),
-	handler(accessor: ServicesAccessor) {
-		withController(accessor, controller => controller.closeWidget());
-	}
-});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',
@@ -366,5 +369,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
 			withController(accessor, controller => controller.openReference(focus[0], true));
 		}
+	}
+});
+
+CommandsRegistry.registerCommand('openReference', (accessor) => {
+	const listService = accessor.get(IListService);
+	const focus = <any[]>listService.lastFocusedList?.getFocus();
+	if (Array.isArray(focus) && focus[0] instanceof OneReference) {
+		withController(accessor, controller => controller.openReference(focus[0], false));
 	}
 });

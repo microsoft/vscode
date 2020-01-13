@@ -406,7 +406,6 @@ export class SettingsEditor2 extends BaseEditor {
 		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
 			placeholderText: searchBoxLabel,
 			focusContextKey: this.searchFocusContextKey,
-			fixedOverflowWidgets: true
 			// TODO: Aria-live
 		})
 		);
@@ -533,19 +532,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
 
-		const clearSearchContainer = $('span.clear-search');
-		clearSearchContainer.textContent = ' - ';
-
-		const clearSearch = DOM.append(clearSearchContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearch', 'Clear Search')));
-		this._register(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e, false);
-			this.clearSearchResults();
-		}));
-
-		DOM.append(this.noResultsMessage, clearSearchContainer);
-
 		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
-			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : null;
+			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : '';
 		}));
 
 		this.createTOC(bodyContainer);
@@ -811,7 +799,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		// If the user is changing the value back to the default, do a 'reset' instead
 		const inspected = this.configurationService.inspect(key, overrides);
-		if (inspected.default === value) {
+		if (inspected.defaultValue === value) {
 			value = undefined;
 		}
 
@@ -1336,14 +1324,13 @@ export class SettingsEditor2 extends BaseEditor {
 				} else {
 					/* __GDPR__
 						"settingsEditor.searchError" : {
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" },
-							"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 						}
 					*/
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('settingsEditor.searchError', { message, filter });
+						this.telemetryService.publicLog('settingsEditor.searchError', { message });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return null;

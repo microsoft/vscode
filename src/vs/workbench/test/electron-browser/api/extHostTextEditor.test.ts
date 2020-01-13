@@ -10,6 +10,7 @@ import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/co
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostTextEditor', () => {
 
@@ -19,7 +20,7 @@ suite('ExtHostTextEditor', () => {
 	], '\n', 'text', 1, false);
 
 	setup(() => {
-		editor = new ExtHostTextEditor(null!, 'fake', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
 	});
 
 	test('disposed editor', () => {
@@ -40,12 +41,13 @@ suite('ExtHostTextEditor', () => {
 
 	test('API [bug]: registerTextEditorCommand clears redo stack even if no edits are made #55163', async function () {
 		let applyCount = 0;
-		let editor = new ExtHostTextEditor(new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyEdits(): Promise<boolean> {
-				applyCount += 1;
-				return Promise.resolve(true);
-			}
-		}, 'edt1', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+		let editor = new ExtHostTextEditor('edt1',
+			new class extends mock<MainThreadTextEditorsShape>() {
+				$tryApplyEdits(): Promise<boolean> {
+					applyCount += 1;
+					return Promise.resolve(true);
+				}
+			}, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
 
 		await editor.edit(edit => { });
 		assert.equal(applyCount, 0);
@@ -92,7 +94,7 @@ suite('ExtHostTextEditorOptions', () => {
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
-		});
+		}, new NullLogService());
 	});
 
 	teardown(() => {

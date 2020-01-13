@@ -30,6 +30,13 @@ suite('Tests for completion in CSS embedded in HTML', () => {
 			{ label: 'div', documentation: `<div>|</div>` }
 		]);
 	});
+
+	// https://github.com/microsoft/vscode/issues/86941
+	test('#86941, widows should not be completed', async () => {
+		await testCssCompletionProvider(`.foo { wi| }`, [
+			{ label: 'widows: ;', documentation: `widows: ;` }
+		]);
+	});
 });
 
 interface TestCompletionItem {
@@ -43,6 +50,47 @@ function testHtmlCompletionProvider(contents: string, expectedItems: TestComplet
 	const htmlContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
 
 	return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
+		const selection = new Selection(editor.document.positionAt(cursorPos), editor.document.positionAt(cursorPos));
+		editor.selection = selection;
+		const cancelSrc = new CancellationTokenSource();
+		const completionPromise = completionProvider.provideCompletionItems(
+			editor.document,
+			editor.selection.active,
+			cancelSrc.token,
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		);
+		if (!completionPromise) {
+			return Promise.resolve();
+		}
+
+		const completionList = await completionPromise;
+		if (!completionList || !completionList.items || !completionList.items.length) {
+			return Promise.resolve();
+		}
+
+		expectedItems.forEach(eItem => {
+			const matches = completionList.items.filter(i => i.label === eItem.label);
+			const match = matches && matches.length > 0 ? matches[0] : undefined;
+			assert.ok(match, `Didn't find completion item with label ${eItem.label}`);
+
+			if (match) {
+				assert.equal(match.detail, 'Emmet Abbreviation', `Match needs to come from Emmet`);
+
+				if (eItem.documentation) {
+					assert.equal(match.documentation, eItem.documentation, `Emmet completion Documentation doesn't match`);
+				}
+			}
+		});
+
+		return Promise.resolve();
+	});
+}
+
+function testCssCompletionProvider(contents: string, expectedItems: TestCompletionItem[]): Thenable<any> {
+	const cursorPos = contents.indexOf('|');
+	const cssContents = contents.slice(0, cursorPos) + contents.slice(cursorPos + 1);
+
+	return withRandomFileEditor(cssContents, 'css', async (editor, _doc) => {
 		const selection = new Selection(editor.document.positionAt(cursorPos), editor.document.positionAt(cursorPos));
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();

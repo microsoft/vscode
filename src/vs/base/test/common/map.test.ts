@@ -16,6 +16,8 @@ suite('Map', () => {
 		map.set('bk', 'bv');
 		assert.deepStrictEqual(map.keys(), ['ak', 'bk']);
 		assert.deepStrictEqual(map.values(), ['av', 'bv']);
+		assert.equal(map.first, 'av');
+		assert.equal(map.last, 'bv');
 	});
 
 	test('LinkedMap - Touch Old one', () => {

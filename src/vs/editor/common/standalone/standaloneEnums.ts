@@ -333,109 +333,10 @@ export enum CursorChangeReason {
 	Redo = 6
 }
 
-export enum AccessibilitySupport {
-	/**
-	 * This should be the browser case where it is not known if a screen reader is attached or no.
-	 */
-	Unknown = 0,
-	Disabled = 1,
-	Enabled = 2
-}
-
-/**
- * The kind of animation in which the editor's cursor should be rendered.
- */
-export enum TextEditorCursorBlinkingStyle {
-	/**
-	 * Hidden
-	 */
-	Hidden = 0,
-	/**
-	 * Blinking
-	 */
-	Blink = 1,
-	/**
-	 * Blinking with smooth fading
-	 */
-	Smooth = 2,
-	/**
-	 * Blinking with prolonged filled state and smooth fading
-	 */
-	Phase = 3,
-	/**
-	 * Expand collapse animation on the y axis
-	 */
-	Expand = 4,
-	/**
-	 * No-Blinking
-	 */
-	Solid = 5
-}
-
-/**
- * The style in which the editor's cursor should be rendered.
- */
-export enum TextEditorCursorStyle {
-	/**
-	 * As a vertical line (sitting between two characters).
-	 */
-	Line = 1,
-	/**
-	 * As a block (sitting on top of a character).
-	 */
-	Block = 2,
-	/**
-	 * As a horizontal line (sitting under a character).
-	 */
-	Underline = 3,
-	/**
-	 * As a thin vertical line (sitting between two characters).
-	 */
-	LineThin = 4,
-	/**
-	 * As an outlined block (sitting on top of a character).
-	 */
-	BlockOutline = 5,
-	/**
-	 * As a thin horizontal line (sitting under a character).
-	 */
-	UnderlineThin = 6
-}
-
 export enum RenderMinimap {
 	None = 0,
 	Text = 1,
 	Blocks = 2
-}
-
-export enum RenderLineNumbersType {
-	Off = 0,
-	On = 1,
-	Relative = 2,
-	Interval = 3,
-	Custom = 4
-}
-
-/**
- * Describes how to indent wrapped lines.
- */
-export enum WrappingIndent {
-	/**
-	 * No indentation => wrapped lines begin at column 1.
-	 */
-	None = 0,
-	/**
-	 * Same => wrapped lines get the same indentation as the parent.
-	 */
-	Same = 1,
-	/**
-	 * Indent => wrapped lines get +1 indentation toward the parent.
-	 */
-	Indent = 2,
-	/**
-	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
-	 */
-	DeepIndent = 3
 }
 
 /**

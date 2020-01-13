@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from './extHost.protocol';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -58,9 +58,5 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 
 	async createAppUri(uri: URI): Promise<vscode.Uri> {
 		return URI.revive(await this._proxy.$createAppUri(uri));
-	}
-
-	async proposedCreateAppUri(extensionId: ExtensionIdentifier, options?: vscode.AppUriOptions): Promise<vscode.Uri> {
-		return URI.revive(await this._proxy.$proposedCreateAppUri(extensionId, options));
 	}
 }

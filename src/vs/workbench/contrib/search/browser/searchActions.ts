@@ -26,10 +26,10 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfiguration, VIEWLET_ID, PANEL_ID, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { SearchViewlet } from 'vs/workbench/contrib/search/browser/searchViewlet';
+import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { createEditorFromSearchResult, refreshActiveEditorSearch } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { createEditorFromSearchResult, refreshActiveEditorSearch, openNewSearchEditor } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -58,13 +58,13 @@ export function openSearchView(viewletService: IViewletService, panelService: IP
 		return Promise.resolve((panelService.openPanel(PANEL_ID, focus) as SearchPanel).getSearchView());
 	}
 
-	return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet as SearchViewlet).getSearchView());
+	return viewletService.openViewlet(VIEWLET_ID, focus).then(viewlet => (viewlet?.getViewPaneContainer() as SearchViewPaneContainer).getSearchView() as SearchView);
 }
 
 export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView | undefined {
 	const activeViewlet = viewletService.getActiveViewlet();
 	if (activeViewlet && activeViewlet.getId() === VIEWLET_ID) {
-		return (activeViewlet as SearchViewlet).getSearchView();
+		return (activeViewlet.getViewPaneContainer() as SearchViewPaneContainer).getSearchView();
 	}
 
 	const activePanel = panelService.getActivePanel();
@@ -367,6 +367,92 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 	}
 }
 
+export class ExpandAllAction extends Action {
+
+	static readonly ID: string = 'search.action.expandSearchResults';
+	static LABEL: string = nls.localize('ExpandAllAction.label', "Expand All");
+
+	constructor(id: string, label: string,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
+	) {
+		super(id, label, 'search-action codicon-expand-all');
+		this.update();
+	}
+
+	update(): void {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		this.enabled = !!searchView && searchView.hasSearchResults();
+	}
+
+	run(): Promise<void> {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		if (searchView) {
+			const viewer = searchView.getControl();
+			viewer.expandAll();
+			viewer.domFocus();
+			viewer.focusFirst();
+		}
+		return Promise.resolve(undefined);
+	}
+}
+
+export class ToggleCollapseAndExpandAction extends Action {
+	static readonly ID: string = 'search.action.collapseOrExpandSearchResults';
+	static LABEL: string = nls.localize('ToggleCollapseAndExpandAction.label', "Toggle Collapse and Expand");
+
+	// Cache to keep from crawling the tree too often.
+	private action: CollapseDeepestExpandedLevelAction | ExpandAllAction | undefined;
+
+	constructor(id: string, label: string,
+		private collapseAction: CollapseDeepestExpandedLevelAction,
+		private expandAction: ExpandAllAction,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IPanelService private readonly panelService: IPanelService
+	) {
+		super(id, label, collapseAction.class);
+		this.update();
+	}
+
+	update(): void {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		this.enabled = !!searchView && searchView.hasSearchResults();
+		this.onTreeCollapseStateChange();
+	}
+
+	onTreeCollapseStateChange() {
+		this.action = undefined;
+		this.determineAction();
+	}
+
+	private determineAction(): CollapseDeepestExpandedLevelAction | ExpandAllAction {
+		if (this.action !== undefined) { return this.action; }
+		this.action = this.isSomeCollapsible() ? this.collapseAction : this.expandAction;
+		this.class = this.action.class;
+		return this.action;
+	}
+
+	private isSomeCollapsible(): boolean {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		if (searchView) {
+			const viewer = searchView.getControl();
+			const navigator = viewer.navigate();
+			let node = navigator.first();
+			do {
+				if (!viewer.isCollapsed(node)) {
+					return true;
+				}
+			} while (node = navigator.next());
+		}
+		return false;
+	}
+
+
+	async run(): Promise<void> {
+		await this.determineAction().run();
+	}
+}
+
 export class ClearSearchResultsAction extends Action {
 
 	static readonly ID: string = 'search.action.clearSearchResults';
@@ -422,6 +508,30 @@ export class CancelSearchAction extends Action {
 	}
 }
 
+export class OpenSearchEditorAction extends Action {
+
+	static readonly ID: string = Constants.OpenNewEditorCommandId;
+	static readonly LABEL = nls.localize('search.openNewEditor', "Open new Search Editor");
+
+	constructor(id: string, label: string,
+		@IEditorService private editorService: IEditorService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super(id, label);
+	}
+
+	get enabled(): boolean {
+		return true;
+	}
+
+	async run() {
+		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
+			await openNewSearchEditor(this.editorService, this.instantiationService);
+		}
+	}
+}
+
 export class OpenResultsInEditorAction extends Action {
 
 	static readonly ID: string = Constants.OpenInEditorCommandId;
@@ -432,7 +542,8 @@ export class OpenResultsInEditorAction extends Action {
 		@IPanelService private panelService: IPanelService,
 		@ILabelService private labelService: ILabelService,
 		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(id, label, 'codicon-go-to-file');
 	}
@@ -449,7 +560,7 @@ export class OpenResultsInEditorAction extends Action {
 	async run() {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView && this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService);
+			await createEditorFromSearchResult(searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), this.labelService, this.editorService, this.instantiationService);
 		}
 	}
 }
@@ -472,7 +583,7 @@ export class RerunEditorSearchAction extends Action {
 
 	async run() {
 		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.progressService.withProgress({ location: ProgressLocation.Window },
+			await this.progressService.withProgress({ location: ProgressLocation.Window, title: nls.localize('searchRunning', "Running search...") },
 				() => refreshActiveEditorSearch(undefined, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
 		}
 	}
@@ -503,7 +614,7 @@ export class RerunEditorSearchWithContextAction extends Action {
 		});
 		if (lines === undefined) { return; }
 		if (this.configurationService.getValue<ISearchConfigurationProperties>('search').enableSearchEditorPreview) {
-			await this.progressService.withProgress({ location: ProgressLocation.Window },
+			await this.progressService.withProgress({ location: ProgressLocation.Window, title: nls.localize('searchRunning', "Running search...") },
 				() => refreshActiveEditorSearch(+lines, this.editorService, this.instantiationService, this.contextService, this.labelService, this.configurationService));
 		}
 	}

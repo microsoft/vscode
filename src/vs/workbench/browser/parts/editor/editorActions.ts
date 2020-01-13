@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
-import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -15,8 +15,8 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -632,7 +632,7 @@ export abstract class BaseCloseAllAction extends Action {
 		// can review if the files should be changed or not.
 		await Promise.all(this.groupsToClose.map(async groupToClose => {
 			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (editor.isDirty()) {
+				if (editor.isDirty() && !editor.isSaving() /* ignore editors that are being saved */) {
 					return groupToClose.openEditor(editor);
 				}
 			}
@@ -644,8 +644,8 @@ export abstract class BaseCloseAllAction extends Action {
 		const dirtyEditorsToConfirmByResource = new ResourceMap();
 
 		for (const editor of this.editorService.editors) {
-			if (!editor.isDirty()) {
-				continue; // only interested in dirty editors
+			if (!editor.isDirty() || editor.isSaving()) {
+				continue; // only interested in dirty editors (unless in the process of saving)
 			}
 
 			const resource = editor.getResource();
@@ -1258,35 +1258,54 @@ export class ClearRecentFilesAction extends Action {
 	}
 }
 
-export class ShowEditorsInActiveGroupAction extends QuickOpenAction {
+export class ShowEditorsInActiveGroupByMostRecentlyUsedAction extends QuickOpenAction {
 
 	static readonly ID = 'workbench.action.showEditorsInActiveGroup';
-	static readonly LABEL = nls.localize('showEditorsInActiveGroup', "Show Editors in Active Group");
+	static readonly LABEL = nls.localize('showEditorsInActiveGroup', "Show Editors in Active Group By Most Recently Used");
 
 	constructor(
 		actionId: string,
 		actionLabel: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(actionId, actionLabel, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, quickOpenService);
+		super(actionId, actionLabel, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService);
 	}
 }
 
-export class ShowAllEditorsAction extends QuickOpenAction {
+export class ShowAllEditorsByAppearanceAction extends QuickOpenAction {
 
 	static readonly ID = 'workbench.action.showAllEditors';
-	static readonly LABEL = nls.localize('showAllEditors', "Show All Editors");
+	static readonly LABEL = nls.localize('showAllEditors', "Show All Editors By Appearance");
 
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, quickOpenService);
+	constructor(
+		actionId: string,
+		actionLabel: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService
+	) {
+		super(actionId, actionLabel, NAVIGATE_ALL_EDITORS_BY_APPEARANCE_PREFIX, quickOpenService);
 	}
 }
 
-export class BaseQuickOpenEditorInGroupAction extends Action {
+export class ShowAllEditorsByMostRecentlyUsedAction extends QuickOpenAction {
+
+	static readonly ID = 'workbench.action.showAllEditorsByMostRecentlyUsed';
+	static readonly LABEL = nls.localize('showAllEditorsByMostRecentlyUsed', "Show All Editors By Most Recently Used");
+
+	constructor(
+		actionId: string,
+		actionLabel: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService
+	) {
+		super(actionId, actionLabel, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService);
+	}
+}
+
+export class BaseQuickOpenEditorAction extends Action {
 
 	constructor(
 		id: string,
 		label: string,
+		private prefix: string,
 		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
@@ -1294,33 +1313,18 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 	}
 
 	run(): Promise<any> {
-		const keys = this.keybindingService.lookupKeybindings(this.id);
+		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
+		this.quickOpenService.show(this.prefix, { quickNavigateConfiguration: { keybindings } });
 
 		return Promise.resolve(true);
 	}
 }
 
-export class OpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorInGroupAction {
+export class QuickOpenPreviousRecentlyUsedEditorAction extends BaseQuickOpenEditorAction {
 
-	static readonly ID = 'workbench.action.openPreviousRecentlyUsedEditorInGroup';
-	static readonly LABEL = nls.localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, quickOpenService, keybindingService);
-	}
-}
-
-export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorInGroupAction {
-
-	static readonly ID = 'workbench.action.openNextRecentlyUsedEditorInGroup';
-	static readonly LABEL = nls.localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor in Group");
+	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditor';
+	static readonly LABEL = nls.localize('quickOpenPreviousRecentlyUsedEditor', "Quick Open Previous Recently Used Editor");
 
 	constructor(
 		id: string,
@@ -1328,14 +1332,59 @@ export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditor
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, quickOpenService, keybindingService);
+		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
 	}
 }
 
-export class OpenPreviousEditorFromHistoryAction extends Action {
+export class QuickOpenNextRecentlyUsedEditorAction extends BaseQuickOpenEditorAction {
+
+	static readonly ID = 'workbench.action.quickOpenNextRecentlyUsedEditor';
+	static readonly LABEL = nls.localize('quickOpenNextRecentlyUsedEditor', "Quick Open Next Recently Used Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, NAVIGATE_ALL_EDITORS_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
+	}
+}
+
+export class QuickOpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorAction {
+
+	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup';
+	static readonly LABEL = nls.localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
+	}
+}
+
+export class QuickOpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorAction {
+
+	static readonly ID = 'workbench.action.quickOpenNextRecentlyUsedEditorInGroup';
+	static readonly LABEL = nls.localize('quickOpenNextRecentlyUsedEditorInGroup', "Quick Open Next Recently Used Editor in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, NAVIGATE_IN_ACTIVE_GROUP_BY_MOST_RECENTLY_USED_PREFIX, quickOpenService, keybindingService);
+	}
+}
+
+export class QuickOpenPreviousEditorFromHistoryAction extends Action {
 
 	static readonly ID = 'workbench.action.openPreviousEditorFromHistory';
-	static readonly LABEL = nls.localize('navigateEditorHistoryByInput', "Open Previous Editor from History");
+	static readonly LABEL = nls.localize('navigateEditorHistoryByInput', "Quick Open Previous Editor from History");
 
 	constructor(
 		id: string,
@@ -1347,9 +1396,9 @@ export class OpenPreviousEditorFromHistoryAction extends Action {
 	}
 
 	run(): Promise<any> {
-		const keys = this.keybindingService.lookupKeybindings(this.id);
+		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickOpenService.show(undefined, { quickNavigateConfiguration: { keybindings: keys } });
+		this.quickOpenService.show(undefined, { quickNavigateConfiguration: { keybindings } });
 
 		return Promise.resolve(true);
 	}
@@ -1360,12 +1409,16 @@ export class OpenNextRecentlyUsedEditorAction extends Action {
 	static readonly ID = 'workbench.action.openNextRecentlyUsedEditor';
 	static readonly LABEL = nls.localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
 		super(id, label);
 	}
 
 	run(): Promise<any> {
-		this.historyService.forward(true);
+		this.historyService.openNextRecentlyUsedEditor();
 
 		return Promise.resolve();
 	}
@@ -1376,12 +1429,58 @@ export class OpenPreviousRecentlyUsedEditorAction extends Action {
 	static readonly ID = 'workbench.action.openPreviousRecentlyUsedEditor';
 	static readonly LABEL = nls.localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
 		super(id, label);
 	}
 
 	run(): Promise<any> {
-		this.historyService.back(true);
+		this.historyService.openPreviouslyUsedEditor();
+
+		return Promise.resolve();
+	}
+}
+
+export class OpenNextRecentlyUsedEditorInGroupAction extends Action {
+
+	static readonly ID = 'workbench.action.openNextRecentlyUsedEditorInGroup';
+	static readonly LABEL = nls.localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor In Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		this.historyService.openNextRecentlyUsedEditor(this.editorGroupsService.activeGroup.id);
+
+		return Promise.resolve();
+	}
+}
+
+export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action {
+
+	static readonly ID = 'workbench.action.openPreviousRecentlyUsedEditorInGroup';
+	static readonly LABEL = nls.localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor In Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		this.historyService.openPreviouslyUsedEditor(this.editorGroupsService.activeGroup.id);
 
 		return Promise.resolve();
 	}

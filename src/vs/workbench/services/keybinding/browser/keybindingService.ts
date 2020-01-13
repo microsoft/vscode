@@ -356,7 +356,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				}
 
 				const resolvedKeybindings = this.resolveKeybinding(keybinding);
-				for (const resolvedKeybinding of resolvedKeybindings) {
+				for (let i = resolvedKeybindings.length - 1; i >= 0; i--) {
+					const resolvedKeybinding = resolvedKeybindings[i];
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault);
 				}
 			}
@@ -772,7 +773,6 @@ const keyboardConfiguration: IConfigurationNode = {
 	'order': 15,
 	'type': 'object',
 	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'overridable': true,
 	'properties': {
 		'keyboard.dispatch': {
 			'type': 'string',

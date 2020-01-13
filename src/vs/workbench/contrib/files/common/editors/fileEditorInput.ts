@@ -69,14 +69,16 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 
 	private registerListeners(): void {
 
-		// Model changes
+		// Dirty changes
 		this._register(this.textFileService.models.onModelDirty(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
 		this._register(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
-		this._register(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
+
+		// Label changes
 		this._register(this.labelService.onDidChangeFormatters(() => FileEditorInput.MEMOIZER.clear()));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => FileEditorInput.MEMOIZER.clear()));
+		this._register(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
 	}
 
 	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
@@ -235,15 +237,29 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 			return false;
 		}
 
-		if (model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) {
-			return true; // always indicate dirty state if we are in conflict or error state
+		return model.isDirty();
+	}
+
+	isSaving(): boolean {
+		const model = this.textFileService.models.get(this.resource);
+		if (!model) {
+			return false;
 		}
+
+		if (model.hasState(ModelState.SAVED) || model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) {
+			return false; // require the model to be dirty and not in conflict or error state
+		}
+
+		// Note: currently not checking for ModelState.PENDING_SAVE for a reason
+		// because we currently miss an event for this state change on editors
+		// and it could result in bad UX where an editor can be closed even though
+		// it shows up as dirty and has not finished saving yet.
 
 		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return false; // fast auto save enabled so we do not declare dirty
+			return true; // a short auto save is configured, treat this as being saved
 		}
 
-		return model.isDirty();
+		return false;
 	}
 
 	revert(options?: IRevertOptions): Promise<boolean> {

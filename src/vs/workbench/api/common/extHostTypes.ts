@@ -11,9 +11,10 @@ import { values } from 'vs/base/common/map';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { escapeCodicons } from 'vs/base/common/codicons';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -1231,21 +1232,25 @@ export class MarkdownString {
 
 	value: string;
 	isTrusted?: boolean;
+	readonly supportThemeIcons?: boolean;
 
-	constructor(value?: string) {
-		this.value = value || '';
+	constructor(value?: string, supportThemeIcons: boolean = false) {
+		this.value = value ?? '';
+		this.supportThemeIcons = supportThemeIcons;
 	}
 
 	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += value
+		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
 			.replace('\n', '\n\n');
+
 		return this;
 	}
 
 	appendMarkdown(value: string): MarkdownString {
 		this.value += value;
+
 		return this;
 	}
 
@@ -1390,7 +1395,7 @@ export class CompletionItem implements vscode.CompletionItem {
 export class CompletionList {
 
 	isIncomplete?: boolean;
-
+	isDetailsResolved?: boolean;
 	items: vscode.CompletionItem[];
 
 	constructor(items: vscode.CompletionItem[] = [], isIncomplete: boolean = false) {
@@ -2503,3 +2508,20 @@ export enum WebviewContentState {
 	Unchanged = 2,
 	Dirty = 3,
 }
+
+
+//#region Theming
+
+@es5ClassCompat
+export class ColorTheme implements vscode.ColorTheme {
+	constructor(public readonly kind: ColorThemeKind) {
+	}
+}
+
+export enum ColorThemeKind {
+	Light = 1,
+	Dark = 2,
+	HighContrast = 3
+}
+
+//#endregion Theming

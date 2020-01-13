@@ -26,7 +26,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 	}
 
 	private doBeforeShutdownSync(): boolean {
-		if (this.models.getAll().some(model => model.hasState(ModelState.PENDING_SAVE) || model.hasState(ModelState.PENDING_AUTO_SAVE))) {
+		if (this.models.getAll().some(model => model.hasState(ModelState.PENDING_SAVE))) {
 			return true; // files are pending to be saved: veto
 		}
 

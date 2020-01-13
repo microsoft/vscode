@@ -50,10 +50,11 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
+import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 
 let EDITOR_ID = 0;
-
-const SHOW_UNUSED_ENABLED_CLASS = 'showUnused';
+const useDOMLineBreaksComputerFactory = false;
 
 export interface ICodeEditorWidgetOptions {
 	/**
@@ -263,11 +264,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				const layoutInfo = options.get(EditorOption.layoutInfo);
 				this._onDidLayoutChange.fire(layoutInfo);
 			}
-			if (options.get(EditorOption.showUnused)) {
-				this._domElement.classList.add(SHOW_UNUSED_ENABLED_CLASS);
-			} else {
-				this._domElement.classList.remove(SHOW_UNUSED_ENABLED_CLASS);
-			}
 		}));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
@@ -417,9 +413,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			// Current model is the new model
 			return;
 		}
-
+		const hasTextFocus = this.hasTextFocus();
 		const detachedModel = this._detachModel();
 		this._attachModel(model);
+		if (hasTextFocus && this.hasModel()) {
+			this.focus();
+		}
 
 		const e: editorCommon.IModelChangedEvent = {
 			oldModelUrl: detachedModel ? detachedModel.uri : null,
@@ -874,6 +873,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public onHide(): void {
 		this._modelData?.view.refreshFocusState();
+		this._focusTracker.refreshState();
 	}
 
 	public getContribution<T extends editorCommon.IEditorContribution>(id: string): T {
@@ -1314,6 +1314,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.view.render(true, forceRedraw);
 	}
 
+	public setAriaOptions(options: editorBrowser.IEditorAriaOptions): void {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.view.setAriaOptions(options);
+	}
+
 	public applyFontInfo(target: HTMLElement): void {
 		Configuration.applyFontInfoSlow(target, this._configuration.options.get(EditorOption.fontInfo));
 	}
@@ -1332,7 +1339,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		model.onBeforeAttached();
 
-		const viewModel = new ViewModel(this._id, this._configuration, model, (callback) => dom.scheduleAtNextAnimationFrame(callback));
+		const viewModel = new ViewModel(
+			this._id,
+			this._configuration,
+			model,
+			(
+				useDOMLineBreaksComputerFactory
+					? DOMLineBreaksComputerFactory.create(this._configuration.options)
+					: MonospaceLineBreaksComputerFactory.create(this._configuration.options)
+			),
+			(callback) => dom.scheduleAtNextAnimationFrame(callback)
+		);
 
 		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
 		listenersToRemove.push(model.onDidChangeLanguage((e) => {
@@ -1806,6 +1823,12 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	public hasFocus(): boolean {
 		return this._hasFocus;
 	}
+
+	public refreshState(): void {
+		if (this._domFocusTracker.refreshState) {
+			this._domFocusTracker.refreshState();
+		}
+	}
 }
 
 const squigglyStart = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3' enable-background='new 0 0 6 3' height='3' width='6'><g fill='`);
@@ -1861,12 +1884,12 @@ registerThemingParticipant((theme, collector) => {
 
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
+		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
 	}
 
 	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);
 	if (unnecessaryBorder) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
+		collector.addRule(`.monaco-editor.showUnused .${ClassName.EditorUnnecessaryDecoration} { border-bottom: 2px dashed ${unnecessaryBorder}; }`);
 	}
 
 	const deprecatedForeground = theme.getColor(editorForeground) || 'inherit';

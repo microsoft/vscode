@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -389,7 +389,7 @@ class CodeActionAdapter {
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
 						isPreferred: candidate.isPreferred,
-						disabled: candidate.disabled
+						disabled: candidate.disabled?.reason
 					});
 				}
 			}
@@ -740,11 +740,16 @@ class SuggestAdapter {
 	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
 	private _disposables = new Map<number, DisposableStore>();
 
+	private _didWarnMust: boolean = false;
+	private _didWarnShould: boolean = false;
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
 		private readonly _provider: vscode.CompletionItemProvider,
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		private readonly _telemetry: extHostProtocol.MainThreadTelemetryShape,
+		private readonly _extensionId: ExtensionIdentifier
 	) { }
 
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
@@ -782,7 +787,8 @@ class SuggestAdapter {
 				x: pid,
 				b: [],
 				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				c: list.isIncomplete || undefined
+				c: list.isIncomplete || undefined,
+				d: list.isDetailsResolved || undefined
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -809,10 +815,35 @@ class SuggestAdapter {
 			return Promise.resolve(undefined);
 		}
 
+		const _mustNotChange = SuggestAdapter._mustNotChangeHash(item);
+		const _mayNotChange = SuggestAdapter._mayNotChangeHash(item);
+
 		return asPromise(() => this._provider.resolveCompletionItem!(item, token)).then(resolvedItem => {
 
 			if (!resolvedItem) {
 				return undefined;
+			}
+
+			type BlameExtension = {
+				extensionId: string;
+				kind: string
+			};
+
+			type BlameExtensionMeta = {
+				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			};
+
+			if (!this._didWarnMust && _mustNotChange !== SuggestAdapter._mustNotChangeHash(resolvedItem)) {
+				this._logService.warn(`[${this._extensionId.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'must' });
+				this._didWarnMust = true;
+			}
+
+			if (!this._didWarnShould && _mayNotChange !== SuggestAdapter._mayNotChangeHash(resolvedItem)) {
+				this._logService.info(`[${this._extensionId.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'should' });
+				this._didWarnShould = true;
 			}
 
 			const pos = typeConvert.Position.to(position);
@@ -907,6 +938,16 @@ class SuggestAdapter {
 
 	private static _isValidRangeForCompletion(range: vscode.Range, position: vscode.Position): boolean {
 		return range.isSingleLine || range.start.line === position.line;
+	}
+
+	private static _mustNotChangeHash(item: vscode.CompletionItem) {
+		const args = [item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2];
+		const res = JSON.stringify(args);
+		return res;
+	}
+
+	private static _mayNotChangeHash(item: vscode.CompletionItem) {
+		return JSON.stringify([item.additionalTextEdits, item.command]);
 	}
 }
 
@@ -1160,18 +1201,23 @@ class CallHierarchyAdapter {
 		private readonly _provider: vscode.CallHierarchyProvider
 	) { }
 
-	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
+	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto[] | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
 
-		const item = await this._provider.prepareCallHierarchy(doc, pos, token);
-		if (!item) {
+		const items = await this._provider.prepareCallHierarchy(doc, pos, token);
+		if (!items) {
 			return undefined;
 		}
-		const sessionId = this._idPool.nextId();
 
+		const sessionId = this._idPool.nextId();
 		this._cache.set(sessionId, new Map());
-		return this._cacheAndConvertItem(sessionId, item);
+
+		if (Array.isArray(items)) {
+			return items.map(item => this._cacheAndConvertItem(sessionId, item));
+		} else {
+			return [this._cacheAndConvertItem(sessionId, items)];
+		}
 	}
 
 	async provideCallsTo(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IIncomingCallDto[] | undefined> {
@@ -1253,7 +1299,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	private static _handlePool: number = 0;
 
 	private readonly _uriTransformer: IURITransformer | null;
-	private _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
+	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
+	private readonly _telemetryShape: extHostProtocol.MainThreadTelemetryShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
 	private _diagnostics: ExtHostDiagnostics;
@@ -1270,6 +1317,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	) {
 		this._uriTransformer = uriTransformer;
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
+		this._telemetryShape = mainContext.getProxy(extHostProtocol.MainContext.MainThreadTelemetry);
 		this._documents = documents;
 		this._commands = commands;
 		this._diagnostics = diagnostics;
@@ -1584,7 +1632,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- suggestion
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService), extension);
+		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService, this._telemetryShape, extension.identifier), extension);
 		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
@@ -1685,7 +1733,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
+	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto[] | undefined> {
 		return this._withAdapter(handle, CallHierarchyAdapter, adapter => Promise.resolve(adapter.prepareSession(URI.revive(resource), position, token)), undefined);
 	}
 

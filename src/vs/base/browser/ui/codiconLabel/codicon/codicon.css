@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?c4e66586cd3ad4acc55fc456c0760dec") format("truetype");
+	src: url("./codicon.ttf?ed926e87ee4e27771159d875e877f74a") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -395,14 +395,19 @@
 .codicon-debug-breakpoint-function-unverified:before { content: "\eb87" }
 .codicon-debug-breakpoint-function:before { content: "\eb88" }
 .codicon-debug-breakpoint-function-disabled:before { content: "\eb88" }
-.codicon-debug-breakpoint-stackframe-active:before { content: "\eb89" }
-.codicon-debug-breakpoint-stackframe-dot:before { content: "\eb8a" }
-.codicon-debug-breakpoint-stackframe:before { content: "\eb8b" }
-.codicon-debug-breakpoint-stackframe-focused:before { content: "\eb8b" }
+.codicon-debug-stackframe-active:before { content: "\eb89" }
+.codicon-debug-stackframe-dot:before { content: "\eb8a" }
+.codicon-debug-stackframe:before { content: "\eb8b" }
+.codicon-debug-stackframe-focused:before { content: "\eb8b" }
 .codicon-debug-breakpoint-unsupported:before { content: "\eb8c" }
 .codicon-symbol-string:before { content: "\eb8d" }
 .codicon-debug-reverse-continue:before { content: "\eb8e" }
 .codicon-debug-step-back:before { content: "\eb8f" }
 .codicon-debug-restart-frame:before { content: "\eb90" }
 .codicon-debug-alternate:before { content: "\eb91" }
+.codicon-call-incoming:before { content: "\eb92" }
+.codicon-call-outgoing:before { content: "\eb93" }
+.codicon-menu:before { content: "\eb94" }
+.codicon-expand-all:before { content: "\eb95" }
+.codicon-feedback:before { content: "\eb96" }
 .codicon-debug-alt:before { content: "\f101" }

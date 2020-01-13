@@ -126,8 +126,9 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				// add remaing snippets when the current prefix ends in whitespace or when no
 				// interesting positions have been found
 				availableSnippets.forEach(snippet => {
-					const range = Range.fromPositions(position);
-					suggestions.push(new SnippetCompletion(snippet, { replace: range, insert: range }));
+					let insert = Range.fromPositions(position);
+					let replace = startsWith(lineSuffixLow, snippet.prefixLow) ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
+					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
 				});
 			}
 
@@ -145,7 +146,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 					i = to;
 				}
 			}
-			return { suggestions };
+			return { suggestions, isDetailsResolved: true };
 		});
 	}
 

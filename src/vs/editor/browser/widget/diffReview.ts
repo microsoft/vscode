@@ -780,6 +780,7 @@ export class DiffReview extends Disposable {
 			lineTokens,
 			[],
 			tabSize,
+			0,
 			fontInfo.spaceWidth,
 			options.get(EditorOption.stopRenderingLineAfter),
 			options.get(EditorOption.renderWhitespace),

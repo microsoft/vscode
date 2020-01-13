@@ -12,38 +12,13 @@ import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/contrib/output/common/output';
+import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
 
 export const VIEWLET_ID = 'workbench.view.remote';
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
-	VIEWLET_ID,
-	true,
-	undefined,
-	{
-		getOrder: (group?: string) => {
-			if (!group) {
-				return;
-			}
-
-			let matches = /^targets@(\d+)$/.exec(group);
-			if (matches) {
-				return -1000;
-			}
-
-			matches = /^details(@(\d+))?$/.exec(group);
-
-			if (matches) {
-				return -500;
-			}
-
-			return;
-		}
-	}
-);
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -109,3 +84,4 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
