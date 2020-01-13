@@ -220,15 +220,15 @@ export interface ITextEditorOptions extends IEditorOptions {
 	/**
 	 * Text editor selection.
 	 */
-	selection?: ITextEditorSelection;
+	readonly selection?: ITextEditorSelection;
 
 	/**
 	 * Text editor view state.
 	 */
-	viewState?: object;
+	readonly viewState?: object;
 
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 	 */
-	revealInCenterIfOutsideViewport?: boolean;
+	readonly revealInCenterIfOutsideViewport?: boolean;
 }

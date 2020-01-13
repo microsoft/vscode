@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
-import { TextFileEditorModel, SaveSequentializer } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextFileService, ModelState, StateChange, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { ITextFileService, ModelState, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { workbenchInstantiationService, TestTextFileService, createFileInput, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -95,10 +95,8 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
 
 		let savedEvent = false;
-		model.onDidChangeState(e => {
-			if (e === StateChange.SAVED) {
-				savedEvent = true;
-			}
+		model.onDidSave(e => {
+			savedEvent = true;
 		});
 
 		let workingCopyEvent = false;
@@ -132,10 +130,8 @@ suite('Files - TextFileEditorModel', () => {
 		await model.load();
 
 		let savedEvent = false;
-		model.onDidChangeState(e => {
-			if (e === StateChange.SAVED) {
-				savedEvent = true;
-			}
+		model.onDidSave(e => {
+			savedEvent = true;
 		});
 
 		let workingCopyEvent = false;
@@ -206,8 +202,12 @@ suite('Files - TextFileEditorModel', () => {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8', undefined);
 		assert.ok(model.hasState(ModelState.SAVED));
 
-		model.onDidChangeState(e => {
-			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
+		model.onDidSave(e => {
+			assert.fail();
+		});
+
+		model.onDidChangeDirty(e => {
+			assert.fail();
 		});
 
 		await model.load();
@@ -234,10 +234,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidChangeState(e => {
-			if (e === StateChange.REVERTED) {
-				eventCounter++;
-			}
+		model.onDidRevert(e => {
+			eventCounter++;
 		});
 
 		let workingCopyEvent = false;
@@ -271,10 +269,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidChangeState(e => {
-			if (e === StateChange.REVERTED) {
-				eventCounter++;
-			}
+		model.onDidRevert(e => {
+			eventCounter++;
 		});
 
 		let workingCopyEvent = false;
@@ -331,10 +327,8 @@ suite('Files - TextFileEditorModel', () => {
 		await model.revert({ soft: true });
 		assert.ok(!model.isDirty());
 
-		model.onDidChangeState(e => {
-			if (e === StateChange.DIRTY) {
-				eventCounter++;
-			}
+		model.onDidChangeDirty(e => {
+			eventCounter++;
 		});
 
 		let workingCopyEvent = false;
@@ -416,12 +410,10 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidChangeState(e => {
-			if (e === StateChange.SAVED) {
-				assert.equal(snapshotToString(model.createSnapshot()!), 'bar');
-				assert.ok(!model.isDirty());
-				eventCounter++;
-			}
+		model.onDidSave(e => {
+			assert.equal(snapshotToString(model.createSnapshot()!), 'bar');
+			assert.ok(!model.isDirty());
+			eventCounter++;
 		});
 
 		TextFileEditorModel.setSaveParticipant({
@@ -474,84 +466,5 @@ suite('Files - TextFileEditorModel', () => {
 
 		await model.save();
 		model.dispose();
-	});
-
-	test('SaveSequentializer - pending basics', async function () {
-		const sequentializer = new SaveSequentializer();
-
-		assert.ok(!sequentializer.hasPendingSave());
-		assert.ok(!sequentializer.hasPendingSave(2323));
-		assert.ok(!sequentializer.pendingSave);
-
-		// pending removes itself after done
-		await sequentializer.setPending(1, Promise.resolve());
-		assert.ok(!sequentializer.hasPendingSave());
-		assert.ok(!sequentializer.hasPendingSave(1));
-		assert.ok(!sequentializer.pendingSave);
-
-		// pending removes itself after done (use timeout)
-		sequentializer.setPending(2, timeout(1));
-		assert.ok(sequentializer.hasPendingSave());
-		assert.ok(sequentializer.hasPendingSave(2));
-		assert.ok(!sequentializer.hasPendingSave(1));
-		assert.ok(sequentializer.pendingSave);
-
-		await timeout(2);
-		assert.ok(!sequentializer.hasPendingSave());
-		assert.ok(!sequentializer.hasPendingSave(2));
-		assert.ok(!sequentializer.pendingSave);
-	});
-
-	test('SaveSequentializer - pending and next (finishes instantly)', async function () {
-		const sequentializer = new SaveSequentializer();
-
-		let pendingDone = false;
-		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return; }));
-
-		// next finishes instantly
-		let nextDone = false;
-		const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return; }));
-
-		await res;
-		assert.ok(pendingDone);
-		assert.ok(nextDone);
-	});
-
-	test('SaveSequentializer - pending and next (finishes after timeout)', async function () {
-		const sequentializer = new SaveSequentializer();
-
-		let pendingDone = false;
-		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return; }));
-
-		// next finishes after timeout
-		let nextDone = false;
-		const res = sequentializer.setNext(() => timeout(1).then(() => { nextDone = true; return; }));
-
-		await res;
-		assert.ok(pendingDone);
-		assert.ok(nextDone);
-	});
-
-	test('SaveSequentializer - pending and multiple next (last one wins)', async function () {
-		const sequentializer = new SaveSequentializer();
-
-		let pendingDone = false;
-		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return; }));
-
-		// next finishes after timeout
-		let firstDone = false;
-		let firstRes = sequentializer.setNext(() => timeout(2).then(() => { firstDone = true; return; }));
-
-		let secondDone = false;
-		let secondRes = sequentializer.setNext(() => timeout(3).then(() => { secondDone = true; return; }));
-
-		let thirdDone = false;
-		let thirdRes = sequentializer.setNext(() => timeout(4).then(() => { thirdDone = true; return; }));
-
-		await Promise.all([firstRes, secondRes, thirdRes]);
-		assert.ok(pendingDone);
-		assert.ok(!firstDone);
-		assert.ok(!secondDone);
-		assert.ok(thirdDone);
 	});
 });

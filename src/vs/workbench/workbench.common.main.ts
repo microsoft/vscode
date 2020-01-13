@@ -71,7 +71,7 @@ import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
+import 'vs/workbench/services/textresourceProperties/common/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
@@ -149,6 +149,9 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 
 // Backup
 import 'vs/workbench/contrib/backup/common/backup.contribution';
+
+// bulkEdit
+import 'vs/workbench/contrib/bulkEdit/browser/bulkEdit.contribution';
 
 // Search
 import 'vs/workbench/contrib/search/browser/search.contribution';

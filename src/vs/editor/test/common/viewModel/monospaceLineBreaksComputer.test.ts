@@ -6,6 +6,7 @@ import * as assert from 'assert';
 import { WrappingIndent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { ILineBreaksComputerFactory, LineBreakData } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[]; } {
 	let text = '';
@@ -43,7 +44,22 @@ function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): str
 }
 
 function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakData: LineBreakData | null): LineBreakData | null {
-	const lineBreaksComputer = factory.createLineBreaksComputer(tabSize, breakAfter, columnsForFullWidthChar, wrappingIndent);
+	const fontInfo = new FontInfo({
+		zoomLevel: 0,
+		fontFamily: 'testFontFamily',
+		fontWeight: 'normal',
+		fontSize: 14,
+		fontFeatureSettings: '',
+		lineHeight: 19,
+		letterSpacing: 0,
+		isMonospace: true,
+		typicalHalfwidthCharacterWidth: 7,
+		typicalFullwidthCharacterWidth: 14,
+		canUseHalfwidthRightwardsArrow: true,
+		spaceWidth: 7,
+		maxDigitWidth: 7
+	}, false);
+	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent);
 	const previousLineBreakDataClone = previousLineBreakData ? new LineBreakData(previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(text, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];

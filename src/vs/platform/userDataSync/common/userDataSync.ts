@@ -167,9 +167,10 @@ export interface IGlobalState {
 }
 
 export const enum SyncSource {
-	Settings = 1,
-	Keybindings,
-	Extensions
+	Settings = 'Settings',
+	Keybindings = 'Keybindings',
+	Extensions = 'Extensions',
+	UIState = 'UI State'
 }
 
 export const enum SyncStatus {
@@ -185,6 +186,8 @@ export interface ISynchroniser {
 	readonly onDidChangeLocal: Event<void>;
 	sync(_continue?: boolean): Promise<boolean>;
 	stop(): void;
+	hasPreviouslySynced(): Promise<boolean>
+	hasRemote(): Promise<boolean>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');

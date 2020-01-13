@@ -54,7 +54,6 @@ import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/m
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 
 let EDITOR_ID = 0;
-const useDOMLineBreaksComputerFactory = false;
 
 export interface ICodeEditorWidgetOptions {
 	/**
@@ -1343,11 +1342,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._id,
 			this._configuration,
 			model,
-			(
-				useDOMLineBreaksComputerFactory
-					? DOMLineBreaksComputerFactory.create(this._configuration.options)
-					: MonospaceLineBreaksComputerFactory.create(this._configuration.options)
-			),
+			DOMLineBreaksComputerFactory.create(),
+			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(callback)
 		);
 
