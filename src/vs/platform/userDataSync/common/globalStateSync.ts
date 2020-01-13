@@ -85,6 +85,16 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 
 	stop(): void { }
 
+	async hasPreviouslySynced(): Promise<boolean> {
+		const lastSyncData = await this.getLastSyncUserData();
+		return !!lastSyncData;
+	}
+
+	async hasRemote(): Promise<boolean> {
+		const remoteUserData = await this.userDataSyncStoreService.read(GlobalStateSynchroniser.EXTERNAL_USER_DATA_GLOBAL_STATE_KEY, null);
+		return remoteUserData.content !== null;
+	}
+
 	private async doSync(): Promise<void> {
 		const lastSyncData = await this.getLastSyncUserData();
 		const lastSyncGlobalState = lastSyncData && lastSyncData.content ? JSON.parse(lastSyncData.content) : null;

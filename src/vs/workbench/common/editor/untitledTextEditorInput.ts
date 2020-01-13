@@ -28,9 +28,6 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 
 	private static readonly MEMOIZER = createMemoizer();
 
-	private readonly _onDidModelChangeContent = this._register(new Emitter<void>());
-	readonly onDidModelChangeContent = this._onDidModelChangeContent.event;
-
 	private readonly _onDidModelChangeEncoding = this._register(new Emitter<void>());
 	readonly onDidModelChangeEncoding = this._onDidModelChangeEncoding.event;
 
@@ -147,6 +144,8 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	isDirty(): boolean {
+
+		// Always trust the model first if existing
 		if (this.cachedModel) {
 			return this.cachedModel.isDirty();
 		}
@@ -156,7 +155,13 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 			return false;
 		}
 
-		// untitled files with an associated path or associated resource
+		// A input with initial value is always dirty
+		if (this.initialValue && this.initialValue.length > 0) {
+			return true;
+		}
+
+		// A input with associated path is always dirty because it is the intent
+		// of the user to create a new file at that location through saving
 		return this.hasAssociatedFilePath;
 	}
 
@@ -274,7 +279,6 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, this.preferredMode, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
 
 		// re-emit some events from the model
-		this._register(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
 		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this._register(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 

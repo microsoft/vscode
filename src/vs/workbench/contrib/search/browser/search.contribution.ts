@@ -39,7 +39,7 @@ import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition
 import { OpenAnythingHandler } from 'vs/workbench/contrib/search/browser/openAnythingHandler';
 import { OpenSymbolHandler } from 'vs/workbench/contrib/search/browser/openSymbolHandler';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, OpenResultsInEditorAction, RerunEditorSearchAction, RerunEditorSearchWithContextAction, ExpandAllAction } from 'vs/workbench/contrib/search/browser/searchActions';
+import { clearHistoryCommand, ClearSearchResultsAction, CloseReplaceAction, CollapseDeepestExpandedLevelAction, copyAllCommand, copyMatchCommand, copyPathCommand, FocusNextInputAction, FocusNextSearchResultAction, FocusPreviousInputAction, FocusPreviousSearchResultAction, focusSearchListCommand, getSearchView, openSearchView, OpenSearchViewletAction, RefreshAction, RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction, ReplaceInFilesAction, toggleCaseSensitiveCommand, toggleRegexCommand, toggleWholeWordCommand, FindInFilesCommand, ToggleSearchOnTypeAction, OpenResultsInEditorAction, RerunEditorSearchAction, RerunEditorSearchWithContextAction, ExpandAllAction, OpenSearchEditorAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { SearchView, SearchViewPosition } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
@@ -56,6 +56,11 @@ import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/ex
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { assertType } from 'vs/base/common/types';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
+import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { SearchEditorInput, SearchEditorInputFactory } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
+import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -507,7 +512,7 @@ class ShowAllSymbolsAction extends Action {
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: nls.localize('name', "Search"),
-	ctorDescriptor: { ctor: SearchViewPaneContainer },
+	ctorDescriptor: new SyncDescriptor(SearchViewPaneContainer),
 	hideIfEmpty: true,
 	icon: 'codicon-search',
 	order: 1
@@ -545,7 +550,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 				}
 			} else {
 				Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(PANEL_ID);
-				viewsRegistry.registerViews([{ id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: { ctor: SearchView, arguments: [SearchViewPosition.SideBar] }, canToggleVisibility: false }], viewContainer);
+				viewsRegistry.registerViews([{ id: VIEW_ID, name: nls.localize('search', "Search"), ctorDescriptor: new SyncDescriptor(SearchView, [SearchViewPosition.SideBar]), canToggleVisibility: false }], viewContainer);
 				if (open) {
 					viewletService.openViewlet(VIEWLET_ID);
 				}
@@ -645,6 +650,11 @@ registry.registerWorkbenchAction(
 		{ mac: { primary: KeyMod.CtrlCmd | KeyCode.Enter } },
 		ContextKeyExpr.and(Constants.HasSearchResults, Constants.SearchViewFocusedKey, Constants.EnableSearchEditorPreview)),
 	'Search: Open Results in Editor', category,
+	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
+
+registry.registerWorkbenchAction(
+	SyncActionDescriptor.create(OpenSearchEditorAction, OpenSearchEditorAction.ID, OpenSearchEditorAction.LABEL),
+	'Search: Open new Search Editor', category,
 	ContextKeyExpr.and(Constants.EnableSearchEditorPreview));
 
 const searchEditorCategory = nls.localize({ comment: ['The name of the tabbed search view'], key: 'searcheditor' }, "Search Editor");
@@ -828,6 +838,17 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('search.enableSearchEditorPreview', "Experimental: When enabled, allows opening workspace search results in an editor.")
 		},
+		'search.searchEditorPreview.doubleClickBehaviour': {
+			type: 'string',
+			enum: ['selectWord', 'goToLocation', 'openLocationToSide'],
+			default: 'goToLocation',
+			enumDescriptions: [
+				nls.localize('search.searchEditorPreview.doubleClickBehaviour.selectWord', "Double clicking selects the word under the cursor."),
+				nls.localize('search.searchEditorPreview.doubleClickBehaviour.goToLocation', "Double clicking opens the result in the active editor group."),
+				nls.localize('search.searchEditorPreview.doubleClickBehaviour.openLocationToSide', "Double clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
+			],
+			markdownDescription: nls.localize('search.searchEditorPreview.doubleClickBehaviour', "Configure effect of double clicking a result in a Search Editor.\n\n `#search.enableSearchEditorPreview#` must be enabled for this setting to have an effect.")
+		},
 		'search.sortOrder': {
 			'type': 'string',
 			'enum': [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
@@ -872,3 +893,19 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	},
 	order: 2
 });
+
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	EditorDescriptor.create(
+		SearchEditor,
+		SearchEditor.ID,
+		nls.localize('defaultPreferencesEditor', "Search Editor")
+	),
+	[
+		new SyncDescriptor(SearchEditorInput)
+	]
+);
+
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
+	SearchEditorInput.ID,
+	SearchEditorInputFactory);

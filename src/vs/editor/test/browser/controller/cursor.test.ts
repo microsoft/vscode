@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder, IConfiguration } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -25,6 +25,7 @@ import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/tes
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 
 const H = Handler;
 
@@ -130,6 +131,11 @@ function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]):
 	assert.deepEqual(actual, expected);
 }
 
+function createViewModel(configuration: IConfiguration, model: ITextModel): ViewModel {
+	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
+	return new ViewModel(0, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
+}
+
 suite('Editor Controller - Cursor', () => {
 	const LINE1 = '    \tMy First Line\t ';
 	const LINE2 = '\tMy Second Line';
@@ -152,7 +158,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = createTextModel(text);
 		thisConfiguration = new TestConfiguration({});
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null!);
+		thisViewModel = createViewModel(thisConfiguration, thisModel);
 
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
@@ -776,7 +782,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -816,7 +822,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -880,7 +886,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -929,7 +935,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -2074,7 +2080,7 @@ suite('Editor Controller - Regression tests', () => {
 			wordWrap: 'wordWrapColumn',
 			wordWrapColumn: 100
 		});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const viewModel = createViewModel(config, model);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 43, false);
@@ -3834,7 +3840,7 @@ function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cur
 	let model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
 	let config = new TestConfiguration(opts.editorOpts || {});
-	let viewModel = new ViewModel(0, config, model, null!);
+	let viewModel = createViewModel(config, model);
 	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);

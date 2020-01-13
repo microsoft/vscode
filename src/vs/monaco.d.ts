@@ -2708,20 +2708,20 @@ declare namespace monaco.editor {
 		 */
 		wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 		/**
+		 * Controls the wrapping algorithm to use.
+		 * Defaults to 'monospace'.
+		 */
+		wrappingAlgorithm?: 'monospace' | 'dom';
+		/**
 		 * Configure word wrapping characters. A break will be introduced before these characters.
-		 * Defaults to '{([+'.
+		 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 		 */
 		wordWrapBreakBeforeCharacters?: string;
 		/**
 		 * Configure word wrapping characters. A break will be introduced after these characters.
-		 * Defaults to ' \t})]?|&,;'.
+		 * Defaults to ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣'.
 		 */
 		wordWrapBreakAfterCharacters?: string;
-		/**
-		 * Configure word wrapping characters. A break will be introduced after these characters only if no `wordWrapBreakBeforeCharacters` or `wordWrapBreakAfterCharacters` were found.
-		 * Defaults to '.'.
-		 */
-		wordWrapBreakObtrusiveCharacters?: string;
 		/**
 		 * Performance guard: Stop rendering a line after x characters.
 		 * Defaults to 10000.
@@ -2987,6 +2987,11 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+		/**
+		 * Controls whether to focus the inline editor in the peek widget by default.
+		 * Defaults to false.
+		 */
+		peekWidgetFocusInlineEditor?: boolean;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {

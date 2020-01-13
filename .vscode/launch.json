@@ -162,9 +162,12 @@
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
 				"--inspect=5875",
-				"--no-cached-data"
+				"--no-cached-data",
 			],
-			"webRoot": "${workspaceFolder}"
+			"webRoot": "${workspaceFolder}",
+			// Settings for js-debug:
+			"pauseForSourceMap": false,
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
 		},
 		{
 			"type": "node",

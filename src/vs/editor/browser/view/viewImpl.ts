@@ -11,7 +11,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { ITextAreaHandlerHelper, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
@@ -510,6 +510,10 @@ export class View extends ViewEventHandler {
 		this._textAreaHandler.refreshFocusState();
 	}
 
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		this._textAreaHandler.setAriaOptions(options);
+	}
+
 	public addContentWidget(widgetData: IContentWidgetData): void {
 		this.contentWidgets.addWidget(widgetData.widget);
 		this.layoutContentWidget(widgetData);
@@ -559,4 +563,3 @@ function safeInvokeNoArg(func: Function): any {
 		onUnexpectedError(e);
 	}
 }
-

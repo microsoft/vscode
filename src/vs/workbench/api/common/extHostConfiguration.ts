@@ -5,7 +5,7 @@
 
 import { mixin, deepClone } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfigurationInitData, MainContext } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';

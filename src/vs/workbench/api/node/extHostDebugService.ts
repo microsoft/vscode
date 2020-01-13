@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as env from 'vs/base/common/platform';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';

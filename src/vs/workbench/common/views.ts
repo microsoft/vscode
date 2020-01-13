@@ -19,6 +19,7 @@ import { IAction } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten } from 'vs/base/common/arrays';
 import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
@@ -39,7 +40,7 @@ export interface IViewContainerDescriptor {
 
 	readonly name: string;
 
-	readonly ctorDescriptor: { ctor: new (...args: any[]) => IViewPaneContainer, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
 
 	readonly icon?: string | URI;
 
@@ -166,7 +167,7 @@ export interface IViewDescriptor {
 
 	readonly name: string;
 
-	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<IView>;
 
 	readonly when?: ContextKeyExpr;
 

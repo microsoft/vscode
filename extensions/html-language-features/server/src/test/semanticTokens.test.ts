@@ -55,7 +55,7 @@ suite('HTML Semantic Tokens', () => {
 			/*2*/'<script>',
 			/*3*/'  var x = 9, y1 = [x];',
 			/*4*/'  try {',
-			/*5*/'    for (const s of y1) { }',
+			/*5*/'    for (const s of y1) { x = s }',
 			/*6*/'  } catch (e) {',
 			/*7*/'    throw y1;',
 			/*8*/'  }',
@@ -65,7 +65,7 @@ suite('HTML Semantic Tokens', () => {
 		];
 		assertTokens(input, [
 			t(3, 6, 1, 'variable.declaration'), t(3, 13, 2, 'variable.declaration'), t(3, 19, 1, 'variable'),
-			t(5, 15, 1, 'variable.declaration'), t(5, 20, 2, 'variable'),
+			t(5, 15, 1, 'variable.declaration.readonly'), t(5, 20, 2, 'variable'), t(5, 26, 1, 'variable'), t(5, 30, 1, 'variable.readonly'),
 			t(6, 11, 1, 'variable.declaration'),
 			t(7, 10, 2, 'variable')
 		]);
@@ -86,7 +86,7 @@ suite('HTML Semantic Tokens', () => {
 		];
 		assertTokens(input, [
 			t(3, 11, 3, 'function.declaration'), t(3, 15, 2, 'parameter.declaration'),
-			t(4, 11, 3, 'function'), t(4, 15, 4, 'variable'), t(4, 20, 3, 'member'), t(4, 24, 2, 'parameter'),
+			t(4, 11, 3, 'function'), t(4, 15, 4, 'interface'), t(4, 20, 3, 'member'), t(4, 24, 2, 'parameter'),
 			t(6, 6, 6, 'variable'), t(6, 13, 8, 'property'), t(6, 24, 5, 'member'), t(6, 35, 7, 'member'), t(6, 43, 1, 'parameter.declaration'), t(6, 48, 3, 'function'), t(6, 52, 1, 'parameter')
 		]);
 	});
@@ -134,8 +134,29 @@ suite('HTML Semantic Tokens', () => {
 		];
 		assertTokens(input, [
 			t(3, 12, 8, 'interface.declaration'), t(3, 23, 1, 'property.declaration'), t(3, 34, 1, 'property.declaration'),
-			t(4, 8, 1, 'variable.declaration'), t(4, 30, 8, 'interface'),
-			t(5, 8, 3, 'variable.declaration'), t(5, 15, 1, 'parameter.declaration'), t(5, 18, 8, 'interface'), t(5, 31, 1, 'parameter'), t(5, 33, 1, 'property'), t(5, 37, 1, 'parameter'), t(5, 39, 1, 'property')
+			t(4, 8, 1, 'variable.declaration.readonly'), t(4, 30, 8, 'interface'),
+			t(5, 8, 3, 'variable.declaration.readonly'), t(5, 15, 1, 'parameter.declaration'), t(5, 18, 8, 'interface'), t(5, 31, 1, 'parameter'), t(5, 33, 1, 'property'), t(5, 37, 1, 'parameter'), t(5, 39, 1, 'property')
+		]);
+	});
+
+	test('Readonly', () => {
+		const input = [
+			/*0*/'<html>',
+			/*1*/'<head>',
+			/*2*/'<script type="text/typescript">',
+			/*3*/'  const f = 9;',
+			/*4*/'  class A { static readonly t = 9; static url: URL; }',
+			/*5*/'  const enum E { A = 9, B = A + 1 }',
+			/*6*/'  const x = f + A.t + A.url.origin;',
+			/*7*/'</script>',
+			/*8*/'</head>',
+			/*9*/'</html>',
+		];
+		assertTokens(input, [
+			t(3, 8, 1, 'variable.declaration.readonly'),
+			t(4, 8, 1, 'class.declaration'), t(4, 28, 1, 'property.declaration.static.readonly'), t(4, 42, 3, 'property.declaration.static'), t(4, 47, 3, 'interface'),
+			t(5, 13, 1, 'enum.declaration'), t(5, 17, 1, 'property.declaration.readonly'), t(5, 24, 1, 'property.declaration.readonly'), t(5, 28, 1, 'property.readonly'),
+			t(6, 8, 1, 'variable.declaration.readonly'), t(6, 12, 1, 'variable.readonly'), t(6, 16, 1, 'class'), t(6, 18, 1, 'property.static.readonly'), t(6, 22, 1, 'class'), t(6, 24, 3, 'property.static'), t(6, 28, 6, 'property.readonly'),
 		]);
 	});
 
@@ -154,9 +175,9 @@ suite('HTML Semantic Tokens', () => {
 			/*9*/'</html>',
 		];
 		assertTokens(input, [
-			t(3, 7, 5, 'type.declaration'), t(3, 15, 3, 'variable') /* to investiagte */,
+			t(3, 7, 5, 'type.declaration'), t(3, 15, 3, 'interface') /* to investiagte */,
 			t(4, 11, 1, 'function.declaration'), t(4, 13, 1, 'typeParameter.declaration'), t(4, 23, 5, 'type'), t(4, 30, 1, 'parameter.declaration'), t(4, 33, 1, 'typeParameter'), t(4, 47, 1, 'typeParameter'),
-			t(5, 12, 1, 'typeParameter'), t(5, 29, 3, 'variable'), t(5, 41, 5, 'type'),
+			t(5, 12, 1, 'typeParameter'), t(5, 29, 3, 'interface'), t(5, 41, 5, 'type'),
 		]);
 	});
 
