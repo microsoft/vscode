@@ -85,7 +85,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	getResource(): URI {
-		return URI.from({ scheme: 'untitled', authority: 'search-editor', path: this.config.query, fragment: `${this.instanceNumber}` });
+		return URI.from({ scheme: 'search-editor', fragment: `${this.instanceNumber}` });
 	}
 
 	getName(): string {
