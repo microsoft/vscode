@@ -104,9 +104,9 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._toDispose.add(this._modelReferenceCollection);
 		this._toDispose.add(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
-		this._toDispose.add(textFileService.models.onDidSave(m => {
-			if (this._shouldHandleFileEvent(m.resource)) {
-				this._proxy.$acceptModelSaved(m.resource);
+		this._toDispose.add(textFileService.models.onDidSave(e => {
+			if (this._shouldHandleFileEvent(e.model.resource)) {
+				this._proxy.$acceptModelSaved(e.model.resource);
 			}
 		}));
 		this._toDispose.add(textFileService.models.onDidRevert(m => {

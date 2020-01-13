@@ -350,12 +350,22 @@ export interface IModelLoadOrCreateOptions {
 	allowBinary?: boolean;
 }
 
+export interface ITextFileModelSaveEvent {
+	model: ITextFileEditorModel;
+	reason: SaveReason;
+}
+
+export interface ITextFileModelLoadEvent {
+	model: ITextFileEditorModel;
+	reason: LoadReason;
+}
+
 export interface ITextFileEditorModelManager {
 
-	readonly onDidLoad: Event<ITextFileEditorModel>;
+	readonly onDidLoad: Event<ITextFileModelLoadEvent>;
 	readonly onDidChangeDirty: Event<ITextFileEditorModel>;
 	readonly onDidSaveError: Event<ITextFileEditorModel>;
-	readonly onDidSave: Event<ITextFileEditorModel>;
+	readonly onDidSave: Event<ITextFileModelSaveEvent>;
 	readonly onDidRevert: Event<ITextFileEditorModel>;
 	readonly onDidChangeEncoding: Event<ITextFileEditorModel>;
 	readonly onDidChangeOrphaned: Event<ITextFileEditorModel>;
@@ -397,9 +407,9 @@ export interface ILoadOptions {
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
 
 	readonly onDidChangeContent: Event<void>;
-	readonly onDidLoad: Event<void>;
+	readonly onDidLoad: Event<LoadReason>;
 	readonly onDidSaveError: Event<void>;
-	readonly onDidSave: Event<void>;
+	readonly onDidSave: Event<SaveReason>;
 	readonly onDidRevert: Event<void>;
 	readonly onDidChangeEncoding: Event<void>;
 	readonly onDidChangeOrphaned: Event<void>;

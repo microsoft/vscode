@@ -139,7 +139,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		let savedCounter = 0;
 		let encodingCounter = 0;
 
-		manager.onDidLoad(model => {
+		manager.onDidLoad(({ model }) => {
 			if (model.resource.toString() === resource1.toString()) {
 				loadedCounter++;
 			}
@@ -157,7 +157,7 @@ suite('Files - TextFileEditorModelManager', () => {
 			}
 		});
 
-		manager.onDidSave(model => {
+		manager.onDidSave(({ model }) => {
 			if (model.resource.toString() === resource1.toString()) {
 				savedCounter++;
 			}

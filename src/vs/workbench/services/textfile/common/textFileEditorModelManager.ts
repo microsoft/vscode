@@ -7,7 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, IModelLoadOrCreateOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileEditorModelManager, IModelLoadOrCreateOptions, ITextFileModelLoadEvent, ITextFileModelSaveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
@@ -18,7 +18,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
-	private readonly _onDidLoad = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidLoad = this._register(new Emitter<ITextFileModelLoadEvent>());
 	readonly onDidLoad = this._onDidLoad.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<ITextFileEditorModel>());
@@ -27,7 +27,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly _onDidSaveError = this._register(new Emitter<ITextFileEditorModel>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
-	private readonly _onDidSave = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidSave = this._register(new Emitter<ITextFileModelSaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidRevert = this._register(new Emitter<ITextFileEditorModel>());
@@ -129,10 +129,10 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			// Install model listeners
 			const listeners = new DisposableStore();
-			listeners.add(model.onDidLoad(() => this._onDidLoad.fire(newModel)));
+			listeners.add(model.onDidLoad(reason => this._onDidLoad.fire({ model: newModel, reason })));
 			listeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(newModel)));
 			listeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(newModel)));
-			listeners.add(model.onDidSave(() => this._onDidSave.fire(newModel)));
+			listeners.add(model.onDidSave(reason => this._onDidSave.fire({ model: newModel, reason })));
 			listeners.add(model.onDidRevert(() => this._onDidRevert.fire(newModel)));
 			listeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(newModel)));
 			listeners.add(model.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(newModel)));

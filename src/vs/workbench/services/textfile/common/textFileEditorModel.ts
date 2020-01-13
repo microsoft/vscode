@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined } from 'vs/base/common/types';
-import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, ITextFileStreamContent, ILoadOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, ITextFileStreamContent, ILoadOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -49,13 +49,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidLoad = this._register(new Emitter<void>());
+	private readonly _onDidLoad = this._register(new Emitter<LoadReason>());
 	readonly onDidLoad = this._onDidLoad.event;
 
 	private readonly _onDidSaveError = this._register(new Emitter<void>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
-	private readonly _onDidSave = this._register(new Emitter<void>());
+	private readonly _onDidSave = this._register(new Emitter<SaveReason>());
 	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidRevert = this._register(new Emitter<void>());
@@ -405,7 +405,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Emit as event
-		this._onDidLoad.fire();
+		this._onDidLoad.fire(options?.reason ?? LoadReason.OTHER);
 
 		return this;
 	}
@@ -637,7 +637,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// - the model is not in orphan mode (because in that case we know the file does not exist on disk)
 			// - the model version did not change due to save participants running
 			if (options.force && !this.dirty && !this.inOrphanMode && options.reason === SaveReason.EXPLICIT && versionId === newVersionId) {
-				return this.doTouch(newVersionId);
+				return this.doTouch(newVersionId, options.reason);
 			}
 
 			// update versionId with its new value (if pre-save changes happened)
@@ -675,7 +675,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.updateLastResolvedFileStat(stat);
 
 				// Emit Events
-				this._onDidSave.fire();
+				this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
 				this._onDidChangeDirty.fire();
 			}, error => {
 				this.logService.error(`[text file model] doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString());
@@ -697,7 +697,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}));
 	}
 
-	private doTouch(versionId: number): Promise<void> {
+	private doTouch(versionId: number, reason: SaveReason): Promise<void> {
 		if (!this.isResolved()) {
 			return Promise.resolve();
 		}
@@ -713,7 +713,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.updateLastResolvedFileStat(stat);
 
 			// Emit File Saved Event
-			this._onDidSave.fire();
+			this._onDidSave.fire(reason);
 
 		}, error => onUnexpectedError(error) /* just log any error but do not notify the user since the file was not dirty */));
 	}

@@ -62,7 +62,7 @@ class LanguageSurvey extends Disposable {
 				});
 			}, 250));
 
-			this._register(textFileService.models.onDidSave(m => onModelsSavedWorker.work(m)));
+			this._register(textFileService.models.onDidSave(e => onModelsSavedWorker.work(e.model)));
 		}
 
 		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());
