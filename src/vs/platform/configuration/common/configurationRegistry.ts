@@ -11,6 +11,7 @@ import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { values } from 'vs/base/common/map';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -157,7 +158,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private readonly configurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private readonly excludedConfigurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private readonly resourceLanguageSettingsSchema: IJSONSchema;
-	private readonly overrideIdentifiers: string[] = [];
+	private readonly overrideIdentifiers = new Set<string>();
 	private overridePropertyPattern: string;
 
 	private readonly _onDidSchemaChange = new Emitter<void>();
@@ -290,7 +291,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
-		this.overrideIdentifiers.push(...overrideIdentifiers);
+		for (const overrideIdentifier of overrideIdentifiers) {
+			this.overrideIdentifiers.add(overrideIdentifier);
+		}
+
 		this.updateOverridePropertyPatternKey();
 	}
 
@@ -420,7 +424,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private computeOverridePropertyPattern(): string {
-		return this.overrideIdentifiers.length ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', this.overrideIdentifiers.map(identifier => strings.createRegExp(identifier, false).source).join('|')) : OVERRIDE_PROPERTY;
+		return this.overrideIdentifiers.size > 0 ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', values(this.overrideIdentifiers).map(identifier => strings.createRegExp(identifier, false).source).join('|')) : OVERRIDE_PROPERTY;
 	}
 }
 
