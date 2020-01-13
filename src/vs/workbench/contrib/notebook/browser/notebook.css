@@ -45,6 +45,8 @@
 .monaco-workbench .part.editor > .content .notebook-editor .output {
 	margin-left: 24px;
 	margin-right: 24px;
+	padding-left: 8px;
+	padding-right: 8px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output p {

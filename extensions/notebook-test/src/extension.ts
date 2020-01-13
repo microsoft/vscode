@@ -9,6 +9,7 @@ import { NotebookProvider } from './notebookProvider';
 export function activate(context: vscode.ExtensionContext) {
 	console.log(context.extensionPath);
 
-	context.subscriptions.push(vscode.window.registerNotebookProvider('jupyter', new NotebookProvider(context.extensionPath)));
+	context.subscriptions.push(vscode.window.registerNotebookProvider('jupyter', new NotebookProvider(context.extensionPath, true)));
+	context.subscriptions.push(vscode.window.registerNotebookProvider('jupyterTest', new NotebookProvider(context.extensionPath, false)));
 }
 

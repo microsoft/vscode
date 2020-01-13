@@ -76,6 +76,13 @@ export class BackLayerWebView extends Disposable {
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
+				<style>
+					#container > div {
+						width: 100%;
+						padding: 9px;
+						background-color: var(--vscode-list-inactiveSelectionBackground);
+					}
+				</style>
 			</head>
 			<body style="overflow: hidden;">
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;"></div>

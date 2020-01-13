@@ -40,6 +40,10 @@ export class Cell implements vscode.ICell {
 	outputsFullFilled() {
 		return this._outputs && this.outputs.length === this._outputs.length;
 	}
+
+	clearOutputs() {
+		this.outputs = [];
+	}
 }
 
 export class JupyterNotebook implements vscode.INotebook {
@@ -56,17 +60,26 @@ export class NotebookProvider implements vscode.NotebookProvider {
 	onDidChangeNotebook: vscode.Event<{ resource: vscode.Uri; notebook: vscode.INotebook; }> = this._onDidChangeNotebook.event;
 	private _notebooks: Map<string, JupyterNotebook> = new Map();
 
-	constructor(private _extensionPath: string) {
+	constructor(private _extensionPath: string, private fillOutputs: boolean) {
 	}
 
 	async resolveNotebook(resource: vscode.Uri): Promise<vscode.INotebook | undefined> {
 		if (this._notebooks.has(resource.fsPath)) {
-			return this._notebooks.get(resource.fsPath);
+			let notebook = this._notebooks.get(resource.fsPath);
+
+			if (!this.fillOutputs) {
+				notebook?.cells.forEach(cell => {
+					cell.clearOutputs();
+				});
+			}
+
+			return notebook;
 		}
 
 		let content = await vscode.workspace.fs.readFile(resource);
 		try {
 			let notebookJSON = JSON.parse(content.toString());
+
 			let notebook = new JupyterNotebook(
 				notebookJSON.metadata,
 				notebookJSON.cells.map((rawCell: any) => {
@@ -77,6 +90,45 @@ export class NotebookProvider implements vscode.NotebookProvider {
 					);
 				})
 			);
+
+			if (this.fillOutputs) {
+				let preloadScript = false;
+
+				notebook!.cells.forEach(cell => {
+					if (cell.outputsFullFilled()) {
+						return;
+					}
+
+					if (!preloadScript) {
+						let containHTML = cell.containHTML();
+						if (containHTML) {
+							preloadScript = true;
+							const scriptPathOnDisk = vscode.Uri.file(
+								path.join(this._extensionPath, 'dist', 'ipywidgets.js')
+							);
+
+							let scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
+
+							cell.insertDependencies(
+								{
+									'output_type': 'display_data',
+									'data': {
+										'text/html': [
+											`<script src="${scriptUri}"></script>\n`,
+										]
+									}
+								}
+							);
+
+							cell.fillInOutputs();
+						} else {
+							cell.fillInOutputs();
+						}
+					} else {
+						cell.fillInOutputs();
+					}
+				});
+			}
 
 			this._notebooks.set(resource.fsPath, notebook);
 

@@ -9,6 +9,7 @@ import { basename } from 'vs/base/common/resources';
 
 export interface NotebookSelector {
 	readonly filenamePattern?: string;
+	readonly excludeFileNamePattern?: string;
 }
 
 export class NotebookProviderInfo {
@@ -34,6 +35,13 @@ export class NotebookProviderInfo {
 	static selectorMatches(selector: NotebookSelector, resource: URI): boolean {
 		if (selector.filenamePattern) {
 			if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
+				if (selector.excludeFileNamePattern) {
+					if (glob.match(selector.excludeFileNamePattern.toLowerCase(), basename(resource).toLowerCase())) {
+						// should exclude
+
+						return false;
+					}
+				}
 				return true;
 			}
 		}

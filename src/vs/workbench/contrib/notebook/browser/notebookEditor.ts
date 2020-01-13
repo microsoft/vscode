@@ -416,4 +416,10 @@ registerThemingParticipant((theme, collector) => {
 	if (quoteBorder) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor blockquote { border-color: ${quoteBorder}; }`);
 	}
+
+	const inactiveListItem = theme.getColor('list.inactiveSelectionBackground');
+
+	if (inactiveListItem) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${inactiveListItem}; }`);
+	}
 });

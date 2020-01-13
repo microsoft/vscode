@@ -28,6 +28,16 @@
         "displayName": "Jupyter",
         "selector": [
           {
+            "filenamePattern": "*.ipynb",
+            "excludeFileNamePattern": "*.test.ipynb"
+          }
+        ]
+      },
+      {
+        "viewType": "jupyterTest",
+        "displayName": "Jupyter Test",
+        "selector": [
+          {
             "filenamePattern": "*.test.ipynb"
           }
         ]

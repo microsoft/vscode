@@ -52,6 +52,10 @@ const notebookContribution: IJSONSchema = {
 							type: 'string',
 							description: nls.localize('contributes.notebook.selector.filenamePattern', 'Glob that the notebook is enabled for.'),
 						},
+						excludeFileNamePattern: {
+							type: 'string',
+							description: nls.localize('contributes.notebook.selector.excludeFileNamePattern', 'Glob that the notebook is disabled for.')
+						}
 					}
 				}
 			}
