@@ -276,6 +276,7 @@ export const enum ModelState {
 }
 
 export const enum StateChange {
+	LOADED,
 	DIRTY,
 	SAVE_ERROR,
 	SAVED,
@@ -380,6 +381,7 @@ export interface ITextFileEditorModelManager {
 	readonly onModelEncodingChanged: Event<TextFileModelChangeEvent>;
 	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
 
+	readonly onModelLoaded: Event<TextFileModelChangeEvent>;
 	readonly onModelDirty: Event<TextFileModelChangeEvent>;
 	readonly onModelSaveError: Event<TextFileModelChangeEvent>;
 	readonly onModelSaved: Event<TextFileModelChangeEvent>;

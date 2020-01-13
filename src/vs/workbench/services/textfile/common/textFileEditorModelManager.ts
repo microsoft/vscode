@@ -18,6 +18,9 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
+	private readonly _onModelLoaded = this._register(new Emitter<TextFileModelChangeEvent>());
+	readonly onModelLoaded = this._onModelLoaded.event;
+
 	private readonly _onModelDirty = this._register(new Emitter<TextFileModelChangeEvent>());
 	readonly onModelDirty = this._onModelDirty.event;
 
@@ -171,6 +174,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			this.mapResourceToStateChangeListener.set(resource, model.onDidChangeState(state => {
 				const event = new TextFileModelChangeEvent(newModel, state);
 				switch (state) {
+					case StateChange.LOADED:
+						this._onModelLoaded.fire(event);
+						break;
 					case StateChange.DIRTY:
 						this._onModelDirty.fire(event);
 						break;

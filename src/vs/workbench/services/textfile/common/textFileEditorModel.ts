@@ -5,13 +5,10 @@
 
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange, ITextFileStreamContent, ILoadOptions, LoadReason, IResolvedTextFileEditorModel, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, ITextFileEditorModel, ISaveErrorHandler, ISaveParticipant, StateChange, ITextFileStreamContent, ILoadOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -19,15 +16,12 @@ import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { timeout } from 'vs/base/common/async';
 import { ITextBufferFactory } from 'vs/editor/common/model';
-import { hash } from 'vs/base/common/hash';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent, extname, basename, joinPath } from 'vs/base/common/resources';
+import { isEqual, basename } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Schemas } from 'vs/base/common/network';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
@@ -39,29 +33,10 @@ export interface IBackupMetaData {
 	orphaned: boolean;
 }
 
-type FileTelemetryDataFragment = {
-	mimeType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	path: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	reason?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	whitelistedjson?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-};
-
-type TelemetryData = {
-	mimeType: string;
-	ext: string;
-	path: number;
-	reason?: number;
-	whitelistedjson?: string;
-};
-
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
 export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
-
-	static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
-	static WHITELIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
 
 	private static saveErrorHandler: ISaveErrorHandler;
 	static setSaveErrorHandler(handler: ISaveErrorHandler): void { TextFileEditorModel.saveErrorHandler = handler; }
@@ -106,11 +81,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IModelService modelService: IModelService,
 		@IFileService private readonly fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
@@ -414,19 +386,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.doCreateTextModel(content.resource, content.value, !!fromBackup);
 		}
 
-		// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
-		const settingsType = this.getTypeIfSettings();
-		if (settingsType) {
-			type SettingsReadClassification = {
-				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			};
-
-			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
-		} else {
-			type FileGetClassification = {} & FileTelemetryDataFragment;
-
-			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(options?.reason ?? LoadReason.OTHER));
-		}
+		// Emit as event
+		this._onDidChangeState.fire(StateChange.LOADED);
 
 		return this;
 	}
@@ -699,18 +660,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// Emit Events
 				this._onDidChangeState.fire(StateChange.SAVED);
 				this._onDidChangeDirty.fire();
-
-				// Telemetry
-				const settingsType = this.getTypeIfSettings();
-				if (settingsType) {
-					type SettingsWrittenClassification = {
-						settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					};
-					this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
-				} else {
-					type FilePutClassfication = {} & FileTelemetryDataFragment;
-					this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(options.reason));
-				}
 			}, error => {
 				this.logService.error(`[text file model] doSave(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString());
 
@@ -729,59 +678,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this._onDidChangeState.fire(StateChange.SAVE_ERROR);
 			}));
 		}));
-	}
-
-	private getTypeIfSettings(): string {
-		if (extname(this.resource) !== '.json') {
-			return '';
-		}
-
-		// Check for global settings file
-		if (isEqual(this.resource, this.environmentService.settingsResource)) {
-			return 'global-settings';
-		}
-
-		// Check for keybindings file
-		if (isEqual(this.resource, this.environmentService.keybindingsResource)) {
-			return 'keybindings';
-		}
-
-		// Check for snippets
-		if (isEqualOrParent(this.resource, joinPath(this.environmentService.userRoamingDataHome, 'snippets'))) {
-			return 'snippets';
-		}
-
-		// Check for workspace settings file
-		const folders = this.contextService.getWorkspace().folders;
-		for (const folder of folders) {
-			if (isEqualOrParent(this.resource, folder.toResource('.vscode'))) {
-				const filename = basename(this.resource);
-				if (TextFileEditorModel.WHITELIST_WORKSPACE_JSON.indexOf(filename) > -1) {
-					return `.vscode/${filename}`;
-				}
-			}
-		}
-
-		return '';
-	}
-
-	private getTelemetryData(reason: number | undefined): TelemetryData {
-		const ext = extname(this.resource);
-		const fileName = basename(this.resource);
-		const path = this.resource.scheme === Schemas.file ? this.resource.fsPath : this.resource.path;
-		const telemetryData = {
-			mimeType: guessMimeTypes(this.resource).join(', '),
-			ext,
-			path: hash(path),
-			reason,
-			whitelistedjson: undefined as string | undefined
-		};
-
-		if (ext === '.json' && TextFileEditorModel.WHITELIST_JSON.indexOf(fileName) > -1) {
-			telemetryData['whitelistedjson'] = fileName;
-		}
-
-		return telemetryData;
 	}
 
 	private doTouch(versionId: number): Promise<void> {
