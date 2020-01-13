@@ -6,7 +6,7 @@
 import 'vs/css!./bulkEdit';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
+import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -96,6 +96,7 @@ export class BulkEditPane extends ViewPane {
 			[new TextEditElementRenderer(), this._instaService.createInstance(FileElementRenderer, resourceLabels)],
 			this._instaService.createInstance(BulkEditDataSource),
 			{
+				accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
 				identityProvider: new BulkEditIdentityProvider(),
 				expandOnlyOnTwistieClick: true
 			}
