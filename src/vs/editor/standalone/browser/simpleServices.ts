@@ -635,6 +635,10 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
+	setPreviewHandler(): IDisposable {
+		return Disposable.None;
+	}
+
 	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();

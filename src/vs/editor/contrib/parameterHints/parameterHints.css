@@ -54,7 +54,7 @@
 	white-space: initial;
 }
 
-.monaco-editor .parameter-hints-widget .docs .markdown-docs p code {
+.monaco-editor .parameter-hints-widget .docs .markdown-docs code {
 	font-family: var(--monaco-monospace-font);
 }
 

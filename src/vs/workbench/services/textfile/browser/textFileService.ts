@@ -8,8 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason, IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModelManager, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService, FileOperationError, FileOperationResult, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
@@ -482,19 +482,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	//#region save/revert
 
 	async save(resource: URI, options?: ITextFileSaveOptions): Promise<boolean> {
-
-		// Run a forced save if we detect the file is not dirty so that save participants can still run
-		if (options?.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
-			const model = this._models.get(resource);
-			if (model) {
-				options.reason = SaveReason.EXPLICIT;
-
-				await model.save(options);
-
-				return !model.isDirty();
-			}
-		}
-
 		return !(await this.saveAll([resource], options)).results.some(result => result.error);
 	}
 
@@ -502,21 +489,29 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	saveAll(resources: URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult>;
 	saveAll(arg1?: boolean | URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult> {
 
-		// get all dirty
-		let toSave: URI[] = [];
+		// Extract the resources to save
+		let resourcesToSave: URI[] = [];
 		if (Array.isArray(arg1)) {
-			toSave = this.getDirty(arg1);
+			// if specific resources are given, we consider even
+			// non-dirty ones if options.force is provided
+			if (options?.force) {
+				resourcesToSave = arg1;
+			} else {
+				resourcesToSave = this.getDirty(arg1);
+			}
 		} else {
-			toSave = this.getDirty();
+			// if no resources are given, we only consider dirty
+			// resources even if options.force is provided
+			resourcesToSave = this.getDirty();
 		}
 
 		// split up between files and untitled
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
-		toSave.forEach(resourceToSave => {
+		resourcesToSave.forEach(resourceToSave => {
 			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && resourceToSave.scheme === Schemas.untitled) {
 				untitledToSave.push(resourceToSave);
-			} else {
+			} else if (this.fileService.canHandleResource(resourceToSave)) {
 				filesToSave.push(resourceToSave);
 			}
 		});
@@ -630,23 +625,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private async doSaveAllFiles(resources?: URI[], options: ITextFileSaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
-		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : undefined /* Save All */)
-			.filter(model => {
-				if ((model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
-					return false; // if model is in save conflict or error, do not save unless save reason is explicit or not provided at all
-				}
-
-				return true;
-			});
+		const fileModelsToSave = this.getFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
-		dirtyFileModels.forEach(dirtyModel => {
-			mapResourceToResult.set(dirtyModel.resource, {
-				source: dirtyModel.resource
-			});
-		});
+		for (const fileModelToSave of fileModelsToSave) {
+			mapResourceToResult.set(fileModelToSave.resource, { source: fileModelToSave.resource });
+		}
 
-		await Promise.all(dirtyFileModels.map(async model => {
+		// Save all in parallel
+		await Promise.all(fileModelsToSave.map(async model => {
+
+			// Save with options
 			await model.save(options);
 
 			// If model is still dirty, mark the resulting operation as error

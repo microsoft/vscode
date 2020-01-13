@@ -54,6 +54,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Hasher } from 'vs/base/common/hash';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -957,7 +958,7 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 
 	readonly id: string;
 	readonly name: string;
-	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<RepositoryPane>;
 	readonly canToggleVisibility = true;
 	readonly order = -500;
 	readonly workspace = true;
@@ -970,6 +971,6 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 		this.id = `scm:repository:${hasher.value}`;
 		this.name = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
 
-		this.ctorDescriptor = { ctor: RepositoryPane, arguments: [repository] };
+		this.ctorDescriptor = new SyncDescriptor(RepositoryPane, [repository]);
 	}
 }

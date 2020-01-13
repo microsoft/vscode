@@ -29,7 +29,7 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 
 		const model = new CustomEditorModel(resource);
 		const disposables = new DisposableStore();
-		this._workingCopyService.registerWorkingCopy(model);
+		disposables.add(this._workingCopyService.registerWorkingCopy(model));
 		this._models.set(this.key(resource, viewType), { model, disposables });
 		return model;
 	}

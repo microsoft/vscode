@@ -228,7 +228,7 @@ export class TokenClassificationExtensionPoints {
 
 					if (contribution.scopes) {
 						if ((!Array.isArray(contribution.scopes) || contribution.scopes.some(s => typeof s !== 'string'))) {
-							collector.error(nls.localize('invalid.scopes', "If defined, 'configuration.tokenStyleDefaults.scopes' must must be an array or strings"));
+							collector.error(nls.localize('invalid.scopes', "If defined, 'configuration.tokenStyleDefaults.scopes' must be an array or strings"));
 							continue;
 						}
 						tokenStyleDefault.scopesToProbe = [contribution.scopes];
