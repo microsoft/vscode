@@ -627,7 +627,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	}
 }
 
-export class ViewOpenerService extends Disposable implements IViewsService {
+export class ViewsService extends Disposable implements IViewsService {
 
 	_serviceBrand: undefined;
 
@@ -893,4 +893,4 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 }
 
 registerSingleton(IViewDescriptorService, ViewDescriptorService);
-registerSingleton(IViewsService, ViewOpenerService);
+registerSingleton(IViewsService, ViewsService);
