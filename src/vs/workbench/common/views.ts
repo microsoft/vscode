@@ -345,10 +345,10 @@ export interface IViewsViewlet extends IViewlet {
 }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
-export const IViewOpenerService = createDecorator<IViewOpenerService>('viewOpenerService');
+export const IViewsService = createDecorator<IViewsService>('viewsService');
 
 
-export interface IViewOpenerService {
+export interface IViewsService {
 	_serviceBrand: undefined;
 
 	openView(id: string, focus?: boolean): Promise<IView | null>;

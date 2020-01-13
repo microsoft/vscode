@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, IViewDescriptorCollection, IViewsRegistry, ViewContainerLocation, IViewOpenerService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, IViewDescriptorCollection, IViewsRegistry, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -627,7 +627,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	}
 }
 
-export class ViewOpenerService extends Disposable implements IViewOpenerService {
+export class ViewOpenerService extends Disposable implements IViewsService {
 
 	_serviceBrand: undefined;
 
@@ -893,4 +893,4 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 }
 
 registerSingleton(IViewDescriptorService, ViewDescriptorService);
-registerSingleton(IViewOpenerService, ViewOpenerService);
+registerSingleton(IViewsService, ViewOpenerService);
