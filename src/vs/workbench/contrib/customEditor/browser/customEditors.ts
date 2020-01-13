@@ -347,9 +347,15 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 		options: ITextEditorOptions | undefined,
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
+		const userConfiguredEditors = this.customEditorService.getUserConfiguredCustomEditors(resource);
+		const contributedEditors = this.customEditorService.getContributedCustomEditors(resource);
+		if (!userConfiguredEditors.length && !contributedEditors.length) {
+			return;
+		}
+
 		// Check to see if there already an editor for the resource in the group.
 		// If there is, we want to open that instead of creating a new editor.
-		// This ensures that we preserve whatever state the editor was previously in
+		// This ensures that we preserve whatever type of editor was previously being used
 		// when the user switches back to it.
 		const existingEditorForResource = group.editors.find(editor => isEqual(resource, editor.getResource()));
 		if (existingEditorForResource) {
@@ -358,14 +364,12 @@ export class CustomEditorContribution implements IWorkbenchContribution {
 			};
 		}
 
-		const userConfiguredEditors = this.customEditorService.getUserConfiguredCustomEditors(resource);
 		if (userConfiguredEditors.length) {
 			return {
 				override: this.customEditorService.openWith(resource, userConfiguredEditors.allEditors[0].id, options, group),
 			};
 		}
 
-		const contributedEditors = this.customEditorService.getContributedCustomEditors(resource);
 		if (!contributedEditors.length) {
 			return;
 		}
