@@ -31,6 +31,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewDescriptor } from 'vs/workbench/common/views';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -320,7 +321,7 @@ export class MainPaneDescriptor implements IViewDescriptor {
 
 	readonly id = MainPane.ID;
 	readonly name = MainPane.TITLE;
-	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<MainPane>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly order = -1000;
@@ -328,6 +329,6 @@ export class MainPaneDescriptor implements IViewDescriptor {
 	readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
 
 	constructor(viewModel: IViewModel) {
-		this.ctorDescriptor = { ctor: MainPane, arguments: [viewModel] };
+		this.ctorDescriptor = new SyncDescriptor(MainPane, [viewModel]);
 	}
 }

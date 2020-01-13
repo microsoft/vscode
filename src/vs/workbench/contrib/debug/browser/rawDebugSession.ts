@@ -80,7 +80,6 @@ export class RawDebugSession implements IDisposable {
 		public readonly customTelemetryService: ITelemetryService | undefined,
 		private readonly extensionHostDebugService: IExtensionHostDebugService,
 		private readonly openerService: IOpenerService
-
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
@@ -598,13 +597,13 @@ export class RawDebugSession implements IDisposable {
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R> {
-		return new Promise<R>((completeDispatch, errorDispatch) => {
+		return new Promise<DebugProtocol.Response>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
 				errorDispatch(new Error('no debug adapter found'));
 				return;
 			}
 			let cancelationListener: IDisposable;
-			const requestId = this.debugAdapter.sendRequest(command, args, (response: R) => {
+			const requestId = this.debugAdapter.sendRequest(command, args, (response: DebugProtocol.Response) => {
 				if (cancelationListener) {
 					cancelationListener.dispose();
 				}

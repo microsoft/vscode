@@ -40,7 +40,7 @@ const $ = dom.$;
 
 type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndSessionIds | IStackFrame[];
 
-function getContext(element: CallStackItem | null): any {
+export function getContext(element: CallStackItem | null): any {
 	return element instanceof StackFrame ? {
 		sessionId: element.thread.session.getId(),
 		threadId: element.thread.getId(),
@@ -51,6 +51,25 @@ function getContext(element: CallStackItem | null): any {
 	} : isDebugSession(element) ? {
 		sessionId: element.getId()
 	} : undefined;
+}
+
+// Extensions depend on this context, should not be changed even though it is not fully deterministic
+export function getContextForContributedActions(element: CallStackItem | null): string | number {
+	if (element instanceof StackFrame) {
+		if (element.source.inMemory) {
+			return element.source.raw.path || element.source.reference || '';
+		}
+
+		return element.source.uri.toString();
+	}
+	if (element instanceof Thread) {
+		return element.threadId;
+	}
+	if (isDebugSession(element)) {
+		return element.getId();
+	}
+
+	return '';
 }
 
 export class CallStackView extends ViewPane {
@@ -135,7 +154,7 @@ export class CallStackView extends ViewPane {
 
 		this.dataSource = new CallStackDataSource(this.debugService);
 		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>>(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
-			new SessionsRenderer(this.instantiationService),
+			new SessionsRenderer(this.instantiationService, this.debugService),
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
@@ -289,7 +308,13 @@ export class CallStackView extends ViewPane {
 			this.ignoreSelectionChangedEvent = true;
 			try {
 				this.tree.setSelection([element]);
-				this.tree.reveal(element);
+				// If the element is outside of the screen bounds,
+				// position it in the middle
+				if (this.tree.getRelativeTop(element) === null) {
+					this.tree.reveal(element, 0.5);
+				} else {
+					this.tree.reveal(element);
+				}
 			} catch (e) { }
 			finally {
 				this.ignoreSelectionChangedEvent = false;
@@ -336,7 +361,7 @@ export class CallStackView extends ViewPane {
 		}
 
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: this.getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -344,24 +369,6 @@ export class CallStackView extends ViewPane {
 			getActionsContext: () => getContext(element),
 			onHide: () => dispose(actionsDisposable)
 		});
-	}
-
-	private getContextForContributedActions(element: CallStackItem | null): string | number {
-		if (element instanceof StackFrame) {
-			if (element.source.inMemory) {
-				return element.source.raw.path || element.source.reference || '';
-			}
-
-			return element.source.uri.toString();
-		}
-		if (element instanceof Thread) {
-			return element.threadId;
-		}
-		if (isDebugSession(element)) {
-			return element.getId();
-		}
-
-		return '';
 	}
 }
 
@@ -404,7 +411,8 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 	static readonly ID = 'session';
 
 	constructor(
-		private readonly instantiationService: IInstantiationService
+		private readonly instantiationService: IInstantiationService,
+		private readonly debugService: IDebugService
 	) { }
 
 	get templateId(): string {
@@ -426,14 +434,23 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		const session = element.element;
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
 		data.label.set(session.getLabel(), createMatches(element.filterData));
-		const stoppedThread = session.getAllThreads().filter(t => t.stopped).pop();
+		const thread = session.getAllThreads().filter(t => t.stopped).pop();
 
 		data.actionBar.clear();
 		const actions = getActions(this.instantiationService, element.element);
 		data.actionBar.push(actions, { icon: true, label: false });
+		data.stateLabel.hidden = false;
 
-		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
-			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		if (thread && thread.stoppedDetails) {
+			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
+		} else {
+			const hasChildSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === session).length > 0;
+			if (!hasChildSessions) {
+				data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+			} else {
+				data.stateLabel.hidden = true;
+			}
+		}
 	}
 
 	disposeTemplate(templateData: ISessionTemplateData): void {
@@ -504,7 +521,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
-		const hasActions = stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle';
+		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle';
 		dom.toggleClass(data.stackFrame, 'has-actions', hasActions);
 
 		data.file.title = stackFrame.source.inMemory ? stackFrame.source.uri.path : this.labelService.getUriLabel(stackFrame.source.uri);

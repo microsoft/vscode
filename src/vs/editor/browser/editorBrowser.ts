@@ -320,6 +320,14 @@ export interface IOverviewRuler {
 }
 
 /**
+ * Editor aria options.
+ * @internal
+ */
+export interface IEditorAriaOptions {
+	activeDescendant: string | undefined;
+}
+
+/**
  * A rich code editor.
  */
 export interface ICodeEditor extends editorCommon.IEditor {
@@ -422,7 +430,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
-	 * @internal
 	 */
 	onDidPaste(listener: (range: Range) => void): IDisposable;
 	/**
@@ -689,6 +696,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	setHiddenAreas(ranges: IRange[]): void;
+
+	/**
+	 * Sets the editor aria options, primarily the active descendent.
+	 * @internal
+	 */
+	setAriaOptions(options: IEditorAriaOptions): void;
 
 	/**
 	 * @internal

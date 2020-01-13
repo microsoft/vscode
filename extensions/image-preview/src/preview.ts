@@ -13,7 +13,7 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 const localize = nls.loadMessageBundle();
 
 
-export class PreviewManager implements vscode.WebviewEditorProvider {
+export class PreviewManager implements vscode.WebviewCustomEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
@@ -28,10 +28,10 @@ export class PreviewManager implements vscode.WebviewEditorProvider {
 	) { }
 
 	public async resolveWebviewEditor(
-		input: { readonly resource: vscode.Uri, },
+		resource: vscode.Uri,
 		webviewEditor: vscode.WebviewPanel,
-	): Promise<vscode.WebviewEditorCapabilities> {
-		const preview = new Preview(this.extensionRoot, input.resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
+	): Promise<void> {
+		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 
@@ -44,8 +44,6 @@ export class PreviewManager implements vscode.WebviewEditorProvider {
 				this.setActivePreview(undefined);
 			}
 		});
-
-		return {};
 	}
 
 	public get activePreview() { return this._activePreview; }
@@ -110,6 +108,12 @@ class Preview extends Disposable {
 					{
 						this._imageZoom = message.value;
 						this.update();
+						break;
+					}
+
+				case 'reopen-as-text':
+					{
+						vscode.commands.executeCommand('vscode.openWith', resource, 'default', webviewEditor.viewColumn);
 						break;
 					}
 			}
@@ -222,7 +226,10 @@ class Preview extends Disposable {
 </head>
 <body class="container image scale-to-fit loading">
 	<div class="loading-indicator"></div>
-	<div class="image-load-error-message">${localize('preview.imageLoadError', "An error occurred while loading the image")}</div>
+	<div class="image-load-error">
+		<p>${localize('preview.imageLoadError', "An error occurred while loading the image.")}</p>
+		<a href="#" class="open-file-link">${localize('preview.imageLoadErrorLink', "Open file using VS Code's standard text/binary editor?")}</a>
+	</div>
 	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;

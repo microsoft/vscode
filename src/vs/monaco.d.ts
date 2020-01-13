@@ -996,6 +996,11 @@ declare namespace monaco.editor {
 		 * An object that can be used by the web worker to make calls back to the main thread.
 		 */
 		host?: any;
+		/**
+		 * Keep idle models.
+		 * Defaults to false, which means that idle models will stop syncing after a while.
+		 */
+		keepIdleModels?: boolean;
 	}
 
 	/**
@@ -1044,9 +1049,57 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Options which apply for all editors.
+	 */
+	export interface IGlobalEditorOptions {
+		/**
+		 * The number of spaces a tab is equal to.
+		 * This setting is overridden based on the file contents when `detectIndentation` is on.
+		 * Defaults to 4.
+		 */
+		tabSize?: number;
+		/**
+		 * Insert spaces when pressing `Tab`.
+		 * This setting is overridden based on the file contents when detectIndentation` is on.
+		 * Defaults to true.
+		 */
+		insertSpaces?: boolean;
+		/**
+		 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
+		 * Defaults to true.
+		 */
+		detectIndentation?: boolean;
+		/**
+		 * Remove trailing auto inserted whitespace.
+		 * Defaults to true.
+		 */
+		trimAutoWhitespace?: boolean;
+		/**
+		 * Special handling for large files to disable certain memory intensive features.
+		 * Defaults to true.
+		 */
+		largeFileOptimizations?: boolean;
+		/**
+		 * Controls whether completions should be computed based on words in the document.
+		 * Defaults to true.
+		 */
+		wordBasedSuggestions?: boolean;
+		/**
+		 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+		 * Defaults to false.
+		 */
+		stablePeek?: boolean;
+		/**
+		 * Lines above this length will not be tokenized for performance reasons.
+		 * Defaults to 20000.
+		 */
+		maxTokenizationLineLength?: number;
+	}
+
+	/**
 	 * The options to create an editor.
 	 */
-	export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions {
+	export interface IStandaloneEditorConstructionOptions extends IEditorConstructionOptions, IGlobalEditorOptions {
 		/**
 		 * The initial model associated with this code editor.
 		 */
@@ -1091,6 +1144,7 @@ declare namespace monaco.editor {
 	}
 
 	export interface IStandaloneCodeEditor extends ICodeEditor {
+		updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
 		addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
 		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
 		addAction(descriptor: IActionDescriptor): IDisposable;
@@ -2419,15 +2473,6 @@ declare namespace monaco.editor {
 		readonly reason: CursorChangeReason;
 	}
 
-	export enum AccessibilitySupport {
-		/**
-		 * This should be the browser case where it is not known if a screen reader is attached or no.
-		 */
-		Unknown = 0,
-		Disabled = 1,
-		Enabled = 2
-	}
-
 	/**
 	 * Configuration options for auto closing quotes and brackets
 	 */
@@ -2663,20 +2708,20 @@ declare namespace monaco.editor {
 		 */
 		wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 		/**
+		 * Controls the wrapping algorithm to use.
+		 * Defaults to 'monospace'.
+		 */
+		wrappingAlgorithm?: 'monospace' | 'dom';
+		/**
 		 * Configure word wrapping characters. A break will be introduced before these characters.
-		 * Defaults to '{([+'.
+		 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 		 */
 		wordWrapBreakBeforeCharacters?: string;
 		/**
 		 * Configure word wrapping characters. A break will be introduced after these characters.
-		 * Defaults to ' \t})]?|&,;'.
+		 * Defaults to ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣'.
 		 */
 		wordWrapBreakAfterCharacters?: string;
-		/**
-		 * Configure word wrapping characters. A break will be introduced after these characters only if no `wordWrapBreakBeforeCharacters` or `wordWrapBreakAfterCharacters` were found.
-		 * Defaults to '.'.
-		 */
-		wordWrapBreakObtrusiveCharacters?: string;
 		/**
 		 * Performance guard: Stop rendering a line after x characters.
 		 * Defaults to 10000.
@@ -2865,7 +2910,7 @@ declare namespace monaco.editor {
 		 */
 		codeActionsOnSaveTimeout?: number;
 		/**
-		 * Enable code folding
+		 * Enable code folding.
 		 * Defaults to true.
 		 */
 		folding?: boolean;
@@ -2874,6 +2919,11 @@ declare namespace monaco.editor {
 		 * Defaults to 'auto'.
 		 */
 		foldingStrategy?: 'auto' | 'indentation';
+		/**
+		 * Enable highlight for folded regions.
+		 * Defaults to true.
+		 */
+		foldingHighlight?: boolean;
 		/**
 		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 		 * Defaults to 'mouseover'.
@@ -2937,6 +2987,11 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+		/**
+		 * Controls whether to focus the inline editor in the peek widget by default.
+		 * Defaults to false.
+		 */
+		peekWidgetFocusInlineEditor?: boolean;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
@@ -2989,66 +3044,6 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * The kind of animation in which the editor's cursor should be rendered.
-	 */
-	export enum TextEditorCursorBlinkingStyle {
-		/**
-		 * Hidden
-		 */
-		Hidden = 0,
-		/**
-		 * Blinking
-		 */
-		Blink = 1,
-		/**
-		 * Blinking with smooth fading
-		 */
-		Smooth = 2,
-		/**
-		 * Blinking with prolonged filled state and smooth fading
-		 */
-		Phase = 3,
-		/**
-		 * Expand collapse animation on the y axis
-		 */
-		Expand = 4,
-		/**
-		 * No-Blinking
-		 */
-		Solid = 5
-	}
-
-	/**
-	 * The style in which the editor's cursor should be rendered.
-	 */
-	export enum TextEditorCursorStyle {
-		/**
-		 * As a vertical line (sitting between two characters).
-		 */
-		Line = 1,
-		/**
-		 * As a block (sitting on top of a character).
-		 */
-		Block = 2,
-		/**
-		 * As a horizontal line (sitting under a character).
-		 */
-		Underline = 3,
-		/**
-		 * As a thin vertical line (sitting between two characters).
-		 */
-		LineThin = 4,
-		/**
-		 * As an outlined block (sitting on top of a character).
-		 */
-		BlockOutline = 5,
-		/**
-		 * As a thin horizontal line (sitting under a character).
-		 */
-		UnderlineThin = 6
-	}
-
-	/**
 	 * Configuration options for editor find widget
 	 */
 	export interface IEditorFindOptions {
@@ -3062,8 +3057,6 @@ declare namespace monaco.editor {
 		autoFindInSelection?: 'never' | 'always' | 'multiline';
 		addExtraSpaceOnTop?: boolean;
 	}
-
-	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
 	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
 
@@ -3083,8 +3076,6 @@ declare namespace monaco.editor {
 		alternativeImplementationCommand?: string;
 		alternativeReferenceCommand?: string;
 	}
-
-	export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
 
 	/**
 	 * Configuration options for editor hover
@@ -3106,8 +3097,6 @@ declare namespace monaco.editor {
 		 */
 		sticky?: boolean;
 	}
-
-	export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
 
 	/**
 	 * A description for the overview ruler position.
@@ -3238,8 +3227,6 @@ declare namespace monaco.editor {
 		enabled?: boolean;
 	}
 
-	export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
-
 	/**
 	 * Configuration options for editor minimap
 	 */
@@ -3275,8 +3262,6 @@ declare namespace monaco.editor {
 		scale?: number;
 	}
 
-	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
-
 	/**
 	 * Configuration options for parameter hints
 	 */
@@ -3293,8 +3278,6 @@ declare namespace monaco.editor {
 		cycle?: boolean;
 	}
 
-	export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
-
 	/**
 	 * Configuration options for quick suggestions
 	 */
@@ -3304,22 +3287,7 @@ declare namespace monaco.editor {
 		strings: boolean;
 	}
 
-	export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
-
 	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
-
-	export enum RenderLineNumbersType {
-		Off = 0,
-		On = 1,
-		Relative = 2,
-		Interval = 3,
-		Custom = 4
-	}
-
-	export interface InternalEditorRenderLineNumbersOptions {
-		readonly renderType: RenderLineNumbersType;
-		readonly renderFn: ((lineNumber: number) => string) | null;
-	}
 
 	/**
 	 * Configuration options for editor scrollbars
@@ -3385,21 +3353,6 @@ declare namespace monaco.editor {
 		 * Defaults to `horizontalScrollbarSize`.
 		 */
 		horizontalSliderSize?: number;
-	}
-
-	export interface InternalEditorScrollbarOptions {
-		readonly arrowSize: number;
-		readonly vertical: ScrollbarVisibility;
-		readonly horizontal: ScrollbarVisibility;
-		readonly useShadows: boolean;
-		readonly verticalHasArrows: boolean;
-		readonly horizontalHasArrows: boolean;
-		readonly handleMouseWheel: boolean;
-		readonly alwaysConsumeMouseWheel: boolean;
-		readonly horizontalScrollbarSize: number;
-		readonly horizontalSliderSize: number;
-		readonly verticalScrollbarSize: number;
-		readonly verticalSliderSize: number;
 	}
 
 	/**
@@ -3538,37 +3491,6 @@ declare namespace monaco.editor {
 		 * Show snippet-suggestions.
 		 */
 		showSnippets?: boolean;
-	}
-
-	export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
-
-	/**
-	 * Describes how to indent wrapped lines.
-	 */
-	export enum WrappingIndent {
-		/**
-		 * No indentation => wrapped lines begin at column 1.
-		 */
-		None = 0,
-		/**
-		 * Same => wrapped lines get the same indentation as the parent.
-		 */
-		Same = 1,
-		/**
-		 * Indent => wrapped lines get +1 indentation toward the parent.
-		 */
-		Indent = 2,
-		/**
-		 * DeepIndent => wrapped lines get +2 indentation toward the parent.
-		 */
-		DeepIndent = 3
-	}
-
-	export interface EditorWrappingInfo {
-		readonly isDominatedByLongLines: boolean;
-		readonly isWordWrapMinified: boolean;
-		readonly isViewportWrapping: boolean;
-		readonly wrappingColumn: number;
 	}
 
 	/**
@@ -3940,6 +3862,11 @@ declare namespace monaco.editor {
 		 * An event emitted after composition has ended.
 		 */
 		onCompositionEnd(listener: () => void): IDisposable;
+		/**
+		 * An event emitted when users paste text in the editor.
+		 * @event
+		 */
+		onDidPaste(listener: (range: Range) => void): IDisposable;
 		/**
 		 * An event emitted on a "mouseup".
 		 * @event
@@ -4889,7 +4816,7 @@ declare namespace monaco.languages {
 		preselect?: boolean;
 		/**
 		 * A string or snippet that should be inserted in a document when selecting
-		 * this completion.
+		 * this completion. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
 		 */
 		insertText: string;
@@ -4932,6 +4859,7 @@ declare namespace monaco.languages {
 	export interface CompletionList {
 		suggestions: CompletionItem[];
 		incomplete?: boolean;
+		isDetailsResolved?: boolean;
 		dispose?(): void;
 	}
 

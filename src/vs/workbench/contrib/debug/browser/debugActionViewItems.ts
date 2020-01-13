@@ -157,25 +157,33 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.selected = 0;
 		this.options = [];
 		const manager = this.debugService.getConfigurationManager();
-		const launches = manager.getLaunches();
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
-		launches.forEach(launch =>
-			launch.getConfigurationNames().forEach(name => {
-				if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
-					this.selected = this.options.length;
+		let lastGroup: string | undefined;
+		const disabledIdxs: number[] = [];
+		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
+			if (lastGroup !== presentation?.group) {
+				lastGroup = presentation?.group;
+				if (this.options.length) {
+					this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
+					disabledIdxs.push(this.options.length - 1);
 				}
-				const label = inWorkspace ? `${name} (${launch.name})` : name;
-				this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
-			}));
+			}
+			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
+				this.selected = this.options.length;
+			}
+
+			const label = inWorkspace ? `${name} (${launch.name})` : name;
+			this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
+		});
 
 		if (this.options.length === 0) {
 			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: () => false });
 		} else {
 			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
+			disabledIdxs.push(this.options.length - 1);
 		}
 
-		const disabledIdx = this.options.length - 1;
-		launches.filter(l => !l.hidden).forEach(l => {
+		manager.getLaunches().filter(l => !l.hidden).forEach(l => {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
@@ -185,7 +193,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: (index === disabledIdx ? true : undefined) }), this.selected);
+		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 }), this.selected);
 	}
 }
 

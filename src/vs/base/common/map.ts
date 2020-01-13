@@ -454,8 +454,8 @@ export class ResourceMap<T> {
 		return this.map.delete(this.toKey(resource));
 	}
 
-	forEach(clb: (value: T) => void): void {
-		this.map.forEach(clb);
+	forEach(clb: (value: T, key: URI) => void): void {
+		this.map.forEach((value, index) => clb(value, URI.parse(index)));
 	}
 
 	values(): T[] {
@@ -524,6 +524,14 @@ export class LinkedMap<K, V> {
 
 	get size(): number {
 		return this._size;
+	}
+
+	get first(): V | undefined {
+		return this._head?.value;
+	}
+
+	get last(): V | undefined {
+		return this._tail?.value;
 	}
 
 	has(key: K): boolean {

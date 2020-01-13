@@ -362,7 +362,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('Expand html when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
-		await workspace.getConfiguration('emmet').update('includeLanguages', { "javascript": "html" }, ConfigurationTarget.Global);
+		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': 'html' }, ConfigurationTarget.Global);
 		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(24, 10, 24, 10);
 			let expandPromise = expandEmmetAbbreviation(null);
@@ -378,7 +378,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	test('Expand html in completion list when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
 		const abbreviation = 'span.bye';
 		const expandedText = '<span class="bye"></span>';
-		await workspace.getConfiguration('emmet').update('includeLanguages', { "javascript": "html" }, ConfigurationTarget.Global);
+		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': 'html' }, ConfigurationTarget.Global);
 		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(24, 10, 24, 10);
 			const cancelSrc = new CancellationTokenSource();
@@ -448,7 +448,7 @@ suite('Tests for jsx, xml and xsl', () => {
 	});
 
 	test('Expand abbreviation with single quotes for jsx', async () => {
-		await workspace.getConfiguration('emmet').update('syntaxProfiles', { jsx: { "attr_quotes": "single" } }, ConfigurationTarget.Global);
+		await workspace.getConfiguration('emmet').update('syntaxProfiles', { jsx: { 'attr_quotes': 'single' } }, ConfigurationTarget.Global);
 		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });

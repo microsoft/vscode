@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto } from 'vs/workbench/api/common/extHost.protocol';
@@ -417,7 +417,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.CompletionList>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {
-				const items = result.suggestions.map(suggestion => typeConverters.CompletionItem.to(suggestion));
+				const items = result.suggestions.map(suggestion => typeConverters.CompletionItem.to(suggestion, this._commands.converter));
 				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;

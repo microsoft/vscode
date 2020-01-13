@@ -357,6 +357,8 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 			// Pass Focus to Viewer
 			this.tree.domFocus();
+		} else if (this.tree) {
+			this.tree.domFocus();
 		} else {
 			this.domNode.focus();
 		}
@@ -495,14 +497,12 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private showMessage(message: string): void {
 		DOM.removeClass(this.messageElement, 'hide');
-		if (this._messageValue !== message) {
-			this.resetMessageElement();
-			this._messageValue = message;
-			if (!isFalsyOrWhitespace(this._message)) {
-				this.messageElement.textContent = this._messageValue;
-			}
-			this.layout(this._height, this._width);
+		this.resetMessageElement();
+		this._messageValue = message;
+		if (!isFalsyOrWhitespace(this._message)) {
+			this.messageElement.textContent = this._messageValue;
 		}
+		this.layout(this._height, this._width);
 	}
 
 	private hideMessage(): void {

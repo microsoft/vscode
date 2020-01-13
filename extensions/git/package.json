@@ -1367,7 +1367,10 @@
           "default": false
         },
         "git.defaultCloneDirectory": {
-          "type": "string",
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
           "description": "%config.defaultCloneDirectory%"
         },

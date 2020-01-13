@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ServerResponse, TypeScriptRequests } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { TypeScriptVersion } from '../utils/versionProvider';
 import { Reader } from '../utils/wireProtocol';

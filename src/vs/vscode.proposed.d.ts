@@ -34,14 +34,22 @@ declare module 'vscode' {
 	}
 
 	export interface TunnelOptions {
-		remote: { port: number, host: string };
-		localPort?: number;
-		name?: string;
+		remoteAddress: { port: number, host: string };
+		// The desired local port. If this port can't be used, then another will be chosen.
+		localAddressPort?: number;
+		label?: string;
 	}
 
-	export interface Tunnel extends Disposable {
-		remote: { port: number, host: string };
+	export interface TunnelDescription {
+		remoteAddress: { port: number, host: string };
+		//The complete local address(ex. localhost:1234)
 		localAddress: string;
+	}
+
+	export interface Tunnel extends TunnelDescription {
+		// Implementers of Tunnel should fire onDidDispose when dispose is called.
+		onDidDispose: Event<void>;
+		dispose(): void;
 	}
 
 	/**
@@ -50,10 +58,12 @@ declare module 'vscode' {
 	export interface TunnelInformation {
 		/**
 		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
-		 * The localAddress should be the complete local address(ex. localhost:1234) for connecting to the port. Tunnels provided through
+		 * The localAddress should be the complete local address (ex. localhost:1234) for connecting to the port. Tunnels provided through
 		 * detected are read-only from the forwarded ports UI.
 		 */
-		detectedTunnels?: { remote: { port: number, host: string }, localAddress: string }[];
+		environmentTunnels?: TunnelDescription[];
+
+		hideCandidatePorts?: boolean;
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -72,15 +82,16 @@ declare module 'vscode' {
 		 * When not implemented, the core will use its default forwarding logic.
 		 * When implemented, the core will use this to forward ports.
 		 */
-		forwardPort?(tunnelOptions: TunnelOptions): Thenable<Tunnel | undefined>;
+		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
 	}
 
 	export namespace workspace {
 		/**
-		 * Forwards a port. Currently only works for a remote host of localhost.
-		 * @param forward The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
-		export function makeTunnel(forward: TunnelOptions): Thenable<Tunnel>;
+		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -782,45 +793,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region André: debug API for inline debug adapters https://github.com/microsoft/vscode/issues/85544
-
-	/**
-	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
-	 */
-	export interface DebugProtocolMessage {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
-	}
-
-	/**
-	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements the DebugAdapter interface.
-	 */
-	export interface DebugAdapter extends Disposable {
-
-		/**
-		 * An event which fires when the debug adapter sends a Debug Adapter Protocol message to VS Code.
-		 * Messages can be requests, responses, or events.
-		 */
-		readonly onSendMessage: Event<DebugProtocolMessage>;
-
-		/**
-		 * Handle a Debug Adapter Protocol message.
-		 * Messages can be requests, responses, or events.
-		 * Results or errors are returned via onSendMessage events.
-		 * @param message A Debug Adapter Protocol message
-		 */
-		handleMessage(message: DebugProtocolMessage): void;
-	}
-
-	/**
-	 * A debug adapter descriptor for an inline implementation.
-	 */
-	export class DebugAdapterInlineImplementation {
-
-		/**
-		 * Create a descriptor for an inline implementation of a debug adapter.
-		 */
-		constructor(implementation: DebugAdapter);
-	}
+	//#region Debug:
 
 	// deprecated
 
@@ -976,7 +949,7 @@ declare module 'vscode' {
 		 * The exit code that a terminal exited with, it can have the following values:
 		 * - Zero: the terminal process or custom execution succeeded.
 		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcefully closed the terminal or a custom execution exited
+		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
 		 *   without providing an exit code.
 		 */
 		readonly code: number | undefined;
@@ -997,19 +970,6 @@ declare module 'vscode' {
 		 * ```
 		 */
 		readonly exitStatus: TerminalExitStatus | undefined;
-	}
-
-	//#endregion
-
-	//#region Terminal creation options https://github.com/microsoft/vscode/issues/63052
-
-	export interface Terminal {
-		/**
-		 * The object used to initialize the terminal, this is useful for things like detecting the
-		 * shell type of shells not launched by the extension or detecting what folder the shell was
-		 * launched in.
-		 */
-		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
 	}
 
 	//#endregion
@@ -1179,22 +1139,77 @@ declare module 'vscode' {
 	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	/**
-	 * Defines how a webview editor interacts with VS Code.
+	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
+	 * editor events such as `undo` or `save`.
+	 *
+	 * @param EditType Type of edits. Edit objects must be json serializable.
 	 */
-	interface WebviewEditorCapabilities {
+	interface WebviewCustomEditorEditingDelegate<EditType> {
 		/**
-		 * Invoked when the resource has been renamed in VS Code.
+		 * Save a resource.
 		 *
-		 * This is called when the resource's new name also matches the custom editor selector.
+		 * @param resource Resource being saved.
 		 *
-		 * If this is not implemented—or if the new resource name does not match the existing selector—then VS Code
-		 * will close and reopen the editor on  rename.
-		 *
-		 * @param newResource Full path to the resource.
-		 *
-		 * @return Thenable that signals the save is complete.
+		 * @return Thenable signaling that the save has completed.
 		 */
-		// rename?(newResource: Uri): Thenable<void>;
+		save(resource: Uri): Thenable<void>;
+
+		/**
+		 * Save an existing resource at a new path.
+		 *
+		 * @param resource Resource being saved.
+		 * @param targetResource Location to save to.
+		 *
+		 * @return Thenable signaling that the save has completed.
+		 */
+		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
+
+		/**
+		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
+		 */
+		readonly onEdit: Event<{ readonly resource: Uri, readonly edit: EditType }>;
+
+		/**
+		 * Apply a set of edits.
+		 *
+		 * Note that is not invoked when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
+		 *
+		 * @param resource Resource being edited.
+		 * @param edit Array of edits. Sorted from oldest to most recent.
+		 *
+		 * @return Thenable signaling that the change has completed.
+		 */
+		applyEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
+
+		/**
+		 * Undo a set of edits.
+		 *
+		 * This is triggered when a user undoes an edit or when revert is called on a file.
+		 *
+		 * @param resource Resource being edited.
+		 * @param edit Array of edits. Sorted from most recent to oldest.
+		 *
+		 * @return Thenable signaling that the change has completed.
+		 */
+		undoEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
+	}
+
+	export interface WebviewCustomEditorProvider {
+		/**
+		 * Resolve a webview editor for a given resource.
+		 *
+		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
+		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
+		 *
+		 * @param resource Resource being resolved.
+		 * @param webview Webview being resolved. The provider should take ownership of this webview.
+		 *
+		 * @return Thenable indicating that the webview editor has been resolved.
+		 */
+		resolveWebviewEditor(
+			resource: Uri,
+			webview: WebviewPanel,
+		): Thenable<void>;
 
 		/**
 		 * Controls the editing functionality of a webview editor. This allows the webview editor to hook into standard
@@ -1203,76 +1218,7 @@ declare module 'vscode' {
 		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
 		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
 		 */
-		readonly editingCapability?: WebviewEditorEditingCapability;
-	}
-
-	/**
-	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
-	 * editor events such as `undo` or `save`.
-	 */
-	interface WebviewEditorEditingCapability {
-		/**
-		 * Persist the resource.
-		 *
-		 * Extensions should persist the resource
-		 *
-		 * @return Thenable signaling that the save has completed.
-		 */
-		save(): Thenable<void>;
-
-		/**
-		 *
-		 * @param resource Resource being saved.
-		 * @param targetResource Location to save to.
-		 */
-		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
-
-		/**
-		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
-		 *
-		 * The edit must be a json serializable object.
-		 */
-		readonly onEdit: Event<any>;
-
-		/**
-		 * Apply a set of edits.
-		 *
-		 * This is triggered on redo and when restoring a custom editor after restart. Note that is not invoked
-		 * when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
-		 *
-		 * @param edit Array of edits. Sorted from oldest to most recent.
-		 */
-		applyEdits(edits: readonly any[]): Thenable<void>;
-
-		/**
-		 * Undo a set of edits.
-		 *
-		 * This is triggered when a user undoes an edit or when revert is called on a file.
-		 *
-		 * @param edit Array of edits. Sorted from most recent to oldest.
-		 */
-		undoEdits(edits: readonly any[]): Thenable<void>;
-	}
-
-	export interface WebviewEditorProvider {
-		/**
-		 * Resolve a webview editor for a given resource.
-		 *
-		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
-		 *
-		 * @param input Information about the resource being resolved.
-		 * @param webview Webview being resolved. The provider should take ownership of this webview.
-		 *
-		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
-		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
-		 */
-		resolveWebviewEditor(
-			input: {
-				readonly resource: Uri
-			},
-			webview: WebviewPanel,
-		): Thenable<WebviewEditorCapabilities>;
+		readonly editingDelegate?: WebviewCustomEditorEditingDelegate<unknown>;
 	}
 
 	namespace window {
@@ -1283,11 +1229,11 @@ declare module 'vscode' {
 		 * @param provider Resolves webview editors.
 		 * @param options Content settings for a webview panels the provider is given.
 		 *
-		 * @return Disposable that unregisters the `WebviewEditorProvider`.
+		 * @return Disposable that unregisters the `WebviewCustomEditorProvider`.
 		 */
-		export function registerWebviewEditorProvider(
+		export function registerWebviewCustomEditorProvider(
 			viewType: string,
-			provider: WebviewEditorProvider,
+			provider: WebviewCustomEditorProvider,
 			options?: WebviewPanelOptions,
 		): Disposable;
 	}
@@ -1331,10 +1277,16 @@ declare module 'vscode' {
 		/**
 		 * Marks that the code action cannot currently be applied.
 		 *
-		 * This should be a human readable description of why the code action is currently disabled. Disabled code actions
-		 * will be surfaced in the refactor UI but cannot be applied.
+		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
 		 */
-		disabled?: string;
+		disabled?: {
+			/**
+			 * Human readable description of why the code action is currently disabled.
+			 *
+			 * This is displayed in the UI.
+			 */
+			reason: string;
+		};
 	}
 
 	//#endregion
@@ -1350,4 +1302,217 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Language specific settings: https://github.com/microsoft/vscode/issues/26707
+
+	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri, languageId: string };
+
+	/**
+	 * An event describing the change in Configuration
+	 */
+	export interface ConfigurationChangeEvent {
+
+		/**
+		 * Returns `true` if the given section is affected in the provided scope.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param scope A scope in which to check.
+		 * @return `true` if the given section is affected in the provided scope.
+		 */
+		affectsConfiguration(section: string, scope?: ConfigurationScope): boolean;
+	}
+
+	export namespace workspace {
+
+		/**
+		 * Get a workspace configuration object.
+		 *
+		 * When a section-identifier is provided only that part of the configuration
+		 * is returned. Dots in the section-identifier are interpreted as child-access,
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
+		 *
+		 * When a scope is provided configuraiton confined to that scope is returned. Scope can be a resource or a language identifier or both.
+		 *
+		 * @param section A dot-separated identifier.
+		 * @return The full configuration or a subset.
+		 */
+		export function getConfiguration(section?: string | undefined, scope?: ConfigurationScope | null): WorkspaceConfiguration;
+
+	}
+
+	/**
+	 * Represents the configuration. It is a merged view of
+	 *
+	 * - *Default Settings*
+	 * - *Global (User) Settings*
+	 * - *Workspace settings*
+	 * - *Workspace Folder settings* - From one of the [Workspace Folders](#workspace.workspaceFolders) under which requested resource belongs to.
+	 * - *Language settings* - Settings defined under requested language.
+	 *
+	 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get)) is computed by overriding or merging the values in the following order.
+	 *
+	 * ```
+	 * `defaultValue`
+	 * `globalValue` (if defined)
+	 * `workspaceValue` (if defined)
+	 * `workspaceFolderValue` (if defined)
+	 * `defaultLanguageValue` (if defined)
+	 * `globalLanguageValue` (if defined)
+	 * `workspaceLanguageValue` (if defined)
+	 * `workspaceLanguageValue` (if defined)
+	 * ```
+	 * **Note:** Only `object` value types are merged and all other value types are overridden.
+	 *
+	 * Example 1: Overriding
+	 *
+	 * ```ts
+	 * defaultValue = 'on';
+	 * globalValue = 'relative'
+	 * workspaceFolderValue = 'off'
+	 * value = 'off'
+	 * ```
+	 *
+	 * Example 2: Language Values
+	 *
+	 * ```ts
+	 * defaultValue = 'on';
+	 * globalValue = 'relative'
+	 * workspaceFolderValue = 'off'
+	 * globalLanguageValue = 'on'
+	 * value = 'on'
+	 * ```
+	 *
+	 * Example 3: Object Values
+	 *
+	 * ```ts
+	 * defaultValue = { "a": 1, "b": 2 };
+	 * globalValue = { "b": 3, "c": 4 };
+	 * value = { "a": 1, "b": 3, "c": 4 };
+	 * ```
+	 *
+	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
+	 * part of the section identifier. The following snippets shows how to retrieve all configurations
+	 * from `launch.json`:
+	 *
+	 * ```ts
+	 * // launch.json configuration
+	 * const config = workspace.getConfiguration('launch', vscode.workspace.workspaceFolders[0].uri);
+	 *
+	 * // retrieve values
+	 * const values = config.get('configurations');
+	 * ```
+	 *
+	 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings) for more information.
+	 */
+	export interface WorkspaceConfiguration {
+
+		/**
+		 * Retrieve all information about a configuration setting. A configuration value
+		 * often consists of a *default* value, a global or installation-wide value,
+		 * a workspace-specific value, folder-specific value
+		 * and language-specific values (if [WorkspaceConfiguration](#WorkspaceConfiguration) is scoped to a language).
+		 *
+		 * *Note:* The configuration name must denote a leaf in the configuration tree
+		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @return Information about a configuration setting or `undefined`.
+		 */
+		inspect<T>(section: string): {
+			key: string;
+
+			defaultValue?: T;
+			globalValue?: T;
+			workspaceValue?: T,
+			workspaceFolderValue?: T,
+
+			defaultLanguageValue?: T;
+			userLanguageValue?: T;
+			workspaceLanguageValue?: T;
+			workspaceFolderLanguageValue?: T;
+
+			languages?: string[];
+
+		} | undefined;
+
+		/**
+		 * Update a configuration value. The updated configuration values are persisted.
+		 *
+		 * A value can be changed in
+		 *
+		 * - [Global settings](#ConfigurationTarget.Global): Changes the value for all instances of the editor.
+		 * - [Workspace settings](#ConfigurationTarget.Workspace): Changes the value for current workspace, if available.
+		 * - [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder): Changes the value for settings from one of the [Workspace Folders](#workspace.workspaceFolders) under which the requested resource belongs to.
+		 * - Language settings: Changes the value for the requested languageId.
+		 *
+		 * *Note:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param value The new value.
+		 * @param configurationTarget The [configuration target](#ConfigurationTarget) or a boolean value.
+		 *	- If `true` updates [Global settings](#ConfigurationTarget.Global).
+		 *	- If `false` updates [Workspace settings](#ConfigurationTarget.Workspace).
+		 *	- If `undefined` or `null` updates to [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder) if configuration is resource specific,
+		 * 	otherwise to [Workspace settings](#ConfigurationTarget.Workspace).
+		 * @param scopeToLanguage Whether to update the value in the scope of requested languageId or not.
+		 *	- If `true` updates the value under the requested languageId.
+		 *	- If `undefined` updates the value under the requested languageId only if the configuration is defined for the language.
+		 * @throws error while updating
+		 *	- configuration which is not registered.
+		 *	- window configuration to workspace folder
+		 *	- configuration to workspace or workspace folder when no workspace is opened.
+		 *	- configuration to workspace folder when there is no workspace folder settings.
+		 *	- configuration to workspace folder when [WorkspaceConfiguration](#WorkspaceConfiguration) is not scoped to a resource.
+		 */
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, scopeToLanguage?: boolean): Thenable<void>;
+	}
+
+	//#endregion
+
+	//#region color theme access
+
+	/**
+	 * Represents a color theme kind.
+	 */
+	export enum ColorThemeKind {
+		Light = 1,
+		Dark = 2,
+		HighContrast = 3
+	}
+
+	/**
+	 * Represents a color theme.
+	 */
+	export interface ColorTheme {
+
+		/**
+		 * The kind of this color theme: light, dark or high contrast.
+		 */
+		readonly kind: ColorThemeKind;
+	}
+
+	export namespace window {
+		/**
+		 * The currently active color theme as configured in the settings. The active
+		 * theme can be changed via the `workbench.colorTheme` setting.
+		 */
+		export let activeColorTheme: ColorTheme;
+
+		/**
+		 * An [event](#Event) which fires when the active theme changes or one of it's colors chnage.
+		 */
+		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
+	}
+
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/39441
+
+	export interface CompletionList {
+		isDetailsResolved?: boolean;
+	}
+
+	//#endregion
+
 }

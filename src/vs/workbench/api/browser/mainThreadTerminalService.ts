@@ -343,7 +343,7 @@ class TerminalDataEventTracker extends Disposable {
 	) {
 		super();
 
-		this._register(this._bufferer = new TerminalDataBufferer());
+		this._register(this._bufferer = new TerminalDataBufferer(this._callback));
 
 		this._terminalService.terminalInstances.forEach(instance => this._registerInstance(instance));
 		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
@@ -352,6 +352,6 @@ class TerminalDataEventTracker extends Disposable {
 
 	private _registerInstance(instance: ITerminalInstance): void {
 		// Buffer data events to reduce the amount of messages going to the extension host
-		this._register(this._bufferer.startBuffering(instance.id, instance.onData, this._callback));
+		this._register(this._bufferer.startBuffering(instance.id, instance.onData));
 	}
 }

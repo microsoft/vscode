@@ -25,7 +25,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -303,9 +303,14 @@ export function registerCommands(): void {
 		id: RESTART_FRAME_ID,
 		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
+			const notificationService = accessor.get(INotificationService);
 			let frame = getFrame(debugService, context);
 			if (frame) {
-				await frame.restart();
+				try {
+					await frame.restart();
+				} catch (e) {
+					notificationService.error(e);
+				}
 			}
 		}
 	});

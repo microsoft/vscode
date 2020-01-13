@@ -108,6 +108,16 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 
 	stop(): void { }
 
+	async hasPreviouslySynced(): Promise<boolean> {
+		const lastSyncData = await this.getLastSyncUserData();
+		return !!lastSyncData;
+	}
+
+	async hasRemote(): Promise<boolean> {
+		const remoteUserData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, null);
+		return remoteUserData.content !== null;
+	}
+
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
 		return this.replaceQueue.queue(async () => {
 			const remoteData = await this.userDataSyncStoreService.read(ExtensionsSynchroniser.EXTERNAL_USER_DATA_EXTENSIONS_KEY, null);

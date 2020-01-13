@@ -113,7 +113,7 @@ export class ShiftCommand implements ICommand {
 		if (this._opts.useTabStops) {
 			// keep track of previous line's "miss-alignment"
 			let previousLineExtraSpaces = 0, extraSpaces = 0;
-			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++ , previousLineExtraSpaces = extraSpaces) {
+			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++, previousLineExtraSpaces = extraSpaces) {
 				extraSpaces = 0;
 				let lineText = model.getLineContent(lineNumber);
 				let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);

@@ -20,7 +20,7 @@ import { ExtensionActivationError } from 'vs/workbench/services/extensions/commo
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -645,6 +645,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 
 		try {
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
+			this._disposables.add(await this._extHostTunnelService.setForwardPortProvider(resolver));
 
 			// Split merged API result into separate authority/options
 			const authority: ResolvedAuthority = {
@@ -656,13 +657,12 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 				extensionHostEnv: result.extensionHostEnv
 			};
 
-			await this._extHostTunnelService.addDetected(result.detectedTunnels);
-
 			return {
 				type: 'ok',
 				value: {
 					authority,
-					options
+					options,
+					tunnelInformation: { environmentTunnels: result.environmentTunnels, hideCandidatePorts: result.hideCandidatePorts }
 				}
 			};
 		} catch (err) {

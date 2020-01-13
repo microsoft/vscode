@@ -71,7 +71,7 @@ import 'vs/workbench/services/history/browser/history';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
 import 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import 'vs/workbench/services/textfile/common/textResourcePropertiesService';
+import 'vs/workbench/services/textresourceProperties/common/textResourcePropertiesService';
 import 'vs/workbench/services/mode/common/workbenchModeService';
 import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
@@ -101,8 +101,8 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationServiceImpl';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -149,6 +149,9 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 
 // Backup
 import 'vs/workbench/contrib/backup/common/backup.contribution';
+
+// bulkEdit
+import 'vs/workbench/contrib/bulkEdit/browser/bulkEdit.contribution';
 
 // Search
 import 'vs/workbench/contrib/search/browser/search.contribution';

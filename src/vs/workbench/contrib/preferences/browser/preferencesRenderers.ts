@@ -772,7 +772,7 @@ class EditSettingRenderer extends Disposable {
 					if ((<SettingsEditorModel>this.masterSettingsModel).configurationTarget !== ConfigurationTarget.WORKSPACE_FOLDER) {
 						return true;
 					}
-					if (configurationNode.scope === ConfigurationScope.RESOURCE) {
+					if (configurationNode.scope === ConfigurationScope.RESOURCE || configurationNode.scope === ConfigurationScope.RESOURCE_LANGUAGE) {
 						return true;
 					}
 				}

@@ -14,6 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
 	withTestCodeEditor(lines, {}, (editor, cursor) => {
@@ -200,7 +201,8 @@ suite('SideEditing', () => {
 	function _runTest(selection: Selection, editRange: Range, editText: string, editForceMoveMarkers: boolean, expected: Selection, msg: string): void {
 		const model = TextModel.createFromString(LINES.join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, null!);
+		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(config.options);
+		const viewModel = new ViewModel(0, config, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		cursor.setSelections('tests', [selection]);
