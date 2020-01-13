@@ -2708,6 +2708,11 @@ declare namespace monaco.editor {
 		 */
 		wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 		/**
+		 * Controls the wrapping algorithm to use.
+		 * Defaults to 'monospace'.
+		 */
+		wrappingAlgorithm?: 'monospace' | 'dom';
+		/**
 		 * Configure word wrapping characters. A break will be introduced before these characters.
 		 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 		 */
@@ -2982,6 +2987,11 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+		/**
+		 * Controls whether to focus the inline editor in the peek widget by default.
+		 * Defaults to false.
+		 */
+		peekWidgetFocusInlineEditor?: boolean;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {

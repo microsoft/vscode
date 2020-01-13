@@ -20,9 +20,10 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 			if (node.kind === ts.SyntaxKind.Identifier) {
 				const symbol = typeChecker.getSymbolAtLocation(node);
 				if (symbol) {
-					const decl = symbol.valueDeclaration || symbol.declarations && symbol.declarations[0];
-					if (decl) {
-						let typeIdx = tokenFromDeclarationMapping[decl.kind];
+					let typeIdx = classifySymbol(symbol);
+
+					if (typeIdx !== undefined) {
+
 						let modifierSet = 0;
 						if (node.parent) {
 							const parentTypeIdx = tokenFromDeclarationMapping[node.parent.kind];
@@ -30,16 +31,19 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 								modifierSet = TokenModifier.declaration;
 							}
 						}
-						const modifiers = ts.getCombinedModifierFlags(decl);
+						const decl = symbol.valueDeclaration;
+						const modifiers = decl ? ts.getCombinedModifierFlags(decl) : 0;
+						const nodeFlags = decl ? ts.getCombinedNodeFlags(decl) : 0;
 						if (modifiers & ts.ModifierFlags.Static) {
 							modifierSet |= TokenModifier.static;
 						}
 						if (modifiers & ts.ModifierFlags.Async) {
 							modifierSet |= TokenModifier.async;
 						}
-						if (typeIdx !== undefined) {
-							resultTokens.push({ start: currentTextDocument.positionAt(node.getStart()), length: node.getWidth(), typeIdx, modifierSet });
+						if ((modifiers & ts.ModifierFlags.Readonly) || (nodeFlags & ts.NodeFlags.Const) || (symbol.getFlags() & ts.SymbolFlags.EnumMember)) {
+							modifierSet |= TokenModifier.readonly;
 						}
+						resultTokens.push({ start: currentTextDocument.positionAt(node.getStart()), length: node.getWidth(), typeIdx, modifierSet });
 					}
 				}
 			}
@@ -55,6 +59,27 @@ export function getSemanticTokens(jsLanguageService: ts.LanguageService, current
 	return resultTokens;
 }
 
+function classifySymbol(symbol: ts.Symbol) {
+
+	const flags = symbol.getFlags();
+	if (flags & ts.SymbolFlags.Class) {
+		return TokenType.class;
+	} else if (flags & ts.SymbolFlags.Enum) {
+		return TokenType.enum;
+	} else if (flags & ts.SymbolFlags.TypeAlias) {
+		return TokenType.type;
+	} else if (flags & ts.SymbolFlags.Type) {
+		if (flags & ts.SymbolFlags.Interface) {
+			return TokenType.interface;
+		} if (flags & ts.SymbolFlags.TypeParameter) {
+			return TokenType.typeParameter;
+		}
+	}
+	const decl = symbol.valueDeclaration || symbol.declarations && symbol.declarations[0];
+	return tokenFromDeclarationMapping[decl.kind];
+}
+
+
 
 export function getSemanticTokenLegend() {
 	return { types: tokenTypes, modifiers: tokenModifiers };
@@ -62,7 +87,7 @@ export function getSemanticTokenLegend() {
 
 
 const tokenTypes: string[] = ['class', 'enum', 'interface', 'namespace', 'typeParameter', 'type', 'parameter', 'variable', 'property', 'constant', 'function', 'member'];
-const tokenModifiers: string[] = ['declaration', 'static', 'async'];
+const tokenModifiers: string[] = ['declaration', 'static', 'async', 'readonly'];
 
 const enum TokenType {
 	'class' = 0,
@@ -84,6 +109,7 @@ const enum TokenModifier {
 	'declaration' = 0x01,
 	'static' = 0x02,
 	'async' = 0x04,
+	'readonly' = 0x08,
 }
 
 const tokenFromDeclarationMapping: { [name: string]: TokenType } = {

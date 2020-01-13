@@ -14,8 +14,9 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import sinon = require('sinon');
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
-const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: { ctor: <any>{} } }, ViewContainerLocation.Sidebar);
+const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
 class ViewDescriptorSequence {

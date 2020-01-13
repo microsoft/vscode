@@ -201,7 +201,8 @@ suite('SideEditing', () => {
 	function _runTest(selection: Selection, editRange: Range, editText: string, editForceMoveMarkers: boolean, expected: Selection, msg: string): void {
 		const model = TextModel.createFromString(LINES.join('\n'));
 		const config = new TestConfiguration({});
-		const viewModel = new ViewModel(0, config, model, MonospaceLineBreaksComputerFactory.create(config.options), null!);
+		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(config.options);
+		const viewModel = new ViewModel(0, config, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
 		const cursor = new Cursor(config, model, viewModel);
 
 		cursor.setSelections('tests', [selection]);

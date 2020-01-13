@@ -128,6 +128,16 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		this.setStatus(SyncStatus.Idle);
 	}
 
+	async hasPreviouslySynced(): Promise<boolean> {
+		const lastSyncData = await this.getLastSyncUserData();
+		return !!lastSyncData;
+	}
+
+	async hasRemote(): Promise<boolean> {
+		const remoteUserData = await this.userDataSyncStoreService.read(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, null);
+		return remoteUserData.content !== null;
+	}
+
 	private async continueSync(): Promise<boolean> {
 		if (this.status !== SyncStatus.HasConflicts) {
 			return false;

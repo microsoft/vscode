@@ -28,6 +28,19 @@ export const DEFAULT_IGNORED_SETTINGS = [
 	'sync.enableExtensions',
 ];
 
+export interface ISyncConfiguration {
+	sync: {
+		enable: boolean,
+		enableSettings: boolean,
+		enableKeybindings: boolean,
+		enableUIState: boolean,
+		enableExtensions: boolean,
+		keybindingsPerPlatform: boolean,
+		ignoredExtensions: string[],
+		ignoredSettings: string[]
+	}
+}
+
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -154,9 +167,10 @@ export interface IGlobalState {
 }
 
 export const enum SyncSource {
-	Settings = 1,
-	Keybindings,
-	Extensions
+	Settings = 'Settings',
+	Keybindings = 'Keybindings',
+	Extensions = 'Extensions',
+	UIState = 'UI State'
 }
 
 export const enum SyncStatus {
@@ -172,6 +186,8 @@ export interface ISynchroniser {
 	readonly onDidChangeLocal: Event<void>;
 	sync(_continue?: boolean): Promise<boolean>;
 	stop(): void;
+	hasPreviouslySynced(): Promise<boolean>
+	hasRemote(): Promise<boolean>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');

@@ -7,7 +7,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService, AutoSaveMode, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { SaveReason, IEditorIdentifier, IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
+import { SaveReason, IEditorIdentifier, IEditorInput, GroupIdentifier, ISaveOptions } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -45,7 +45,12 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.onAutoSaveConfigurationChange(config, true)));
-		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidWorkingCopyChangeDirty(workingCopy)));
+
+		// Working Copy events
+		this._register(this.workingCopyService.onDidRegister(c => this.onDidRegister(c)));
+		this._register(this.workingCopyService.onDidUnregister(c => this.onDidUnregister(c)));
+		this._register(this.workingCopyService.onDidChangeDirty(c => this.onDidChangeDirty(c)));
+		this._register(this.workingCopyService.onDidChangeContent(c => this.onDidChangeContent(c)));
 	}
 
 	private onWindowFocusChange(focused: boolean): void {
@@ -95,7 +100,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			if (editorIdentifier) {
 				this.editorService.save(editorIdentifier, { reason });
 			} else {
-				this.editorService.saveAll({ reason });
+				this.saveAllDirty({ reason });
 			}
 		}
 	}
@@ -122,12 +127,40 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			}
 
 			if (reason) {
-				this.editorService.saveAll({ reason });
+				this.saveAllDirty({ reason });
 			}
 		}
 	}
 
-	private onDidWorkingCopyChangeDirty(workingCopy: IWorkingCopy): void {
+	private saveAllDirty(options?: ISaveOptions): void {
+		for (const workingCopy of this.workingCopyService.workingCopies) {
+			if (workingCopy.isDirty() && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
+				workingCopy.save(options);
+			}
+		}
+	}
+
+	private onDidRegister(workingCopy: IWorkingCopy): void {
+		this.scheduleAutoSave(workingCopy);
+	}
+
+	private onDidUnregister(workingCopy: IWorkingCopy): void {
+		this.discardAutoSave(workingCopy);
+	}
+
+	private onDidChangeDirty(workingCopy: IWorkingCopy): void {
+		if (!workingCopy.isDirty()) {
+			this.discardAutoSave(workingCopy);
+		}
+	}
+
+	private onDidChangeContent(workingCopy: IWorkingCopy): void {
+		if (workingCopy.isDirty()) {
+			this.scheduleAutoSave(workingCopy);
+		}
+	}
+
+	private scheduleAutoSave(workingCopy: IWorkingCopy): void {
 		if (typeof this.autoSaveAfterDelay !== 'number') {
 			return; // auto save after delay must be enabled
 		}
@@ -137,22 +170,34 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		}
 
 		// Clear any running auto save operation
+		this.discardAutoSave(workingCopy);
+
+		this.logService.trace(`[editor auto save] scheduling auto save after ${this.autoSaveAfterDelay}ms`, workingCopy.resource.toString());
+
+		// Schedule new auto save
+		const handle = setTimeout(() => {
+
+			// Clear disposable
+			this.pendingAutoSavesAfterDelay.delete(workingCopy);
+
+			// Save if dirty
+			if (workingCopy.isDirty()) {
+				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString());
+
+				workingCopy.save({ reason: SaveReason.AUTO });
+			}
+		}, this.autoSaveAfterDelay);
+
+		// Keep in map for disposal as needed
+		this.pendingAutoSavesAfterDelay.set(workingCopy, toDisposable(() => {
+			this.logService.trace(`[editor auto save] clearing pending auto save`, workingCopy.resource.toString());
+
+			clearTimeout(handle);
+		}));
+	}
+
+	private discardAutoSave(workingCopy: IWorkingCopy): void {
 		dispose(this.pendingAutoSavesAfterDelay.get(workingCopy));
 		this.pendingAutoSavesAfterDelay.delete(workingCopy);
-
-		// Working copy got dirty - start auto save
-		if (workingCopy.isDirty()) {
-			this.logService.trace(`[editor auto save] starting auto save after ${this.autoSaveAfterDelay}ms`, workingCopy.resource.toString());
-
-			const handle = setTimeout(() => {
-				if (workingCopy.isDirty()) {
-					workingCopy.save({ reason: SaveReason.AUTO });
-				}
-			}, this.autoSaveAfterDelay);
-
-			this.pendingAutoSavesAfterDelay.set(workingCopy, toDisposable(() => clearTimeout(handle)));
-		} else {
-			this.logService.trace(`[editor auto save] clearing auto save`, workingCopy.resource.toString());
-		}
 	}
 }

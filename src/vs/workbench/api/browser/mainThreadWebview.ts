@@ -12,6 +12,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -107,6 +108,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		@IProductService private readonly _productService: IProductService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -319,7 +321,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._customEditorModels.set(model, { referenceCount: 1 });
 
 		const capabilitiesSet = new Set(capabilities);
-		if (capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable)) {
+		const isEditable = capabilitiesSet.has(extHostProtocol.WebviewEditorCapabilities.Editable);
+		if (isEditable) {
 			model.onUndo(edits => {
 				this._proxy.$undoEdits(resource, viewType, edits.map(x => x.data));
 			});
@@ -335,10 +338,17 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				e.waitUntil(this._proxy.$onSave(resource.toJSON(), viewType));
 			});
 
-			model.onWillSaveAs(e => {
-				e.waitUntil(this._proxy.$onSaveAs(e.resource.toJSON(), viewType, e.targetResource.toJSON()));
-			});
 		}
+
+		// Save as should always be implemented even if the model is readonly
+		model.onWillSaveAs(e => {
+			if (isEditable) {
+				e.waitUntil(this._proxy.$onSaveAs(e.resource.toJSON(), viewType, e.targetResource.toJSON()));
+			} else {
+				// Since the editor is readonly, just copy the file over
+				e.waitUntil(this._fileService.copy(e.resource, e.targetResource, false /* overwrite */));
+			}
+		});
 		return model;
 	}
 

@@ -25,6 +25,7 @@ import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/bro
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -163,7 +164,11 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 					let pos = new Position(range.startLineNumber, range.startColumn);
 					let selection = this._model.nearestReference(uri, pos);
 					if (selection) {
-						return this._widget.setSelection(selection);
+						return this._widget.setSelection(selection).then(() => {
+							if (this._widget && this._editor.getOption(EditorOption.peekWidgetFocusInlineEditor)) {
+								this._widget.focusOnPreviewEditor();
+							}
+						});
 					}
 				}
 				return undefined;
@@ -201,10 +206,13 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}
 		const target = this._model.nextOrPreviousReference(source, fwd);
 		const editorFocus = this._editor.hasTextFocus();
+		const previewEditorFocus = this._widget.isPreviewEditorFocused();
 		await this._widget.setSelection(target);
 		await this._gotoReference(target);
 		if (editorFocus) {
 			this._editor.focus();
+		} else if (this._widget && previewEditorFocus) {
+			this._widget.focusOnPreviewEditor();
 		}
 	}
 

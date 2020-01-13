@@ -29,6 +29,8 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'getConflictsSource': return Promise.resolve(this.service.conflictsSource);
 			case 'removeExtension': return this.service.removeExtension(args[0]);
 			case 'stop': this.service.stop(); return Promise.resolve();
+			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
+			case 'hasRemote': return this.service.hasRemote();
 		}
 		throw new Error('Invalid call');
 	}
@@ -53,6 +55,8 @@ export class SettingsSyncChannel implements IServerChannel {
 			case '_getInitialStatus': return Promise.resolve(this.service.status);
 			case '_getInitialConflicts': return Promise.resolve(this.service.conflicts);
 			case 'stop': this.service.stop(); return Promise.resolve();
+			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
+			case 'hasRemote': return this.service.hasRemote();
 			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
 		}
 		throw new Error('Invalid call');

@@ -117,6 +117,16 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 		this.setStatus(SyncStatus.Idle);
 	}
 
+	async hasPreviouslySynced(): Promise<boolean> {
+		const lastSyncData = await this.getLastSyncUserData();
+		return !!lastSyncData;
+	}
+
+	async hasRemote(): Promise<boolean> {
+		const remoteUserData = await this.userDataSyncStoreService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY, null);
+		return remoteUserData.content !== null;
+	}
+
 	async resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
 			this.syncPreviewResultPromise!.cancel();
@@ -183,7 +193,7 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			}
 			if (hasRemoteChanged) {
 				const formatUtils = await this.getFormattingOptions();
-				const remoteContent = remoteUserData.content ? computeRemoteContent(content, remoteUserData.content, this.getIgnoredSettings(content), formatUtils) : content;
+				const remoteContent = remoteUserData.content ? computeRemoteContent(content, remoteUserData.content, getIgnoredSettings(this.configurationService, content), formatUtils) : content;
 				this.logService.info('Settings: Updating remote settings');
 				const ref = await this.writeToRemote(remoteContent, remoteUserData.ref);
 				remoteUserData = { ref, content };
@@ -242,7 +252,7 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			) {
 				this.logService.trace('Settings: Merging remote settings with local settings...');
 				const formatUtils = await this.getFormattingOptions();
-				const result = merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, this.getIgnoredSettings(), resolvedConflicts, formatUtils);
+				const result = merge(localContent, remoteContent, lastSyncData ? lastSyncData.content : null, getIgnoredSettings(this.configurationService), resolvedConflicts, formatUtils);
 				// Sync only if there are changes
 				if (result.hasChanges) {
 					hasLocalChanged = result.mergeContent !== localContent;
@@ -274,29 +284,6 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			this._formattingOptions = this.userDataSyncUtilService.resolveFormattingOptions(this.environmentService.settingsResource);
 		}
 		return this._formattingOptions;
-	}
-
-	private getIgnoredSettings(settingsContent?: string): string[] {
-		let value: string[] = [];
-		if (settingsContent) {
-			const setting = parse(settingsContent);
-			if (setting) {
-				value = setting['sync.ignoredSettings'];
-			}
-		} else {
-			value = this.configurationService.getValue<string[]>('sync.ignoredSettings');
-		}
-		const added: string[] = [], removed: string[] = [];
-		if (Array.isArray(value)) {
-			for (const key of value) {
-				if (startsWith(key, '-')) {
-					removed.push(key.substring(1));
-				} else {
-					added.push(key);
-				}
-			}
-		}
-		return [...DEFAULT_IGNORED_SETTINGS, ...added].filter(setting => removed.indexOf(setting) === -1);
 	}
 
 	private async getLastSyncUserData(): Promise<IUserData | null> {
@@ -334,4 +321,27 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 		await this.fileService.writeFile(this.lastSyncSettingsResource, VSBuffer.fromString(JSON.stringify(remoteUserData)));
 	}
 
+}
+
+export function getIgnoredSettings(configurationService: IConfigurationService, settingsContent?: string): string[] {
+	let value: string[] = [];
+	if (settingsContent) {
+		const setting = parse(settingsContent);
+		if (setting) {
+			value = setting['sync.ignoredSettings'];
+		}
+	} else {
+		value = configurationService.getValue<string[]>('sync.ignoredSettings');
+	}
+	const added: string[] = [], removed: string[] = [];
+	if (Array.isArray(value)) {
+		for (const key of value) {
+			if (startsWith(key, '-')) {
+				removed.push(key.substring(1));
+			} else {
+				added.push(key);
+			}
+		}
+	}
+	return [...DEFAULT_IGNORED_SETTINGS, ...added].filter(setting => removed.indexOf(setting) === -1);
 }

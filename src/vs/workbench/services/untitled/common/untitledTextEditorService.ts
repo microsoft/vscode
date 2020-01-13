@@ -31,16 +31,6 @@ export interface IUntitledTextEditorService {
 	_serviceBrand: undefined;
 
 	/**
-	 * Events for when untitled text editors are created.
-	 */
-	readonly onDidCreate: Event<URI>;
-
-	/**
-	 * Events for when untitled text editors content changes (e.g. any keystroke).
-	 */
-	readonly onDidChangeContent: Event<URI>;
-
-	/**
 	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
 	 */
 	readonly onDidChangeDirty: Event<URI>;
@@ -112,12 +102,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	private mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
-
-	private readonly _onDidCreate = this._register(new Emitter<URI>());
-	readonly onDidCreate = this._onDidCreate.event;
-
-	private readonly _onDidChangeContent = this._register(new Emitter<URI>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<URI>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -246,7 +230,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 		const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledResource, !!hasAssociatedFilePath, mode, initialValue, encoding);
 
-		const contentListener = input.onDidModelChangeContent(() => this._onDidChangeContent.fire(untitledResource));
 		const dirtyListener = input.onDidChangeDirty(() => this._onDidChangeDirty.fire(untitledResource));
 		const encodingListener = input.onDidModelChangeEncoding(() => this._onDidChangeEncoding.fire(untitledResource));
 		const disposeListener = input.onDispose(() => this._onDidDisposeModel.fire(untitledResource));
@@ -256,7 +239,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		onceDispose(() => {
 			this.mapResourceToInput.delete(input.getResource());
 			this.mapResourceToAssociatedFilePath.delete(input.getResource());
-			contentListener.dispose();
 			dirtyListener.dispose();
 			encodingListener.dispose();
 			disposeListener.dispose();
@@ -264,9 +246,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 		// Add to cache
 		this.mapResourceToInput.set(untitledResource, input);
-
-		// Signal new untitled as event
-		this._onDidCreate.fire(untitledResource);
 
 		return input;
 	}

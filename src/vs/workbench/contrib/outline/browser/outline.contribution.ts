@@ -23,6 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 // import './outlineNavigation';
 
@@ -47,7 +48,7 @@ export class OutlineViewPaneContainer extends ViewPaneContainer {
 export const VIEW_CONTAINER_PANEL: ViewContainer =
 	Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 		id: PANEL_ID,
-		ctorDescriptor: { ctor: OutlineViewPaneContainer },
+		ctorDescriptor: new SyncDescriptor(OutlineViewPaneContainer),
 		name: localize('name', "Outline"),
 		hideIfEmpty: true
 	}, ViewContainerLocation.Panel);
@@ -56,7 +57,7 @@ export const VIEW_CONTAINER_PANEL: ViewContainer =
 const _outlineDesc = <IViewDescriptor>{
 	id: OutlineViewId,
 	name: localize('name', "Outline"),
-	ctorDescriptor: { ctor: OutlinePane },
+	ctorDescriptor: new SyncDescriptor(OutlinePane),
 	canToggleVisibility: true,
 	hideByDefault: false,
 	collapsed: true,
