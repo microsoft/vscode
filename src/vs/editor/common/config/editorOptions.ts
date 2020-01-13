@@ -3730,7 +3730,8 @@ export const EditorOptions = {
 	)),
 	wrappingAlgorithm: register(new EditorStringEnumOption(
 		EditorOption.wrappingAlgorithm, 'wrappingAlgorithm',
-		'monospace', ['monospace', 'dom'],
+		'monospace' as 'monospace' | 'dom',
+		['monospace', 'dom'] as const,
 		{
 			enumDescriptions: [
 				nls.localize('wrappingAlgorithm.monospace', "Assumes that all characters are of the same width. This is a fast algorithm."),

@@ -111,6 +111,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			lineBreaksComputerFactory,
 			fontInfo,
 			model.getOptions().tabSize,
+			'monospace',
 			wrappingInfo.wrappingColumn,
 			wrappingIndent
 		);
@@ -752,6 +753,7 @@ suite('SplitLinesCollection', () => {
 			lineBreaksComputerFactory,
 			fontInfo,
 			model.getOptions().tabSize,
+			'monospace',
 			wrappingInfo.wrappingColumn,
 			wrappingIndent
 		);

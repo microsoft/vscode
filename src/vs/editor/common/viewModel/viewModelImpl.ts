@@ -67,8 +67,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		} else {
 			const options = this.configuration.options;
-			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const fontInfo = options.get(EditorOption.fontInfo);
+			const wrappingAlgorithm = options.get(EditorOption.wrappingAlgorithm);
+			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
 			this.lines = new SplitLinesCollection(
@@ -77,6 +78,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				monospaceLineBreaksComputerFactory,
 				fontInfo,
 				this.model.getOptions().tabSize,
+				wrappingAlgorithm,
 				wrappingInfo.wrappingColumn,
 				wrappingIndent
 			);
@@ -153,11 +155,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let restorePreviousViewportStart = false;
 
 		const options = this.configuration.options;
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const wrappingAlgorithm = options.get(EditorOption.wrappingAlgorithm);
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
-		if (this.lines.setWrappingSettings(fontInfo, wrappingInfo.wrappingColumn, wrappingIndent)) {
+		if (this.lines.setWrappingSettings(fontInfo, wrappingAlgorithm, wrappingInfo.wrappingColumn, wrappingIndent)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
