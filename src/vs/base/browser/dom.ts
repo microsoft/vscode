@@ -820,7 +820,7 @@ export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazz
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
 }
 
-export function createStyleSheet(container: HTMLElement): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement | null): HTMLStyleElement {
 	if (!container) {
 		if ((window as any).monacoShadowRoot) {
 			container = (window as any).monacoShadowRoot.querySelector('head');
@@ -833,7 +833,7 @@ export function createStyleSheet(container: HTMLElement): HTMLStyleElement {
 	let style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
-	container.appendChild(style);
+	(container as HTMLElement).appendChild(style);
 	return style;
 }
 
@@ -846,7 +846,7 @@ export function createMetaElement(container: HTMLElement = document.getElementsB
 let _sharedStyleSheet: HTMLStyleElement | null = null;
 function getSharedStyleSheet(): HTMLStyleElement {
 	if (!_sharedStyleSheet) {
-		_sharedStyleSheet = createStyleSheet();
+		_sharedStyleSheet = createStyleSheet(null);
 	}
 	return _sharedStyleSheet;
 }
