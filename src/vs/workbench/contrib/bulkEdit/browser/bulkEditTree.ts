@@ -20,6 +20,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import type { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
 
 // --- VIEW MODEL
 
@@ -189,6 +190,21 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 		} else {
 			return element.parent.uri.toString() + JSON.stringify(element.edit.edit);
 		}
+	}
+}
+
+export class BulkEditAriaProvider implements IAriaProvider<BulkEditElement> {
+
+	getSetSize(_element: BulkEditElement, _index: number, listLength: number): number {
+		return listLength;
+	}
+
+	getPosInSet(_element: BulkEditElement, index: number): number {
+		return index;
+	}
+
+	getRole?(_element: BulkEditElement): string {
+		return 'checkbox';
 	}
 }
 
