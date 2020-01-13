@@ -14,10 +14,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 export class PageCoordinates {
 	_pageCoordinatesBrand: void;
 
-	constructor(
-		public readonly x: number,
-		public readonly y: number
-	) { }
+	constructor(public readonly x: number, public readonly y: number) { }
 
 	public toClientCoordinates(): ClientCoordinates {
 		return new ClientCoordinates(this.x - dom.StandardWindow.scrollX, this.y - dom.StandardWindow.scrollY);
@@ -34,10 +31,7 @@ export class PageCoordinates {
 export class ClientCoordinates {
 	_clientCoordinatesBrand: void;
 
-	constructor(
-		public readonly clientX: number,
-		public readonly clientY: number
-	) { }
+	constructor(public readonly clientX: number, public readonly clientY: number) { }
 
 	public toPageCoordinates(): PageCoordinates {
 		return new PageCoordinates(this.clientX + dom.StandardWindow.scrollX, this.clientY + dom.StandardWindow.scrollY);
@@ -88,7 +82,6 @@ export interface EditorMouseEventMerger {
 }
 
 export class EditorMouseEventFactory {
-
 	private readonly _editorViewDomNode: HTMLElement;
 
 	constructor(editorViewDomNode: HTMLElement) {
@@ -123,16 +116,29 @@ export class EditorMouseEventFactory {
 		});
 	}
 
-	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
+	public onMouseMoveThrottled(
+		target: HTMLElement,
+		callback: (e: EditorMouseEvent) => void,
+		merger: EditorMouseEventMerger,
+		minimumTimeMs: number
+	): IDisposable {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (
+			lastEvent: EditorMouseEvent | null,
+			currentEvent: MouseEvent
+		): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
-		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'mousemove', callback, myMerger, minimumTimeMs);
+		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(
+			target,
+			'mousemove',
+			callback,
+			myMerger,
+			minimumTimeMs
+		);
 	}
 }
 
 export class EditorPointerEventFactory {
-
 	private readonly _editorViewDomNode: HTMLElement;
 
 	constructor(editorViewDomNode: HTMLElement) {
@@ -161,16 +167,29 @@ export class EditorPointerEventFactory {
 		});
 	}
 
-	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
+	public onPointerMoveThrottled(
+		target: HTMLElement,
+		callback: (e: EditorMouseEvent) => void,
+		merger: EditorMouseEventMerger,
+		minimumTimeMs: number
+	): IDisposable {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (
+			lastEvent: EditorMouseEvent | null,
+			currentEvent: MouseEvent
+		): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
-		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'pointermove', callback, myMerger, minimumTimeMs);
+		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(
+			target,
+			'pointermove',
+			callback,
+			myMerger,
+			minimumTimeMs
+		);
 	}
 }
 
 export class GlobalEditorMouseMoveMonitor extends Disposable {
-
 	private readonly _editorViewDomNode: HTMLElement;
 	protected readonly _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
 	private _keydownListener: IDisposable | null;
@@ -182,20 +201,31 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 		this._keydownListener = null;
 	}
 
-	public startMonitoring(merger: EditorMouseEventMerger, mouseMoveCallback: (e: EditorMouseEvent) => void, onStopCallback: () => void): void {
-
+	public startMonitoring(
+		merger: EditorMouseEventMerger,
+		mouseMoveCallback: (e: EditorMouseEvent) => void,
+		onStopCallback: () => void
+	): void {
 		// Add a <<capture>> keydown event listener that will cancel the monitoring
 		// if something other than a modifier key is pressed
-		this._keydownListener = dom.addStandardDisposableListener(<any>document, 'keydown', (e) => {
-			const kb = e.toKeybinding();
-			if (kb.isModifierKey()) {
-				// Allow modifier keys
-				return;
-			}
-			this._globalMouseMoveMonitor.stopMonitoring(true);
-		}, true);
+		this._keydownListener = dom.addStandardDisposableListener(
+			<any>document,
+			'keydown',
+			e => {
+				const kb = e.toKeybinding();
+				if (kb.isModifierKey()) {
+					// Allow modifier keys
+					return;
+				}
+				this._globalMouseMoveMonitor.stopMonitoring(true);
+			},
+			true
+		);
 
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (
+			lastEvent: EditorMouseEvent | null,
+			currentEvent: MouseEvent
+		): EditorMouseEvent => {
 			return merger(lastEvent, new EditorMouseEvent(currentEvent, this._editorViewDomNode));
 		};
 
@@ -206,18 +236,12 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 	}
 }
 
-
-// Dynamically polyfill the `caretRangeFromPoint` method
 if (typeof ShadowRoot.prototype.caretRangeFromPoint === 'undefined') {
-    /**
-     * The `best I can do` polyfill for this method
-     */
-    ShadowRoot.prototype.caretRangeFromPoint = function (x, y) {
-
+	ShadowRoot.prototype.caretRangeFromPoint = function (x, y) {
 		let range = document.createRange();
 
-        // Get the element under the point
-		let el:Element | null = this.elementFromPoint(x, y);
+		// Get the element under the point
+		let el: Element | null = this.elementFromPoint(x, y);
 
 		if (el !== null) {
 			// Get the last child of the element until its firstChild is a text node
@@ -267,25 +291,25 @@ if (typeof ShadowRoot.prototype.caretRangeFromPoint === 'undefined') {
 			range.setEnd((el as any).firstChild, offset);
 		}
 
-        return range;
-    };
+		return range;
+	};
 }
 
 (function (window) {
-    (window as any)._getCharWidth = (char:any, font:any) => {
-        let cacheKey = char + font;
-        if ((window as any)._getCharWidth._cache[cacheKey]) {
-            return (window as any)._getCharWidth._cache[cacheKey];
-        }
+	(window as any)._getCharWidth = (char: any, font: any) => {
+		let cacheKey = char + font;
+		if ((window as any)._getCharWidth._cache[cacheKey]) {
+			return (window as any)._getCharWidth._cache[cacheKey];
+		}
 
-		let context = (window as any)._getCharWidth._canvas.getContext("2d");
-        context.font = font;
-        let metrics = context.measureText(char);
-        let width = metrics.width;
-        (window as any)._getCharWidth._cache[cacheKey] = width;
-        return width;
-    }
+		let context = (window as any)._getCharWidth._canvas.getContext('2d');
+		context.font = font;
+		let metrics = context.measureText(char);
+		let width = metrics.width;
+		(window as any)._getCharWidth._cache[cacheKey] = width;
+		return width;
+	};
 
-    (window as any)._getCharWidth._cache = {};
-    (window as any)._getCharWidth._canvas = document.createElement('canvas');
+	(window as any)._getCharWidth._cache = {};
+	(window as any)._getCharWidth._canvas = document.createElement('canvas');
 })(window);

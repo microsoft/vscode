@@ -826,7 +826,7 @@ export function createStyleSheet(container: HTMLElement): HTMLStyleElement {
 			container = (window as any).monacoShadowRoot.querySelector('head');
 		}
 		else {
-			container = document.getElementsByTagName('head')[0]
+			container = document.getElementsByTagName('head')[0];
 		}
 	}
 
