@@ -18,6 +18,21 @@ interface CacheRow {
 const THREE_MINUTES = 1000 * 60 * 3;
 const FIVE_MINUTES = 1000 * 60 * 5;
 
+function sanitizeRef(ref: string, path: string, repository: Repository): string {
+	if (ref === '~') {
+		const fileUri = Uri.file(path);
+		const uriString = fileUri.toString();
+		const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
+		return indexStatus ? '' : 'HEAD';
+	}
+
+	if (/^~\d$/.test(ref)) {
+		return `:${ref[1]}`;
+	}
+
+	return ref;
+}
+
 export class GitFileSystemProvider implements FileSystemProvider {
 
 	private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
@@ -126,7 +141,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 		let size = 0;
 		try {
-			const details = await repository.getObjectDetails(this.fixRef(ref, path, repository), path);
+			const details = await repository.getObjectDetails(sanitizeRef(ref, path, repository), path);
 			size = details.size;
 		} catch {
 			// noop
@@ -173,7 +188,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.cache.set(uri.toString(), cacheValue);
 
 		try {
-			return await repository.buffer(this.fixRef(ref, path, repository), path);
+			return await repository.buffer(sanitizeRef(ref, path, repository), path);
 		} catch (err) {
 			return new Uint8Array(0);
 		}
@@ -193,17 +208,5 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 	dispose(): void {
 		this.disposables.forEach(d => d.dispose());
-	}
-
-	private fixRef(ref: string, path: string, repository: Repository): string {
-		if (ref === '~') {
-			const fileUri = Uri.file(path);
-			const uriString = fileUri.toString();
-			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-			return indexStatus ? '' : 'HEAD';
-		} else if (/^~\d$/.test(ref)) {
-			return `:${ref[1]}`;
-		}
-		return ref;
 	}
 }
