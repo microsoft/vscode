@@ -160,21 +160,34 @@ class FileElementTemplate {
 		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', (() => element.edit.updateChecked(this._checkbox.checked))));
 		this._checkbox.checked = element.edit.isChecked();
 
-		this._label.setFile(element.uri, {
-			matches: createMatches(score),
-			fileKind: FileKind.FILE,
-			fileDecorations: { colors: true, badges: false },
-		});
-
-		// details
 		if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
-			this._details.innerText = localize('detail.rename', "(renaming to {0})", this._labelService.getUriLabel(element.edit.newUri, { relative: true }));
-		} else if (element.edit.type & BulkFileOperationType.Create) {
-			this._details.innerText = localize('detail.create', "(creating)");
-		} else if (element.edit.type & BulkFileOperationType.Create) {
-			this._details.innerText = localize('detail.del', "(deleting)");
+			// rename: NEW NAME (old name)
+			this._label.setFile(element.edit.newUri, {
+				matches: createMatches(score),
+				fileKind: FileKind.FILE,
+				fileDecorations: { colors: true, badges: false },
+			});
+
+			this._details.innerText = localize(
+				'detail.rename', "(renaming from {0})",
+				this._labelService.getUriLabel(element.uri, { relative: true })
+			);
+
 		} else {
-			this._details.innerText = '';
+			// create, delete, edit: NAME
+			this._label.setFile(element.uri, {
+				matches: createMatches(score),
+				fileKind: FileKind.FILE,
+				fileDecorations: { colors: true, badges: false },
+			});
+
+			if (element.edit.type & BulkFileOperationType.Create) {
+				this._details.innerText = localize('detail.create', "(creating)");
+			} else if (element.edit.type & BulkFileOperationType.Create) {
+				this._details.innerText = localize('detail.del', "(deleting)");
+			} else {
+				this._details.innerText = '';
+			}
 		}
 	}
 }
