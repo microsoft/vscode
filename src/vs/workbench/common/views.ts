@@ -100,6 +100,11 @@ export interface IViewContainersRegistry {
 	 * Returns all view containers in the given location
 	 */
 	getViewContainers(location: ViewContainerLocation): ViewContainer[];
+
+	/**
+	 * Returns the view container location
+	 */
+	getViewContainerLocation(container: ViewContainer): ViewContainerLocation | undefined;
 }
 
 interface ViewOrderDelegate {
@@ -156,6 +161,10 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 
 	getViewContainers(location: ViewContainerLocation): ViewContainer[] {
 		return [...(this.viewContainers.get(location) || [])];
+	}
+
+	getViewContainerLocation(container: ViewContainer): ViewContainerLocation | undefined {
+		return keys(this.viewContainers).filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer.id === container.id).length > 0)[0];
 	}
 }
 
@@ -336,14 +345,34 @@ export interface IViewsViewlet extends IViewlet {
 
 }
 
+export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 export const IViewsService = createDecorator<IViewsService>('viewsService');
+
 
 export interface IViewsService {
 	_serviceBrand: undefined;
 
 	openView(id: string, focus?: boolean): Promise<IView | null>;
+}
+
+
+export interface IViewDescriptorService {
+
+	_serviceBrand: undefined;
+
+	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
+
+	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
+
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
+
+	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+
+	getViews(container: ViewContainer): IViewDescriptor[];
 
 	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection | null;
+
+	getViewContainer(viewId: string): ViewContainer | null;
 }
 
 // Custom views
