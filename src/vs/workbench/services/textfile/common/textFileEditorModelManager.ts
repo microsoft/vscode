@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -38,33 +38,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	private readonly _onModelOrphanedChanged = this._register(new Emitter<TextFileModelChangeEvent>());
 	readonly onModelOrphanedChanged = this._onModelOrphanedChanged.event;
-
-	private _onModelsDirty: Event<ReadonlyArray<TextFileModelChangeEvent>> | undefined;
-	get onModelsDirty(): Event<ReadonlyArray<TextFileModelChangeEvent>> {
-		if (!this._onModelsDirty) {
-			this._onModelsDirty = this.debounce(this.onModelDirty);
-		}
-
-		return this._onModelsDirty;
-	}
-
-	private _onModelsSaveError: Event<ReadonlyArray<TextFileModelChangeEvent>> | undefined;
-	get onModelsSaveError(): Event<ReadonlyArray<TextFileModelChangeEvent>> {
-		if (!this._onModelsSaveError) {
-			this._onModelsSaveError = this.debounce(this.onModelSaveError);
-		}
-
-		return this._onModelsSaveError;
-	}
-
-	private _onModelsSaved: Event<ReadonlyArray<TextFileModelChangeEvent>> | undefined;
-	get onModelsSaved(): Event<ReadonlyArray<TextFileModelChangeEvent>> {
-		if (!this._onModelsSaved) {
-			this._onModelsSaved = this.debounce(this.onModelSaved);
-		}
-
-		return this._onModelsSaved;
-	}
 
 	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
 	private readonly mapResourceToStateChangeListener = new ResourceMap<IDisposable>();
@@ -114,21 +87,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		if (queue.size <= 1) {
 			queue.queue(() => model.load().then(undefined, onUnexpectedError));
 		}
-	}
-
-	private debounce(event: Event<TextFileModelChangeEvent>): Event<TextFileModelChangeEvent[]> {
-		return Event.debounce<TextFileModelChangeEvent, TextFileModelChangeEvent[]>(event, (prev, cur) => {
-			if (!prev) {
-				prev = [cur];
-			} else {
-				prev.push(cur);
-			}
-			return prev;
-		}, this.debounceDelay());
-	}
-
-	protected debounceDelay(): number {
-		return 250;
 	}
 
 	get(resource: URI): ITextFileEditorModel | undefined {

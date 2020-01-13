@@ -13,12 +13,14 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ISurveyData, IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, StateChange, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
+import { RunOnceWorker } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-class LanguageSurvey {
+class LanguageSurvey extends Disposable {
 
 	constructor(
 		data: ISurveyData,
@@ -30,6 +32,8 @@ class LanguageSurvey {
 		openerService: IOpenerService,
 		productService: IProductService
 	) {
+		super();
+
 		const SESSION_COUNT_KEY = `${data.surveyId}.sessionCount`;
 		const LAST_SESSION_DATE_KEY = `${data.surveyId}.lastSessionDate`;
 		const SKIP_VERSION_KEY = `${data.surveyId}.skipVersion`;
@@ -45,7 +49,9 @@ class LanguageSurvey {
 		const date = new Date().toDateString();
 
 		if (storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
-			textFileService.models.onModelsSaved(e => {
+
+			// Process model-save event every 250ms to reduce load
+			const onModelsSavedWorker = this._register(new RunOnceWorker<TextFileModelChangeEvent>(e => {
 				e.forEach(event => {
 					if (event.kind === StateChange.SAVED) {
 						const model = modelService.getModel(event.resource);
@@ -56,7 +62,9 @@ class LanguageSurvey {
 						}
 					}
 				});
-			});
+			}, 250));
+
+			this._register(textFileService.models.onModelSaved(e => onModelsSavedWorker.work(e)));
 		}
 
 		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());

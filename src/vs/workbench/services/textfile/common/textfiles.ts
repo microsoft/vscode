@@ -387,10 +387,6 @@ export interface ITextFileEditorModelManager {
 	readonly onModelSaved: Event<TextFileModelChangeEvent>;
 	readonly onModelReverted: Event<TextFileModelChangeEvent>;
 
-	readonly onModelsDirty: Event<readonly TextFileModelChangeEvent[]>;
-	readonly onModelsSaveError: Event<readonly TextFileModelChangeEvent[]>;
-	readonly onModelsSaved: Event<readonly TextFileModelChangeEvent[]>;
-
 	get(resource: URI): ITextFileEditorModel | undefined;
 
 	getAll(resource?: URI): ITextFileEditorModel[];

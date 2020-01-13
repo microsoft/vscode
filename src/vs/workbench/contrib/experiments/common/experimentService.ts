@@ -14,12 +14,13 @@ import { language } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
-import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, StateChange, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { RunOnceWorker } from 'vs/base/common/async';
 
 export const enum ExperimentState {
 	Evaluating,
@@ -402,11 +403,13 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				return ExperimentState.Run;
 			}
 
-			const onSaveHandler = this.textFileService.models.onModelsSaved(e => {
+			// Process model-save event every 250ms to reduce load
+			const onModelsSavedWorker = this._register(new RunOnceWorker<TextFileModelChangeEvent>(e => {
 				const date = new Date().toDateString();
 				const latestExperimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
 				if (latestExperimentState.state !== ExperimentState.Evaluating) {
 					onSaveHandler.dispose();
+					onModelsSavedWorker.dispose();
 					return;
 				}
 				e.forEach(async event => {
@@ -444,8 +447,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						this.fireRunExperiment(processedExperiment);
 					}
 				}
-			});
-			this._register(onSaveHandler);
+			}, 250));
+
+			const onSaveHandler = this._register(this.textFileService.models.onModelSaved(e => onModelsSavedWorker.work(e)));
 			return ExperimentState.Evaluating;
 		});
 	}
