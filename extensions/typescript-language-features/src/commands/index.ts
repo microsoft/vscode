@@ -13,6 +13,7 @@ import { OpenTsServerLogCommand } from './openTsServerLog';
 import { ReloadJavaScriptProjectsCommand, ReloadTypeScriptProjectsCommand } from './reloadProject';
 import { RestartTsServerCommand } from './restartTsServer';
 import { SelectTypeScriptVersionCommand } from './selectTypeScriptVersion';
+import { LearnMoreAboutRefactoringsCommand } from './learnMoreAboutRefactorings';
 
 export function registerCommands(
 	commandManager: CommandManager,
@@ -27,4 +28,5 @@ export function registerCommands(
 	commandManager.register(new TypeScriptGoToProjectConfigCommand(lazyClientHost));
 	commandManager.register(new JavaScriptGoToProjectConfigCommand(lazyClientHost));
 	commandManager.register(new ConfigurePluginCommand(pluginManager));
+	commandManager.register(new LearnMoreAboutRefactoringsCommand());
 }

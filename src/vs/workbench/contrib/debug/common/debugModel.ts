@@ -118,11 +118,14 @@ export class ExpressionContainer implements IExpressionContainer {
 		try {
 			const response = await this.session!.variables(this.reference || 0, this.threadId, filter, start, count);
 			return response && response.body && response.body.variables
-				? distinct(response.body.variables.filter(v => !!v && isString(v.name)), (v: DebugProtocol.Variable) => v.name).map((v: DebugProtocol.Variable) =>
-					new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
-				: [];
+				? distinct(response.body.variables.filter(v => !!v), v => v.name).map(v => {
+					if (isString(v.value) && isString(v.name) && typeof v.variablesReference === 'number') {
+						return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type);
+					}
+					return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, { kind: 'virtual' }, undefined, false);
+				}) : [];
 		} catch (e) {
-			return [new Variable(this.session, this.threadId, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, undefined, false)];
+			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, { kind: 'virtual' }, undefined, false)];
 		}
 	}
 
@@ -157,10 +160,6 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.session = session;
 		try {
 			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
-			if (response && response.success === false) {
-				this.value = response.message || '';
-				return false;
-			}
 
 			if (response && response.body) {
 				this.value = response.body.result || '';
@@ -1011,7 +1010,7 @@ export class DebugModel implements IDebugModel {
 		this.sortAndDeDup();
 
 		if (fireEvent) {
-			this._onDidChangeBreakpoints.fire({ added: newBreakpoints });
+			this._onDidChangeBreakpoints.fire({ added: newBreakpoints, sessionOnly: false });
 		}
 
 		return newBreakpoints;
@@ -1019,7 +1018,7 @@ export class DebugModel implements IDebugModel {
 
 	removeBreakpoints(toRemove: IBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId()));
-		this._onDidChangeBreakpoints.fire({ removed: toRemove });
+		this._onDidChangeBreakpoints.fire({ removed: toRemove, sessionOnly: false });
 	}
 
 	updateBreakpoints(data: Map<string, IBreakpointUpdateData>): void {
@@ -1032,7 +1031,7 @@ export class DebugModel implements IDebugModel {
 			}
 		});
 		this.sortAndDeDup();
-		this._onDidChangeBreakpoints.fire({ changed: updated });
+		this._onDidChangeBreakpoints.fire({ changed: updated, sessionOnly: false });
 	}
 
 	setBreakpointSessionData(sessionId: string, capabilites: DebugProtocol.Capabilities, data: Map<string, DebugProtocol.Breakpoint> | undefined): void {
@@ -1101,7 +1100,7 @@ export class DebugModel implements IDebugModel {
 				this.breakpointsActivated = true;
 			}
 
-			this._onDidChangeBreakpoints.fire({ changed: changed });
+			this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
 		}
 	}
 
@@ -1130,13 +1129,13 @@ export class DebugModel implements IDebugModel {
 			this.breakpointsActivated = true;
 		}
 
-		this._onDidChangeBreakpoints.fire({ changed: changed });
+		this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
 	}
 
 	addFunctionBreakpoint(functionName: string, id?: string): IFunctionBreakpoint {
 		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, undefined, undefined, undefined, id);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
-		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint] });
+		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint], sessionOnly: false });
 
 		return newFunctionBreakpoint;
 	}
@@ -1145,7 +1144,7 @@ export class DebugModel implements IDebugModel {
 		const functionBreakpoint = this.functionBreakpoints.filter(fbp => fbp.getId() === id).pop();
 		if (functionBreakpoint) {
 			functionBreakpoint.name = name;
-			this._onDidChangeBreakpoints.fire({ changed: [functionBreakpoint] });
+			this._onDidChangeBreakpoints.fire({ changed: [functionBreakpoint], sessionOnly: false });
 		}
 	}
 
@@ -1158,13 +1157,13 @@ export class DebugModel implements IDebugModel {
 			removed = this.functionBreakpoints;
 			this.functionBreakpoints = [];
 		}
-		this._onDidChangeBreakpoints.fire({ removed });
+		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
 
 	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined): void {
 		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes);
 		this.dataBreakopints.push(newDataBreakpoint);
-		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint] });
+		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint], sessionOnly: false });
 	}
 
 	removeDataBreakpoints(id?: string): void {
@@ -1176,15 +1175,15 @@ export class DebugModel implements IDebugModel {
 			removed = this.dataBreakopints;
 			this.dataBreakopints = [];
 		}
-		this._onDidChangeBreakpoints.fire({ removed });
+		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
 
 	getWatchExpressions(): Expression[] {
 		return this.watchExpressions;
 	}
 
-	addWatchExpression(name: string): IExpression {
-		const we = new Expression(name);
+	addWatchExpression(name?: string): IExpression {
+		const we = new Expression(name || '');
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 

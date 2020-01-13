@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .bulk-edit-panel .highlight.remove {
+	text-decoration: line-through;
+}
+
+.monaco-workbench .bulk-edit-panel .message {
+	padding: 10px 20px
+}
+
+.monaco-workbench .bulk-edit-panel [data-state="message"] .message,
+.monaco-workbench .bulk-edit-panel [data-state="data"] .tree
+{
+	display: inherit;
+}
+
+.monaco-workbench .bulk-edit-panel [data-state="data"] .message,
+.monaco-workbench .bulk-edit-panel [data-state="message"] .tree
+{
+	display: none;
+}
+
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents {
+	display: flex;
+}
+
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox {
+	align-self: center;
+}
+
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox.disabled {
+	opacity: .5;
+}
+
+.monaco-workbench .bulk-edit-panel .monaco-tl-contents .details {
+	margin-left: .5em;
+	opacity: .7;
+	font-size: 0.9em;
+	white-space: pre
+}

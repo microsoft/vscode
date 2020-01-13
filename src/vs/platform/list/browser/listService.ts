@@ -22,7 +22,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { attachListStyler, computeStyles, defaultListStyles, IColorMapping, attachStyler } from 'vs/platform/theme/common/styler';
+import { attachListStyler, computeStyles, defaultListStyles, IColorMapping } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ObjectTree, IObjectTreeOptions, ICompressibleTreeRenderer, CompressibleObjectTree, ICompressibleObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
@@ -287,7 +287,7 @@ export class WorkbenchList<T> extends List<T> {
 		this.disposables.add((listService as ListService).register(this));
 
 		if (options.overrideStyles) {
-			this.disposables.add(attachStyler(themeService, options.overrideStyles, this));
+			this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
 		}
 
 		this.disposables.add(this.onSelectionChange(() => {
@@ -368,7 +368,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.disposables.add((listService as ListService).register(this));
 
 		if (options.overrideStyles) {
-			this.disposables.add(attachStyler(themeService, options.overrideStyles, this));
+			this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
 		}
 
 		this.registerListeners();
@@ -1044,7 +1044,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(tree),
-			overrideStyles ? attachStyler(themeService, overrideStyles, tree) : Disposable.None,
+			overrideStyles ? attachListStyler(tree, themeService, overrideStyles) : Disposable.None,
 			tree.onDidChangeSelection(() => {
 				const selection = tree.getSelection();
 				const focus = tree.getFocus();

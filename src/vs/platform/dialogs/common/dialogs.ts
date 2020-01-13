@@ -230,7 +230,7 @@ export interface IFileDialogService {
 	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
-	 * Shows a save file file dialog and save the file at the chosen file URI.
+	 * Shows a save file dialog and save the file at the chosen file URI.
 	 */
 	pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
 
@@ -257,9 +257,8 @@ export const enum ConfirmResult {
 }
 
 const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, fileNamesOrResources: readonly (string | URI)[]): string {
-	const message = [start];
-	message.push('');
+export function getFileNamesMessage(fileNamesOrResources: readonly (string | URI)[]): string {
+	const message: string[] = [];
 	message.push(...fileNamesOrResources.slice(0, MAX_CONFIRM_FILES).map(fileNameOrResource => typeof fileNameOrResource === 'string' ? fileNameOrResource : basename(fileNameOrResource)));
 
 	if (fileNamesOrResources.length > MAX_CONFIRM_FILES) {

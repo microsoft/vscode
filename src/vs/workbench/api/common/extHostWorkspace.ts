@@ -25,7 +25,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { Range, RelativePattern } from 'vs/workbench/api/common/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
 
 export interface IExtHostWorkspaceProvider {
@@ -339,11 +339,6 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		if (folders.length === 0) {
 			return undefined;
 		}
-
-		if (folders.length > 1) {
-			return undefined;
-		}
-
 		// #54483 @Joh Why are we still using fsPath?
 		return folders[0].uri.fsPath;
 	}

@@ -94,7 +94,8 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 
 	private getStatusEntry(showBeak?: boolean): IStatusbarEntry {
 		return {
-			text: '$(smiley)',
+			text: '$(feedback)',
+			tooltip: localize('status.feedback', "Tweet Feedback"),
 			command: '_feedback.open',
 			showBeak
 		};

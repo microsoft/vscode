@@ -8,31 +8,49 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree, values } from 'vs/base/common/map';
+import { ISaveOptions } from 'vs/workbench/common/editor';
 
 export const enum WorkingCopyCapabilities {
 
 	/**
-	 * Signals that the working copy participates
-	 * in auto saving as configured by the user.
+	 * Signals that the working copy requires
+	 * additional input when saving, e.g. an
+	 * associated path to save to.
 	 */
-	AutoSave = 1 << 1
+	Untitled = 1 << 1
 }
 
 export interface IWorkingCopy {
 
-	//#region Dirty Tracking
+	readonly resource: URI;
+
+	readonly capabilities: WorkingCopyCapabilities;
+
+
+	//#region Events
 
 	readonly onDidChangeDirty: Event<void>;
+
+	readonly onDidChangeContent: Event<void>;
+
+	//#endregion
+
+
+	//#region Dirty Tracking
 
 	isDirty(): boolean;
 
 	//#endregion
 
 
-	readonly resource: URI;
+	//#region Save / Backup
 
-	readonly capabilities: WorkingCopyCapabilities;
+	save(options?: ISaveOptions): Promise<boolean>;
+
+	backup(): Promise<void>;
+
+	//#endregion
 }
 
 export const IWorkingCopyService = createDecorator<IWorkingCopyService>('workingCopyService');
@@ -41,9 +59,21 @@ export interface IWorkingCopyService {
 
 	_serviceBrand: undefined;
 
-	//#region Dirty Tracking
+
+	//#region Events
+
+	readonly onDidRegister: Event<IWorkingCopy>;
+
+	readonly onDidUnregister: Event<IWorkingCopy>;
 
 	readonly onDidChangeDirty: Event<IWorkingCopy>;
+
+	readonly onDidChangeContent: Event<IWorkingCopy>;
+
+	//#endregion
+
+
+	//#region Dirty Tracking
 
 	readonly dirtyCount: number;
 
@@ -56,6 +86,8 @@ export interface IWorkingCopyService {
 
 	//#region Registry
 
+	readonly workingCopies: IWorkingCopy[];
+
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable;
 
 	//#endregion
@@ -65,10 +97,24 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	_serviceBrand: undefined;
 
-	//#region Dirty Tracking
+	//#region Events
+
+	private readonly _onDidRegister = this._register(new Emitter<IWorkingCopy>());
+	readonly onDidRegister = this._onDidRegister.event;
+
+	private readonly _onDidUnregister = this._register(new Emitter<IWorkingCopy>());
+	readonly onDidUnregister = this._onDidUnregister.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<IWorkingCopy>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	private readonly _onDidChangeContent = this._register(new Emitter<IWorkingCopy>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+
+	//#endregion
+
+
+	//#region Dirty Tracking
 
 	isDirty(resource: URI): boolean {
 		const workingCopies = this.mapResourceToWorkingCopy.get(resource.toString());
@@ -84,7 +130,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	}
 
 	get hasDirty(): boolean {
-		for (const workingCopy of this.workingCopies) {
+		for (const workingCopy of this._workingCopies) {
 			if (workingCopy.isDirty()) {
 				return true;
 			}
@@ -96,7 +142,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	get dirtyCount(): number {
 		let totalDirtyCount = 0;
 
-		for (const workingCopy of this.workingCopies) {
+		for (const workingCopy of this._workingCopies) {
 			if (workingCopy.isDirty()) {
 				totalDirtyCount++;
 			}
@@ -111,7 +157,9 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	//#region Registry
 
 	private mapResourceToWorkingCopy = TernarySearchTree.forPaths<Set<IWorkingCopy>>();
-	private workingCopies = new Set<IWorkingCopy>();
+
+	get workingCopies(): IWorkingCopy[] { return values(this._workingCopies); }
+	private _workingCopies = new Set<IWorkingCopy>();
 
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
 		const disposables = new DisposableStore();
@@ -125,10 +173,14 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 		workingCopiesForResource.add(workingCopy);
 
-		this.workingCopies.add(workingCopy);
+		this._workingCopies.add(workingCopy);
 
-		// Dirty Events
+		// Wire in Events
+		disposables.add(workingCopy.onDidChangeContent(() => this._onDidChangeContent.fire(workingCopy)));
 		disposables.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
+
+		// Send some initial events
+		this._onDidRegister.fire(workingCopy);
 		if (workingCopy.isDirty()) {
 			this._onDidChangeDirty.fire(workingCopy);
 		}
@@ -136,6 +188,9 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		return toDisposable(() => {
 			this.unregisterWorkingCopy(workingCopy);
 			dispose(disposables);
+
+			// Signal as event
+			this._onDidUnregister.fire(workingCopy);
 		});
 	}
 
@@ -147,7 +202,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 			this.mapResourceToWorkingCopy.delete(workingCopy.resource.toString());
 		}
 
-		this.workingCopies.delete(workingCopy);
+		this._workingCopies.delete(workingCopy);
 
 		// If copy is dirty, ensure to fire an event to signal the dirty change
 		// (a disposed working copy cannot account for being dirty in our model)

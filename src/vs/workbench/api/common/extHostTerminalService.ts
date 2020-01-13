@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
@@ -310,9 +310,8 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
-		this._bufferer = new TerminalDataBufferer();
-
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
+		this._bufferer = new TerminalDataBufferer(this._proxy.$sendProcessData);
 		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
@@ -477,7 +476,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
-		this._bufferer.startBuffering(id, p.onProcessData, this._proxy.$sendProcessData);
+		this._bufferer.startBuffering(id, p.onProcessData);
 		p.onProcessExit(exitCode => this._onProcessExit(id, exitCode));
 
 		if (p.onProcessOverrideDimensions) {

@@ -23,13 +23,15 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import 'vs/workbench/contrib/search/browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { dispose } from 'vs/base/common/lifecycle';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -90,10 +92,15 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				onModelRemoved: undefined!,
 				getCreationOptions() { throw new Error(); }
 			});
+			instantiationService.stub(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
+				async computeMoreMinimalEdits(_uri: any, edits: any) {
+					return edits || undefined;
+				}
+			});
 			inst = instantiationService;
 		}
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol);
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -194,6 +201,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '*');
 		assert.equal(symbols.length, 1);
 	});
+
+	// --- formatting
+	test('executeFormatDocumentProvider, back and forth', async function () {
+
+		disposables.push(extHost.registerDocumentFormattingEditProvider(nullExtensionDescription, defaultSelector, new class implements vscode.DocumentFormattingEditProvider {
+			provideDocumentFormattingEdits() {
+				return [types.TextEdit.insert(new types.Position(0, 0), '42')];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let edits = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeFormatDocumentProvider', model.uri);
+		assert.equal(edits.length, 1);
+	});
+
 
 	// --- definition
 

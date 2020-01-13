@@ -3,43 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/issueReporter';
-import { shell, ipcRenderer, webFrame, clipboard } from 'electron';
-import { localize } from 'vs/nls';
-import { $ } from 'vs/base/browser/dom';
-import * as collections from 'vs/base/common/collections';
-import * as browser from 'vs/base/browser/browser';
-import { escape } from 'vs/base/common/strings';
-import product from 'vs/platform/product/common/product';
+import { clipboard, ipcRenderer, shell, webFrame } from 'electron';
 import * as os from 'os';
+import * as browser from 'vs/base/browser/browser';
+import { $ } from 'vs/base/browser/dom';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import * as collections from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
-import * as platform from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { escape } from 'vs/base/common/strings';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { MainProcessService, IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
-import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
-import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
-import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
 import { normalizeGitHubUrl } from 'vs/code/common/issue/issueReporterUtil';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { SystemInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
+import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
+import 'vs/css!./media/issueReporter';
+import { localize } from 'vs/nls';
+import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/node/issue';
+import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
+import { FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import product from 'vs/platform/product/common/product';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { combinedAppender, LogAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -185,8 +185,16 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.validation-error, .required-input { color: ${styles.inputErrorBorder}; }`);
+			content.push(`.invalid-input, .invalid-input:focus, .validation-error { border: 1px solid ${styles.inputErrorBorder} !important; }`);
+			content.push(`.required-input { color: ${styles.inputErrorBorder}; }`);
+		}
+
+		if (styles.inputErrorBackground) {
+			content.push(`.validation-error { background: ${styles.inputErrorBackground}; }`);
+		}
+
+		if (styles.inputErrorForeground) {
+			content.push(`.validation-error { color: ${styles.inputErrorForeground}; }`);
 		}
 
 		if (styles.inputActiveBorder) {
@@ -226,7 +234,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.buttonHoverBackground) {
-			content.push(`.monaco-text-button:hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
+			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
@@ -430,6 +438,11 @@ export class IssueReporter extends Disposable {
 
 		this.addEventListener('disableExtensions', 'click', () => {
 			sendWorkbenchCommand('workbench.action.reloadWindowWithExtensionsDisabled');
+		});
+
+		this.addEventListener('extensionBugsLink', 'click', (e: MouseEvent) => {
+			const url = (<HTMLElement>e.target).innerText;
+			shell.openExternal(url);
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
@@ -1028,15 +1041,63 @@ export class IssueReporter extends Disposable {
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
+					this.validateSelectedExtension();
 
 					const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 					this.searchExtensionIssues(title);
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
+					this.validateSelectedExtension();
 				}
 			});
 		}
+
+		this.addEventListener('problem-source', 'change', (_) => {
+			this.validateSelectedExtension();
+		});
+	}
+
+	private validateSelectedExtension(): void {
+		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
+		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
+		hide(extensionValidationMessage);
+		hide(extensionValidationNoUrlsMessage);
+
+		if (!this.issueReporterModel.getData().selectedExtension) {
+			this.previewButton.enabled = true;
+			return;
+		}
+
+		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
+		if (hasValidGitHubUrl) {
+			this.previewButton.enabled = true;
+		} else {
+			this.setExtensionValidationMessage();
+			this.previewButton.enabled = false;
+		}
+	}
+
+	private setExtensionValidationMessage(): void {
+		const extensionValidationMessage = this.getElementById('extension-selection-validation-error')!;
+		const extensionValidationNoUrlsMessage = this.getElementById('extension-selection-validation-error-no-url')!;
+		const bugsUrl = this.getExtensionBugsUrl();
+		if (bugsUrl) {
+			show(extensionValidationMessage);
+			const link = this.getElementById('extensionBugsLink')!;
+			link.textContent = bugsUrl;
+			return;
+		}
+
+		const extensionUrl = this.getExtensionRepositoryUrl();
+		if (extensionUrl) {
+			show(extensionValidationMessage);
+			const link = this.getElementById('extensionBugsLink');
+			link!.textContent = extensionUrl;
+			return;
+		}
+
+		show(extensionValidationNoUrlsMessage);
 	}
 
 	private updateProcessInfo(state: IssueReporterModelData) {

@@ -121,7 +121,7 @@ export class SuggestController implements IEditorContribution {
 		this.editor = editor;
 		this.model = new SuggestModel(this.editor, editorWorker);
 
-		this.widget = new IdleValue(() => {
+		this.widget = this._toDispose.add(new IdleValue(() => {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
 
@@ -168,11 +168,11 @@ export class SuggestController implements IEditorContribution {
 
 
 			return widget;
-		});
+		}));
 
-		this._alternatives = new IdleValue(() => {
+		this._alternatives = this._toDispose.add(new IdleValue(() => {
 			return this._toDispose.add(new SuggestAlternatives(this.editor, this._contextKeyService));
-		});
+		}));
 
 		this._toDispose.add(_instantiationService.createInstance(WordContextKey, editor));
 
@@ -259,19 +259,20 @@ export class SuggestController implements IEditorContribution {
 			this.editor.pushUndoStop();
 		}
 
-		if (Array.isArray(suggestion.additionalTextEdits)) {
-			this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-		}
+		// compute overwrite[Before|After] deltas BEFORE applying extra edits
+		const info = this.getOverwriteInfo(item, Boolean(flags & InsertFlags.AlternativeOverwriteConfig));
 
 		// keep item in memory
 		this._memoryService.memorize(model, this.editor.getPosition(), item);
+
+		if (Array.isArray(suggestion.additionalTextEdits)) {
+			this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+		}
 
 		let { insertText } = suggestion;
 		if (!(suggestion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)) {
 			insertText = SnippetParser.escape(insertText);
 		}
-
-		const info = this.getOverwriteInfo(item, Boolean(flags & InsertFlags.AlternativeOverwriteConfig));
 
 		SnippetController2.get(this.editor).insert(insertText, {
 			overwriteBefore: info.overwriteBefore,

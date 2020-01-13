@@ -131,6 +131,8 @@ export class LinkDetector {
 			}
 			const options = { selection: { startLineNumber: lineNumber, startColumn: columnNumber } };
 			this.decorateLink(link, () => this.editorService.openEditor({ resource: uri, options }));
+		}).catch(() => {
+			// If the uri can not be resolved we should not spam the console with error, remain quite #86587
 		});
 		return link;
 	}

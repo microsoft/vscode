@@ -367,6 +367,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return {
 						suggestions: result.b.map(d => MainThreadLanguageFeatures._inflateSuggestDto(result.a, d)),
 						incomplete: result.c,
+						isDetailsResolved: result.d,
 						dispose: () => typeof result.x === 'number' && this._proxy.$releaseCompletionItems(handle, result.x)
 					};
 				});
@@ -505,13 +506,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
 
 			prepareCallHierarchy: async (document, position, token) => {
-				const item = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
-				if (!item) {
+				const items = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
+				if (!items) {
 					return undefined;
 				}
 				return {
-					dispose: () => this._proxy.$releaseCallHierarchy(handle, item._sessionId),
-					root: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(item)
+					dispose: () => {
+						for (const item of items) {
+							this._proxy.$releaseCallHierarchy(handle, item._sessionId);
+						}
+					},
+					roots: items.map(MainThreadLanguageFeatures._reviveCallHierarchyItemDto)
 				};
 			},
 

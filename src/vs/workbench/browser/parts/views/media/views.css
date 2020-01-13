@@ -146,3 +146,7 @@
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 }
+
+.customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label.codicon::before {
+	vertical-align: middle;
+}

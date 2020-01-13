@@ -19,6 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { isUndefined } from 'vs/base/common/types';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 
 interface ISyncContent {
 	mac?: string;
@@ -127,6 +128,16 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		this.setStatus(SyncStatus.Idle);
 	}
 
+	async hasPreviouslySynced(): Promise<boolean> {
+		const lastSyncData = await this.getLastSyncUserData();
+		return !!lastSyncData;
+	}
+
+	async hasRemote(): Promise<boolean> {
+		const remoteUserData = await this.userDataSyncStoreService.read(KeybindingsSynchroniser.EXTERNAL_USER_DATA_KEYBINDINGS_KEY, null);
+		return remoteUserData.content !== null;
+	}
+
 	private async continueSync(): Promise<boolean> {
 		if (this.status !== SyncStatus.HasConflicts) {
 			return false;
@@ -217,7 +228,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 				|| lastSyncContent !== remoteContent // Remote has forwarded
 			) {
 				this.logService.trace('Keybindings: Merging remote keybindings with local keybindings...');
-				const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.environmentService.keybindingsResource);
+				const formattingOptions = await this.getFormattingOptions();
 				const result = await merge(localContent, remoteContent, lastSyncContent, formattingOptions, this.userDataSyncUtilService);
 				// Sync only if there are changes
 				if (result.hasChanges) {
@@ -241,6 +252,14 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		}
 
 		return { fileContent, remoteUserData, hasLocalChanged, hasRemoteChanged, hasConflicts };
+	}
+
+	private _formattingOptions: Promise<FormattingOptions> | undefined = undefined;
+	private getFormattingOptions(): Promise<FormattingOptions> {
+		if (!this._formattingOptions) {
+			this._formattingOptions = this.userDataSyncUtilService.resolveFormattingOptions(this.environmentService.keybindingsResource);
+		}
+		return this._formattingOptions;
 	}
 
 	private async getLocalContent(): Promise<IFileContent | null> {

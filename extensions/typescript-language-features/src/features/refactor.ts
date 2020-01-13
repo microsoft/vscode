@@ -11,7 +11,7 @@ import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import TelemetryReporter from '../utils/telemetry';
+import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
 import * as fileSchemes from '../utils/fileSchemes';
@@ -314,7 +314,9 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	private appendInvalidActions(actions: vscode.CodeAction[]): vscode.CodeAction[] {
 		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
 			const disabledAction = new vscode.CodeAction('Extract to constant', Extract_Constant.kind);
-			disabledAction.disabled = localize('extract.disabled', "The current selection cannot be extracted");
+			disabledAction.disabled = {
+				reason: localize('extract.disabled', "The current selection cannot be extracted"),
+			};
 			disabledAction.isPreferred = true;
 			actions.push(disabledAction);
 		}

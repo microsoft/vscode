@@ -13,7 +13,7 @@ import * as json from 'vs/base/common/json';
 import { ActionViewItem, Separator, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, AutoUpdateConfigurationKey, IExtensionContainer, EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { ExtensionsLabel, IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService, IExtensionRecommendation, IExtensionsConfigContent, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -39,7 +39,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PagedModel } from 'vs/base/common/paging';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -55,10 +55,8 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IFileIconTheme, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { prefersExecuteOnUI, prefersExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
@@ -662,6 +660,14 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 	}
 }
 
+export function getContextMenuActions(menuService: IMenuService, contextKeyService: IContextKeyService): ExtensionAction[][] {
+	const groups: ExtensionAction[][] = [];
+	const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService);
+	menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => new MenuItemExtensionAction(action))));
+	menu.dispose();
+	return groups;
+}
+
 export class ManageExtensionAction extends ExtensionDropDownAction {
 
 	static readonly ID = 'extensions.manage';
@@ -671,7 +677,9 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService
+		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 
 		super(ManageExtensionAction.ID, '', '', true, true, instantiationService);
@@ -708,13 +716,10 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		groups.push([this.instantiationService.createInstance(UninstallAction)]);
 		groups.push([this.instantiationService.createInstance(InstallAnotherVersionAction)]);
 
-		if (this.extension) {
-			const extensionActions: ExtensionAction[] = [this.instantiationService.createInstance(ExtensionInfoAction)];
-			if (this.extension.local && this.extension.local.manifest.contributes && this.extension.local.manifest.contributes.configuration) {
-				extensionActions.push(this.instantiationService.createInstance(ExtensionSettingsAction));
-			}
-			groups.push(extensionActions);
-		}
+		const contextKeyService = this.contextKeyService.createScoped();
+		contextKeyService.createKey('extensionStatus', 'installed');
+		contextKeyService.createKey<boolean>('extensionHasConfiguration', !!this.extension && !!this.extension.local && !!this.extension.local.manifest.contributes && !!this.extension.local.manifest.contributes.configuration);
+		getContextMenuActions(this.menuService, contextKeyService).forEach(actions => groups.push(actions));
 
 		groups.forEach(group => group.forEach(extensionAction => extensionAction.extension = this.extension));
 
@@ -736,6 +741,21 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 			this.enabled = state === ExtensionState.Installed;
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
 			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
+		}
+	}
+}
+
+export class MenuItemExtensionAction extends ExtensionAction {
+
+	constructor(private readonly action: IAction) {
+		super(action.id, action.label);
+	}
+
+	update() { }
+
+	async run(): Promise<void> {
+		if (this.extension) {
+			return this.action.run(this.extension.identifier.id);
 		}
 	}
 }
@@ -789,65 +809,6 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	private getVersionEntries(): Promise<(IQuickPickItem & { latest: boolean, id: string })[]> {
 		return this.extensionGalleryService.getAllVersions(this.extension!.gallery!, true)
 			.then(allVersions => allVersions.map((v, i) => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === this.extension!.version ? ` (${localize('current', "Current")})` : ''}`, latest: i === 0 })));
-	}
-}
-
-export class ExtensionInfoAction extends ExtensionAction {
-
-	static readonly ID = 'extensions.extensionInfo';
-	static readonly LABEL = localize('extensionInfoAction', "Copy Extension Information");
-
-	constructor(
-		@IClipboardService private readonly clipboardService: IClipboardService
-	) {
-		super(ExtensionInfoAction.ID, ExtensionInfoAction.LABEL);
-		this.update();
-	}
-
-	update(): void {
-		this.enabled = !!this.extension;
-	}
-
-	async run(): Promise<any> {
-		if (!this.extension) {
-			return;
-		}
-
-		const name = localize('extensionInfoName', 'Name: {0}', this.extension.displayName);
-		const id = localize('extensionInfoId', 'Id: {0}', this.extension.identifier.id);
-		const description = localize('extensionInfoDescription', 'Description: {0}', this.extension.description);
-		const verision = localize('extensionInfoVersion', 'Version: {0}', this.extension.version);
-		const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', this.extension.publisherDisplayName);
-		const link = this.extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', this.extension.url.toString()) : null;
-
-		const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
-
-		return this.clipboardService.writeText(clipboardStr);
-	}
-}
-
-export class ExtensionSettingsAction extends ExtensionAction {
-
-	static readonly ID = 'extensions.extensionSettings';
-	static readonly LABEL = localize('extensionSettingsAction', "Configure Extension Settings");
-
-	constructor(
-		@IPreferencesService private readonly preferencesService: IPreferencesService
-	) {
-		super(ExtensionSettingsAction.ID, ExtensionSettingsAction.LABEL);
-		this.update();
-	}
-
-	update(): void {
-		this.enabled = !!this.extension;
-	}
-
-	async run(): Promise<any> {
-		if (!this.extension) {
-			return;
-		}
-		this.preferencesService.openSettings(false, `@ext:${this.extension.identifier.id}`);
-		return Promise.resolve();
 	}
 }
 
@@ -1081,7 +1042,7 @@ export class CheckForUpdatesAction extends Action {
 		}
 
 		this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => viewlet.search(''));
 
 		this.notificationService.info(msgAvailableExtensions);
@@ -1379,7 +1340,7 @@ export class SetColorThemeAction extends ExtensionAction {
 				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
-		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+		const target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setColorTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}
 }
@@ -1445,7 +1406,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 				ignoreFocusLost
 			});
 		let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
-		const target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
+		const target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 		return this.workbenchThemeService.setFileIconTheme(pickedTheme ? pickedTheme.id : currentTheme.id, target);
 	}
 }
@@ -1486,7 +1447,7 @@ export class ShowEnabledExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@enabled ');
 				viewlet.focus();
@@ -1509,7 +1470,7 @@ export class ShowInstalledExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@installed ');
 				viewlet.focus();
@@ -1532,7 +1493,7 @@ export class ShowDisabledExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@disabled ');
 				viewlet.focus();
@@ -1563,7 +1524,7 @@ export class ClearExtensionsInputAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('');
 				viewlet.focus();
@@ -1586,7 +1547,7 @@ export class ShowBuiltInExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@builtin ');
 				viewlet.focus();
@@ -1609,7 +1570,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@outdated ');
 				viewlet.focus();
@@ -1632,7 +1593,7 @@ export class ShowPopularExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@sort:installs ');
 				viewlet.focus();
@@ -1655,7 +1616,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@recommended ', true);
 				viewlet.focus();
@@ -1689,7 +1650,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 
 	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@recommended ');
 				viewlet.focus();
@@ -1745,7 +1706,7 @@ export class InstallRecommendedExtensionAction extends Action {
 
 	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search(`@id:${this.extensionId}`);
 				viewlet.focus();
@@ -1827,7 +1788,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@recommended:keymaps ');
 				viewlet.focus();
@@ -1850,7 +1811,7 @@ export class ShowLanguageExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@category:"programming languages" @sort:installs ');
 				viewlet.focus();
@@ -1873,7 +1834,7 @@ export class ShowAzureExtensionsAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search('@sort:installs azure ');
 				viewlet.focus();
@@ -1911,7 +1872,7 @@ export class ChangeSortAction extends Action {
 
 	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search(this.query.toString());
 				viewlet.focus();
@@ -3166,7 +3127,7 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForL
 	const viewletService = accessor.get(IViewletService);
 
 	return viewletService.openViewlet(VIEWLET_ID, true)
-		.then(viewlet => viewlet as IExtensionsViewlet)
+		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 		.then(viewlet => {
 			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
 			viewlet.focus();
@@ -3177,7 +3138,7 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWith
 	const viewletService = accessor.get(IViewletService);
 
 	return viewletService.openViewlet(VIEWLET_ID, true)
-		.then(viewlet => viewlet as IExtensionsViewlet)
+		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 		.then(viewlet => {
 			const query = extensionIds
 				.map(id => `@id:${id}`)

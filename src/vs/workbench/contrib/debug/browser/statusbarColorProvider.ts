@@ -67,7 +67,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		// Container Colors
 		const backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
 		container.style.backgroundColor = backgroundColor || '';
-		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND));
+		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND)) || '';
 
 		// Border Color
 		const borderColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_DEBUGGING_BORDER, STATUS_BAR_BORDER)) || this.getColor(contrastBorder);
@@ -103,7 +103,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	}
 }
 
-export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
+function isStatusbarInDebugMode(debugService: IDebugService): boolean {
 	if (debugService.state === State.Inactive || debugService.state === State.Initializing) {
 		return false;
 	}
