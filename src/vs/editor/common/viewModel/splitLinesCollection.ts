@@ -264,10 +264,15 @@ class LineNumberMapper {
 	}
 }
 
+const usDOMLineBreaksComputerFactory = false;
+
 export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	private readonly model: ITextModel;
 	private _validModelVersionId: number;
+
+	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
+	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
 
 	private wrappingColumn: number;
 	private columnsForFullWidthChar: number;
@@ -277,18 +282,25 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	private prefixSumComputer!: LineNumberMapper;
 
-	private readonly linePositionMapperFactory: ILineBreaksComputerFactory;
-
 	private hiddenAreasIds!: string[];
 
-	constructor(model: ITextModel, linePositionMapperFactory: ILineBreaksComputerFactory, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent) {
+	constructor(
+		model: ITextModel,
+		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		tabSize: number,
+		wrappingColumn: number,
+		columnsForFullWidthChar: number,
+		wrappingIndent: WrappingIndent
+	) {
 		this.model = model;
 		this._validModelVersionId = -1;
+		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
+		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
 		this.tabSize = tabSize;
 		this.wrappingColumn = wrappingColumn;
 		this.columnsForFullWidthChar = columnsForFullWidthChar;
 		this.wrappingIndent = wrappingIndent;
-		this.linePositionMapperFactory = linePositionMapperFactory;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -310,7 +322,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		let linesContent = this.model.getLinesContent();
 		const lineCount = linesContent.length;
-		const lineBreaksComputer = this.linePositionMapperFactory.createLineBreaksComputer(this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent);
+		const lineBreaksComputer = this.createLineBreaksComputer();
 		for (let i = 0; i < lineCount; i++) {
 			lineBreaksComputer.addRequest(linesContent[i], previousLineBreaks ? previousLineBreaks[i] : null);
 		}
@@ -495,7 +507,12 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	}
 
 	public createLineBreaksComputer(): ILineBreaksComputer {
-		return this.linePositionMapperFactory.createLineBreaksComputer(this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent);
+		const lineBreaksComputerFactory = (
+			usDOMLineBreaksComputerFactory
+				? this._domLineBreaksComputerFactory
+				: this._monospaceLineBreaksComputerFactory
+		);
+		return lineBreaksComputerFactory.createLineBreaksComputer(this.tabSize, this.wrappingColumn, this.columnsForFullWidthChar, this.wrappingIndent);
 	}
 
 	public onModelFlushed(): void {

@@ -116,9 +116,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 	containerDomNode.innerHTML = sb.build();
 
 	containerDomNode.style.position = 'absolute';
-	containerDomNode.style.right = '0';
-	containerDomNode.style.bottom = '0';
-	containerDomNode.style.zIndex = '10000';
+	containerDomNode.style.top = '10000';
 	document.body.appendChild(containerDomNode);
 
 	let range = document.createRange();

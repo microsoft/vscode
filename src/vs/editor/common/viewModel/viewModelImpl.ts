@@ -46,7 +46,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		editorId: number,
 		configuration: editorCommon.IConfiguration,
 		model: ITextModel,
-		lineMapperFactory: ILineBreaksComputerFactory,
+		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable
 	) {
 		super();
@@ -72,7 +73,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 			this.lines = new SplitLinesCollection(
 				this.model,
-				lineMapperFactory,
+				domLineBreaksComputerFactory,
+				monospaceLineBreaksComputerFactory,
 				this.model.getOptions().tabSize,
 				wrappingInfo.wrappingColumn,
 				fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
