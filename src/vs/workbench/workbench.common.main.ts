@@ -150,6 +150,9 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 // Backup
 import 'vs/workbench/contrib/backup/common/backup.contribution';
 
+// bulkEdit
+import 'vs/workbench/contrib/bulkEdit/browser/bulkEdit.contribution';
+
 // Search
 import 'vs/workbench/contrib/search/browser/search.contribution';
 import 'vs/workbench/contrib/search/browser/searchView';
