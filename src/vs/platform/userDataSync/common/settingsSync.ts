@@ -117,6 +117,16 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 		this.setStatus(SyncStatus.Idle);
 	}
 
+	async hasPreviouslySynced(): Promise<boolean> {
+		const lastSyncData = await this.getLastSyncUserData();
+		return !!lastSyncData;
+	}
+
+	async hasRemote(): Promise<boolean> {
+		const remoteUserData = await this.userDataSyncStoreService.read(SettingsSynchroniser.EXTERNAL_USER_DATA_SETTINGS_KEY, null);
+		return remoteUserData.content !== null;
+	}
+
 	async resolveConflicts(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<void> {
 		if (this.status === SyncStatus.HasConflicts) {
 			this.syncPreviewResultPromise!.cancel();

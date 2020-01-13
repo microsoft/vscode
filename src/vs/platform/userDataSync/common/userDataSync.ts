@@ -186,6 +186,8 @@ export interface ISynchroniser {
 	readonly onDidChangeLocal: Event<void>;
 	sync(_continue?: boolean): Promise<boolean>;
 	stop(): void;
+	hasPreviouslySynced(): Promise<boolean>
+	hasRemote(): Promise<boolean>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');

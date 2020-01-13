@@ -84,6 +84,36 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
+	async hasPreviouslySynced(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasPreviouslySynced()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	async hasRemote(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasRemote()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
 		return this.extensionsSynchroniser.removeExtension(identifier);
 	}
