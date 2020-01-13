@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewsService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, IViewDescriptorCollection, IViewsRegistry, ViewContainerLocation, IViewOpenerService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewExtensions, IView, IViewDescriptorCollection, IViewsRegistry, ViewContainerLocation, IViewOpenerService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -96,13 +96,13 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 	constructor(
 		container: ViewContainer,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
 	) {
 		super();
-		const onRelevantViewsRegistered = filterViewRegisterEvent(container, this.viewsService.onViewsRegistered);
+		const onRelevantViewsRegistered = filterViewRegisterEvent(container, this.viewDescriptorService.onViewsRegistered);
 		this._register(onRelevantViewsRegistered(this.onViewsRegistered, this));
 
-		const onRelevantViewsMoved = filterViewMoveEvent(container, this.viewsService.onDidChangeContainer);
+		const onRelevantViewsMoved = filterViewMoveEvent(container, this.viewDescriptorService.onDidChangeContainer);
 		this._register(onRelevantViewsMoved(({ added, removed }) => {
 			if (isNonEmptyArray(added)) {
 				this.onViewsRegistered(added);
@@ -112,14 +112,14 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 			}
 		}));
 
-		const onRelevantViewsDeregistered = filterViewRegisterEvent(container, this.viewsService.onViewsDeregistered);
+		const onRelevantViewsDeregistered = filterViewRegisterEvent(container, this.viewDescriptorService.onViewsDeregistered);
 		this._register(onRelevantViewsDeregistered(this.onViewsDeregistered, this));
 
 		const onRelevantContextChange = Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys));
 		this._register(onRelevantContextChange(this.onContextChanged, this));
 
 
-		this.onViewsRegistered(this.viewsService.getViews(container));
+		this.onViewsRegistered(this.viewDescriptorService.getViews(container));
 	}
 
 	private onViewsRegistered(viewDescriptors: IViewDescriptor[]): void {
@@ -252,7 +252,7 @@ export class ContributableViewsModel extends Disposable {
 
 	constructor(
 		container: ViewContainer,
-		viewsService: IViewsService,
+		viewsService: IViewDescriptorService,
 		protected viewStates = new Map<string, IViewState>(),
 	) {
 		super();
@@ -490,13 +490,13 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	constructor(
 		container: ViewContainer,
 		viewletStateStorageId: string,
-		@IViewsService viewsService: IViewsService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IStorageService storageService: IStorageService,
 	) {
 		const globalViewsStateStorageId = `${viewletStateStorageId}.hidden`;
 		const viewStates = PersistentContributableViewsModel.loadViewsStates(viewletStateStorageId, globalViewsStateStorageId, storageService);
 
-		super(container, viewsService, viewStates);
+		super(container, viewDescriptorService, viewStates);
 
 		this.workspaceViewsStateStorageId = viewletStateStorageId;
 		this.globalViewsStateStorageId = globalViewsStateStorageId;
@@ -635,7 +635,7 @@ export class ViewOpenerService extends Disposable implements IViewOpenerService 
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
 
 	constructor(
-		@IViewsService private readonly viewsService: IViewsService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPanelService private readonly panelService: IPanelService,
 		@IViewletService private readonly viewletService: IViewletService
 	) {
@@ -649,8 +649,8 @@ export class ViewOpenerService extends Disposable implements IViewOpenerService 
 			this.viewDisposable.clear();
 		}));
 
-		this._register(this.viewsService.onViewsRegistered(({ views, viewContainer }) => this.onViewsRegistered(views, viewContainer)));
-		this._register(this.viewsService.onViewsDeregistered(({ views, viewContainer }) => this.onViewsDeregistered(views, viewContainer)));
+		this._register(this.viewDescriptorService.onViewsRegistered(({ views, viewContainer }) => this.onViewsRegistered(views, viewContainer)));
+		this._register(this.viewDescriptorService.onViewsDeregistered(({ views, viewContainer }) => this.onViewsDeregistered(views, viewContainer)));
 	}
 
 	private onViewsRegistered(views: IViewDescriptor[], container: ViewContainer): void {
@@ -724,7 +724,7 @@ export class ViewOpenerService extends Disposable implements IViewOpenerService 
 	}
 
 	async openView(id: string, focus: boolean): Promise<IView | null> {
-		const viewContainer = this.viewsService.getViewContainer(id);
+		const viewContainer = this.viewDescriptorService.getViewContainer(id);
 		if (viewContainer) {
 			const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
 			const compositeDescriptor = this.getComposite(viewContainer.id, location!);
@@ -740,7 +740,7 @@ export class ViewOpenerService extends Disposable implements IViewOpenerService 
 	}
 }
 
-export class ViewsService extends Disposable implements IViewsService {
+export class ViewDescriptorService extends Disposable implements IViewDescriptorService {
 
 	_serviceBrand: undefined;
 
@@ -892,5 +892,5 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
 
-registerSingleton(IViewsService, ViewsService);
+registerSingleton(IViewDescriptorService, ViewDescriptorService);
 registerSingleton(IViewOpenerService, ViewOpenerService);

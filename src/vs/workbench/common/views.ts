@@ -344,7 +344,7 @@ export interface IViewsViewlet extends IViewlet {
 
 }
 
-export const IViewsService = createDecorator<IViewsService>('viewsService');
+export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 export const IViewOpenerService = createDecorator<IViewOpenerService>('viewOpenerService');
 
 
@@ -355,7 +355,7 @@ export interface IViewOpenerService {
 }
 
 
-export interface IViewsService {
+export interface IViewDescriptorService {
 
 	_serviceBrand: undefined;
 
