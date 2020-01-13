@@ -82,7 +82,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	{
 		id: VIEWLET_ID,
 		name: localize('extensions', "Extensions"),
-		ctorDescriptor: { ctor: ExtensionsViewPaneContainer },
+		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
 		icon: 'codicon-extensions',
 		order: 4
 	}, ViewContainerLocation.Sidebar);
