@@ -97,13 +97,13 @@ export class TerminalPanel extends Panel {
 
 		this._register(this.onDidChangeVisibility(visible => {
 			if (visible) {
-				const hasTerminals = this._terminalService.terminalInstances.length > 0;
-				if (!hasTerminals) {
+				const hadTerminals = this._terminalService.terminalInstances.length > 0;
+				if (!hadTerminals) {
 					this._terminalService.createTerminal();
 				}
 				this._updateFont();
 				this._updateTheme();
-				if (hasTerminals) {
+				if (hadTerminals) {
 					this._terminalService.getActiveTab()?.setVisible(visible);
 				}
 			}
