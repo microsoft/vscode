@@ -141,10 +141,17 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource1 = toResource.call(this, '/path/index.txt');
 		const resource2 = toResource.call(this, '/path/other.txt');
 
+		let loadedCounter = 0;
 		let dirtyCounter = 0;
 		let revertedCounter = 0;
 		let savedCounter = 0;
 		let encodingCounter = 0;
+
+		manager.onModelLoaded(e => {
+			if (e.resource.toString() === resource1.toString()) {
+				loadedCounter++;
+			}
+		});
 
 		manager.onModelDirty(e => {
 			if (e.resource.toString() === resource1.toString()) {
@@ -171,10 +178,14 @@ suite('Files - TextFileEditorModelManager', () => {
 		});
 
 		const model1 = await manager.loadOrCreate(resource1, { encoding: 'utf8' });
+		assert.equal(loadedCounter, 1);
+
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }]));
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
 
 		const model2 = await manager.loadOrCreate(resource2, { encoding: 'utf8' });
+		assert.equal(loadedCounter, 2);
+
 		model1.textEditorModel!.setValue('changed');
 		model1.updatePreferredEncoding('utf16');
 
