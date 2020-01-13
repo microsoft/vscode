@@ -400,6 +400,7 @@ function registerDefaultClassifications(): void {
 	tokenClassificationRegistry.registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
+	tokenClassificationRegistry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are readonly."), undefined);
 }
 
 export function getTokenClassificationRegistry(): ITokenClassificationRegistry {
