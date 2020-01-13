@@ -8,10 +8,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as types from 'vs/base/common/types';
-import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { values } from 'vs/base/common/map';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -159,7 +157,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private readonly excludedConfigurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private readonly resourceLanguageSettingsSchema: IJSONSchema;
 	private readonly overrideIdentifiers = new Set<string>();
-	private overridePropertyPattern: string;
 
 	private readonly _onDidSchemaChange = new Emitter<void>();
 	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
@@ -177,7 +174,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.resourceLanguageSettingsSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting', allowTrailingCommas: true, allowComments: true };
 		this.configurationProperties = {};
 		this.excludedConfigurationProperties = {};
-		this.overridePropertyPattern = this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
 	}
@@ -394,42 +390,27 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private updateOverridePropertyPatternKey(): void {
-		let patternProperties: IJSONSchema = allSettings.patternProperties[this.overridePropertyPattern];
-		if (!patternProperties) {
-			patternProperties = {
+		for (const overrideIdentifier of this.overrideIdentifiers) {
+			const overrideIdentifierProperty = `[${overrideIdentifier}]`;
+			const resourceLanguagePropertiesSchema: IJSONSchema = {
 				type: 'object',
 				description: nls.localize('overrideSettings.defaultDescription', "Configure editor settings to be overridden for a language."),
 				errorMessage: 'Unknown Identifier. Use language identifiers',
-				$ref: resourceLanguageSettingsSchemaId
+				$ref: resourceLanguageSettingsSchemaId,
+				default: this.defaultOverridesConfigurationNode.properties![overrideIdentifierProperty]?.default
 			};
+			allSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
+			applicationSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
+			machineSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
+			machineOverridableSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
+			windowSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
+			resourceSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 		}
-
-		delete allSettings.patternProperties[this.overridePropertyPattern];
-		delete applicationSettings.patternProperties[this.overridePropertyPattern];
-		delete machineSettings.patternProperties[this.overridePropertyPattern];
-		delete machineOverridableSettings.patternProperties[this.overridePropertyPattern];
-		delete windowSettings.patternProperties[this.overridePropertyPattern];
-		delete resourceSettings.patternProperties[this.overridePropertyPattern];
-
-		this.overridePropertyPattern = this.computeOverridePropertyPattern();
-
-		allSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
-		applicationSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
-		machineSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
-		machineOverridableSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
-		windowSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
-		resourceSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
-
 		this._onDidSchemaChange.fire();
-	}
-
-	private computeOverridePropertyPattern(): string {
-		return this.overrideIdentifiers.size > 0 ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', values(this.overrideIdentifiers).map(identifier => strings.createRegExp(identifier, false).source).join('|')) : OVERRIDE_PROPERTY;
 	}
 }
 
 const OVERRIDE_PROPERTY = '\\[.*\\]$';
-const OVERRIDE_PATTERN_WITH_SUBSTITUTION = '\\[(${0})\\]$';
 export const OVERRIDE_PROPERTY_PATTERN = new RegExp(OVERRIDE_PROPERTY);
 
 export function getDefaultValue(type: string | string[] | undefined): any {
