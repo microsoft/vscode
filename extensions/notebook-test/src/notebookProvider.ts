@@ -139,6 +139,10 @@ export class NotebookProvider implements vscode.NotebookProvider {
 	}
 
 	async executeNotebook(resource: vscode.Uri): Promise<void> {
+		if (this.fillOutputs) {
+			return;
+		}
+
 		if (this._notebooks.has(resource.fsPath)) {
 			let notebook = this._notebooks.get(resource.fsPath);
 			let preloadScript = false;

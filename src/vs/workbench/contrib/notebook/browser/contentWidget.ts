@@ -79,7 +79,8 @@ export class BackLayerWebView extends Disposable {
 				<style>
 					#container > div {
 						width: 100%;
-						padding: 9px;
+						padding: 0 8px;
+						margin: 8px 0;
 						background-color: var(--vscode-list-inactiveSelectionBackground);
 					}
 				</style>
