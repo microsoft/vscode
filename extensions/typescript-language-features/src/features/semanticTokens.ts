@@ -6,8 +6,16 @@
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient, ExecConfig, ServerResponse } from '../typescriptService';
 import * as Proto from '../protocol';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import API from '../utils/api';
+
+const minTypeScriptVersion = API.v370;
 
 export function register(selector: vscode.DocumentSelector, client: ITypeScriptServiceClient) {
+	return new VersionDependentRegistration(client, minTypeScriptVersion, () => {
+		const provider = new SemanticTokensProvider(client);
+		return vscode.languages.registerSemanticTokensProvider(selector, provider, provider.getLegend());
+	});
 	const provider = new SemanticTokensProvider(client);
 	return vscode.languages.registerSemanticTokensProvider(selector, provider, provider.getLegend());
 }
