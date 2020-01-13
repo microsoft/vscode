@@ -456,7 +456,8 @@ class SemanticColoringFeature extends Disposable {
 		this._semanticStyling = this._register(new SemanticStyling(themeService, logService));
 
 		const isSemanticColoringEnabled = (model: ITextModel) => {
-			return configurationService.getValue<IEditorSemanticHighlightingOptions>(SemanticColoringFeature.SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri }).enabled;
+			const options = configurationService.getValue<IEditorSemanticHighlightingOptions>(SemanticColoringFeature.SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri });
+			return options && options.enabled;
 		};
 		const register = (model: ITextModel) => {
 			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, this._semanticStyling);
