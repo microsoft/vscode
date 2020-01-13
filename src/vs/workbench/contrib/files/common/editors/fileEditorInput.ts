@@ -11,7 +11,7 @@ import { EncodingMode, IFileEditorInput, ITextEditorModel, Verbosity, TextEditor
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { ITextFileService, ModelState, TextFileModelChangeEvent, LoadReason, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ModelState, LoadReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -70,25 +70,25 @@ export class FileEditorInput extends TextEditorInput implements IFileEditorInput
 	private registerListeners(): void {
 
 		// Dirty changes
-		this._register(this.textFileService.models.onModelDirty(e => this.onDirtyStateChange(e)));
-		this._register(this.textFileService.models.onModelSaveError(e => this.onDirtyStateChange(e)));
-		this._register(this.textFileService.models.onModelSaved(e => this.onDirtyStateChange(e)));
-		this._register(this.textFileService.models.onModelReverted(e => this.onDirtyStateChange(e)));
+		this._register(this.textFileService.models.onModelDirty(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.models.onModelSaveError(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.models.onModelSaved(m => this.onDirtyStateChange(m)));
+		this._register(this.textFileService.models.onModelReverted(m => this.onDirtyStateChange(m)));
 
 		// Label changes
 		this._register(this.labelService.onDidChangeFormatters(() => FileEditorInput.MEMOIZER.clear()));
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => FileEditorInput.MEMOIZER.clear()));
-		this._register(this.textFileService.models.onModelOrphanedChanged(e => this.onModelOrphanedChanged(e)));
+		this._register(this.textFileService.models.onModelOrphanedChanged(model => this.onModelOrphanedChanged(model)));
 	}
 
-	private onDirtyStateChange(e: TextFileModelChangeEvent): void {
-		if (e.resource.toString() === this.resource.toString()) {
+	private onDirtyStateChange(model: ITextFileEditorModel): void {
+		if (model.resource.toString() === this.resource.toString()) {
 			this._onDidChangeDirty.fire();
 		}
 	}
 
-	private onModelOrphanedChanged(e: TextFileModelChangeEvent): void {
-		if (e.resource.toString() === this.resource.toString()) {
+	private onModelOrphanedChanged(model: ITextFileEditorModel): void {
+		if (model.resource.toString() === this.resource.toString()) {
 			FileEditorInput.MEMOIZER.clear();
 			this._onDidChangeLabel.fire();
 		}

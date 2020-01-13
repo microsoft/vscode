@@ -19,7 +19,7 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { extname, basename, isEqual, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -124,15 +124,15 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		this._register(configurationTelemetry(telemetryService, configurationService));
 
 		//  Files Telemetry
-		this._register(textFileService.models.onModelLoaded(e => this.onTextFileModelLoaded(e)));
-		this._register(textFileService.models.onModelSaved(e => this.onTextFileModelSaved(e)));
+		this._register(textFileService.models.onModelLoaded(m => this.onTextFileModelLoaded(m)));
+		this._register(textFileService.models.onModelSaved(m => this.onTextFileModelSaved(m)));
 
 		// Lifecycle
 		this._register(lifecycleService.onShutdown(() => this.dispose()));
 	}
 
-	private onTextFileModelLoaded(event: TextFileModelChangeEvent): void {
-		const settingsType = this.getTypeIfSettings(event.resource);
+	private onTextFileModelLoaded(model: ITextFileEditorModel): void {
+		const settingsType = this.getTypeIfSettings(model.resource);
 		if (settingsType) {
 			type SettingsReadClassification = {
 				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -142,12 +142,12 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		} else {
 			type FileGetClassification = {} & FileTelemetryDataFragment;
 
-			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(event.resource));
+			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(model.resource));
 		}
 	}
 
-	private onTextFileModelSaved(event: TextFileModelChangeEvent): void {
-		const settingsType = this.getTypeIfSettings(event.resource);
+	private onTextFileModelSaved(model: ITextFileEditorModel): void {
+		const settingsType = this.getTypeIfSettings(model.resource);
 		if (settingsType) {
 			type SettingsWrittenClassification = {
 				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -155,7 +155,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 		} else {
 			type FilePutClassfication = {} & FileTelemetryDataFragment;
-			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(event.resource));
+			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(model.resource));
 		}
 	}
 

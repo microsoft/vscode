@@ -139,32 +139,32 @@ suite('Files - TextFileEditorModelManager', () => {
 		let savedCounter = 0;
 		let encodingCounter = 0;
 
-		manager.onModelLoaded(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelLoaded(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				loadedCounter++;
 			}
 		});
 
-		manager.onModelDirty(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelDirty(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				dirtyCounter++;
 			}
 		});
 
-		manager.onModelReverted(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelReverted(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				revertedCounter++;
 			}
 		});
 
-		manager.onModelSaved(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelSaved(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				savedCounter++;
 			}
 		});
 
-		manager.onModelEncodingChanged(e => {
-			if (e.resource.toString() === resource1.toString()) {
+		manager.onModelEncodingChanged(model => {
+			if (model.resource.toString() === resource1.toString()) {
 				encodingCounter++;
 			}
 		});

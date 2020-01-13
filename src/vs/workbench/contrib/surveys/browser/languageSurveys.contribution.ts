@@ -13,7 +13,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ISurveyData, IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { ITextFileService, StateChange, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
@@ -51,20 +51,18 @@ class LanguageSurvey extends Disposable {
 		if (storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
 
 			// Process model-save event every 250ms to reduce load
-			const onModelsSavedWorker = this._register(new RunOnceWorker<TextFileModelChangeEvent>(e => {
-				e.forEach(event => {
-					if (event.kind === StateChange.SAVED) {
-						const model = modelService.getModel(event.resource);
-						if (model && model.getModeId() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
-							const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
-							storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL);
-							storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL);
-						}
+			const onModelsSavedWorker = this._register(new RunOnceWorker<ITextFileEditorModel>(models => {
+				models.forEach(m => {
+					const model = modelService.getModel(m.resource);
+					if (model && model.getModeId() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
+						const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
+						storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL);
+						storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL);
 					}
 				});
 			}, 250));
 
-			this._register(textFileService.models.onModelSaved(e => onModelsSavedWorker.work(e)));
+			this._register(textFileService.models.onModelSaved(m => onModelsSavedWorker.work(m)));
 		}
 
 		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());
