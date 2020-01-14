@@ -102,8 +102,13 @@ export function filtersAction(filter: CodeActionFilter, action: CodeAction): boo
 	return true;
 }
 
+export const enum CodeActionTriggerType {
+	Auto,
+	Manual
+}
+
 export interface CodeActionTrigger {
-	readonly type: 'auto' | 'manual';
+	readonly type: CodeActionTriggerType;
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
 	readonly context?: {

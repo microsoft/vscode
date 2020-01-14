@@ -26,7 +26,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -182,7 +182,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 				options = EditorOptions.create(preservingOptions);
 			}
 
-			this.editorService.openEditor(binaryDiffInput, options, this.group);
+			// Replace this editor with the binary one
+			this.editorService.replaceEditors([{ editor: input, replacement: binaryDiffInput, options }], this.group || ACTIVE_GROUP);
 
 			return true;
 		}

@@ -57,7 +57,7 @@ export class CodeActionDocumentationContribution extends Disposable implements I
 	}
 
 	async provideCodeActions(_model: ITextModel, _range: Range | Selection, context: CodeActionContext, _token: CancellationToken): Promise<CodeActionList> {
-		if (!context.only || !CodeActionKind.Refactor.contains(new CodeActionKind(context.only))) {
+		if (CodeActionKind.Refactor.value !== context.only) {
 			return {
 				actions: [],
 				dispose: () => { }

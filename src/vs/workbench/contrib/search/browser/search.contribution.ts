@@ -57,7 +57,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { assertType } from 'vs/base/common/types';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { SearchEditorInput, SearchEditorInputFactory } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
+import { SearchEditorInput, SearchEditorInputFactory, SearchEditorContribution } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
 import { SearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
@@ -909,3 +909,6 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
 	SearchEditorInput.ID,
 	SearchEditorInputFactory);
+
+const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, LifecyclePhase.Starting);

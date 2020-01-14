@@ -15,6 +15,7 @@ import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { CodeActionTriggerType } from 'vs/editor/contrib/codeAction/types';
 
 const testProvider = {
 	provideCodeActions(): modes.CodeActionList {
@@ -59,7 +60,7 @@ suite('CodeActionModel', () => {
 		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 			assertType(e.type === CodeActionsState.Type.Triggered);
 
-			assert.strictEqual(e.trigger.type, 'auto');
+			assert.strictEqual(e.trigger.type, CodeActionTriggerType.Auto);
 			assert.ok(e.actions);
 
 			e.actions.then(fixes => {
@@ -100,7 +101,7 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.equal(e.trigger.type, 'auto');
+				assert.equal(e.trigger.type, CodeActionTriggerType.Auto);
 				assert.ok(e.actions);
 				e.actions.then(fixes => {
 					model.dispose();
@@ -138,7 +139,7 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.equal(e.trigger.type, 'auto');
+				assert.equal(e.trigger.type, CodeActionTriggerType.Auto);
 				const selection = <Selection>e.rangeOrSelection;
 				assert.deepEqual(selection.selectionStartLineNumber, 1);
 				assert.deepEqual(selection.selectionStartColumn, 1);
@@ -163,7 +164,7 @@ suite('CodeActionModel', () => {
 		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 			assertType(e.type === CodeActionsState.Type.Triggered);
 
-			assert.equal(e.trigger.type, 'auto');
+			assert.equal(e.trigger.type, CodeActionTriggerType.Auto);
 			++triggerCount;
 
 			// give time for second trigger before completing test
