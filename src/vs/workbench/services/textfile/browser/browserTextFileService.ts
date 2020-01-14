@@ -59,7 +59,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 	}
 
 	protected async getWindowCount(): Promise<number> {
-		return 1; // Browser only ever is 1 window
+		return 1; // web: we only track 1 window, not multiple
 	}
 }
 

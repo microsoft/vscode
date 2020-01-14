@@ -187,6 +187,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.preferredMode = mode;
 	}
 
+	//#region Backup
+
 	async backup(target = this.resource): Promise<void> {
 		if (this.isResolved()) {
 
@@ -210,6 +212,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.backupFileService.hasBackupSync(this.resource, this.versionId);
 	}
 
+	//#endregion
+
+	//#region Revert
+
 	async revert(options?: IRevertOptions): Promise<boolean> {
 		if (!this.isResolved()) {
 			return false;
@@ -217,7 +223,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Unset flags
 		const wasDirty = this.dirty;
-		const undo = this.setDirty(false);
+		const undo = this.doSetDirty(false);
 
 		// Force read from disk unless reverting soft
 		const softUndo = options?.soft;
@@ -243,6 +249,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		return true;
 	}
+
+	//#endregion
+
+	//#region Load
 
 	async load(options?: ILoadOptions): Promise<ITextFileEditorModel> {
 		this.logService.trace('[text file model] load() - enter', this.resource.toString());
@@ -349,7 +359,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 				// Guard against the model having changed in the meantime
 				if (currentVersionId === this.versionId) {
-					this.setDirty(false); // Ensure we are not tracking a stale state
+					this.doSetDirty(false); // Ensure we are not tracking a stale state
 				}
 
 				return this;
@@ -423,7 +433,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Ensure we are not tracking a stale state
 		else {
-			this.setDirty(false);
+			this.doSetDirty(false);
 		}
 
 		// Model Listeners
@@ -434,7 +444,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.trace('[text file model] load() - updated text editor model', this.resource.toString());
 
 		// Ensure we are not tracking a stale state
-		this.setDirty(false);
+		this.doSetDirty(false);
 
 		// Update model value in a block that ignores model content change events
 		this.blockModelContentChange = true;
@@ -479,7 +489,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Clear flags
 			const wasDirty = this.dirty;
-			this.setDirty(false);
+			this.doSetDirty(false);
 
 			// Emit event
 			if (wasDirty) {
@@ -497,6 +507,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this._onDidChangeContent.fire();
 	}
 
+	//#endregion
+
+	//#region Dirty
+
+	isDirty(): this is IResolvedTextFileEditorModel {
+		return this.dirty;
+	}
+
 	makeDirty(): void {
 		if (!this.isResolved()) {
 			return; // only resolved models can be marked dirty
@@ -509,13 +527,41 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Track dirty state and version id
 		const wasDirty = this.dirty;
-		this.setDirty(true);
+		this.doSetDirty(true);
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
 			this._onDidChangeDirty.fire();
 		}
 	}
+
+	private doSetDirty(dirty: boolean): () => void {
+		const wasDirty = this.dirty;
+		const wasInConflictMode = this.inConflictMode;
+		const wasInErrorMode = this.inErrorMode;
+		const oldBufferSavedVersionId = this.bufferSavedVersionId;
+
+		if (!dirty) {
+			this.dirty = false;
+			this.inConflictMode = false;
+			this.inErrorMode = false;
+			this.updateSavedVersionId();
+		} else {
+			this.dirty = true;
+		}
+
+		// Return function to revert this call
+		return () => {
+			this.dirty = wasDirty;
+			this.inConflictMode = wasInConflictMode;
+			this.inErrorMode = wasInErrorMode;
+			this.bufferSavedVersionId = oldBufferSavedVersionId;
+		};
+	}
+
+	//#endregion
+
+	//#region Save
 
 	async save(options: ITextFileSaveOptions = Object.create(null)): Promise<boolean> {
 		if (!this.isResolved()) {
@@ -666,7 +712,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// Update dirty state unless model has changed meanwhile
 				if (versionId === this.versionId) {
 					this.logService.trace(`[text file model] doSave(${versionId}) - setting dirty to false because versionId did not change`, this.resource.toString());
-					this.setDirty(false);
+					this.doSetDirty(false);
 				} else {
 					this.logService.trace(`[text file model] doSave(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource.toString());
 				}
@@ -718,30 +764,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}, error => onUnexpectedError(error) /* just log any error but do not notify the user since the file was not dirty */));
 	}
 
-	private setDirty(dirty: boolean): () => void {
-		const wasDirty = this.dirty;
-		const wasInConflictMode = this.inConflictMode;
-		const wasInErrorMode = this.inErrorMode;
-		const oldBufferSavedVersionId = this.bufferSavedVersionId;
-
-		if (!dirty) {
-			this.dirty = false;
-			this.inConflictMode = false;
-			this.inErrorMode = false;
-			this.updateSavedVersionId();
-		} else {
-			this.dirty = true;
-		}
-
-		// Return function to revert this call
-		return () => {
-			this.dirty = wasDirty;
-			this.inConflictMode = wasInConflictMode;
-			this.inErrorMode = wasInErrorMode;
-			this.bufferSavedVersionId = oldBufferSavedVersionId;
-		};
-	}
-
 	private updateSavedVersionId(): void {
 		// we remember the models alternate version id to remember when the version
 		// of the model matches with the saved version on disk. we need to keep this
@@ -784,9 +806,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		TextFileEditorModel.saveErrorHandler.onSaveError(error, this);
 	}
 
-	isDirty(): this is IResolvedTextFileEditorModel {
-		return this.dirty;
-	}
+	//#endregion
 
 	getLastSaveAttemptTime(): number {
 		return this.lastSaveAttemptTime;
@@ -818,6 +838,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		return this.preferredMode;
 	}
+
+	//#region Encoding
 
 	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.contentEncoding;
@@ -883,6 +905,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return true;
 	}
 
+	//#endregion
+
 	isResolved(): this is IResolvedTextFileEditorModel {
 		return !!this.textEditorModel;
 	}
@@ -908,5 +932,3 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		super.dispose();
 	}
 }
-
-

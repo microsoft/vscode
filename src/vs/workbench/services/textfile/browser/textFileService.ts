@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModelManager, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -56,8 +56,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#endregion
 
-	private _models: TextFileEditorModelManager;
-	get models(): ITextFileEditorModelManager { return this._models; }
+	readonly models = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
 
 	abstract get encoding(): IResourceEncodings;
 
@@ -82,12 +81,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	) {
 		super();
 
-		this._models = this._register(instantiationService.createInstance(TextFileEditorModelManager));
-
 		this.registerListeners();
 	}
-
-	//#region event handling
 
 	private registerListeners(): void {
 
@@ -95,6 +90,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
+
+	//#region shutdown / backup handling
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 
@@ -277,7 +274,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#endregion
 
-	//#region primitives (read, create, move, delete, update)
+	//#region text file IO primitives (read, create, move, delete, update)
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 		const content = await this.fileService.readFile(resource, options);
@@ -479,7 +476,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#endregion
 
-	//#region save/revert
+	//#region save
 
 	async save(resource: URI, options?: ITextFileSaveOptions): Promise<boolean> {
 		return !(await this.saveAll([resource], options)).results.some(result => result.error);
@@ -660,7 +657,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			return models;
 		}
 
-		return this._models.getAll(arg1);
+		return this.models.getAll(arg1);
 	}
 
 	private getDirtyFileModels(resources?: URI | URI[]): ITextFileEditorModel[] {
@@ -699,7 +696,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// If the source is an existing text file model, we can directly
 		// use that model to copy the contents to the target destination
-		const textFileModel = this._models.get(source);
+		const textFileModel = this.models.get(source);
 		if (textFileModel && textFileModel.isResolved()) {
 			success = await this.doSaveAsTextFile(textFileModel, source, target, options);
 		}
@@ -846,6 +843,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return untitledResource.with({ path: untitledFileName });
 	}
 
+	//#endregion
+
+	//#region revert
+
 	async revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
 		return !(await this.revertAll([resource], options)).results.some(result => result.error);
 	}
@@ -900,6 +901,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return { results: mapResourceToResult.values() };
 	}
 
+	//#endregion
+
 	getDirty(resources?: URI[]): URI[] {
 
 		// Collect files
@@ -914,21 +917,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	isDirty(resource?: URI): boolean {
 
 		// Check for dirty file
-		if (this._models.getAll(resource).some(model => model.isDirty())) {
+		if (this.models.getAll(resource).some(model => model.isDirty())) {
 			return true;
 		}
 
 		// Check for dirty untitled
 		return this.untitledTextEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
-	}
-
-	//#endregion
-
-	dispose(): void {
-
-		// Clear all caches
-		this._models.clear();
-
-		super.dispose();
 	}
 }
