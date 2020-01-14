@@ -21,7 +21,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Action } from 'vs/base/common/actions';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { MimeTypeRenderer } from 'vs/workbench/contrib/notebook/browser/outputRenderer';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Emitter } from 'vs/base/common/event';
@@ -29,6 +28,9 @@ import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import * as UUID from 'vs/base/common/uuid';
 import { ICell } from 'vs/editor/common/modes';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/sizeObserver';
+
+export const CELL_MARGIN = 24;
 
 export class ViewCell {
 	private _textModel: ITextModel | null = null;
@@ -88,7 +90,7 @@ export class ViewCell {
 		}
 
 		if (this.cellType === 'code') {
-			if (this.outputs) {
+			if (this.outputs && this.outputs.length > 0) {
 				// for (let i = 0; i < this.outputs.length; i++) {
 				// 	if (this.outputs[i].output_type === 'display_data' || this.outputs[i].output_type === 'execute_result') {
 				// 		return false;
@@ -185,6 +187,7 @@ export interface NotebookHandler {
 	disposeViewCell(cell: ViewCell): void;
 	triggerWheel(event: IMouseWheelEvent): void;
 	getFontInfo(): BareFontInfo | undefined;
+	getListDimension(): DOM.Dimension | null;
 }
 
 export interface CellRenderTemplate {
@@ -370,7 +373,14 @@ class StatefullMarkdownCell extends Disposable {
 		const viewUpdate = () => {
 			if (viewCell.isEditing) {
 				// switch to editing mode
-				const width = templateData.cellContainer.clientWidth - 24 /** for scrollbar and margin right */;
+				let width;
+				const listDimension = handler.getListDimension();
+				if (listDimension) {
+					width = listDimension.width - CELL_MARGIN * 2;
+				} else {
+					width = templateData.cellContainer.clientWidth - 24 /** for scrollbar and margin right */;
+				}
+
 				const lineNum = viewCell.lineCount;
 				const lineHeight = handler.getFontInfo()?.lineHeight ?? 18;
 				const totalHeight = Math.max(lineNum + 1, 5) * lineHeight;
@@ -558,8 +568,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	renderElement(element: ViewCell, index: number, templateData: CellRenderTemplate, height: number | undefined): void {
-		const innerContent = templateData.cellContainer;
-		const width = innerContent.clientWidth - 24 /** for scrollbar and margin right */;
+		let width;
+		const listDimension = this.handler.getListDimension();
+		if (listDimension) {
+			width = listDimension.width - CELL_MARGIN * 2;
+		} else {
+			width = templateData.container.clientWidth - 24 /** for scrollbar and margin right */;
+		}
+
 		const lineNum = element.lineCount;
 		const lineHeight = this.handler.getFontInfo()?.lineHeight ?? 18;
 		const totalHeight = Math.max(lineNum + 1, 5) * lineHeight;
@@ -598,11 +614,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				}
 
 				if (height !== undefined && hasDynamicHeight) {
-					let dimensions = DOM.getClientArea(templateData.outputContainer!);
-					const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
+					let clientHeight = templateData.outputContainer!.clientHeight;
+					let listDimension = this.handler.getListDimension();
+					let dimension = listDimension ? {
+						width: listDimension.width - CELL_MARGIN * 2,
+						height: clientHeight
+					} : undefined;
+					const elementSizeObserver = getResizesObserver(templateData.outputContainer!, dimension, () => {
 						if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
 							let height = elementSizeObserver.getHeight();
-							if (dimensions.height !== height) {
+							if (clientHeight !== height) {
 								element.setDynamicHeight(totalHeight + 32 + height);
 								this.handler.layoutElement(element, totalHeight + 32 + height);
 							}
@@ -610,10 +631,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 							elementSizeObserver.dispose();
 						}
 					});
+					// const elementSizeObserver = new ElementSizeObserver();
 					elementSizeObserver.startObserving();
-					if (!hasDynamicHeight && dimensions.height !== 0) {
-						element.setDynamicHeight(totalHeight + 32 + dimensions.height);
-						this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
+					if (!hasDynamicHeight && clientHeight !== 0) {
+						element.setDynamicHeight(totalHeight + 32 + clientHeight);
+						this.handler.layoutElement(element, totalHeight + 32 + clientHeight);
 					}
 
 					this.disposables.set(templateData.cellContainer, {
@@ -653,11 +675,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 
 			if (height !== undefined && hasDynamicHeight) {
-				let dimensions = DOM.getClientArea(templateData.outputContainer!);
-				const elementSizeObserver = new ElementSizeObserver(templateData.outputContainer!, dimensions, () => {
+				let clientHeight = templateData.outputContainer!.clientHeight;
+				let listDimension = this.handler.getListDimension();
+				let dimension = listDimension ? {
+					width: listDimension.width - CELL_MARGIN * 2,
+					height: clientHeight
+				} : undefined;
+				const elementSizeObserver = getResizesObserver(templateData.outputContainer!, dimension, () => {
 					if (templateData.outputContainer && document.body.contains(templateData.outputContainer!)) {
 						let height = elementSizeObserver.getHeight();
-						if (dimensions.height !== height) {
+						if (clientHeight !== height) {
 							element.setDynamicHeight(totalHeight + 32 + height);
 							this.handler.layoutElement(element, totalHeight + 32 + height);
 						}
@@ -666,9 +693,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 					}
 				});
 				elementSizeObserver.startObserving();
-				if (!hasDynamicHeight && dimensions.height !== 0) {
-					element.setDynamicHeight(totalHeight + 32 + dimensions.height);
-					this.handler.layoutElement(element, totalHeight + 32 + dimensions.height);
+				if (!hasDynamicHeight && clientHeight !== 0) {
+					element.setDynamicHeight(totalHeight + 32 + clientHeight);
+					this.handler.layoutElement(element, totalHeight + 32 + clientHeight);
 				}
 
 				this.disposables.set(templateData.cellContainer, {

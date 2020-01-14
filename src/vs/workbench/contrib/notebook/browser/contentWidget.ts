@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotebookHandler, ViewCell } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
+import { NotebookHandler, ViewCell, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import * as DOM from 'vs/base/browser/dom';
 import * as UUID from 'vs/base/common/uuid';
@@ -67,7 +67,8 @@ export class BackLayerWebView extends Disposable {
 	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: NotebookHandler) {
 		super();
 		this.element = document.createElement('div');
-		this.element.style.width = 'calc(100% - 36px)';
+
+		this.element.style.width = `calc(100% - ${CELL_MARGIN * 2}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 		this.element.style.margin = '0px 0 0px 24px';
@@ -197,7 +198,7 @@ export class BackLayerWebView extends Disposable {
 			case 'clear':
 				document.getElementById('container').innerHTML = '';
 				for (let i = 0; i < observers.length; i++) {
-					observers[i].disconnect;
+					observers[i].disconnect();
 				}
 
 				observers = [];

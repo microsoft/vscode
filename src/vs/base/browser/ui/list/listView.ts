@@ -312,6 +312,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			}
 		}
 
+		this.fixMisuseRows(newRenderRange);
+
 		this._onDidChangeContentHeight.fire(this.contentHeight);
 		this.eventuallyUpdateScrollDimensions();
 	}
@@ -1058,6 +1060,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
 	private _rerender(renderTop: number, renderHeight: number): void {
+		let isOutermost = true;
+
+		if (this.isRendering) {
+			isOutermost = false;
+		}
+
 		this.isRendering = true;
 		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 
@@ -1128,10 +1136,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					this.scrollTop = this.elementTop(anchorElementIndex) - anchorElementTopDelta!;
 				}
 
-				if (this.rowsContainer.getElementsByClassName('monaco-list-row').length !== (renderRange.end - renderRange.start)) {
-					// there are zombie list rows
-					// console.log('remove zombie rows');
-					this.removeZombieRows(renderRange);
+				if (isOutermost && this.rowsContainer.getElementsByClassName('monaco-list-row').length !== (renderRange.end - renderRange.start)) {
+					this.fixMisuseRows(renderRange);
 				}
 
 				this._onDidChangeContentHeight.fire(this.contentHeight);
@@ -1141,7 +1147,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	private removeZombieRows(renderRange: IRange) {
+	private fixMisuseRows(renderRange: IRange) {
 		let elements = this.rowsContainer.getElementsByClassName('monaco-list-row');
 		let rowsToRemove = [];
 		let rowsRendered = new Set<number>();
@@ -1175,13 +1181,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private probeDynamicHeight(index: number): number {
 		const item = this.items[index];
 
-		if (!item.hasDynamicHeight || item.lastDynamicHeightWidth === this.renderWidth) {
-			return 0;
+		if (this.virtualDelegate.hasDynamicHeight) {
+			if (!this.virtualDelegate.hasDynamicHeight(item.element)) {
+				return 0;
+			}
+		} else {
+			if (!item.hasDynamicHeight || item.lastDynamicHeightWidth === this.renderWidth) {
+				return 0;
+			}
 		}
 
-		if (this.virtualDelegate.hasDynamicHeight && !this.virtualDelegate.hasDynamicHeight(item.element)) {
-			return 0;
-		}
 
 		const size = item.size;
 

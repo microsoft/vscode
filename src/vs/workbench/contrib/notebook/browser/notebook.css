@@ -5,7 +5,6 @@
 
 .monaco-workbench .part.editor > .content .notebook-editor {
 	box-sizing: border-box;
-	padding: 10px 20px;
 	line-height: 22px;
 	user-select: initial;
 	-webkit-user-select: initial;
@@ -18,17 +17,8 @@
 	white-space: initial;
 }
 
-
-.cell.markdown {
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell {
 	transform: translate3d(0, 0, 0);
-	padding: 8px 0px 8px 24px;
-	margin-right: 24px;
-}
-
-.cell.code {
-	transform: translate3d(0, 0, 0);
-	padding: 8px 0px 0px 24px;
-	margin-right: 24px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container {
@@ -43,14 +33,15 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output {
-	margin-left: 24px;
-	margin-right: 24px;
 	padding-left: 8px;
 	padding-right: 8px;
+	user-select: text;
+	transform: translate3d(0px, 0px, 0px);
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output p {
 	white-space: initial;
+	overflow-x: auto;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output .error_message {

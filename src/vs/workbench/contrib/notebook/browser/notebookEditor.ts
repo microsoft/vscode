@@ -18,12 +18,12 @@ import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/w
 import { textLinkForeground, textLinkActiveForeground, focusBorder, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder, editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { NotebookHandler, ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
+import { NotebookHandler, ViewCell, MarkdownCellRenderer, CodeCellRenderer, NotebookCellListDelegate, CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/cellRenderer';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/contentWidget';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -32,7 +32,6 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
-
 
 interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -51,6 +50,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	private localStore: DisposableStore = new DisposableStore();
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private fontInfo: BareFontInfo | undefined;
+	private relayoutDisposable: IDisposable | null = null;
+	private dimension: DOM.Dimension | null = null;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -147,6 +148,10 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 
 	getFontInfo(): BareFontInfo | undefined {
 		return this.fontInfo;
+	}
+
+	getListDimension(): DOM.Dimension | null {
+		return this.dimension;
 	}
 
 	triggerWheel(event: IMouseWheelEvent) {
@@ -293,8 +298,13 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		};
 
 		if (this.list?.view.isRendering) {
-			DOM.scheduleAtNextAnimationFrame(() => {
+			if (this.relayoutDisposable) {
+				this.relayoutDisposable.dispose();
+				this.relayoutDisposable = null;
+			}
+			this.relayoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
 				relayout(cell, height);
+				this.relayoutDisposable = null;
 			});
 		} else {
 			relayout(cell, height);
@@ -303,8 +313,14 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 
 	updateViewCells() {
 		if (this.list?.view.isRendering) {
-			DOM.scheduleAtNextAnimationFrame(() => {
+			if (this.relayoutDisposable) {
+				this.relayoutDisposable.dispose();
+				this.relayoutDisposable = null;
+			}
+
+			this.relayoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
 				this.list?.rerender();
+				this.relayoutDisposable = null;
 			});
 		} else {
 			this.list?.rerender();
@@ -348,10 +364,11 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 	}
 
 	layout(dimension: DOM.Dimension): void {
+		this.dimension = new DOM.Dimension(dimension.width, dimension.height);
 		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
-		DOM.size(this.body, dimension.width - 20, dimension.height);
-		this.list?.layout(dimension.height, dimension.width - 20);
+		DOM.size(this.body, dimension.width, dimension.height);
+		this.list?.layout(dimension.height, dimension.width);
 	}
 
 	protected saveState(): void {
@@ -422,4 +439,8 @@ registerThemingParticipant((theme, collector) => {
 	if (inactiveListItem) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${inactiveListItem}; }`);
 	}
+
+	// Cell Margin
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell { padding: 8px ${CELL_MARGIN}px 8px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px; }`);
 });
