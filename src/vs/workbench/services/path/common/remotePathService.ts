@@ -84,10 +84,13 @@ export class RemotePathService implements IRemotePathService {
 
 	get userHome(): Promise<URI> {
 		return this.remoteAgentService.getEnvironment().then(env => {
+
+			// remote: use remote environment userHome
 			if (env) {
 				return env.userHome;
 			}
 
+			// local: use the userHome from environment
 			return URI.from({ scheme: Schemas.file, path: this.environmentService.userHome });
 		});
 	}
