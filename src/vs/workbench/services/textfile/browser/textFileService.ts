@@ -35,6 +35,7 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -519,14 +520,28 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			success = true;
 		}
 
-		// Finally, if the source does not seem to be a file, we have to
-		// try to resolve a text model from the resource to get at the
+		// Next, if the source does not seem to be a file, we try to
+		// resolve a text model from the resource to get at the
 		// contents and additional meta data (e.g. encoding).
 		else if (this.textModelService.hasTextModelContentProvider(source.scheme)) {
 			const modelReference = await this.textModelService.createModelReference(source);
 			success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
 
 			modelReference.dispose(); // free up our use of the reference
+		}
+
+		// Finally we simply check if we can find a editor model that
+		// would give us access to the contents.
+		else {
+			const textModel = this.modelService.getModel(source);
+			if (textModel) {
+				const model = new BaseTextEditorModel(this.modelService, this.modeService, source);
+				if (model.isResolved()) {
+					success = await this.doSaveAsTextFile(model, source, target, options);
+				}
+
+				model.dispose(); // free up
+			}
 		}
 
 		// Revert the source if result is success
