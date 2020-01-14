@@ -87,7 +87,7 @@ const openPanelKb: IKeybindings = {
 
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: DEBUG_PANEL_ID,
-	name: nls.localize('runAndDebug', "Run and Debug"),
+	name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	focusCommand: {
 		id: OpenDebugPanelAction.ID,
