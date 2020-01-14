@@ -702,6 +702,9 @@ export interface IAccessibilityProvider<T> {
 	 * https://www.w3.org/TR/wai-aria/#aria-level
 	 */
 	getAriaLevel?(element: T): number | undefined;
+
+	onDidChangeActiveDescendant?: Event<void>;
+	getActiveDescendantId?(element: T): string | undefined;
 }
 
 export class DefaultStyleController implements IStyleController {
@@ -796,6 +799,7 @@ export class DefaultStyleController implements IStyleController {
 		if (styles.listDropBackground) {
 			content.push(`
 				.monaco-list${suffix}.drop-target,
+				.monaco-list${suffix} .monaco-list-rows.drop-target,
 				.monaco-list${suffix} .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
 			`);
 		}
@@ -1114,6 +1118,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private styleController: IStyleController;
 	private typeLabelController?: TypeLabelController<T>;
+	private accessibilityProvider?: IAccessibilityProvider<T>;
 
 	protected readonly disposables = new DisposableStore();
 
@@ -1199,8 +1204,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		const baseRenderers: IListRenderer<T, ITraitTemplateData>[] = [this.focus.renderer, this.selection.renderer];
 
-		if (_options.accessibilityProvider) {
-			baseRenderers.push(new AccessibiltyRenderer<T>(_options.accessibilityProvider));
+		this.accessibilityProvider = _options.accessibilityProvider;
+
+		if (this.accessibilityProvider) {
+			baseRenderers.push(new AccessibiltyRenderer<T>(this.accessibilityProvider));
+
+			if (this.accessibilityProvider.onDidChangeActiveDescendant) {
+				this.accessibilityProvider.onDidChangeActiveDescendant(this.onDidChangeActiveDescendant, this, this.disposables);
+			}
 		}
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [...baseRenderers, r]));
@@ -1622,14 +1633,24 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private _onFocusChange(): void {
 		const focus = this.focus.get();
+		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
+		this.onDidChangeActiveDescendant();
+	}
+
+	private onDidChangeActiveDescendant(): void {
+		const focus = this.focus.get();
 
 		if (focus.length > 0) {
-			this.view.domNode.setAttribute('aria-activedescendant', this.view.getElementDomId(focus[0]));
+			let id: string | undefined;
+
+			if (this.accessibilityProvider?.getActiveDescendantId) {
+				id = this.accessibilityProvider.getActiveDescendantId(this.view.element(focus[0]));
+			}
+
+			this.view.domNode.setAttribute('aria-activedescendant', id || this.view.getElementDomId(focus[0]));
 		} else {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}
-
-		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
 	}
 
 	private _onSelectionChange(): void {

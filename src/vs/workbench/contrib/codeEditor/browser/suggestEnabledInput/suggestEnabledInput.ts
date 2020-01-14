@@ -224,9 +224,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 
 	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
-		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
+		this.placeholderText.style.backgroundColor =
+			this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
+		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
+		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : '';
 
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
@@ -254,7 +255,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 	public layout(dimension: Dimension): void {
 		this.inputWidget.layout(dimension);
-		this.placeholderText.style.width = `${dimension.width}px`;
+		this.placeholderText.style.width = `${dimension.width - 2}px`;
 	}
 
 	private selectAll(): void {
@@ -285,6 +286,12 @@ registerThemingParticipant((theme, collector) => {
 	const inputForegroundColor = theme.getColor(inputForeground);
 	if (inputForegroundColor) {
 		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
+	}
+
+	const backgroundColor = theme.getColor(inputBackground);
+	if (backgroundColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+		collector.addRule(`.suggest-input-container .monaco-editor { background-color: ${backgroundColor}; } `);
 	}
 });
 

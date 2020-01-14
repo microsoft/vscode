@@ -15,7 +15,7 @@
 }
 
 .scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-panel-view {
+.scm-viewlet.empty .monaco-pane-view {
 	display: none;
 }
 
@@ -42,6 +42,7 @@
 	text-overflow: ellipsis;
 	display: flex;
 	align-items: center;
+	min-width: 14px;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label {
@@ -53,6 +54,7 @@
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-label .codicon {
 	font-size: 14px;
 	vertical-align: sub;
+	display: inline-flex;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item:last-of-type {

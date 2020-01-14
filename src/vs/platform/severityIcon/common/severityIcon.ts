@@ -29,9 +29,10 @@ registerThemingParticipant((theme, collector) => {
 	const errorIconForeground = theme.getColor(problemsErrorIconForeground);
 	if (errorIconForeground) {
 		collector.addRule(`
-			.monaco-workbench .zone-widget .codicon-error,
-			.monaco-workbench .markers-panel .marker-icon.codicon-error,
-			.monaco-workbench .extensions-viewlet > .extensions .codicon-error {
+			.monaco-editor .zone-widget .codicon-error,
+			.markers-panel .marker-icon.codicon-error,
+			.extensions-viewlet > .extensions .codicon-error,
+			.monaco-dialog-box .dialog-message-row .codicon-error {
 				color: ${errorIconForeground};
 			}
 		`);
@@ -40,10 +41,11 @@ registerThemingParticipant((theme, collector) => {
 	const warningIconForeground = theme.getColor(problemsWarningIconForeground);
 	if (errorIconForeground) {
 		collector.addRule(`
-			.monaco-workbench .zone-widget .codicon-warning,
-			.monaco-workbench .markers-panel .marker-icon.codicon-warning,
-			.monaco-workbench .extensions-viewlet > .extensions .codicon-warning,
-			.monaco-workbench .extension-editor .codicon-warning {
+			.monaco-editor .zone-widget .codicon-warning,
+			.markers-panel .marker-icon.codicon-warning,
+			.extensions-viewlet > .extensions .codicon-warning,
+			.extension-editor .codicon-warning,
+			.monaco-dialog-box .dialog-message-row .codicon-warning {
 				color: ${warningIconForeground};
 			}
 		`);
@@ -52,10 +54,11 @@ registerThemingParticipant((theme, collector) => {
 	const infoIconForeground = theme.getColor(problemsInfoIconForeground);
 	if (errorIconForeground) {
 		collector.addRule(`
-			.monaco-workbench .zone-widget .codicon-info,
-			.monaco-workbench .markers-panel .marker-icon.codicon-info,
-			.monaco-workbench .extensions-viewlet > .extensions .codicon-info,
-			.monaco-workbench .extension-editor .codicon-info {
+			.monaco-editor .zone-widget .codicon-info,
+			.markers-panel .marker-icon.codicon-info,
+			.extensions-viewlet > .extensions .codicon-info,
+			.extension-editor .codicon-info,
+			.monaco-dialog-box .dialog-message-row .codicon-info {
 				color: ${infoIconForeground};
 			}
 		`);

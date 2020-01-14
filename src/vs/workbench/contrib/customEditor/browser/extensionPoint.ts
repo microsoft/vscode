@@ -53,10 +53,6 @@ const webviewEditorsContribution: IJSONSchema = {
 							type: 'string',
 							description: nls.localize('contributes.selector.filenamePattern', 'Glob that the custom editor is enabled for.'),
 						},
-						mime: {
-							type: 'string',
-							description: nls.localize('contributes.selector.mime', 'Glob that matches the mime type of a data uri resource.'),
-						}
 					}
 				}
 			},

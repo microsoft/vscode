@@ -11,7 +11,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { ITextAreaHandlerHelper, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
@@ -48,6 +48,7 @@ import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 
 
 export interface IContentWidgetData {
@@ -244,8 +245,10 @@ export class View extends ViewEventHandler {
 				this.focus();
 			},
 
-			getLastViewCursorsRenderData: () => {
-				return this.viewCursors.getLastRenderData() || [];
+			getLastRenderData: (): PointerHandlerLastRenderData => {
+				const lastViewCursorsRenderData = this.viewCursors.getLastRenderData() || [];
+				const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
+				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
 			},
 			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
 				return this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
@@ -457,7 +460,11 @@ export class View extends ViewEventHandler {
 	}
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
-		return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+		const mouseTarget = this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+		if (!mouseTarget) {
+			return null;
+		}
+		return ViewOutgoingEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
 	}
 
 	public createOverviewRuler(cssClassName: string): OverviewRuler {
@@ -501,6 +508,10 @@ export class View extends ViewEventHandler {
 
 	public refreshFocusState() {
 		this._textAreaHandler.refreshFocusState();
+	}
+
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		this._textAreaHandler.setAriaOptions(options);
 	}
 
 	public addContentWidget(widgetData: IContentWidgetData): void {
@@ -552,4 +563,3 @@ function safeInvokeNoArg(func: Function): any {
 		onUnexpectedError(e);
 	}
 }
-

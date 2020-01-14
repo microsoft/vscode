@@ -40,8 +40,8 @@ class ServiceAccessor {
 
 class BeforeShutdownEventImpl implements BeforeShutdownEvent {
 
-	public value: boolean | Promise<boolean> | undefined;
-	public reason = ShutdownReason.CLOSE;
+	value: boolean | Promise<boolean> | undefined;
+	reason = ShutdownReason.CLOSE;
 
 	veto(value: boolean | Promise<boolean>): void {
 		this.value = value;
@@ -205,7 +205,7 @@ suite('Files - TextFileService', () => {
 		const res = await accessor.textFileService.saveAll(true);
 		assert.ok(loadOrCreateStub.calledOnce);
 		assert.equal(res.results.length, 1);
-		assert.ok(res.results[0].success);
+		assert.ok(!res.results[0].error);
 		assert.equal(res.results[0].target!.scheme, Schemas.file);
 		assert.equal(res.results[0].target!.authority, untitledUncUri.authority);
 		assert.equal(res.results[0].target!.path, untitledUncUri.path);
@@ -414,7 +414,7 @@ suite('Files - TextFileService', () => {
 			});
 		});
 
-		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: true, shouldVeto: boolean): Promise<void> {
+		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: boolean, shouldVeto: boolean): Promise<void> {
 			model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 			(<TextFileEditorModelManager>accessor.textFileService.models).add(model.resource, model);
 

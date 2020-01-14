@@ -15,7 +15,7 @@ import { exists, stat, chmod, rimraf, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/ba
 import { join, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, encodeStream, UTF8_BOM, toDecodeStream, IDecodeStreamResult, detectEncodingByBOMFromBuffer, isUTFEncoding } from 'vs/base/node/encoding';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
@@ -41,6 +41,7 @@ import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/d
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assign } from 'vs/base/common/objects';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -62,9 +63,10 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IElectronService private readonly electronService: IElectronService,
 		@IProductService private readonly productService: IProductService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@ITextModelService textModelService: ITextModelService
 	) {
-		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService);
+		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService, textModelService);
 	}
 
 	private _encoding: EncodingOracle | undefined;
@@ -350,8 +352,9 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		// Global settings
 		defaultEncodingOverrides.push({ parent: this.environmentService.userRoamingDataHome, encoding: UTF8 });
 
-		// Workspace files
+		// Workspace files (via extension and via untitled workspaces location)
 		defaultEncodingOverrides.push({ extension: WORKSPACE_EXTENSION, encoding: UTF8 });
+		defaultEncodingOverrides.push({ parent: this.environmentService.untitledWorkspacesHome, encoding: UTF8 });
 
 		// Folder Settings
 		this.contextService.getWorkspace().folders.forEach(folder => {

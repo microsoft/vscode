@@ -11,7 +11,9 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import { DiagnosticKind, DiagnosticsManager } from './features/diagnostics';
 import * as Proto from './protocol';
 import { ITypeScriptServer } from './tsServer/server';
-import { ITypeScriptServiceClient, ServerResponse, TypeScriptRequests, ExecConfig } from './typescriptService';
+import { TypeScriptServerError } from './tsServer/serverError';
+import { TypeScriptServerSpawner } from './tsServer/spawner';
+import { ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
 import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
@@ -20,12 +22,11 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager } from './utils/plugins';
-import TelemetryReporter, { VSCodeTelemetryReporter } from './utils/telemetry';
+import { TelemetryReporter, VSCodeTelemetryReporter, TelemetryProperties } from './utils/telemetry';
 import Tracer from './utils/tracer';
-import { inferredProjectConfig } from './utils/tsconfig';
+import { inferredProjectCompilerOptions } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
-import { TypeScriptServerSpawner } from './tsServer/spawner';
 
 const localize = nls.loadMessageBundle();
 
@@ -117,7 +118,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
 
-		// tslint:disable-next-line: no-var-keyword
+		// eslint-disable-next-line no-var
 		var p = new Promise<void>((resolve, reject) => {
 			this._onReady = { promise: p, resolve, reject };
 		});
@@ -270,7 +271,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.logger.error(message, data);
 	}
 
-	private logTelemetry(eventName: string, properties?: { readonly [prop: string]: string }) {
+	private logTelemetry(eventName: string, properties?: TelemetryProperties) {
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
@@ -314,7 +315,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.onDidChangeTypeScriptVersion(currentVersion);
 		let mytoken = ++this.token;
 		const handle = this.typescriptServerSpawner.spawn(currentVersion, this.configuration, this.pluginManager, {
-			onFatalError: (command) => this.fatalError(command),
+			onFatalError: (command, err) => this.fatalError(command, err),
 		});
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
@@ -497,7 +498,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
 		return {
-			...inferredProjectConfig(configuration),
+			...inferredProjectCompilerOptions(true, configuration),
 			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
@@ -575,9 +576,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return undefined;
 		}
 
-		const result = resource.fsPath;
+		let result = resource.fsPath;
 		if (!result) {
 			return undefined;
+		}
+
+		if (resource.scheme === fileSchemes.file) {
+			result = path.normalize(result);
 		}
 
 		// Both \ and / must be escaped in regular expressions
@@ -666,7 +671,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (config?.nonRecoverable) {
-			execution.catch(() => this.fatalError(command));
+			execution.catch(err => this.fatalError(command, err));
 		}
 
 		return execution;
@@ -700,15 +705,21 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this.bufferSyncSupport.interuptGetErr(f);
 	}
 
-	private fatalError(command: string): void {
+	private fatalError(command: string, error: Error): void {
 		/* __GDPR__
 			"fatalError" : {
-				"${include}": [ "${TypeScriptCommonProperties}" ],
-				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"${include}": [
+					"${TypeScriptCommonProperties}",
+					"${TypeScriptRequestErrorProperties}"
+				],
+				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			}
 		*/
-		this.logTelemetry('fatalError', { command });
+		this.logTelemetry('fatalError', { command, ...(error instanceof TypeScriptServerError ? error.telemetry : {}) });
 		console.error(`A non-recoverable error occured while executing tsserver command: ${command}`);
+		if (error instanceof TypeScriptServerError && error.serverErrorText) {
+			console.error(error.serverErrorText);
+		}
 
 		if (this.serverState.type === ServerState.Type.Running) {
 			this.info('Killing TS Server');

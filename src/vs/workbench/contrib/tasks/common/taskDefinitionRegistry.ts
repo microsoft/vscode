@@ -33,7 +33,7 @@ const taskDefinitionSchema: IJSONSchema = {
 			type: 'object',
 			description: nls.localize('TaskDefinition.properties', 'Additional properties of the task type'),
 			additionalProperties: {
-				$ref: 'http://json-schema.org/draft-04/schema#'
+				$ref: 'http://json-schema.org/draft-07/schema#'
 			}
 		}
 	}

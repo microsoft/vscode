@@ -10,11 +10,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewExtensionDescription, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { URI } from 'vs/base/common/uri';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isLinux } from 'vs/base/common/platform';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -95,7 +93,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}));
 
 		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
-			this._onDidClickLink.fire(URI.parse(uri));
+			this._onDidClickLink.fire(uri);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.onmessage, (data: any) => {
@@ -123,15 +121,12 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.handleFocusChange(false);
 		}));
 
-		if (!isLinux) {
-			// Fixes #82670 webview responding shortcuts twice on linux.
-			this._register(this.on('did-keydown', (data: KeyboardEvent) => {
-				// Electron: workaround for https://github.com/electron/electron/issues/14258
-				// We have to detect keyboard events in the <webview> and dispatch them to our
-				// keybinding service because these events do not bubble to the parent window anymore.
-				this.handleKeyDown(data);
-			}));
-		}
+		this._register(this.on('did-keydown', (data: KeyboardEvent) => {
+			// Electron: workaround for https://github.com/electron/electron/issues/14258
+			// We have to detect keyboard events in the <webview> and dispatch them to our
+			// keybinding service because these events do not bubble to the parent window anymore.
+			this.handleKeyDown(data);
+		}));
 
 		this.style();
 		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
@@ -149,7 +144,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp = this._onMissingCsp.event;
 
-	private readonly _onDidClickLink = this._register(new Emitter<URI>());
+	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
 
 	private readonly _onMessage = this._register(new Emitter<any>());

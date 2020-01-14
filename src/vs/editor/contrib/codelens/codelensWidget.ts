@@ -5,7 +5,8 @@
 
 import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
-import { renderCodicons } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import { renderCodicons } from 'vs/base/common/codicons';
+import { escape } from 'vs/base/common/strings';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -88,7 +89,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 			}
 			hasSymbol = true;
 			if (lens.command) {
-				const title = renderCodicons(lens.command.title);
+				const title = renderCodicons(escape(lens.command.title));
 				if (lens.command.id) {
 					innerHtml += `<a id=${i}>${title}</a>`;
 					this._commands.set(String(i), lens.command);
@@ -96,7 +97,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 					innerHtml += `<span>${title}</span>`;
 				}
 				if (i + 1 < lenses.length) {
-					innerHtml += '<span>&nbsp;|&nbsp;</span>';
+					innerHtml += '<span>&#160;|&#160;</span>';
 				}
 			}
 		}
@@ -108,7 +109,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		} else {
 			// symbols and commands
 			if (!innerHtml) {
-				innerHtml = '&nbsp;';
+				innerHtml = '&#160;';
 			}
 			this._domNode.innerHTML = innerHtml;
 			if (this._isEmpty && animate) {
@@ -341,9 +342,11 @@ registerThemingParticipant((theme, collector) => {
 	const codeLensForeground = theme.getColor(editorCodeLensForeground);
 	if (codeLensForeground) {
 		collector.addRule(`.monaco-editor .codelens-decoration { color: ${codeLensForeground}; }`);
+		collector.addRule(`.monaco-editor .codelens-decoration .codicon { color: ${codeLensForeground}; }`);
 	}
 	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
 		collector.addRule(`.monaco-editor .codelens-decoration > a:hover { color: ${activeLinkForeground} !important; }`);
+		collector.addRule(`.monaco-editor .codelens-decoration > a:hover .codicon { color: ${activeLinkForeground} !important; }`);
 	}
 });

@@ -17,6 +17,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Gesture } from 'vs/base/browser/touch';
 
 namespace LightBulbState {
 
@@ -71,7 +72,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				this.hide();
 			}
 		}));
-		this._register(dom.addStandardDisposableListener(this._domNode, 'mousedown', e => {
+
+		Gesture.ignoreTarget(this._domNode);
+		this._register(dom.addStandardDisposableGenericMouseDownListner(this._domNode, e => {
 			if (this.state.type !== LightBulbState.Type.Showing) {
 				return;
 			}
@@ -137,7 +140,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	public update(actions: CodeActionSet, atPosition: IPosition) {
-		if (actions.actions.length <= 0) {
+		if (actions.validActions.length <= 0) {
 			return this.hide();
 		}
 
@@ -222,8 +225,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
 	if (editorLightBulbForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .contentWidgets .codicon-lightbulb,
-		.monaco-workbench .markers-panel-container .codicon-lightbulb {
+		.monaco-editor .contentWidgets .codicon-lightbulb {
 			color: ${editorLightBulbForegroundColor};
 		}`);
 	}
@@ -232,8 +234,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
 	if (editorLightBulbAutoFixForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .contentWidgets .codicon-lightbulb-autofix,
-		.monaco-workbench .markers-panel-container .codicon-lightbulb-autofix {
+		.monaco-editor .contentWidgets .codicon-lightbulb-autofix {
 			color: ${editorLightBulbAutoFixForegroundColor};
 		}`);
 	}

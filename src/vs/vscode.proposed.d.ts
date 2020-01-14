@@ -16,7 +16,7 @@
 
 declare module 'vscode' {
 
-	//#region Alex - resolvers
+	//#region Alex - resolvers, AlexR - ports
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -33,7 +33,40 @@ declare module 'vscode' {
 		extensionHostEnv?: { [key: string]: string | null };
 	}
 
-	export type ResolverResult = ResolvedAuthority & ResolvedOptions;
+	export interface TunnelOptions {
+		remoteAddress: { port: number, host: string };
+		// The desired local port. If this port can't be used, then another will be chosen.
+		localAddressPort?: number;
+		label?: string;
+	}
+
+	export interface TunnelDescription {
+		remoteAddress: { port: number, host: string };
+		//The complete local address(ex. localhost:1234)
+		localAddress: string;
+	}
+
+	export interface Tunnel extends TunnelDescription {
+		// Implementers of Tunnel should fire onDidDispose when dispose is called.
+		onDidDispose: Event<void>;
+		dispose(): void;
+	}
+
+	/**
+	 * Used as part of the ResolverResult if the extension has any candidate, published, or forwarded ports.
+	 */
+	export interface TunnelInformation {
+		/**
+		 * Tunnels that are detected by the extension. The remotePort is used for display purposes.
+		 * The localAddress should be the complete local address (ex. localhost:1234) for connecting to the port. Tunnels provided through
+		 * detected are read-only from the forwarded ports UI.
+		 */
+		environmentTunnels?: TunnelDescription[];
+
+		hideCandidatePorts?: boolean;
+	}
+
+	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
@@ -44,6 +77,21 @@ declare module 'vscode' {
 
 	export interface RemoteAuthorityResolver {
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+		/**
+		 * Can be optionally implemented if the extension can forward ports better than the core.
+		 * When not implemented, the core will use its default forwarding logic.
+		 * When implemented, the core will use this to forward ports.
+		 */
+		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
+	}
+
+	export namespace workspace {
+		/**
+		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -68,69 +116,222 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex - semantic coloring
+	//#region Semantic tokens: https://github.com/microsoft/vscode/issues/86415
 
-	export class SemanticColoringLegend {
+	export class SemanticTokensLegend {
 		public readonly tokenTypes: string[];
 		public readonly tokenModifiers: string[];
 
 		constructor(tokenTypes: string[], tokenModifiers: string[]);
 	}
 
-	export class SemanticColoringArea {
-		/**
-		 * The zero-based line value where this token block begins.
-		 */
-		public readonly line: number;
-		/**
-		 * The actual token block encoded data.
-		 * A certain token (at index `i` is encoded using 5 uint32 integers):
-		 *  - at index `5*i`   - `deltaLine`: token line number, relative to `SemanticColoringArea.line`
-		 *  - at index `5*i+1` - `startCharacter`: token start character offset inside the line (inclusive)
-		 *  - at index `5*i+2` - `endCharacter`: token end character offset inside the line (exclusive)
-		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticColoringLegend.tokenTypes`
-		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticColoringLegend.tokenModifiers`
-		 */
-		public readonly data: Uint32Array;
-
-		constructor(line: number, data: Uint32Array);
+	export class SemanticTokensBuilder {
+		constructor();
+		push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void;
+		build(): Uint32Array;
 	}
 
-	export class SemanticColoring {
-		public readonly areas: SemanticColoringArea[];
+	export class SemanticTokens {
+		/**
+		 * The result id of the tokens.
+		 *
+		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
+		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
+		 */
+		readonly resultId?: string;
+		readonly data: Uint32Array;
 
-		constructor(areas: SemanticColoringArea[]);
+		constructor(data: Uint32Array, resultId?: string);
+	}
+
+	export class SemanticTokensEdits {
+		/**
+		 * The result id of the tokens.
+		 *
+		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
+		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
+		 */
+		readonly resultId?: string;
+		readonly edits: SemanticTokensEdit[];
+
+		constructor(edits: SemanticTokensEdit[], resultId?: string);
+	}
+
+	export class SemanticTokensEdit {
+		readonly start: number;
+		readonly deleteCount: number;
+		readonly data?: Uint32Array;
+
+		constructor(start: number, deleteCount: number, data?: Uint32Array);
+	}
+
+	export interface SemanticTokensRequestOptions {
+		readonly ranges?: readonly Range[];
+		/**
+		 * The previous result id that the editor still holds in memory.
+		 *
+		 * Only when this is set it is safe for a `SemanticTokensProvider` to return `SemanticTokensEdits`.
+		 */
+		readonly previousResultId?: string;
 	}
 
 	/**
-	 * The semantic coloring provider interface defines the contract between extensions and
-	 * semantic coloring.
-	 *
-	 *
+	 * The semantic tokens provider interface defines the contract between extensions and
+	 * semantic tokens.
 	 */
-	export interface SemanticColoringProvider {
-
-		provideSemanticColoring(document: TextDocument, token: CancellationToken): ProviderResult<SemanticColoring>;
+	export interface SemanticTokensProvider {
+		/**
+		 * A file can contain many tokens, perhaps even hundreds of thousands of tokens. Therefore, to improve
+		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating an object
+		 * for each token and we represent tokens from a file as an array of integers. Furthermore, the position
+		 * of each token is expressed relative to the token before it because most tokens remain stable relative to
+		 * each other when edits are made in a file.
+		 *
+		 *
+		 * ---
+		 * In short, each token takes 5 integers to represent, so a specific token `i` in the file consists of the following fields:
+		 *  - at index `5*i`   - `deltaLine`: token line number, relative to the previous token
+		 *  - at index `5*i+1` - `deltaStart`: token start character, relative to the previous token (relative to 0 or the previous token's start if they are on the same line)
+		 *  - at index `5*i+2` - `length`: the length of the token. A token cannot be multiline.
+		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticTokensLegend.tokenTypes`
+		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticTokensLegend.tokenModifiers`
+		 *
+		 *
+		 *
+		 * ---
+		 * ### How to encode tokens
+		 *
+		 * Here is an example for encoding a file with 3 tokens:
+		 * ```
+		 *    { line: 2, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 2, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
+		 *    { line: 5, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] }
+		 * ```
+		 *
+		 * 1. First of all, a legend must be devised. This legend must be provided up-front and capture all possible token types.
+		 * For this example, we will choose the following legend which must be passed in when registering the provider:
+		 * ```
+		 *    tokenTypes: ['properties', 'types', 'classes'],
+		 *    tokenModifiers: ['private', 'static']
+		 * ```
+		 *
+		 * 2. The first transformation step is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
+		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Multiple token modifiers can be set by using bit flags,
+		 * so a `tokenModifier` value of `3` is first viewed as binary `0b00000011`, which means `[tokenModifiers[0], tokenModifiers[1]]` because
+		 * bits 0 and 1 are set. Using this legend, the tokens now are:
+		 * ```
+		 *    { line: 2, startChar:  5, length: 3, tokenType: 0, tokenModifiers: 3 },
+		 *    { line: 2, startChar: 10, length: 4, tokenType: 1, tokenModifiers: 0 },
+		 *    { line: 5, startChar:  2, length: 7, tokenType: 2, tokenModifiers: 0 }
+		 * ```
+		 *
+		 * 3. The next steps is to encode each token relative to the previous token in the file. In this case, the second token
+		 * is on the same line as the first token, so the `startChar` of the second token is made relative to the `startChar`
+		 * of the first token, so it will be `10 - 5`. The third token is on a different line than the second token, so the
+		 * `startChar` of the third token will not be altered:
+		 * ```
+		 *    { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 0, tokenModifiers: 3 },
+		 *    { deltaLine: 0, deltaStartChar: 5, length: 4, tokenType: 1, tokenModifiers: 0 },
+		 *    { deltaLine: 3, deltaStartChar: 2, length: 7, tokenType: 2, tokenModifiers: 0 }
+		 * ```
+		 *
+		 * 4. Finally, the last step is to inline each of the 5 fields for a token in a single array, which is a memory friendly representation:
+		 * ```
+		 *    // 1st token,  2nd token,  3rd token
+		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 * ```
+		 *
+		 *
+		 *
+		 * ---
+		 * ### How tokens change when the document changes
+		 *
+		 * Let's look at how tokens might change.
+		 *
+		 * Continuing with the above example, suppose a new line was inserted at the top of the file.
+		 * That would make all the tokens move down by one line (notice how the line has changed for each one):
+		 * ```
+		 *    { line: 3, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 3, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
+		 *    { line: 6, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] }
+		 * ```
+		 * The integer encoding of the tokens does not change substantially because of the delta-encoding of positions:
+		 * ```
+		 *    // 1st token,  2nd token,  3rd token
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 * ```
+		 * It is possible to express these new tokens in terms of an edit applied to the previous tokens:
+		 * ```
+		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 *
+		 *    edit: { start:  0, deleteCount: 1, data: [3] } // replace integer at offset 0 with 3
+		 * ```
+		 *
+		 * Furthermore, let's assume that a new token has appeared on line 4:
+		 * ```
+		 *    { line: 3, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
+		 *    { line: 3, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
+		 *    { line: 4, startChar:  3, length: 5, tokenType: "properties", tokenModifiers: ["static"] },
+		 *    { line: 6, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] }
+		 * ```
+		 * The integer encoding of the tokens is:
+		 * ```
+		 *    // 1st token,  2nd token,  3rd token,  4th token
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]
+		 * ```
+		 * Again, it is possible to express these new tokens in terms of an edit applied to the previous tokens:
+		 * ```
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
+		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]
+		 *
+		 *    edit: { start: 10, deleteCount: 1, data: [1,3,5,0,2,2] } // replace integer at offset 10 with [1,3,5,0,2,2]
+		 * ```
+		 *
+		 *
+		 *
+		 * ---
+		 * ### When to return `SemanticTokensEdits`
+		 *
+		 * When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
+		 * In principle, each call to `provideSemanticTokens` can return a full representations of the semantic tokens, and that would
+		 * be a perfectly reasonable semantic tokens provider implementation.
+		 *
+		 * However, when having a language server running in a separate process, transferring all the tokens between processes
+		 * might be slow, so VS Code allows to return the new tokens expressed in terms of multiple edits applied to the previous
+		 * tokens.
+		 *
+		 * To clearly define what "previous tokens" means, it is possible to return a `resultId` with the semantic tokens. If the
+		 * editor still has in memory the previous result, the editor will pass in options the previous `resultId` at
+		 * `SemanticTokensRequestOptions.previousResultId`. Only when the editor passes in the previous `resultId`, it is allowed
+		 * that a semantic tokens provider returns the new tokens expressed as edits to be applied to the previous result. Even in this
+		 * case, the semantic tokens provider needs to return a new `resultId` that will identify these new tokens as a basis
+		 * for the next request.
+		 *
+		 * *NOTE 1*: It is illegal to return `SemanticTokensEdits` if `options.previousResultId` is not set.
+		 * *NOTE 2*: All edits in `SemanticTokensEdits` contain indices in the old integers array, so they all refer to the previous result state.
+		 */
+		provideSemanticTokens(document: TextDocument, options: SemanticTokensRequestOptions, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	}
 
 	export namespace languages {
 		/**
-		 * Register a semantic coloring provider.
+		 * Register a semantic tokens provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A semantic coloring provider.
+		 * @param provider A semantic tokens provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerSemanticColoringProvider(selector: DocumentSelector, provider: SemanticColoringProvider, legend: SemanticColoringLegend): Disposable;
+		export function registerSemanticTokensProvider(selector: DocumentSelector, provider: SemanticTokensProvider, legend: SemanticTokensLegend): Disposable;
 	}
 
 	//#endregion
 
-	// #region Joh - code insets
+	//#region editor insets: https://github.com/microsoft/vscode/issues/85682
 
 	export interface WebviewEditorInset {
 		readonly editor: TextEditor;
@@ -147,7 +348,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh - read/write in chunks
+	//#region read/write in chunks: https://github.com/microsoft/vscode/issues/84515
 
 	export interface FileSystemProvider {
 		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
@@ -158,7 +359,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Rob: search provider
+	//#region TextSearchProvider: https://github.com/microsoft/vscode/issues/59921
 
 	/**
 	 * The parameters of a query for text search.
@@ -303,32 +504,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The parameters of a query for file search.
-	 */
-	export interface FileSearchQuery {
-		/**
-		 * The search pattern to match against file paths.
-		 */
-		pattern: string;
-	}
-
-	/**
-	 * Options that apply to file search.
-	 */
-	export interface FileSearchOptions extends SearchOptions {
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults?: number;
-
-		/**
-		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
-		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
-		 */
-		session?: CancellationToken;
-	}
-
-	/**
 	 * A preview of the text result.
 	 */
 	export interface TextSearchMatchPreview {
@@ -388,6 +563,50 @@ declare module 'vscode' {
 	export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 	/**
+	 * A TextSearchProvider provides search results for text results inside files in the workspace.
+	 */
+	export interface TextSearchProvider {
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+	}
+
+	//#endregion
+
+	//#region FileSearchProvider: https://github.com/microsoft/vscode/issues/73524
+
+	/**
+	 * The parameters of a query for file search.
+	 */
+	export interface FileSearchQuery {
+		/**
+		 * The search pattern to match against file paths.
+		 */
+		pattern: string;
+	}
+
+	/**
+	 * Options that apply to file search.
+	 */
+	export interface FileSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults?: number;
+
+		/**
+		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
+		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 */
+		session?: CancellationToken;
+	}
+
+	/**
 	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
 	 *
 	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
@@ -406,19 +625,33 @@ declare module 'vscode' {
 		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
-	/**
-	 * A TextSearchProvider provides search results for text results inside files in the workspace.
-	 */
-	export interface TextSearchProvider {
+	export namespace workspace {
 		/**
-		 * Provide results that match the given text pattern.
-		 * @param query The parameters for this query.
-		 * @param options A set of options to consider while searching.
-		 * @param progress A progress callback that must be invoked for all results.
-		 * @param token A cancellation token.
+		 * Register a search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
+
+		/**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
 	}
+
+	//#endregion
+
+	//#region findTextInFiles: https://github.com/microsoft/vscode/issues/59924
 
 	/**
 	 * Options that can be set on a findTextInFiles search.
@@ -485,28 +718,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * Register a search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
-
-		/**
-		 * Register a text search provider.
-		 *
-		 * Only one provider can be registered per scheme.
-		 *
-		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
-		 * @param provider The provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
-
-		/**
 		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param callback A callback, called for each result
@@ -528,7 +739,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: diff command
+	//#region diff command: https://github.com/microsoft/vscode/issues/84899
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -561,7 +772,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: decorations
+	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
 	export class Decoration {
 		letter?: string;
@@ -582,30 +793,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region André: debug
-
-	/**
-	 * A DebugSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
-	 */
-	export interface DebugSource {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
-	}
-
-	export namespace debug {
-
-		/**
-		 * Converts a "Source" descriptor object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
-		 * If the source descriptor is based on a path, a file Uri is returned.
-		 * If the source descriptor uses a reference number, a specific debug Uri (scheme 'debug') is constructed that requires a corresponding VS Code ContentProvider and a running debug session
-		 *
-		 * If the "Source" descriptor has insufficient information for creating the Uri, an error is thrown.
-		 *
-		 * @param source An object conforming to the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
-		 * @param session An optional debug session that will be used when the source descriptor uses a reference number to load the contents from an active debug session.
-		 * @return A uri that can be used to load the contents of the source.
-		 */
-		export function asDebugSourceUri(source: DebugSource, session?: DebugSession): Uri;
-	}
+	//#region Debug:
 
 	// deprecated
 
@@ -619,7 +807,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Rob, Matt: logging
+	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
 
 	/**
 	 * The severity level of a log message
@@ -730,22 +918,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-	//#region Terminal
-
-	/**
-	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
-	 */
-	export interface TerminalDimensionsChangeEvent {
-		/**
-		 * The [terminal](#Terminal) for which the dimensions have changed.
-		 */
-		readonly terminal: Terminal;
-		/**
-		 * The new value for the [terminal's dimensions](#Terminal.dimensions).
-		 */
-		readonly dimensions: TerminalDimensions;
-	}
+	//#region Terminal data write event https://github.com/microsoft/vscode/issues/78502
 
 	export interface TerminalDataWriteEvent {
 		/**
@@ -758,23 +931,7 @@ declare module 'vscode' {
 		readonly data: string;
 	}
 
-	export interface TerminalExitStatus {
-		/**
-		 * The exit code that a terminal exited with, it can have the following values:
-		 * - Zero: the terminal process or custom execution succeeded.
-		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcefully closed the terminal or a custom execution exited
-		 *   without providing an exit code.
-		 */
-		readonly code: number | undefined;
-	}
-
 	namespace window {
-		/**
-		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
-		 */
-		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
-
 		/**
 		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
 		 * words, this provides access to the raw data stream from the process running within the
@@ -783,21 +940,22 @@ declare module 'vscode' {
 		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 	}
 
+	//#endregion
+
+	//#region Terminal exit status https://github.com/microsoft/vscode/issues/62103
+
+	export interface TerminalExitStatus {
+		/**
+		 * The exit code that a terminal exited with, it can have the following values:
+		 * - Zero: the terminal process or custom execution succeeded.
+		 * - Non-zero: the terminal process or custom execution failed.
+		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
+		 *   without providing an exit code.
+		 */
+		readonly code: number | undefined;
+	}
+
 	export interface Terminal {
-		/**
-		 * The object used to initialize the terminal, this is useful for things like detecting the
-		 * shell type of shells not launched by the extension or detecting what folder the shell was
-		 * launched in.
-		 */
-		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
-
-		/**
-		 * The current dimensions of the terminal. This will be `undefined` immediately after the
-		 * terminal is created as the dimensions are not known until shortly after the terminal is
-		 * created.
-		 */
-		readonly dimensions: TerminalDimensions | undefined;
-
 		/**
 		 * The exit status of the terminal, this will be undefined while the terminal is active.
 		 *
@@ -816,253 +974,46 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
+
+	/**
+	 * An [event](#Event) which fires when a [Terminal](#Terminal)'s dimensions change.
+	 */
+	export interface TerminalDimensionsChangeEvent {
+		/**
+		 * The [terminal](#Terminal) for which the dimensions have changed.
+		 */
+		readonly terminal: Terminal;
+		/**
+		 * The new value for the [terminal's dimensions](#Terminal.dimensions).
+		 */
+		readonly dimensions: TerminalDimensions;
+	}
+
+	namespace window {
+		/**
+		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
+		 */
+		export const onDidChangeTerminalDimensions: Event<TerminalDimensionsChangeEvent>;
+	}
+
+	export interface Terminal {
+		/**
+		 * The current dimensions of the terminal. This will be `undefined` immediately after the
+		 * terminal is created as the dimensions are not known until shortly after the terminal is
+		 * created.
+		 */
+		readonly dimensions: TerminalDimensions | undefined;
+	}
+
+	//#endregion
+
 	//#region Joh -> exclusive document filters
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
 	}
 
-	//#endregion
-
-	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
-
-	/**
-	 * An event that is fired when files are going to be created.
-	 *
-	 * To make modifications to the workspace before the files are created,
-	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
-	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
-	 */
-	export interface FileWillCreateEvent {
-
-		/**
-		 * The files that are going to be created.
-		 */
-		readonly files: ReadonlyArray<Uri>;
-
-		/**
-		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
-		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
-		 *
-		 * ```ts
-		 * workspace.onWillCreateFiles(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
-		 *
-		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
-		 * })
-		 * ```
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
-
-		/**
-		 * Allows to pause the event until the provided thenable resolves.
-		 *
-		 * *Note:* This function can only be called during event dispatch.
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<any>): void;
-	}
-
-	/**
-	 * An event that is fired after files are created.
-	 */
-	export interface FileCreateEvent {
-
-		/**
-		 * The files that got created.
-		 */
-		readonly files: ReadonlyArray<Uri>;
-	}
-
-	/**
-	 * An event that is fired when files are going to be deleted.
-	 *
-	 * To make modifications to the workspace before the files are deleted,
-	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
-	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
-	 */
-	export interface FileWillDeleteEvent {
-
-		/**
-		 * The files that are going to be deleted.
-		 */
-		readonly files: ReadonlyArray<Uri>;
-
-		/**
-		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
-		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
-		 *
-		 * ```ts
-		 * workspace.onWillCreateFiles(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
-		 *
-		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
-		 * })
-		 * ```
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
-
-		/**
-		 * Allows to pause the event until the provided thenable resolves.
-		 *
-		 * *Note:* This function can only be called during event dispatch.
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<any>): void;
-	}
-
-	/**
-	 * An event that is fired after files are deleted.
-	 */
-	export interface FileDeleteEvent {
-
-		/**
-		 * The files that got deleted.
-		 */
-		readonly files: ReadonlyArray<Uri>;
-	}
-
-	/**
-	 * An event that is fired when files are going to be renamed.
-	 *
-	 * To make modifications to the workspace before the files are renamed,
-	 * call the [`waitUntil](#FileWillCreateEvent.waitUntil)-function with a
-	 * thenable that resolves to a [workspace edit](#WorkspaceEdit).
-	 */
-	export interface FileWillRenameEvent {
-
-		/**
-		 * The files that are going to be renamed.
-		 */
-		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-
-		/**
-		 * Allows to pause the event and to apply a [workspace edit](#WorkspaceEdit).
-		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
-		 *
-		 * ```ts
-		 * workspace.onWillCreateFiles(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
-		 *
-		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
-		 * })
-		 * ```
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
-
-		/**
-		 * Allows to pause the event until the provided thenable resolves.
-		 *
-		 * *Note:* This function can only be called during event dispatch.
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<any>): void;
-	}
-
-	/**
-	 * An event that is fired after files are renamed.
-	 */
-	export interface FileRenameEvent {
-
-		/**
-		 * The files that got renamed.
-		 */
-		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
-	}
-
-	export namespace workspace {
-
-		/**
-		 * An event that is emitted when files are being created.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api. This event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When this event is fired, edits to files thare are being created cannot be applied.
-		 */
-		export const onWillCreateFiles: Event<FileWillCreateEvent>;
-
-		/**
-		 * An event that is emitted when files have been created.
-		 *
-		 * *Note:* This event is triggered by user gestures, like creating a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 */
-		export const onDidCreateFiles: Event<FileCreateEvent>;
-
-		/**
-		 * An event that is emitted when files are being deleted.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When deleting a folder with children only one event is fired.
-		 */
-		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
-
-		/**
-		 * An event that is emitted when files have been deleted.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
-		 * explorer, or from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When deleting a folder with children only one event is fired.
-		 */
-		export const onDidDeleteFiles: Event<FileDeleteEvent>;
-
-		/**
-		 * An event that is emitted when files are being renamed.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
-		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When renaming a folder with children only one event is fired.
-		 */
-		export const onWillRenameFiles: Event<FileWillRenameEvent>;
-
-		/**
-		 * An event that is emitted when files have been renamed.
-		 *
-		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
-		 * explorer, and from the [`workspace.applyEdit`](#workspace.applyEdit)-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * [`workspace.fs`](#FileSystem)-api.
-		 *
-		 * *Note 2:* When renaming a folder with children only one event is fired.
-		 */
-		export const onDidRenameFiles: Event<FileRenameEvent>;
-	}
 	//#endregion
 
 	//#region Alex - OnEnter enhancement
@@ -1074,16 +1025,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region Tree View
-
-	export interface TreeView<T> {
-		/**
-		 * The tree view title is initially taken from the extension package.json
-		 * Changes to the title property will be properly reflected in the UI in the title of the view.
-		 */
-		title?: string;
-	}
-
+	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
 	/**
 	 * Label describing the [Tree item](#TreeItem)
 	 */
@@ -1116,9 +1058,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region CustomExecution
-
-
+	//#region CustomExecution: https://github.com/microsoft/vscode/issues/81007
 	/**
 	 * A task to execute
 	 */
@@ -1137,7 +1077,9 @@ declare module 'vscode' {
 		 */
 		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
+	//#endregion
 
+	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
 		/**
 		 * Controls whether the task is executed in a specific terminal group using split panes.
@@ -1146,7 +1088,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	// #region Ben - status bar item with ID and Name
+	//#region Status bar item with ID and Name: https://github.com/microsoft/vscode/issues/74972
 
 	export namespace window {
 
@@ -1194,117 +1136,111 @@ declare module 'vscode' {
 
 	//#endregion
 
-	// #region Ben - extension auth flow (desktop+web)
-
-	export interface AppUriOptions {
-		payload?: {
-			path?: string;
-			query?: string;
-			fragment?: string;
-		};
-	}
-
-	export namespace env {
-
-		/**
-		 * @deprecated use `vscode.env.asExternalUri` instead.
-		 */
-		export function createAppUri(options?: AppUriOptions): Thenable<Uri>;
-	}
-
-	//#endregion
-
-	//#region Custom editors, mjbvz
+	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
 
 	/**
+	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
+	 * editor events such as `undo` or `save`.
 	 *
+	 * @param EditType Type of edits. Edit objects must be json serializable.
 	 */
-	interface WebviewEditorCapabilities {
+	interface WebviewCustomEditorEditingDelegate<EditType> {
 		/**
-		 * Invoked when the resource has been renamed in VS Code.
+		 * Save a resource.
 		 *
-		 * This is called when the resource's new name also matches the custom editor selector.
+		 * @param resource Resource being saved.
 		 *
-		 * If this is not implemented—or if the new resource name does not match the existing selector—then VS Code
-		 * will close and reopen the editor on  rename.
-		 *
-		 * @param newResource Full path to the resource.
-		 *
-		 * @return Thenable that signals the save is complete.
+		 * @return Thenable signaling that the save has completed.
 		 */
-		rename?(newResource: Uri): Thenable<void>;
-
-		readonly editingCapability?: WebviewEditorEditingCapability;
-	}
-
-	interface WebviewEditorEditingCapability {
-		/**
-		 * Persist the resource.
-		 */
-		save(): Thenable<void>;
+		save(resource: Uri): Thenable<void>;
 
 		/**
-		 * Called when the editor exits.
+		 * Save an existing resource at a new path.
+		 *
+		 * @param resource Resource being saved.
+		 * @param targetResource Location to save to.
+		 *
+		 * @return Thenable signaling that the save has completed.
 		 */
-		hotExit(hotExitPath: Uri): Thenable<void>;
+		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
 
 		/**
-		 * Signal to VS Code that an edit has occurred.
-		 *
-		 * Edits must be a json serilizable object.
+		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
 		 */
-		readonly onEdit: Event<any>;
+		readonly onEdit: Event<{ readonly resource: Uri, readonly edit: EditType }>;
 
 		/**
 		 * Apply a set of edits.
 		 *
-		 * This is triggered on redo and when restoring a custom editor after restart. Note that is not invoked
-		 * when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
+		 * Note that is not invoked when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
 		 *
+		 * @param resource Resource being edited.
 		 * @param edit Array of edits. Sorted from oldest to most recent.
+		 *
+		 * @return Thenable signaling that the change has completed.
 		 */
-		applyEdits(edits: any[]): Thenable<void>;
+		applyEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
 
 		/**
 		 * Undo a set of edits.
 		 *
 		 * This is triggered when a user undoes an edit or when revert is called on a file.
 		 *
+		 * @param resource Resource being edited.
 		 * @param edit Array of edits. Sorted from most recent to oldest.
+		 *
+		 * @return Thenable signaling that the change has completed.
 		 */
-		undoEdits(edits: any[]): Thenable<void>;
+		undoEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
 	}
 
-	export interface WebviewEditorProvider {
+	export interface WebviewCustomEditorProvider {
 		/**
-		 * Fills out a `WebviewEditor` for a given resource.
+		 * Resolve a webview editor for a given resource.
 		 *
-		 * @param input Information about the resource being resolved.
+		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
+		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
+		 *
+		 * @param resource Resource being resolved.
 		 * @param webview Webview being resolved. The provider should take ownership of this webview.
 		 *
-		 * @return Thenable to a `WebviewEditorCapabilities` indicating that the webview editor has been resolved.
-		 *   The `WebviewEditorCapabilities` defines how the custom editor interacts with VS Code.
-		 *   **❗️Note**: `WebviewEditorCapabilities` is not actually implemented... yet!
+		 * @return Thenable indicating that the webview editor has been resolved.
 		 */
 		resolveWebviewEditor(
-			input: {
-				readonly resource: Uri
-			},
+			resource: Uri,
 			webview: WebviewPanel,
-		): Thenable<WebviewEditorCapabilities>;
+		): Thenable<void>;
+
+		/**
+		 * Controls the editing functionality of a webview editor. This allows the webview editor to hook into standard
+		 * editor events such as `undo` or `save`.
+		 *
+		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
+		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
+		 */
+		readonly editingDelegate?: WebviewCustomEditorEditingDelegate<unknown>;
 	}
 
 	namespace window {
-		export function registerWebviewEditorProvider(
+		/**
+		 * Register a new provider for webview editors of a given type.
+		 *
+		 * @param viewType  Type of the webview editor provider.
+		 * @param provider Resolves webview editors.
+		 * @param options Content settings for a webview panels the provider is given.
+		 *
+		 * @return Disposable that unregisters the `WebviewCustomEditorProvider`.
+		 */
+		export function registerWebviewCustomEditorProvider(
 			viewType: string,
-			provider: WebviewEditorProvider,
+			provider: WebviewCustomEditorProvider,
 			options?: WebviewPanelOptions,
 		): Disposable;
 	}
 
 	//#endregion
 
-	//#region joh, insert/replace completions: https://github.com/microsoft/vscode/issues/10266
+	//#region insert/replace completions: https://github.com/microsoft/vscode/issues/10266
 
 	export interface CompletionItem {
 
@@ -1324,7 +1260,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region chrmarti, pelmers - allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
+	//#region allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
 
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 		/**
@@ -1334,4 +1270,249 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Surfacing reasons why a code action cannot be applied to users: https://github.com/microsoft/vscode/issues/85160
+
+	export interface CodeAction {
+		/**
+		 * Marks that the code action cannot currently be applied.
+		 *
+		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
+		 */
+		disabled?: {
+			/**
+			 * Human readable description of why the code action is currently disabled.
+			 *
+			 * This is displayed in the UI.
+			 */
+			reason: string;
+		};
+	}
+
+	//#endregion
+
+	//#region Allow theme icons in hovers: https://github.com/microsoft/vscode/issues/84695
+
+	export interface MarkdownString {
+
+		/**
+		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
+		 */
+		readonly supportThemeIcons?: boolean;
+	}
+
+	//#endregion
+
+	//#region Language specific settings: https://github.com/microsoft/vscode/issues/26707
+
+	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri, languageId: string };
+
+	/**
+	 * An event describing the change in Configuration
+	 */
+	export interface ConfigurationChangeEvent {
+
+		/**
+		 * Returns `true` if the given section is affected in the provided scope.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param scope A scope in which to check.
+		 * @return `true` if the given section is affected in the provided scope.
+		 */
+		affectsConfiguration(section: string, scope?: ConfigurationScope): boolean;
+	}
+
+	export namespace workspace {
+
+		/**
+		 * Get a workspace configuration object.
+		 *
+		 * When a section-identifier is provided only that part of the configuration
+		 * is returned. Dots in the section-identifier are interpreted as child-access,
+		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
+		 *
+		 * When a scope is provided configuraiton confined to that scope is returned. Scope can be a resource or a language identifier or both.
+		 *
+		 * @param section A dot-separated identifier.
+		 * @return The full configuration or a subset.
+		 */
+		export function getConfiguration(section?: string | undefined, scope?: ConfigurationScope | null): WorkspaceConfiguration;
+
+	}
+
+	/**
+	 * Represents the configuration. It is a merged view of
+	 *
+	 * - *Default Settings*
+	 * - *Global (User) Settings*
+	 * - *Workspace settings*
+	 * - *Workspace Folder settings* - From one of the [Workspace Folders](#workspace.workspaceFolders) under which requested resource belongs to.
+	 * - *Language settings* - Settings defined under requested language.
+	 *
+	 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get)) is computed by overriding or merging the values in the following order.
+	 *
+	 * ```
+	 * `defaultValue`
+	 * `globalValue` (if defined)
+	 * `workspaceValue` (if defined)
+	 * `workspaceFolderValue` (if defined)
+	 * `defaultLanguageValue` (if defined)
+	 * `globalLanguageValue` (if defined)
+	 * `workspaceLanguageValue` (if defined)
+	 * `workspaceLanguageValue` (if defined)
+	 * ```
+	 * **Note:** Only `object` value types are merged and all other value types are overridden.
+	 *
+	 * Example 1: Overriding
+	 *
+	 * ```ts
+	 * defaultValue = 'on';
+	 * globalValue = 'relative'
+	 * workspaceFolderValue = 'off'
+	 * value = 'off'
+	 * ```
+	 *
+	 * Example 2: Language Values
+	 *
+	 * ```ts
+	 * defaultValue = 'on';
+	 * globalValue = 'relative'
+	 * workspaceFolderValue = 'off'
+	 * globalLanguageValue = 'on'
+	 * value = 'on'
+	 * ```
+	 *
+	 * Example 3: Object Values
+	 *
+	 * ```ts
+	 * defaultValue = { "a": 1, "b": 2 };
+	 * globalValue = { "b": 3, "c": 4 };
+	 * value = { "a": 1, "b": 3, "c": 4 };
+	 * ```
+	 *
+	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
+	 * part of the section identifier. The following snippets shows how to retrieve all configurations
+	 * from `launch.json`:
+	 *
+	 * ```ts
+	 * // launch.json configuration
+	 * const config = workspace.getConfiguration('launch', vscode.workspace.workspaceFolders[0].uri);
+	 *
+	 * // retrieve values
+	 * const values = config.get('configurations');
+	 * ```
+	 *
+	 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings) for more information.
+	 */
+	export interface WorkspaceConfiguration {
+
+		/**
+		 * Retrieve all information about a configuration setting. A configuration value
+		 * often consists of a *default* value, a global or installation-wide value,
+		 * a workspace-specific value, folder-specific value
+		 * and language-specific values (if [WorkspaceConfiguration](#WorkspaceConfiguration) is scoped to a language).
+		 *
+		 * *Note:* The configuration name must denote a leaf in the configuration tree
+		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @return Information about a configuration setting or `undefined`.
+		 */
+		inspect<T>(section: string): {
+			key: string;
+
+			defaultValue?: T;
+			globalValue?: T;
+			workspaceValue?: T,
+			workspaceFolderValue?: T,
+
+			defaultLanguageValue?: T;
+			userLanguageValue?: T;
+			workspaceLanguageValue?: T;
+			workspaceFolderLanguageValue?: T;
+
+			languages?: string[];
+
+		} | undefined;
+
+		/**
+		 * Update a configuration value. The updated configuration values are persisted.
+		 *
+		 * A value can be changed in
+		 *
+		 * - [Global settings](#ConfigurationTarget.Global): Changes the value for all instances of the editor.
+		 * - [Workspace settings](#ConfigurationTarget.Workspace): Changes the value for current workspace, if available.
+		 * - [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder): Changes the value for settings from one of the [Workspace Folders](#workspace.workspaceFolders) under which the requested resource belongs to.
+		 * - Language settings: Changes the value for the requested languageId.
+		 *
+		 * *Note:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param value The new value.
+		 * @param configurationTarget The [configuration target](#ConfigurationTarget) or a boolean value.
+		 *	- If `true` updates [Global settings](#ConfigurationTarget.Global).
+		 *	- If `false` updates [Workspace settings](#ConfigurationTarget.Workspace).
+		 *	- If `undefined` or `null` updates to [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder) if configuration is resource specific,
+		 * 	otherwise to [Workspace settings](#ConfigurationTarget.Workspace).
+		 * @param scopeToLanguage Whether to update the value in the scope of requested languageId or not.
+		 *	- If `true` updates the value under the requested languageId.
+		 *	- If `undefined` updates the value under the requested languageId only if the configuration is defined for the language.
+		 * @throws error while updating
+		 *	- configuration which is not registered.
+		 *	- window configuration to workspace folder
+		 *	- configuration to workspace or workspace folder when no workspace is opened.
+		 *	- configuration to workspace folder when there is no workspace folder settings.
+		 *	- configuration to workspace folder when [WorkspaceConfiguration](#WorkspaceConfiguration) is not scoped to a resource.
+		 */
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, scopeToLanguage?: boolean): Thenable<void>;
+	}
+
+	//#endregion
+
+	//#region color theme access
+
+	/**
+	 * Represents a color theme kind.
+	 */
+	export enum ColorThemeKind {
+		Light = 1,
+		Dark = 2,
+		HighContrast = 3
+	}
+
+	/**
+	 * Represents a color theme.
+	 */
+	export interface ColorTheme {
+
+		/**
+		 * The kind of this color theme: light, dark or high contrast.
+		 */
+		readonly kind: ColorThemeKind;
+	}
+
+	export namespace window {
+		/**
+		 * The currently active color theme as configured in the settings. The active
+		 * theme can be changed via the `workbench.colorTheme` setting.
+		 */
+		export let activeColorTheme: ColorTheme;
+
+		/**
+		 * An [event](#Event) which fires when the active theme changes or one of it's colors chnage.
+		 */
+		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
+	}
+
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/39441
+
+	export interface CompletionList {
+		isDetailsResolved?: boolean;
+	}
+
+	//#endregion
+
 }

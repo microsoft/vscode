@@ -35,7 +35,7 @@ import { getDocumentFormattingEditsUntilResult, getDocumentRangeFormattingEditsU
 import { getLinks } from 'vs/editor/contrib/links/getLinks';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
@@ -47,6 +47,7 @@ import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { CodeActionTriggerType } from 'vs/editor/contrib/codeAction/types';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -84,7 +85,7 @@ suite('ExtHostLanguageFeatures', function () {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol);
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -534,7 +535,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
+		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.equal(value.length, 2);
 		let [first, second] = value;
 		assert.equal(first.uri.path, '/second');
@@ -550,7 +551,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
+		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.equal(value.length, 1);
 		let [item] = value;
 		assert.deepEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
@@ -571,7 +572,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getReferencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
+		const value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.equal(value.length, 1);
 	});
 
@@ -589,7 +590,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: CodeActionTriggerType.Manual }, CancellationToken.None);
 		assert.equal(actions.length, 2);
 		const [first, second] = actions;
 		assert.equal(first.title, 'Testing1');
@@ -613,7 +614,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: CodeActionTriggerType.Manual }, CancellationToken.None);
 		assert.equal(actions.length, 1);
 		const [first] = actions;
 		assert.equal(first.title, 'Testing1');
@@ -636,7 +637,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: CodeActionTriggerType.Manual }, CancellationToken.None);
 		assert.equal(actions.length, 1);
 	});
 
@@ -654,7 +655,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { actions } = await getCodeActions(model, model.getFullModelRange(), { type: 'manual' }, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: CodeActionTriggerType.Manual }, CancellationToken.None);
 		assert.equal(actions.length, 1);
 	});
 

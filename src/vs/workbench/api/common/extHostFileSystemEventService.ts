@@ -7,7 +7,7 @@ import { AsyncEmitter, Emitter, Event, IWaitUntil } from 'vs/base/common/event';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, MainThreadTextEditorsShape, IResourceFileEditDto, IResourceTextEditDto } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';

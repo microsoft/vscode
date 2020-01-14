@@ -13,20 +13,6 @@
 	overflow: visible;
 }
 
-.monaco-workbench.windows.chromium .part.statusbar,
-.monaco-workbench.linux.chromium .part.statusbar {
-	/*
-	 * Explicitly put the part onto its own layer to help Chrome to
-	 * render the content with LCD-anti-aliasing. By partioning the
-	 * workbench into multiple layers, we can ensure that a bad
-	 * behaving part is not making another part fallback to greyscale
-	 * rendering.
-	 *
-	 * macOS: does not render LCD-anti-aliased.
-	 */
-	transform: translate3d(0px, 0px, 0px);
-}
-
 .monaco-workbench .part.statusbar.status-border-top::after {
 	content: '';
 	position: absolute;
@@ -51,7 +37,6 @@
 
 .monaco-workbench .part.statusbar > .left-items {
 	flex-grow: 1; /* left items push right items to the far right end */
-	overflow: hidden; /* Hide the overflowing entries */
 }
 
 .monaco-workbench  .part.statusbar > .items-container > .statusbar-item {
@@ -59,6 +44,7 @@
 	line-height: 22px;
 	height: 100%;
 	vertical-align: top;
+	max-width: 40vw;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
@@ -68,7 +54,7 @@
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
 	content: '';
 	position: absolute;
-	left: calc(50% - 9px); /* 3px (margin) + 5px (padding) + 1px (icon) = 9px */
+	left: 10px;
 	top: -5px;
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
@@ -109,7 +95,9 @@
 	height: 100%;
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
-	align-items: center
+	align-items: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover {

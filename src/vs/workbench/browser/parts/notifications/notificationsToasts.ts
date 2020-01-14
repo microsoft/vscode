@@ -525,7 +525,7 @@ export class NotificationsToasts extends Themable {
 
 			// Hide or show toast based on context
 			this.setVisibility(toast, makeVisible);
-			toast.container.style.opacity = null;
+			toast.container.style.opacity = '';
 
 			if (makeVisible) {
 				visibleToasts++;

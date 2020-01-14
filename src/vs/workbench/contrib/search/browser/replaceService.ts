@@ -121,9 +121,10 @@ export class ReplaceService implements IReplaceService {
 				revealIfVisible: true
 			}
 		}).then(editor => {
+			const input = editor?.input;
 			const disposable = fileMatch.onDispose(() => {
-				if (editor && editor.input) {
-					editor.input.dispose();
+				if (input) {
+					input.dispose();
 				}
 				disposable.dispose();
 			});

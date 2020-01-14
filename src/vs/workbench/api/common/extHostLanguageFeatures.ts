@@ -5,9 +5,9 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticColoringArea } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -27,7 +27,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto, ISemanticTokensDto, ISemanticTokensAreaDto } from 'vs/workbench/api/common/shared/semanticTokens';
+import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 
 // --- adapter
@@ -389,6 +389,7 @@ class CodeActionAdapter {
 						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value,
 						isPreferred: candidate.isPreferred,
+						disabled: candidate.disabled?.reason
 					});
 				}
 			}
@@ -615,62 +616,40 @@ class RenameAdapter {
 	}
 }
 
-export const enum SemanticColoringConstants {
-	/**
-	 * Let's aim at having 8KB buffers if possible...
-	 * So that would be 8192 / (5 * 4) = 409.6 tokens per area
-	 */
-	DesiredTokensPerArea = 400,
-
-	/**
-	 * Try to keep the total number of areas under 1024 if possible,
-	 * simply compensate by having more tokens per area...
-	 */
-	DesiredMaxAreas = 1024,
-
-	/**
-	 * Threshold for merging multiple delta areas and sending a full area.
-	 */
-	MinTokensPerArea = 50
+class SemanticTokensPreviousResult {
+	constructor(
+		public readonly resultId: string | undefined,
+		public readonly tokens?: Uint32Array,
+	) { }
 }
 
-interface ISemanticColoringAreaPair {
-	data: Uint32Array;
-	dto: ISemanticTokensAreaDto;
-}
+export class SemanticTokensAdapter {
 
-export class SemanticColoringAdapter {
-
-	private readonly _previousResults: Map<number, Uint32Array[]>;
-	private readonly _splitSingleAreaTokenCountThreshold: number;
+	private readonly _previousResults: Map<number, SemanticTokensPreviousResult>;
 	private _nextResultId = 1;
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.SemanticColoringProvider,
-		private readonly _desiredTokensPerArea = SemanticColoringConstants.DesiredTokensPerArea,
-		private readonly _desiredMaxAreas = SemanticColoringConstants.DesiredMaxAreas,
-		private readonly _minTokensPerArea = SemanticColoringConstants.MinTokensPerArea
+		private readonly _provider: vscode.SemanticTokensProvider,
 	) {
-		this._previousResults = new Map<number, Uint32Array[]>();
-		this._splitSingleAreaTokenCountThreshold = Math.round(1.5 * this._desiredTokensPerArea);
+		this._previousResults = new Map<number, SemanticTokensPreviousResult>();
 	}
 
-	provideSemanticColoring(resource: URI, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+	provideSemanticTokens(resource: URI, ranges: IRange[] | null, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
 		const doc = this._documents.getDocument(resource);
-
-		return asPromise(() => this._provider.provideSemanticColoring(doc, token)).then(value => {
+		const previousResult = (previousResultId !== 0 ? this._previousResults.get(previousResultId) : null);
+		const opts: vscode.SemanticTokensRequestOptions = {
+			ranges: (Array.isArray(ranges) && ranges.length > 0 ? ranges.map<Range>(typeConvert.Range.to) : undefined),
+			previousResultId: (previousResult ? previousResult.resultId : undefined)
+		};
+		return asPromise(() => this._provider.provideSemanticTokens(doc, opts, token)).then(value => {
 			if (!value) {
 				return null;
 			}
-
-			const oldAreas = (previousSemanticColoringResultId !== 0 ? this._previousResults.get(previousSemanticColoringResultId) : null);
-			if (oldAreas) {
-				this._previousResults.delete(previousSemanticColoringResultId);
-				return this._deltaEncodeAreas(oldAreas, value.areas);
+			if (previousResult) {
+				this._previousResults.delete(previousResultId);
 			}
-
-			return this._fullEncodeAreas(value.areas);
+			return this._send(SemanticTokensAdapter._convertToEdits(previousResult, value), value);
 		});
 	}
 
@@ -678,298 +657,77 @@ export class SemanticColoringAdapter {
 		this._previousResults.delete(semanticColoringResultId);
 	}
 
-	private _deltaEncodeAreas(oldAreas: Uint32Array[], newAreas: SemanticColoringArea[]): VSBuffer {
-		if (newAreas.length > 1) {
-			// this is a fancy provider which is smart enough to break things into good areas
-			// we therefore try to match old areas only by object identity
-			const oldAreasIndexMap = new Map<Uint32Array, number>();
-			for (let i = 0, len = oldAreas.length; i < len; i++) {
-				oldAreasIndexMap.set(oldAreas[i], i);
-			}
-
-			let result: ISemanticColoringAreaPair[] = [];
-			for (let i = 0, len = newAreas.length; i < len; i++) {
-				const newArea = newAreas[i];
-				if (oldAreasIndexMap.has(newArea.data)) {
-					// great! we can reuse this area
-					const oldIndex = oldAreasIndexMap.get(newArea.data)!;
-					result.push({
-						data: newArea.data,
-						dto: {
-							type: 'delta',
-							line: newArea.line,
-							oldIndex: oldIndex
-						}
-					});
-				} else {
-					result.push({
-						data: newArea.data,
-						dto: {
-							type: 'full',
-							line: newArea.line,
-							data: newArea.data
-						}
-					});
-				}
-			}
-
-			return this._saveResultAndEncode(result);
-		}
-
-		return this._deltaEncodeArea(oldAreas, newAreas[0]);
+	private static _isSemanticTokens(v: vscode.SemanticTokens | vscode.SemanticTokensEdits): v is vscode.SemanticTokens {
+		return v && !!((v as vscode.SemanticTokens).data);
 	}
 
-	private static _oldAreaAppearsInNewArea(oldAreaData: Uint32Array, oldAreaTokenCount: number, newAreaData: Uint32Array, newAreaOffset: number): boolean {
-		const newTokenStartDeltaLine = newAreaData[5 * newAreaOffset];
-
-		// check that each and every value from `oldArea` is equal to `area`
-		for (let j = 0; j < oldAreaTokenCount; j++) {
-			const oldOffset = 5 * j;
-			const newOffset = 5 * (j + newAreaOffset);
-
-			if (
-				(oldAreaData[oldOffset] !== newAreaData[newOffset] - newTokenStartDeltaLine)
-				|| (oldAreaData[oldOffset + 1] !== newAreaData[newOffset + 1])
-				|| (oldAreaData[oldOffset + 2] !== newAreaData[newOffset + 2])
-				|| (oldAreaData[oldOffset + 3] !== newAreaData[newOffset + 3])
-				|| (oldAreaData[oldOffset + 4] !== newAreaData[newOffset + 4])
-			) {
-				return false;
-			}
-		}
-
-		return true;
+	private static _isSemanticTokensEdits(v: vscode.SemanticTokens | vscode.SemanticTokensEdits): v is vscode.SemanticTokensEdits {
+		return v && Array.isArray((v as vscode.SemanticTokensEdits).edits);
 	}
 
-	private _deltaEncodeArea(oldAreas: Uint32Array[], newArea: SemanticColoringArea): VSBuffer {
-		const newAreaData = newArea.data;
-		const prependAreas: ISemanticColoringAreaPair[] = [];
-		const appendAreas: ISemanticColoringAreaPair[] = [];
+	private static _convertToEdits(previousResult: SemanticTokensPreviousResult | null | undefined, newResult: vscode.SemanticTokens | vscode.SemanticTokensEdits): vscode.SemanticTokens | vscode.SemanticTokensEdits {
+		if (!SemanticTokensAdapter._isSemanticTokens(newResult)) {
+			return newResult;
+		}
+		if (!previousResult || !previousResult.tokens) {
+			return newResult;
+		}
+		const oldData = previousResult.tokens;
+		const oldLength = oldData.length;
+		const newData = newResult.data;
+		const newLength = newData.length;
 
-		// Try to find appearences of `oldAreas` inside `area`.
-		let newTokenStartIndex = 0;
-		let newTokenEndIndex = (newAreaData.length / 5) | 0;
-		let oldAreaUsedIndex = -1;
-		for (let i = 0, len = oldAreas.length; i < len; i++) {
-			const oldAreaData = oldAreas[i];
-			const oldAreaTokenCount = (oldAreaData.length / 5) | 0;
-			if (oldAreaTokenCount === 0) {
-				// skip old empty areas
-				continue;
-			}
-			if (newTokenEndIndex - newTokenStartIndex < oldAreaTokenCount) {
-				// there are too many old tokens, this cannot work
-				break;
-			}
+		let commonPrefixLength = 0;
+		const maxCommonPrefixLength = Math.min(oldLength, newLength);
+		while (commonPrefixLength < maxCommonPrefixLength && oldData[commonPrefixLength] === newData[commonPrefixLength]) {
+			commonPrefixLength++;
+		}
 
-			const newAreaOffset = newTokenStartIndex;
-			const newTokenStartDeltaLine = newAreaData[5 * newAreaOffset];
-			const isEqual = SemanticColoringAdapter._oldAreaAppearsInNewArea(oldAreaData, oldAreaTokenCount, newAreaData, newAreaOffset);
-			if (!isEqual) {
-				break;
-			}
-			newTokenStartIndex += oldAreaTokenCount;
+		if (commonPrefixLength === oldLength && commonPrefixLength === newLength) {
+			// complete overlap!
+			return new SemanticTokensEdits([], newResult.resultId);
+		}
 
-			oldAreaUsedIndex = i;
-			prependAreas.push({
-				data: oldAreaData,
-				dto: {
-					type: 'delta',
-					line: newArea.line + newTokenStartDeltaLine,
-					oldIndex: i
-				}
+		let commonSuffixLength = 0;
+		const maxCommonSuffixLength = maxCommonPrefixLength - commonPrefixLength;
+		while (commonSuffixLength < maxCommonSuffixLength && oldData[oldLength - commonSuffixLength - 1] === newData[newLength - commonSuffixLength - 1]) {
+			commonSuffixLength++;
+		}
+
+		return new SemanticTokensEdits([{
+			start: commonPrefixLength,
+			deleteCount: (oldLength - commonPrefixLength - commonSuffixLength),
+			data: newData.subarray(commonPrefixLength, newLength - commonSuffixLength)
+		}], newResult.resultId);
+	}
+
+	private _send(value: vscode.SemanticTokens | vscode.SemanticTokensEdits, original: vscode.SemanticTokens | vscode.SemanticTokensEdits): VSBuffer | null {
+		if (SemanticTokensAdapter._isSemanticTokens(value)) {
+			const myId = this._nextResultId++;
+			this._previousResults.set(myId, new SemanticTokensPreviousResult(value.resultId, value.data));
+			return encodeSemanticTokensDto({
+				id: myId,
+				type: 'full',
+				data: value.data
 			});
 		}
 
-		for (let i = oldAreas.length - 1; i > oldAreaUsedIndex; i--) {
-			const oldAreaData = oldAreas[i];
-			const oldAreaTokenCount = (oldAreaData.length / 5) | 0;
-			if (oldAreaTokenCount === 0) {
-				// skip old empty areas
-				continue;
+		if (SemanticTokensAdapter._isSemanticTokensEdits(value)) {
+			const myId = this._nextResultId++;
+			if (SemanticTokensAdapter._isSemanticTokens(original)) {
+				// store the original
+				this._previousResults.set(myId, new SemanticTokensPreviousResult(original.resultId, original.data));
+			} else {
+				this._previousResults.set(myId, new SemanticTokensPreviousResult(value.resultId));
 			}
-			if (newTokenEndIndex - newTokenStartIndex < oldAreaTokenCount) {
-				// there are too many old tokens, this cannot work
-				break;
-			}
-
-			const newAreaOffset = (newTokenEndIndex - oldAreaTokenCount);
-			const newTokenStartDeltaLine = newAreaData[5 * newAreaOffset];
-			const isEqual = SemanticColoringAdapter._oldAreaAppearsInNewArea(oldAreaData, oldAreaTokenCount, newAreaData, newAreaOffset);
-			if (!isEqual) {
-				break;
-			}
-			newTokenEndIndex -= oldAreaTokenCount;
-
-			appendAreas.unshift({
-				data: oldAreaData,
-				dto: {
-					type: 'delta',
-					line: newArea.line + newTokenStartDeltaLine,
-					oldIndex: i
-				}
+			return encodeSemanticTokensDto({
+				id: myId,
+				type: 'delta',
+				deltas: (value.edits || []).map(edit => ({ start: edit.start, deleteCount: edit.deleteCount, data: edit.data }))
 			});
 		}
 
-		if (prependAreas.length === 0 && appendAreas.length === 0) {
-			// There is no reuse possibility!
-			return this._fullEncodeAreas([newArea]);
-		}
-
-		if (newTokenStartIndex === newTokenEndIndex) {
-			// 100% reuse!
-			return this._saveResultAndEncode(prependAreas.concat(appendAreas));
-		}
-
-		// It is clear at this point that there will be at least one full area.
-		// Expand the mid area if the areas next to it are too small
-		while (prependAreas.length > 0) {
-			const tokenCount = (prependAreas[prependAreas.length - 1].data.length / 5);
-			if (tokenCount < this._minTokensPerArea) {
-				newTokenStartIndex -= tokenCount;
-				prependAreas.pop();
-			} else {
-				break;
-			}
-		}
-		while (appendAreas.length > 0) {
-			const tokenCount = (appendAreas[0].data.length / 5);
-			if (tokenCount < this._minTokensPerArea) {
-				newTokenEndIndex += tokenCount;
-				appendAreas.shift();
-			} else {
-				break;
-			}
-		}
-
-		// Extract the mid area
-		const newTokenStartDeltaLine = newAreaData[5 * newTokenStartIndex];
-		const newMidAreaData = new Uint32Array(5 * (newTokenEndIndex - newTokenStartIndex));
-		for (let tokenIndex = newTokenStartIndex; tokenIndex < newTokenEndIndex; tokenIndex++) {
-			const srcOffset = 5 * tokenIndex;
-			const deltaLine = newAreaData[srcOffset];
-			const startCharacter = newAreaData[srcOffset + 1];
-			const endCharacter = newAreaData[srcOffset + 2];
-			const tokenType = newAreaData[srcOffset + 3];
-			const tokenModifiers = newAreaData[srcOffset + 4];
-
-			const destOffset = 5 * (tokenIndex - newTokenStartIndex);
-			newMidAreaData[destOffset] = deltaLine - newTokenStartDeltaLine;
-			newMidAreaData[destOffset + 1] = startCharacter;
-			newMidAreaData[destOffset + 2] = endCharacter;
-			newMidAreaData[destOffset + 3] = tokenType;
-			newMidAreaData[destOffset + 4] = tokenModifiers;
-		}
-
-		const newMidArea = new SemanticColoringArea(newArea.line + newTokenStartDeltaLine, newMidAreaData);
-		const newMidAreas = this._splitAreaIntoMultipleAreasIfNecessary(newMidArea);
-		const newMidAreasPairs: ISemanticColoringAreaPair[] = newMidAreas.map(a => {
-			return {
-				data: a.data,
-				dto: {
-					type: 'full',
-					line: a.line,
-					data: a.data,
-				}
-			};
-		});
-
-		return this._saveResultAndEncode(prependAreas.concat(newMidAreasPairs).concat(appendAreas));
-	}
-
-	private _fullEncodeAreas(areas: SemanticColoringArea[]): VSBuffer {
-		if (areas.length === 1) {
-			areas = this._splitAreaIntoMultipleAreasIfNecessary(areas[0]);
-		}
-
-		return this._saveResultAndEncode(areas.map(a => {
-			return {
-				data: a.data,
-				dto: {
-					type: 'full',
-					line: a.line,
-					data: a.data
-				}
-			};
-		}));
-	}
-
-	private _saveResultAndEncode(areas: ISemanticColoringAreaPair[]): VSBuffer {
-		const myId = this._nextResultId++;
-		this._previousResults.set(myId, areas.map(a => a.data));
-		console.log(`_saveResultAndEncode: ${myId} --> ${areas.map(a => `${a.dto.line}-${a.dto.type}(${a.data.length / 5})`).join(', ')}`);
-		const dto: ISemanticTokensDto = {
-			id: myId,
-			areas: areas.map(a => a.dto)
-		};
-		return encodeSemanticTokensDto(dto);
-	}
-
-	private _splitAreaIntoMultipleAreasIfNecessary(area: vscode.SemanticColoringArea): SemanticColoringArea[] {
-		const srcAreaLine = area.line;
-		const srcAreaData = area.data;
-		const tokenCount = (srcAreaData.length / 5) | 0;
-		if (tokenCount <= this._splitSingleAreaTokenCountThreshold) {
-			return [area];
-		}
-
-		const tokensPerArea = Math.max(Math.ceil(tokenCount / this._desiredMaxAreas), this._desiredTokensPerArea);
-
-		let result: SemanticColoringArea[] = [];
-		let tokenIndex = 0;
-		while (tokenIndex < tokenCount) {
-			const tokenStartIndex = tokenIndex;
-			let tokenEndIndex = Math.min(tokenStartIndex + tokensPerArea, tokenCount);
-
-			// Keep tokens on the same line in the same area...
-			if (tokenEndIndex < tokenCount) {
-				let smallAvoidDeltaLine = srcAreaData[5 * tokenEndIndex];
-				let smallTokenEndIndex = tokenEndIndex;
-				while (smallTokenEndIndex - 1 > tokenStartIndex && srcAreaData[5 * (smallTokenEndIndex - 1)] === smallAvoidDeltaLine) {
-					smallTokenEndIndex--;
-				}
-
-				if (smallTokenEndIndex - 1 === tokenStartIndex) {
-					// there are so many tokens on this line that our area would be empty, we must now go right
-					let bigAvoidDeltaLine = srcAreaData[5 * (tokenEndIndex - 1)];
-					let bigTokenEndIndex = tokenEndIndex;
-					while (bigTokenEndIndex + 1 < tokenCount && srcAreaData[5 * (bigTokenEndIndex + 1)] === bigAvoidDeltaLine) {
-						bigTokenEndIndex++;
-					}
-					tokenEndIndex = bigTokenEndIndex;
-				} else {
-					tokenEndIndex = smallTokenEndIndex;
-				}
-			}
-
-			let destAreaLine = 0;
-			const destAreaData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 5);
-			while (tokenIndex < tokenEndIndex) {
-				const srcOffset = 5 * tokenIndex;
-				const line = srcAreaLine + srcAreaData[srcOffset];
-				const startCharacter = srcAreaData[srcOffset + 1];
-				const endCharacter = srcAreaData[srcOffset + 2];
-				const tokenType = srcAreaData[srcOffset + 3];
-				const tokenModifiers = srcAreaData[srcOffset + 4];
-
-				if (tokenIndex === tokenStartIndex) {
-					destAreaLine = line;
-				}
-
-				const destOffset = 5 * (tokenIndex - tokenStartIndex);
-				destAreaData[destOffset] = line - destAreaLine;
-				destAreaData[destOffset + 1] = startCharacter;
-				destAreaData[destOffset + 2] = endCharacter;
-				destAreaData[destOffset + 3] = tokenType;
-				destAreaData[destOffset + 4] = tokenModifiers;
-
-				tokenIndex++;
-			}
-
-			result.push(new SemanticColoringArea(destAreaLine, destAreaData));
-		}
-
-		return result;
+		return null;
 	}
 }
 
@@ -982,11 +740,16 @@ class SuggestAdapter {
 	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
 	private _disposables = new Map<number, DisposableStore>();
 
+	private _didWarnMust: boolean = false;
+	private _didWarnShould: boolean = false;
+
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
 		private readonly _provider: vscode.CompletionItemProvider,
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		private readonly _telemetry: extHostProtocol.MainThreadTelemetryShape,
+		private readonly _extensionId: ExtensionIdentifier
 	) { }
 
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
@@ -1024,7 +787,8 @@ class SuggestAdapter {
 				x: pid,
 				b: [],
 				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				c: list.isIncomplete || undefined
+				c: list.isIncomplete || undefined,
+				d: list.isDetailsResolved || undefined
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -1051,10 +815,39 @@ class SuggestAdapter {
 			return Promise.resolve(undefined);
 		}
 
+		const _mustNotChange = SuggestAdapter._mustNotChangeHash(item);
+		const _mayNotChange = SuggestAdapter._mayNotChangeHash(item);
+
 		return asPromise(() => this._provider.resolveCompletionItem!(item, token)).then(resolvedItem => {
 
 			if (!resolvedItem) {
 				return undefined;
+			}
+
+			type BlameExtension = {
+				extensionId: string;
+				kind: string;
+				index: string;
+			};
+
+			type BlameExtensionMeta = {
+				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				index: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			};
+
+			let _mustNotChangeIndex = !this._didWarnMust && SuggestAdapter._mustNotChangeDiff(_mustNotChange, resolvedItem);
+			if (typeof _mustNotChangeIndex === 'string') {
+				this._logService.warn(`[${this._extensionId.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'must', index: _mustNotChangeIndex });
+				this._didWarnMust = true;
+			}
+
+			let _mayNotChangeIndex = !this._didWarnShould && SuggestAdapter._mayNotChangeDiff(_mayNotChange, resolvedItem);
+			if (typeof _mayNotChangeIndex === 'string') {
+				this._logService.info(`[${this._extensionId.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'should', index: _mayNotChangeIndex });
+				this._didWarnShould = true;
 			}
 
 			const pos = typeConvert.Position.to(position);
@@ -1149,6 +942,45 @@ class SuggestAdapter {
 
 	private static _isValidRangeForCompletion(range: vscode.Range, position: vscode.Position): boolean {
 		return range.isSingleLine || range.start.line === position.line;
+	}
+
+	private static _mustNotChangeHash(item: vscode.CompletionItem) {
+		const res = JSON.stringify([item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2]);
+		return res;
+	}
+
+	private static _mustNotChangeDiff(hash: string, item: vscode.CompletionItem): string | void {
+		const thisArr = [item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2];
+		const thisHash = JSON.stringify(thisArr);
+		if (hash === thisHash) {
+			return;
+		}
+		const arr = JSON.parse(hash);
+		for (let i = 0; i < 6; i++) {
+			if (JSON.stringify(arr[i] !== JSON.stringify(thisArr[i]))) {
+				return i.toString();
+			}
+		}
+		return 'unknown';
+	}
+
+	private static _mayNotChangeHash(item: vscode.CompletionItem) {
+		return JSON.stringify([item.additionalTextEdits, item.command]);
+	}
+
+	private static _mayNotChangeDiff(hash: string, item: vscode.CompletionItem): string | void {
+		const thisArr = [item.additionalTextEdits, item.command];
+		const thisHash = JSON.stringify(thisArr);
+		if (hash === thisHash) {
+			return;
+		}
+		const arr = JSON.parse(hash);
+		for (let i = 0; i < 6; i++) {
+			if (JSON.stringify(arr[i] !== JSON.stringify(thisArr[i]))) {
+				return i.toString();
+			}
+		}
+		return 'unknown';
 	}
 }
 
@@ -1402,18 +1234,23 @@ class CallHierarchyAdapter {
 		private readonly _provider: vscode.CallHierarchyProvider
 	) { }
 
-	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
+	async prepareSession(uri: URI, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto[] | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
 
-		const item = await this._provider.prepareCallHierarchy(doc, pos, token);
-		if (!item) {
+		const items = await this._provider.prepareCallHierarchy(doc, pos, token);
+		if (!items) {
 			return undefined;
 		}
-		const sessionId = this._idPool.nextId();
 
+		const sessionId = this._idPool.nextId();
 		this._cache.set(sessionId, new Map());
-		return this._cacheAndConvertItem(sessionId, item);
+
+		if (Array.isArray(items)) {
+			return items.map(item => this._cacheAndConvertItem(sessionId, item));
+		} else {
+			return [this._cacheAndConvertItem(sessionId, items)];
+		}
 	}
 
 	async provideCallsTo(sessionId: string, itemId: string, token: CancellationToken): Promise<extHostProtocol.IIncomingCallDto[] | undefined> {
@@ -1451,11 +1288,10 @@ class CallHierarchyAdapter {
 	}
 
 	releaseSession(sessionId: string): void {
-		this._cache.delete(sessionId.charAt(0));
+		this._cache.delete(sessionId);
 	}
 
-	private _cacheAndConvertItem(itemOrSessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
-		const sessionId = itemOrSessionId.charAt(0);
+	private _cacheAndConvertItem(sessionId: string, item: vscode.CallHierarchyItem): extHostProtocol.ICallHierarchyItemDto {
 		const map = this._cache.get(sessionId)!;
 		const dto: extHostProtocol.ICallHierarchyItemDto = {
 			_sessionId: sessionId,
@@ -1473,14 +1309,14 @@ class CallHierarchyAdapter {
 
 	private _itemFromCache(sessionId: string, itemId: string): vscode.CallHierarchyItem | undefined {
 		const map = this._cache.get(sessionId);
-		return map && map.get(itemId);
+		return map?.get(itemId);
 	}
 }
 
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SemanticColoringAdapter | SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter
+	| SemanticTokensAdapter | SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter
 	| ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter
 	| DeclarationAdapter | SelectionRangeAdapter | CallHierarchyAdapter;
 
@@ -1496,7 +1332,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	private static _handlePool: number = 0;
 
 	private readonly _uriTransformer: IURITransformer | null;
-	private _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
+	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
+	private readonly _telemetryShape: extHostProtocol.MainThreadTelemetryShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
 	private _diagnostics: ExtHostDiagnostics;
@@ -1513,6 +1350,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	) {
 		this._uriTransformer = uriTransformer;
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
+		this._telemetryShape = mainContext.getProxy(extHostProtocol.MainContext.MainThreadTelemetry);
 		this._documents = documents;
 		this._commands = commands;
 		this._diagnostics = diagnostics;
@@ -1808,18 +1646,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	//#region semantic coloring
 
-	registerSemanticColoringProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SemanticColoringProvider, legend: vscode.SemanticColoringLegend): vscode.Disposable {
-		const handle = this._addNewAdapter(new SemanticColoringAdapter(this._documents, provider), extension);
-		this._proxy.$registerSemanticColoringProvider(handle, this._transformDocumentSelector(selector), legend);
+	registerSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.SemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
+		const handle = this._addNewAdapter(new SemanticTokensAdapter(this._documents, provider), extension);
+		this._proxy.$registerSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
 		return this._createDisposable(handle);
 	}
 
-	$provideSemanticColoring(handle: number, resource: UriComponents, previousSemanticColoringResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
-		return this._withAdapter(handle, SemanticColoringAdapter, adapter => adapter.provideSemanticColoring(URI.revive(resource), previousSemanticColoringResultId, token), null);
+	$provideSemanticTokens(handle: number, resource: UriComponents, ranges: IRange[] | null, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
+		return this._withAdapter(handle, SemanticTokensAdapter, adapter => adapter.provideSemanticTokens(URI.revive(resource), ranges, previousResultId, token), null);
 	}
 
-	$releaseSemanticColoring(handle: number, semanticColoringResultId: number): void {
-		this._withAdapter(handle, SemanticColoringAdapter, adapter => adapter.releaseSemanticColoring(semanticColoringResultId), undefined);
+	$releaseSemanticTokens(handle: number, semanticColoringResultId: number): void {
+		this._withAdapter(handle, SemanticTokensAdapter, adapter => adapter.releaseSemanticColoring(semanticColoringResultId), undefined);
 	}
 
 	//#endregion
@@ -1827,7 +1665,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- suggestion
 
 	registerCompletionItemProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
-		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService), extension);
+		const handle = this._addNewAdapter(new SuggestAdapter(this._documents, this._commands.converter, provider, this._logService, this._telemetryShape, extension.identifier), extension);
 		this._proxy.$registerSuggestSupport(handle, this._transformDocumentSelector(selector), triggerCharacters, SuggestAdapter.supportsResolving(provider), extension.identifier);
 		return this._createDisposable(handle);
 	}
@@ -1928,7 +1766,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto | undefined> {
+	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<extHostProtocol.ICallHierarchyItemDto[] | undefined> {
 		return this._withAdapter(handle, CallHierarchyAdapter, adapter => Promise.resolve(adapter.prepareSession(URI.revive(resource), position, token)), undefined);
 	}
 

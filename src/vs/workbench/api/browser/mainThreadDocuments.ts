@@ -15,7 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
-import { ITextFileService, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource } from 'vs/base/common/resources';
@@ -104,19 +104,14 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._toDispose.add(this._modelReferenceCollection);
 		this._toDispose.add(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
-		this._toDispose.add(textFileService.models.onModelSaved(e => {
-			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptModelSaved(e.resource);
+		this._toDispose.add(textFileService.models.onDidSave(e => {
+			if (this._shouldHandleFileEvent(e.model.resource)) {
+				this._proxy.$acceptModelSaved(e.model.resource);
 			}
 		}));
-		this._toDispose.add(textFileService.models.onModelReverted(e => {
-			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptDirtyStateChanged(e.resource, false);
-			}
-		}));
-		this._toDispose.add(textFileService.models.onModelDirty(e => {
-			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptDirtyStateChanged(e.resource, true);
+		this._toDispose.add(textFileService.models.onDidChangeDirty(m => {
+			if (this._shouldHandleFileEvent(m.resource)) {
+				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
 			}
 		}));
 
@@ -131,8 +126,8 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._toDispose.dispose();
 	}
 
-	private _shouldHandleFileEvent(e: TextFileModelChangeEvent): boolean {
-		const model = this._modelService.getModel(e.resource);
+	private _shouldHandleFileEvent(resource: URI): boolean {
+		const model = this._modelService.getModel(resource);
 		return !!model && shouldSynchronizeModel(model);
 	}
 
@@ -227,12 +222,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _doCreateUntitled(resource?: URI, mode?: string, initialValue?: string): Promise<URI> {
-		return this._untitledTextEditorService.loadOrCreate({
+		return this._untitledTextEditorService.createOrGet({
 			resource,
 			mode,
 			initialValue,
 			useResourcePath: Boolean(resource && resource.path)
-		}).then(model => {
+		}).resolve().then(model => {
 			const resource = model.resource;
 
 			if (!this._modelIsSynced.has(resource.toString())) {

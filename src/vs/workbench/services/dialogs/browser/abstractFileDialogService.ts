@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -80,31 +80,33 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return this.defaultFilePath(schemeFilter);
 	}
 
-	async showSaveConfirm(fileNameOrResources: string | URI[]): Promise<ConfirmResult> {
+	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
 		}
 
-		if (Array.isArray(fileNameOrResources) && fileNameOrResources.length === 0) {
+		if (fileNamesOrResources.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}
 
 		let message: string;
-		if (typeof fileNameOrResources === 'string' || fileNameOrResources.length === 1) {
-			message = nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", typeof fileNameOrResources === 'string' ? fileNameOrResources : resources.basename(fileNameOrResources[0]));
+		let detail = nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.");
+		if (fileNamesOrResources.length === 1) {
+			message = nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", typeof fileNamesOrResources[0] === 'string' ? fileNamesOrResources[0] : resources.basename(fileNamesOrResources[0]));
 		} else {
-			message = getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", fileNameOrResources.length), fileNameOrResources);
+			message = nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", fileNamesOrResources.length);
+			detail = getFileNamesMessage(fileNamesOrResources) + '\n' + detail;
 		}
 
 		const buttons: string[] = [
-			Array.isArray(fileNameOrResources) && fileNameOrResources.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			fileNamesOrResources.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
 			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
 			nls.localize('cancel', "Cancel")
 		];
 
 		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons, {
 			cancelId: 2,
-			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them.")
+			detail
 		});
 
 		switch (choice) {

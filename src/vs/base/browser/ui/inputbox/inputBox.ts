@@ -171,7 +171,7 @@ export class InputBox extends Widget {
 			this.maxHeight = typeof this.options.flexibleMaxHeight === 'number' ? this.options.flexibleMaxHeight : Number.POSITIVE_INFINITY;
 
 			this.mirror = dom.append(wrapper, $('div.mirror'));
-			this.mirror.innerHTML = '&nbsp;';
+			this.mirror.innerHTML = '&#160;';
 
 			this.scrollableElement = new ScrollableElement(this.element, { vertical: ScrollbarVisibility.Auto });
 
@@ -305,6 +305,7 @@ export class InputBox extends Widget {
 	}
 
 	public disable(): void {
+		this.blur();
 		this.input.disabled = true;
 		this._hideMessage();
 	}
@@ -476,7 +477,7 @@ export class InputBox extends Widget {
 
 				const styles = this.stylesForType(this.message.type);
 				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : '';
-				spanElement.style.color = styles.foreground ? styles.foreground.toString() : null;
+				spanElement.style.color = styles.foreground ? styles.foreground.toString() : '';
 				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
 				dom.append(div, spanElement);
@@ -529,7 +530,7 @@ export class InputBox extends Widget {
 		if (mirrorTextContent) {
 			this.mirror.textContent = value + suffix;
 		} else {
-			this.mirror.innerHTML = '&nbsp;';
+			this.mirror.innerHTML = '&#160;';
 		}
 
 		this.layout();

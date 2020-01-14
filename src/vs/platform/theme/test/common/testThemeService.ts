@@ -6,7 +6,6 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService, ITheme, DARK, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { TokenStyle, TokenClassification, ProbeScope } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 export class TestTheme implements ITheme {
 
@@ -25,12 +24,12 @@ export class TestTheme implements ITheme {
 		throw new Error('Method not implemented.');
 	}
 
-	getTokenStyle(classification: TokenClassification, useDefault?: boolean | undefined): TokenStyle | undefined {
-		throw new Error('Method not implemented.');
+	getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
+		return undefined;
 	}
 
-	resolveScopes(scopes: ProbeScope[]): TokenStyle | undefined {
-		throw new Error('Method not implemented.');
+	get tokenColorMap(): string[] {
+		return [];
 	}
 }
 

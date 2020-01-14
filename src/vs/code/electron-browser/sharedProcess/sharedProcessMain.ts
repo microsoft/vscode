@@ -50,11 +50,10 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IUserDataSyncService, IUserDataSyncStoreService, ISettingsMergeService, registerConfiguration, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncService, UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, ISettingsSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
-import { SettingsMergeChannelClient } from 'vs/platform/userDataSync/common/settingsSyncIpc';
+import { UserDataSyncChannel, UserDataSyncUtilServiceClient, SettingsSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
@@ -63,6 +62,8 @@ import { AuthTokenService } from 'vs/platform/auth/electron-browser/authTokenSer
 import { AuthTokenChannel } from 'vs/platform/auth/common/authTokenIpc';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
+import { UserDataAutoSync } from 'vs/platform/userDataSync/electron-browser/userDataAutoSync';
+import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -184,9 +185,9 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(ICredentialsService, new SyncDescriptor(KeytarCredentialsService));
 		services.set(IAuthTokenService, new SyncDescriptor(AuthTokenService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
-		const settingsMergeChannel = server.getChannel('settingsMerge', activeWindowRouter);
-		services.set(ISettingsMergeService, new SettingsMergeChannelClient(settingsMergeChannel));
+		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', activeWindowRouter)));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
+		services.set(ISettingsSyncService, new SyncDescriptor(SettingsSynchroniser));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 		registerConfiguration();
 
@@ -209,6 +210,10 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const authTokenService = accessor.get(IAuthTokenService);
 			const authTokenChannel = new AuthTokenChannel(authTokenService);
 			server.registerChannel('authToken', authTokenChannel);
+
+			const settingsSyncService = accessor.get(ISettingsSyncService);
+			const settingsSyncChannel = new SettingsSyncChannel(settingsSyncService);
+			server.registerChannel('settingsSync', settingsSyncChannel);
 
 			const userDataSyncService = accessor.get(IUserDataSyncService);
 			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);

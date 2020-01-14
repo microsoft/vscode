@@ -128,12 +128,13 @@ class VisualEditorState {
 			this.inlineDiffMargins = [];
 			for (let i = 0, length = newDecorations.zones.length; i < length; i++) {
 				const viewZone = <editorBrowser.IViewZone>newDecorations.zones[i];
-				viewZone.suppressMouseDown = false;
+				viewZone.suppressMouseDown = true;
 				let zoneId = viewChangeAccessor.addZone(viewZone);
 				this._zones.push(zoneId);
 				this._zonesMap[String(zoneId)] = true;
 
 				if (newDecorations.zones[i].diff && viewZone.marginDomNode && this._clipboardService) {
+					viewZone.suppressMouseDown = false;
 					this.inlineDiffMargins.push(new InlineDiffMargin(zoneId, viewZone.marginDomNode, editor, newDecorations.zones[i].diff!, this._contextMenuService, this._clipboardService));
 				}
 			}
@@ -2143,6 +2144,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			lineTokens,
 			actualDecorations,
 			tabSize,
+			0,
 			fontInfo.spaceWidth,
 			options.get(EditorOption.stopRenderingLineAfter),
 			options.get(EditorOption.renderWhitespace),

@@ -844,15 +844,7 @@ export class Repository implements Disposable {
 			return mergeMessage;
 		}
 
-		let template = await this.repository.getCommitTemplate();
-
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-
-		if (!config.get<boolean>('restoreCommitTemplateComments')) {
-			template = this.cleanUpCommitEditMessage(template);
-		}
-
-		return template;
+		return await this.repository.getCommitTemplate();
 	}
 
 	getConfigs(): Promise<{ key: string; value: string; }[]> {
@@ -1284,10 +1276,6 @@ export class Repository implements Disposable {
 
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
-	}
-
-	cleanUpCommitEditMessage(editMessage: string): string {
-		return this.repository.cleanupCommitEditMessage(editMessage);
 	}
 
 	async ignore(files: Uri[]): Promise<void> {
@@ -1733,7 +1721,7 @@ export class Repository implements Disposable {
 
 		if (branchName) {
 			// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
-			this._sourceControl.inputBox.placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit on '{1}')", "{0}", branchName);
+			this._sourceControl.inputBox.placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit on '{1}')", '{0}', branchName);
 		} else {
 			this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message ({0} to commit)");
 		}

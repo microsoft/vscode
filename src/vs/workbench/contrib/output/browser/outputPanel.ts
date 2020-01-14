@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,14 +19,11 @@ import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/te
 import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/contrib/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionViewItem, ClearOutputAction, ToggleOrSetOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/contrib/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[] | undefined;
@@ -43,25 +40,22 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@IOutputService private readonly outputService: IOutputService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IHostService hostService: IHostService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IEditorService editorService: IEditorService
 	) {
-		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, hostService, filesConfigurationService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 
 		this.scopedInstantiationService = instantiationService;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return OUTPUT_PANEL_ID;
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		return nls.localize('output', "Output");
 	}
 
-	public getActions(): IAction[] {
+	getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchOutputAction),
@@ -76,7 +70,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return this.actions;
 	}
 
-	public getActionViewItem(action: Action): IActionViewItem | undefined {
+	getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchOutputAction.ID) {
 			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
 		}
@@ -115,7 +109,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		this._focus = !(options && options.preserveFocus);
 		if (input.matches(this.input)) {
 			return Promise.resolve(undefined);
@@ -125,15 +119,14 @@ export class OutputPanel extends AbstractTextResourceEditor {
 			// Dispose previous input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
-		return super.setInput(input, options, token).then(() => {
-			if (this._focus) {
-				this.focus();
-			}
-			this.revealLastLine();
-		});
+		await super.setInput(input, options, token);
+		if (this._focus) {
+			this.focus();
+		}
+		this.revealLastLine();
 	}
 
-	public clearInput(): void {
+	clearInput(): void {
 		if (this.input) {
 			// Dispose current input (Output panel is not a workbench editor)
 			this.input.dispose();
@@ -166,7 +159,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		});
 	}
 
-	public get instantiationService(): IInstantiationService {
+	get instantiationService(): IInstantiationService {
 		return this.scopedInstantiationService;
 	}
 }

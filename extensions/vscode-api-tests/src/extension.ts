@@ -18,13 +18,15 @@ const textEncoder = new TextEncoder();
 const SCHEME = 'memfs';
 
 export function activate(context: vscode.ExtensionContext) {
-	const memFs = enableFs(context);
-	enableProblems(context);
-	enableSearch(context, memFs);
-	enableTasks();
-	enableDebug(context, memFs);
+	if (typeof window !== 'undefined') {	// do not run under node.js
+		const memFs = enableFs(context);
+		enableProblems(context);
+		enableSearch(context, memFs);
+		enableTasks();
+		enableDebug(context, memFs);
 
-	vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
+		vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(`memfs:/sample-folder/large.ts`));
+	}
 }
 
 function enableFs(context: vscode.ExtensionContext): MemFS {
@@ -896,6 +898,7 @@ export class MemFS implements vscode.FileSystemProvider, vscode.FileSearchProvid
 //---------------------------------------------------------------------------
 
 function enableDebug(context: vscode.ExtensionContext, memFs: MemFS): void {
+	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('mock', new MockConfigurationProvider()));
 	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('mock', new MockDebugAdapterDescriptorFactory(memFs)));
 }
 
@@ -2807,39 +2810,26 @@ export class Event extends Message implements DebugProtocol.Event {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-export interface IDaTransport {
-	start(cb: (msg: DebugProtocol.ProtocolMessage) => void, errorcb: (event: DebugProtocol.Event) => void): void;
-	send(message: DebugProtocol.ProtocolMessage): void;
-	stop(): void;
-}
-
-export class ProtocolServer {
+export class ProtocolServer implements vscode.DebugAdapter {
 
 	private close = new vscode.EventEmitter<void>();
 	onClose: vscode.Event<void> = this.close.event;
 
-	private error = new vscode.EventEmitter<Event>();
-	onError: vscode.Event<Event> = this.error.event;
+	private error = new vscode.EventEmitter<Error>();
+	onError: vscode.Event<Error> = this.error.event;
 
+	private sendMessage = new vscode.EventEmitter<DebugProtocol.ProtocolMessage>();
+	readonly onDidSendMessage: vscode.Event<DebugProtocol.ProtocolMessage> = this.sendMessage.event;
 
 	private _sequence: number = 1;
 	private _pendingRequests = new Map<number, (response: DebugProtocol.Response) => void>();
 
-	private _transport?: IDaTransport;
 
-	constructor() {
+	public handleMessage(message: DebugProtocol.ProtocolMessage): void {
+		this.dispatch(message);
 	}
 
-	public __setTransport(transport: IDaTransport): void {
-		this._sequence = 1;
-		this._transport = transport;
-		this._transport.start(msg => { this.dispatch(msg); }, event => { this.error.fire(event); });
-	}
-
-	public stop(): void {
-		if (this._transport) {
-			this._transport.stop();
-		}
+	public dispose() {
 	}
 
 	public sendEvent(event: DebugProtocol.Event): void {
@@ -2861,11 +2851,6 @@ export class ProtocolServer {
 		};
 		if (args && Object.keys(args).length > 0) {
 			request.arguments = args;
-		}
-
-		if (!this._transport) {
-			this.error.fire(new Event('error', 'sendRequest: no transport'));
-			return;
 		}
 
 		this._send('request', request);
@@ -2909,9 +2894,7 @@ export class ProtocolServer {
 		message.type = typ;
 		message.seq = this._sequence++;
 
-		if (this._transport) {
-			this._transport.send(message);
-		}
+		this.sendMessage.fire(message);
 	}
 }
 
@@ -3796,12 +3779,34 @@ export class Handles<T> {
 
 //---------------------------------------------------------------------------
 
-function basename(path: string): string {
-	const pos = path.lastIndexOf('/');
-	if (pos >= 0) {
-		return path.substring(pos + 1);
+class MockConfigurationProvider implements vscode.DebugConfigurationProvider {
+
+	/**
+	 * Massage a debug configuration just before a debug session is being launched,
+	 * e.g. add all missing attributes to the debug configuration.
+	 */
+	resolveDebugConfiguration(_folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration, _token?: vscode.CancellationToken): vscode.ProviderResult<vscode.DebugConfiguration> {
+
+		// if launch.json is missing or empty
+		if (!config.type && !config.request && !config.name) {
+			const editor = vscode.window.activeTextEditor;
+			if (editor && editor.document.languageId === 'markdown') {
+				config.type = 'mock';
+				config.name = 'Launch';
+				config.request = 'launch';
+				config.program = '${file}';
+				config.stopOnEntry = true;
+			}
+		}
+
+		if (!config.program) {
+			return vscode.window.showInformationMessage('Cannot find a program to debug').then(_ => {
+				return undefined;	// abort launch
+			});
+		}
+
+		return config;
 	}
-	return path;
 }
 
 export class MockDebugAdapterDescriptorFactory implements vscode.DebugAdapterDescriptorFactory {
@@ -3810,12 +3815,16 @@ export class MockDebugAdapterDescriptorFactory implements vscode.DebugAdapterDes
 	}
 
 	createDebugAdapterDescriptor(_session: vscode.DebugSession, _executable: vscode.DebugAdapterExecutable | undefined): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-		// TODO@AW: we need some extension API for connecting a DA implementation with a vscode.DebugAdapterDescriptor
-		const descriptor = new vscode.DebugAdapterExecutable('dummy');
-		const a = <any>descriptor;
-		a['implementation'] = new MockDebugSession(this.memfs);
-		return descriptor;
+		return <any>new vscode.DebugAdapterInlineImplementation(new MockDebugSession(this.memfs));
 	}
+}
+
+function basename(path: string): string {
+	const pos = path.lastIndexOf('/');
+	if (pos >= 0) {
+		return path.substring(pos + 1);
+	}
+	return path;
 }
 
 function timeout(ms: number) {

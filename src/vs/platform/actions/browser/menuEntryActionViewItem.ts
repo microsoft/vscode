@@ -16,6 +16,7 @@ import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemA
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {
@@ -147,7 +148,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation), label: !_action.class && !_action.item.iconLocation });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
 		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 
@@ -236,35 +237,32 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	_updateItemClass(item: ICommandAction): void {
 		this._itemClassDispose.value = undefined;
 
-		// icon class
-		if (item.iconClassName) {
-			let iconClass = item.iconClassName;
-
-			if (this.label) {
-				addClasses(this.label, 'codicon', iconClass);
+		if (ThemeIcon.isThemeIcon(item.icon)) {
+			// theme icons
+			const iconClass = ThemeIcon.asClassName(item.icon);
+			if (this.label && iconClass) {
+				addClasses(this.label, iconClass);
 				this._itemClassDispose.value = toDisposable(() => {
 					if (this.label) {
-						removeClasses(this.label, 'codicon', iconClass);
+						removeClasses(this.label, iconClass);
 					}
 				});
 			}
 
-		}
-
-		// icon path
-		else if (item.iconLocation) {
+		} else if (item.icon) {
+			// icon path
 			let iconClass: string;
 
-			if (item.iconLocation?.dark?.scheme) {
+			if (item.icon?.dark?.scheme) {
 
-				const iconPathMapKey = item.iconLocation.dark.toString();
+				const iconPathMapKey = item.icon.dark.toString();
 
 				if (MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
 					iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 				} else {
 					iconClass = ids.nextId();
-					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.light || item.iconLocation.dark)}`);
-					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.dark)}`);
+					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.icon.light || item.icon.dark)}`);
+					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.icon.dark)}`);
 					MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 				}
 
@@ -277,11 +275,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 						}
 					});
 				}
-
 			}
-
-
-
 		}
 	}
 }

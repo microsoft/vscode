@@ -16,16 +16,14 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An implementation of editor for file system resources.
@@ -46,11 +44,9 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@ITextFileService textFileService: ITextFileService,
 		@IElectronService private readonly electronService: IElectronService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IHostService hostService: IHostService,
-		@IExplorerService explorerService: IExplorerService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IExplorerService explorerService: IExplorerService
 	) {
-		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, configurationService, editorService, themeService, editorGroupService, textFileService, hostService, explorerService, filesConfigurationService);
+		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, configurationService, editorService, themeService, editorGroupService, textFileService, explorerService);
 	}
 
 	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {

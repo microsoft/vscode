@@ -14,6 +14,7 @@ export class CodeActionKind {
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly QuickFix = new CodeActionKind('quickfix');
 	public static readonly Refactor = new CodeActionKind('refactor');
+	public static readonly RefactorDocumentation = new CodeActionKind('refactor.documentation');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
@@ -101,8 +102,13 @@ export function filtersAction(filter: CodeActionFilter, action: CodeAction): boo
 	return true;
 }
 
+export const enum CodeActionTriggerType {
+	Auto,
+	Manual
+}
+
 export interface CodeActionTrigger {
-	readonly type: 'auto' | 'manual';
+	readonly type: CodeActionTriggerType;
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
 	readonly context?: {

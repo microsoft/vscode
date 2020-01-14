@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, workspace } from 'vscode';
-import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
+import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, workspace, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList } from 'vscode';
+import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, ProvideCompletionItemsSignature } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
 import { getCustomDataPathsFromAllExtensions, getCustomDataPathsInAllWorkspaces } from './customData';
 
@@ -43,6 +43,31 @@ export function activate(context: ExtensionContext) {
 		},
 		initializationOptions: {
 			dataPaths
+		},
+		middleware: {
+			// testing the replace / insert mode
+			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
+				function updateRanges(item: CompletionItem) {
+					const range = item.range;
+					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range2 = { inserting: new Range(range.start, position), replacing: range };
+						item.range = undefined;
+					}
+				}
+				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
+					if (r) {
+						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+					}
+					return r;
+				}
+				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+
+				const r = next(document, position, context, token);
+				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
+					return r.then(updateProposals);
+				}
+				return updateProposals(r);
+			}
 		}
 	};
 

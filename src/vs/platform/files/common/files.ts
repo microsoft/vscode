@@ -29,6 +29,11 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
+	 * An even that is fired when a registered file system provider changes it's capabilities.
+	 */
+	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
+
+	/**
 	 * An event that is fired when a file system provider is about to be activated. Listeners
 	 * can join this event with a long running promise to help in the activation process.
 	 */
@@ -409,6 +414,11 @@ export interface IFileSystemProviderRegistrationEvent {
 	provider?: IFileSystemProvider;
 }
 
+export interface IFileSystemProviderCapabilitiesChangeEvent {
+	provider: IFileSystemProvider;
+	scheme: string;
+}
+
 export interface IFileSystemProviderActivationEvent {
 	scheme: string;
 	join(promise: Promise<void>): void;
@@ -777,8 +787,6 @@ export const HotExitConfiguration = {
 	ON_EXIT_AND_WINDOW_CLOSE: 'onExitAndWindowClose'
 };
 
-export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
-
 export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
 export const FILES_EXCLUDE_CONFIG = 'files.exclude';
 
@@ -796,6 +804,7 @@ export interface IFilesConfiguration {
 		eol: string;
 		enableTrash: boolean;
 		hotExit: string;
+		preventSaveConflicts: boolean;
 	};
 }
 
@@ -818,4 +827,19 @@ export function etag(stat: { mtime: number | undefined, size: number | undefined
 	}
 
 	return stat.mtime.toString(29) + stat.size.toString(31);
+}
+
+
+export function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
+	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
+		return Promise.resolve();
+	}
+	return new Promise((c, e) => {
+		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (e.scheme === file.scheme && e.added) {
+				disposable.dispose();
+				c();
+			}
+		});
+	});
 }

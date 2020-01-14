@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import { promises as fs, exists } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -11,7 +11,7 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
 import { CancellationToken, Progress } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
@@ -21,8 +21,6 @@ import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
-
-const readfile = denodeify<string, string | null, string>(fs.readFile);
 
 export interface IGit {
 	path: string;
@@ -350,7 +348,7 @@ export class Git {
 		let folderPath = path.join(parentPath, folderName);
 		let count = 1;
 
-		while (count < 20 && await new Promise(c => fs.exists(folderPath, c))) {
+		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
 			folderName = `${baseFolderName}-${count++}`;
 			folderPath = path.join(parentPath, folderName);
 		}
@@ -763,9 +761,10 @@ export class Repository {
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const maxEntries = options && typeof options.maxEntries === 'number' && options.maxEntries > 0 ? options.maxEntries : 32;
 		const args = ['log', '-' + maxEntries, `--pretty=format:${COMMIT_FORMAT}%x00%x00`];
+
 		const gitResult = await this.run(args);
 		if (gitResult.exitCode) {
-			// An empty repo.
+			// An empty repo
 			return [];
 		}
 
@@ -1163,11 +1162,12 @@ export class Repository {
 			});
 		}
 
+		const treeish = await this.getCommit('HEAD').then(() => 'HEAD', () => '');
 		let mode: string;
 		let add: string = '';
 
 		try {
-			const details = await this.getObjectDetails('HEAD', path);
+			const details = await this.getObjectDetails(treeish, path);
 			mode = details.mode;
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.UnknownPath) {
@@ -1812,26 +1812,17 @@ export class Repository {
 		}
 	}
 
-	cleanupCommitEditMessage(message: string): string {
-		// If the message is a single line starting with whitespace followed by `#`, just allow it.
-		if (/^\s*#[^\n]*$/.test(message)) {
-			return message;
-		}
-
-		// Else, remove all lines starting with whitespace followed by `#`.
-		// TODO: Support core.commentChar
-		return message.replace(/^(\s*#)(.*)$(\n?)/gm, (_, prefix, content, suffix) => {
-			// https://github.com/microsoft/vscode/issues/84201#issuecomment-552834814
-			return /^\d/.test(content) ? `${prefix}${content}${suffix}` : '';
-		}).trim();
+	// TODO: Support core.commentChar
+	stripCommitMessageComments(message: string): string {
+		return message.replace(/^\s*#.*$\n?/gm, '').trim();
 	}
 
 	async getMergeMessage(): Promise<string | undefined> {
 		const mergeMsgPath = path.join(this.repositoryRoot, '.git', 'MERGE_MSG');
 
 		try {
-			const raw = await readfile(mergeMsgPath, 'utf8');
-			return raw.trim();
+			const raw = await fs.readFile(mergeMsgPath, 'utf8');
+			return this.stripCommitMessageComments(raw);
 		} catch {
 			return undefined;
 		}
@@ -1854,9 +1845,8 @@ export class Repository {
 				templatePath = path.join(this.repositoryRoot, templatePath);
 			}
 
-			const raw = await readfile(templatePath, 'utf8');
-			return raw.trim();
-
+			const raw = await fs.readFile(templatePath, 'utf8');
+			return this.stripCommitMessageComments(raw);
 		} catch (err) {
 			return '';
 		}
@@ -1879,7 +1869,7 @@ export class Repository {
 		const gitmodulesPath = path.join(this.root, '.gitmodules');
 
 		try {
-			const gitmodulesRaw = await readfile(gitmodulesPath, 'utf8');
+			const gitmodulesRaw = await fs.readFile(gitmodulesPath, 'utf8');
 			return parseGitmodules(gitmodulesRaw);
 		} catch (err) {
 			if (/ENOENT/.test(err.message)) {

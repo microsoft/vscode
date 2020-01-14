@@ -91,7 +91,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	public getBusyTasks(): Task[] {
-		return this.getActiveTasks();
+		return [];
 	}
 
 	public run(task: Task): ITaskExecuteResult {

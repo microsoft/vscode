@@ -129,6 +129,11 @@ export interface ITextFileService extends IDisposable {
 	 * Move a file. If the file is dirty, its contents will be preserved and restored.
 	 */
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * Copy a file. If the file is dirty, its contents will be preserved and restored.
+	 */
+	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 }
 
 export interface FileOperationWillRunEvent extends IWaitUntil {
@@ -253,11 +258,6 @@ export const enum ModelState {
 	PENDING_SAVE,
 
 	/**
-	 * A model is marked for being saved after a specific timeout.
-	 */
-	PENDING_AUTO_SAVE,
-
-	/**
 	 * A model is in conflict mode when changes cannot be saved because the
 	 * underlying file has changed. Models in conflict mode are always dirty.
 	 */
@@ -275,33 +275,6 @@ export const enum ModelState {
 	ERROR
 }
 
-export const enum StateChange {
-	DIRTY,
-	SAVING,
-	SAVE_ERROR,
-	SAVED,
-	REVERTED,
-	ENCODING,
-	CONTENT_CHANGE,
-	ORPHANED_CHANGE
-}
-
-export class TextFileModelChangeEvent {
-	private _resource: URI;
-
-	constructor(model: ITextFileEditorModel, private _kind: StateChange) {
-		this._resource = model.resource;
-	}
-
-	get resource(): URI {
-		return this._resource;
-	}
-
-	get kind(): StateChange {
-		return this._kind;
-	}
-}
-
 export interface ITextFileOperationResult {
 	results: IResult[];
 }
@@ -309,7 +282,7 @@ export interface ITextFileOperationResult {
 export interface IResult {
 	source: URI;
 	target?: URI;
-	success?: boolean;
+	error?: boolean;
 }
 
 export const enum LoadReason {
@@ -377,22 +350,25 @@ export interface IModelLoadOrCreateOptions {
 	allowBinary?: boolean;
 }
 
+export interface ITextFileModelSaveEvent {
+	model: ITextFileEditorModel;
+	reason: SaveReason;
+}
+
+export interface ITextFileModelLoadEvent {
+	model: ITextFileEditorModel;
+	reason: LoadReason;
+}
+
 export interface ITextFileEditorModelManager {
 
-	readonly onModelDisposed: Event<URI>;
-	readonly onModelContentChanged: Event<TextFileModelChangeEvent>;
-	readonly onModelEncodingChanged: Event<TextFileModelChangeEvent>;
-
-	readonly onModelDirty: Event<TextFileModelChangeEvent>;
-	readonly onModelSaveError: Event<TextFileModelChangeEvent>;
-	readonly onModelSaved: Event<TextFileModelChangeEvent>;
-	readonly onModelReverted: Event<TextFileModelChangeEvent>;
-	readonly onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
-
-	readonly onModelsDirty: Event<readonly TextFileModelChangeEvent[]>;
-	readonly onModelsSaveError: Event<readonly TextFileModelChangeEvent[]>;
-	readonly onModelsSaved: Event<readonly TextFileModelChangeEvent[]>;
-	readonly onModelsReverted: Event<readonly TextFileModelChangeEvent[]>;
+	readonly onDidLoad: Event<ITextFileModelLoadEvent>;
+	readonly onDidChangeDirty: Event<ITextFileEditorModel>;
+	readonly onDidSaveError: Event<ITextFileEditorModel>;
+	readonly onDidSave: Event<ITextFileModelSaveEvent>;
+	readonly onDidRevert: Event<ITextFileEditorModel>;
+	readonly onDidChangeEncoding: Event<ITextFileEditorModel>;
+	readonly onDidChangeOrphaned: Event<ITextFileEditorModel>;
 
 	get(resource: URI): ITextFileEditorModel | undefined;
 
@@ -407,6 +383,7 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
 	writeElevated?: boolean;
+	ignoreModifiedSince?: boolean;
 }
 
 export interface ILoadOptions {
@@ -429,8 +406,13 @@ export interface ILoadOptions {
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
 
-	readonly onDidContentChange: Event<StateChange>;
-	readonly onDidStateChange: Event<StateChange>;
+	readonly onDidChangeContent: Event<void>;
+	readonly onDidLoad: Event<LoadReason>;
+	readonly onDidSaveError: Event<void>;
+	readonly onDidSave: Event<SaveReason>;
+	readonly onDidRevert: Event<void>;
+	readonly onDidChangeEncoding: Event<void>;
+	readonly onDidChangeOrphaned: Event<void>;
 
 	hasState(state: ModelState): boolean;
 
@@ -450,6 +432,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	makeDirty(): void;
 
+	getMode(): string | undefined;
+
 	isResolved(): this is IResolvedTextFileEditorModel;
 
 	isDisposed(): boolean;
@@ -462,9 +446,6 @@ export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 	createSnapshot(): ITextSnapshot;
 }
 
-/**
- * Helper method to convert a snapshot into its full string form.
- */
 export function snapshotToString(snapshot: ITextSnapshot): string {
 	const chunks: string[] = [];
 
