@@ -33,7 +33,6 @@ export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
 
 /**
  * Configuration options for auto indentation in the editor
- * @internal
  */
 export const enum EditorAutoIndentStrategy {
 	None = 0,
@@ -636,7 +635,7 @@ export class ValidatedEditorOptions {
 }
 
 /**
- * @internal
+ * All computed editor options.
  */
 export interface IComputedEditorOptions {
 	get<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
@@ -660,9 +659,6 @@ export interface IEnvironmentalOptions {
 	readonly accessibilitySupport: AccessibilitySupport;
 }
 
-/**
- * @internal
- */
 export interface IEditorOption<K1 extends EditorOption, V> {
 	readonly id: K1;
 	readonly name: string;
@@ -1000,7 +996,6 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 
 /**
  * The kind of animation in which the editor's cursor should be rendered.
- * @internal
  */
 export const enum TextEditorCursorBlinkingStyle {
 	/**
@@ -1045,7 +1040,6 @@ function _cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' 
 
 /**
  * The style in which the editor's cursor should be rendered.
- * @internal
  */
 export enum TextEditorCursorStyle {
 	/**
@@ -1174,9 +1168,6 @@ export interface IEditorFindOptions {
 	globalFindClipboard?: boolean;
 }
 
-/**
- * @internal
- */
 export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
 
 class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> {
@@ -1364,9 +1355,6 @@ export interface IGotoLocationOptions {
 	alternativeReferenceCommand?: string;
 }
 
-/**
- * @internal
- */
 export type GoToLocationOptions = Readonly<Required<IGotoLocationOptions>>;
 
 class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoToLocationOptions> {
@@ -1496,9 +1484,6 @@ export interface IEditorHoverOptions {
 	sticky?: boolean;
 }
 
-/**
- * @internal
- */
 export type EditorHoverOptions = Readonly<Required<IEditorHoverOptions>>;
 
 class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOptions> {
@@ -1924,9 +1909,6 @@ export interface IEditorLightbulbOptions {
 	enabled?: boolean;
 }
 
-/**
- * @internal
- */
 export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>;
 
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLightbulbOptions> {
@@ -2018,9 +2000,6 @@ export interface IEditorMinimapOptions {
 	scale?: number;
 }
 
-/**
- * @internal
- */
 export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
 
 class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimapOptions> {
@@ -2122,9 +2101,6 @@ export interface IEditorParameterHintOptions {
 	cycle?: boolean;
 }
 
-/**
- * @internal
- */
 export type InternalParameterHintOptions = Readonly<Required<IEditorParameterHintOptions>>;
 
 class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints, InternalParameterHintOptions> {
@@ -2191,9 +2167,6 @@ export interface IQuickSuggestionsOptions {
 	strings: boolean;
 }
 
-/**
- * @internal
- */
 export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
@@ -2270,9 +2243,6 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 
 export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 
-/**
- * @internal
- */
 export const enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,
@@ -2281,9 +2251,6 @@ export const enum RenderLineNumbersType {
 	Custom = 4
 }
 
-/**
- * @internal
- */
 export interface InternalEditorRenderLineNumbersOptions {
 	readonly renderType: RenderLineNumbersType;
 	readonly renderFn: ((lineNumber: number) => string) | null;
@@ -2439,9 +2406,6 @@ export interface IEditorScrollbarOptions {
 	horizontalSliderSize?: number;
 }
 
-/**
- * @internal
- */
 export interface InternalEditorScrollbarOptions {
 	readonly arrowSize: number;
 	readonly vertical: ScrollbarVisibility;
@@ -2656,9 +2620,6 @@ export interface ISuggestOptions {
 	showSnippets?: boolean;
 }
 
-/**
- * @internal
- */
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
 
 class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSuggestOptions> {
@@ -2952,7 +2913,6 @@ class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode,
 
 /**
  * Describes how to indent wrapped lines.
- * @internal
  */
 export const enum WrappingIndent {
 	/**
@@ -2986,9 +2946,6 @@ function _wrappingIndentFromString(wrappingIndent: 'none' | 'same' | 'indent' | 
 
 //#region wrappingInfo
 
-/**
- * @internal
- */
 export interface EditorWrappingInfo {
 	readonly isDominatedByLongLines: boolean;
 	readonly isWordWrapMinified: boolean;
@@ -3107,9 +3064,6 @@ function register<K1 extends EditorOption, V>(option: IEditorOption<K1, V>): IEd
 	return option;
 }
 
-/**
- * @internal
- */
 export const enum EditorOption {
 	acceptSuggestionOnCommitCharacter,
 	acceptSuggestionOnEnter,
@@ -3224,7 +3178,18 @@ export const enum EditorOption {
 }
 
 /**
- * @internal
+ * WORKAROUND: TS emits "any" for complex editor options values (anything except string, bool, enum, etc. ends up being "any")
+ * @monacodtsreplace
+ * /accessibilitySupport, any/accessibilitySupport, AccessibilitySupport/
+ * /find, any/find, EditorFindOptions/
+ * /fontInfo, any/fontInfo, FontInfo/
+ * /gotoLocation, any/gotoLocation, GoToLocationOptions/
+ * /hover, any/hover, EditorHoverOptions/
+ * /lightbulb, any/lightbulb, EditorLightbulbOptions/
+ * /minimap, any/minimap, EditorMinimapOptions/
+ * /parameterHints, any/parameterHints, InternalParameterHintOptions/
+ * /quickSuggestions, any/quickSuggestions, ValidQuickSuggestionsOptions/
+ * /suggest, any/suggest, InternalSuggestOptions/
  */
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
@@ -3800,19 +3765,7 @@ export const EditorOptions = {
 	wrappingInfo: register(new EditorWrappingInfoComputer())
 };
 
-/**
- * @internal
- */
 type EditorOptionsType = typeof EditorOptions;
-/**
- * @internal
- */
 type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];
-/**
- * @internal
- */
 type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
-/**
- * @internal
- */
 export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
