@@ -5,7 +5,7 @@
 
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import * as network from 'vs/base/common/network';
-import { repeat } from 'vs/base/common/strings';
+import { repeat, endsWith } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
@@ -33,7 +33,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import type { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-// import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 
 
 
@@ -50,24 +50,45 @@ export type SearchConfiguration = {
 };
 
 export class SearchEditorContribution implements IWorkbenchContribution {
-	// constructor(
-	// 	@IEditorService private readonly editorService: IEditorService,
-	// 	@ITextFileService protected readonly textFileService: ITextFileService,
-	// ) {
-	// 	this.editorService.overrideOpenEditor(async (editor, options, group) => {
-	// 		const resource = editor.getResource();
-	// 		if (!resource || !endsWith(resource.path, '.code-search') || !(editor instanceof FileEditorInput)) {
-	// 			return undefined;
-	// 		}
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextFileService protected readonly textFileService: ITextFileService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+	) {
+		this.editorService.overrideOpenEditor((editor, options, group) => {
+			const resource = editor.getResource();
+			if (!resource || !endsWith(resource.path, '.code-search') || !(editor instanceof FileEditorInput)) {
+				return undefined;
+			}
 
-	// 		console.log('hello agian');
-	// 		const contents = await this.textFileService.read(resource);
-	// 		contents.value;
+			if (group.isOpened(editor)) {
+				return undefined;
+			}
 
-	// 		return undefined;
+			return {
+				override: (async () => {
+					const contents = (await this.textFileService.read(resource)).value;
+					const header = searchHeaderToContentPattern(contents.split('\n').slice(0, 5));
 
-	// 	});
-	// }
+					const input = instantiationService.createInstance(
+						SearchEditorInput,
+						{
+							query: header.pattern,
+							regexp: header.flags.regex,
+							caseSensitive: header.flags.caseSensitive,
+							wholeWord: header.flags.wholeWord,
+							includes: header.includes,
+							excludes: header.excludes,
+							contextLines: header.context ?? 0,
+							useIgnores: !header.flags.ignoreExcludes,
+							showIncludesExcludes: !!(header.includes || header.excludes || header.flags.ignoreExcludes)
+						}, contents, resource);
+
+					return editorService.openEditor(input, { ...options, pinned: true, ignoreOverrides: true }, group);
+				})()
+			};
+		});
+	}
 }
 
 export class SearchEditorInputFactory implements IEditorInputFactory {
@@ -75,11 +96,17 @@ export class SearchEditorInputFactory implements IEditorInputFactory {
 	canSerialize() { return true; }
 
 	serialize(input: SearchEditorInput) {
-		return JSON.stringify(input.config);
+		let resource = undefined;
+		if (input.resource.path) {
+			resource = input.resource.toString();
+		}
+
+		return JSON.stringify({ ...input.config, resource });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SearchEditorInput | undefined {
-		return instantiationService.createInstance(SearchEditorInput, JSON.parse(serializedEditorInput), undefined);
+		const { resource, ...config } = JSON.parse(serializedEditorInput);
+		return instantiationService.createInstance(SearchEditorInput, config, undefined, resource && URI.parse(resource));
 	}
 }
 
@@ -98,6 +125,7 @@ export class SearchEditorInput extends EditorInput {
 	constructor(
 		config: SearchConfiguration | undefined,
 		initialContents: string | undefined,
+		resource: URI | undefined,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IEditorService protected readonly editorService: IEditorService,
@@ -106,8 +134,7 @@ export class SearchEditorInput extends EditorInput {
 		@IUntitledTextEditorService protected readonly untitledTextEditorService: IUntitledTextEditorService,
 	) {
 		super();
-		this.resource = URI.from({ scheme: 'search-editor', fragment: `${searchEditorInputInstances++}` });
-
+		this.resource = resource ?? URI.from({ scheme: 'search-editor', fragment: `${searchEditorInputInstances++}` });
 
 		if (config === undefined) {
 			this._config = { query: '', includes: '', excludes: '', contextLines: 0, wholeWord: false, caseSensitive: false, regexp: false, useIgnores: true, showIncludesExcludes: false };
@@ -117,14 +144,19 @@ export class SearchEditorInput extends EditorInput {
 
 		const searchResultMode = this.modeService.create('search-result');
 
-		this.model = this.modelService.createModel(initialContents ?? '', searchResultMode, this.resource);
+		this.model = this.modelService.getModel(this.resource) ?? this.modelService.createModel(initialContents ?? '', searchResultMode, this.resource);
 	}
 
 	async save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<boolean> {
-		const path = (this.config.query.replace(/\W/g, '') || 'Untitled Search') + '.code-search';
-		const untitledResource = URI.from({ scheme: 'untitled', path, fragment: this.resource.fragment });
-		const a = this.untitledTextEditorService.createOrGet(untitledResource, 'search-result', this.model.getValue());
-		return a.save(group, options).finally(() => a.dispose());
+		if (this.resource.scheme === 'search-editor') {
+			const path = (this.config.query.replace(/\W/g, '') || 'Untitled Search') + '.code-search';
+			const untitledResource = URI.from({ scheme: 'untitled', path, fragment: this.resource.fragment });
+			const a = this.untitledTextEditorService.createOrGet(untitledResource, 'search-result', this.model.getValue());
+			return a.save(group, options).finally(() => a.dispose());
+		} else {
+			const a = this.untitledTextEditorService.createOrGet(this.resource, 'search-result', this.model.getValue(), undefined, true);
+			return a.save(group, options).finally(() => a.dispose());
+		}
 	}
 
 	getTypeId(): string {
@@ -153,6 +185,9 @@ export class SearchEditorInput extends EditorInput {
 		if (this === other) { return true; }
 		if (other instanceof UntitledTextEditorInput) {
 			if (other.getResource().fragment === this.resource.fragment) { return true; }
+		}
+		if (other instanceof SearchEditorInput) {
+			if (other.resource.path && other.resource.path === this.resource.path) { return true; }
 		}
 		return false;
 	}
@@ -432,7 +467,7 @@ export const refreshActiveEditorSearch =
 
 export const openNewSearchEditor =
 	async (editorService: IEditorService, instantiationService: IInstantiationService) => {
-		await editorService.openEditor(instantiationService.createInstance(SearchEditorInput, undefined, undefined), { pinned: true });
+		await editorService.openEditor(instantiationService.createInstance(SearchEditorInput, undefined, undefined, undefined), { pinned: true });
 	};
 
 export const createEditorFromSearchResult =
@@ -481,7 +516,7 @@ export const createEditorFromSearchResult =
 				contextLines: 0,
 				useIgnores: !searchResult.query.userDisabledExcludesAndIgnoreFiles,
 				showIncludesExcludes: !!(rawExcludePattern || rawExcludePattern || searchResult.query.userDisabledExcludesAndIgnoreFiles)
-			}, contents);
+			}, contents, undefined);
 
 		const editor = await editorService.openEditor(input, { pinned: true }) as SearchEditor;
 		const model = assertIsDefined(editor.getModel());

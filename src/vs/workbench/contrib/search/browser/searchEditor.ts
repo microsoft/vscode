@@ -35,6 +35,7 @@ import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { Delayer } from 'vs/base/common/async';
 import { serializeSearchResultForEditor, SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 
@@ -70,6 +71,7 @@ export class SearchEditor extends BaseEditor {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super(SearchEditor.ID, telemetryService, themeService, storageService);
 	}
@@ -268,10 +270,16 @@ export class SearchEditor extends BaseEditor {
 	}
 
 	async setInput(newInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+		await super.setInput(newInput, options, token);
+
 		if (!(newInput instanceof SearchEditorInput)) { return; }
 		this.pauseSearching = true;
-		// TODO: Manage model lifecycle in SearchEditorInput
 		const model = this.modelService.getModel(newInput.resource);
+		if (newInput.resource.scheme !== 'search-editor') {
+			if (model?.getValue() === '') {
+				model.setValue((await this.textFileService.read(newInput.resource)).value);
+			}
+		}
 		this.searchResultEditor.setModel(model);
 		this.queryEditorWidget.setValue(newInput.config.query, true);
 		this.queryEditorWidget.searchInput.setCaseSensitive(newInput.config.caseSensitive);
@@ -284,7 +292,6 @@ export class SearchEditor extends BaseEditor {
 		this.toggleIncludesExcludes(newInput.config.showIncludesExcludes);
 
 		this.focusInput();
-		await super.setInput(newInput, options, token);
 		this.pauseSearching = false;
 	}
 
