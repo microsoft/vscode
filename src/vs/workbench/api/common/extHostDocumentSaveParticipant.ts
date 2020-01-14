@@ -12,7 +12,7 @@ import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
 import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { SaveReason } from 'vs/workbench/common/editor';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';

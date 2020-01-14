@@ -73,9 +73,9 @@ suite('MainThreadEditors', () => {
 				return Promise.resolve(Object.create(null));
 			}
 			models = <any>{
-				onModelSaved: Event.None,
-				onModelReverted: Event.None,
-				onModelDirty: Event.None,
+				onDidSave: Event.None,
+				onDidRevert: Event.None,
+				onDidChangeDirty: Event.None
 			};
 		};
 		const workbenchEditorService = new TestEditorService();

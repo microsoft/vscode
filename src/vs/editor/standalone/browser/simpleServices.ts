@@ -80,6 +80,10 @@ export class SimpleModel implements IResolvedTextEditorModel {
 	public dispose(): void {
 		this._onDispose.fire();
 	}
+
+	public isResolved(): boolean {
+		return true;
+	}
 }
 
 export interface IOpenEditorDelegate {
@@ -629,6 +633,10 @@ export class SimpleBulkEditService implements IBulkEditService {
 
 	constructor(private readonly _modelService: IModelService) {
 		//
+	}
+
+	setPreviewHandler(): IDisposable {
+		return Disposable.None;
 	}
 
 	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {

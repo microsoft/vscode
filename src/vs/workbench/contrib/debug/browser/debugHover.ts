@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { renderExpressionValue, replaceWhitespace } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -33,6 +33,34 @@ import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesV
 
 const $ = dom.$;
 const MAX_TREE_HEIGHT = 324;
+
+async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
+	if (!container) {
+		return Promise.resolve(null);
+	}
+
+	const children = await container.getChildren();
+	// look for our variable in the list. First find the parents of the hovered variable if there are any.
+	const filtered = children.filter(v => namesToFind[0] === v.name);
+	if (filtered.length !== 1) {
+		return null;
+	}
+
+	if (namesToFind.length === 1) {
+		return filtered[0];
+	} else {
+		return doFindExpression(filtered[0], namesToFind.slice(1));
+	}
+}
+
+export async function findExpressionInStackFrame(stackFrame: IStackFrame, namesToFind: string[]): Promise<IExpression | undefined> {
+	const scopes = await stackFrame.getScopes();
+	const nonExpensive = scopes.filter(s => !s.expensive);
+	const expressions = coalesce(await Promise.all(nonExpensive.map(scope => doFindExpression(scope, namesToFind))));
+
+	// only show if all expressions found have the same value
+	return expressions.length > 0 && expressions.every(e => e.value === expressions[0].value) ? expressions[0] : undefined;
+}
 
 export class DebugHoverWidget implements IContentWidget {
 
@@ -107,7 +135,7 @@ export class DebugHoverWidget implements IContentWidget {
 			if (colors.editorHoverForeground) {
 				this.domNode.style.color = colors.editorHoverForeground.toString();
 			} else {
-				this.domNode.style.color = null;
+				this.domNode.style.color = '';
 			}
 		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
@@ -166,7 +194,10 @@ export class DebugHoverWidget implements IContentWidget {
 			expression = new Expression(matchingExpression);
 			await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover');
 		} else {
-			expression = await this.findExpressionInStackFrame(coalesce(matchingExpression.split('.').map(word => word.trim())));
+			const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+			if (focusedStackFrame) {
+				expression = await findExpressionInStackFrame(focusedStackFrame, coalesce(matchingExpression.split('.').map(word => word.trim())));
+			}
 		}
 
 		if (!expression || (expression instanceof Expression && !expression.available)) {
@@ -185,38 +216,6 @@ export class DebugHoverWidget implements IContentWidget {
 	private static readonly _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'hoverHighlight'
 	});
-
-	private async doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
-		if (!container) {
-			return Promise.resolve(null);
-		}
-
-		const children = await container.getChildren();
-		// look for our variable in the list. First find the parents of the hovered variable if there are any.
-		const filtered = children.filter(v => namesToFind[0] === v.name);
-		if (filtered.length !== 1) {
-			return null;
-		}
-
-		if (namesToFind.length === 1) {
-			return filtered[0];
-		} else {
-			return this.doFindExpression(filtered[0], namesToFind.slice(1));
-		}
-	}
-
-	private async findExpressionInStackFrame(namesToFind: string[]): Promise<IExpression | undefined> {
-		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-		if (!focusedStackFrame) {
-			return undefined;
-		}
-
-		const scopes = await focusedStackFrame.getScopes();
-		const nonExpensive = scopes.filter(s => !s.expensive);
-		const expressions = coalesce(await Promise.all(nonExpensive.map(scope => this.doFindExpression(scope, namesToFind))));
-		// only show if all expressions found have the same value
-		return expressions.length > 0 && expressions.every(e => e.value === expressions[0].value) ? expressions[0] : undefined;
-	}
 
 	private async doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Promise<void> {
 		if (!this.domNode) {

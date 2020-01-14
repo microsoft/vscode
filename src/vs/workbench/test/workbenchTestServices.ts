@@ -213,7 +213,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IElectronService electronService: IElectronService,
 		@IProductService productService: IProductService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@ITextModelService textModelService: ITextModelService
 	) {
 		super(
 			contextService,
@@ -233,7 +234,8 @@ export class TestTextFileService extends NativeTextFileService {
 			textResourceConfigurationService,
 			electronService,
 			productService,
-			filesConfigurationService
+			filesConfigurationService,
+			textModelService
 		);
 	}
 
@@ -905,6 +907,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 	activeControl!: IVisibleEditor;
 	activeTextEditorWidget: any;
+	activeTextEditorMode: any;
 	activeEditor!: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
 	mostRecentlyActiveEditors: ReadonlyArray<IEditorIdentifier> = [];

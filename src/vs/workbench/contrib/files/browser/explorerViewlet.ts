@@ -33,6 +33,7 @@ import { ViewPane, ViewPaneContainer } from 'vs/workbench/browser/parts/views/vi
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -103,7 +104,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
-			ctorDescriptor: { ctor: OpenEditorsView },
+			ctorDescriptor: new SyncDescriptor(OpenEditorsView),
 			order: 0,
 			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
@@ -118,7 +119,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			ctorDescriptor: { ctor: EmptyView },
+			ctorDescriptor: new SyncDescriptor(EmptyView),
 			order: 1,
 			canToggleVisibility: true,
 		};
@@ -128,7 +129,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: ExplorerView.ID,
 			name: localize('folders', "Folders"),
-			ctorDescriptor: { ctor: ExplorerView },
+			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
 			canToggleVisibility: false
 		};
@@ -247,7 +248,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: localize('explore', "Explorer"),
-	ctorDescriptor: { ctor: ExplorerViewPaneContainer },
+	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
 	icon: 'codicon-files',
 	order: 0
 }, ViewContainerLocation.Sidebar);

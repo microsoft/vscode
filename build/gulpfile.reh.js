@@ -118,7 +118,7 @@ function mixinServer(watch) {
 	const packageJSONPath = path.join(path.dirname(__dirname), 'package.json');
 	function exec(cmdLine) {
 		console.log(cmdLine);
-		cp.execSync(cmdLine, { stdio: "inherit" });
+		cp.execSync(cmdLine, { stdio: 'inherit' });
 	}
 	function checkout() {
 		const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString());

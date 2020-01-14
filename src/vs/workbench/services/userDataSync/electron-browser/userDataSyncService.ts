@@ -46,6 +46,14 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.channel.call('stop');
 	}
 
+	hasPreviouslySynced(): Promise<boolean> {
+		return this.channel.call('hasPreviouslySynced');
+	}
+
+	hasRemote(): Promise<boolean> {
+		return this.channel.call('hasRemote');
+	}
+
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
 		return this.channel.call('removeExtension', [identifier]);
 	}

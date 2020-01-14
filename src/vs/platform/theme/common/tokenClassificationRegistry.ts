@@ -378,7 +378,7 @@ function registerDefaultClassifications(): void {
 	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.class']], 'type');
 	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), undefined, 'type');
 	registerTokenType('enum', nls.localize('enum', "Style for enums."), undefined, 'type');
-	registerTokenType('parameterType', nls.localize('parameterType', "Style for parameter types."), undefined, 'type');
+	registerTokenType('typeParameter', nls.localize('typeParameter', "Style for type parameters."), undefined, 'type');
 
 	registerTokenType('function', nls.localize('function', "Style for functions"), [['entity.name.function'], ['support.function']]);
 	registerTokenType('member', nls.localize('member', "Style for member"), [['entity.name.function'], ['support.function']]);
@@ -395,12 +395,12 @@ function registerDefaultClassifications(): void {
 
 	tokenClassificationRegistry.registerTokenModifier('declaration', nls.localize('declaration', "Style for all symbol declarations."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('documentation', nls.localize('documentation', "Style to use for references in documentation."), undefined);
-	//tokenClassificationRegistry.registerTokenModifier('member', nls.localize('member', "Style to use for member functions, variables (fields) and types."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('static', nls.localize('static', "Style to use for symbols that are static."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('abstract', nls.localize('abstract', "Style to use for symbols that are abstract."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
 	tokenClassificationRegistry.registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
+	tokenClassificationRegistry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are readonly."), undefined);
 }
 
 export function getTokenClassificationRegistry(): ITokenClassificationRegistry {

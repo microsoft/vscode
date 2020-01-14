@@ -14,14 +14,12 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -31,7 +29,8 @@ import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledText
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { CancellationToken } from 'vscode';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
@@ -73,19 +72,19 @@ class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setFailToOpen(): void {
 		this.fails = true;
 	}
-	save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.gotSaved = true;
-		return Promise.resolve(true);
+		return true;
 	}
-	saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
+	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<boolean> {
 		this.gotSavedAs = true;
-		return Promise.resolve(true);
+		return true;
 	}
-	revert(options?: IRevertOptions): Promise<boolean> {
+	async revert(options?: IRevertOptions): Promise<boolean> {
 		this.gotReverted = true;
 		this.gotSaved = false;
 		this.gotSavedAs = false;
-		return Promise.resolve(true);
+		return true;
 	}
 	isDirty(): boolean {
 		return this.dirty;
@@ -120,16 +119,23 @@ suite('EditorService', () => {
 		disposables = [];
 	});
 
-	test('basics', async () => {
-		const partInstantiator = workbenchInstantiationService();
+	function createEditorService(): [EditorPart, EditorService, IInstantiationService] {
+		const instantiationService = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(EditorPart);
+		const part = instantiationService.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
 
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+		instantiationService.stub(IEditorGroupsService, part);
 
-		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
+		const editorService = instantiationService.createInstance(EditorService);
+		instantiationService.stub(IEditorService, editorService);
+
+		return [part, editorService, instantiationService];
+	}
+
+	test('basics', async () => {
+		const [part, service, testInstantiationService] = createEditorService();
 
 		let input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-basics'));
 		let otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-basics'));
@@ -163,6 +169,7 @@ suite('EditorService', () => {
 		assert.equal(service.visibleControls.length, 1);
 		assert.equal(service.visibleControls[0], editor);
 		assert.ok(!service.activeTextEditorWidget);
+		assert.ok(!service.activeTextEditorMode);
 		assert.equal(service.visibleTextEditorWidgets.length, 0);
 		assert.equal(service.isOpen(input), true);
 		assert.equal(service.getOpened({ resource: input.getResource() }), input);
@@ -211,15 +218,7 @@ suite('EditorService', () => {
 	});
 
 	test('openEditors() / replaceEditors()', async () => {
-		const partInstantiator = workbenchInstantiationService();
-
-		const part = partInstantiator.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
-
-		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+		const [part, service, testInstantiationService] = createEditorService();
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-openEditors'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openEditors'));
@@ -241,7 +240,7 @@ suite('EditorService', () => {
 
 	test('caching', function () {
 		const instantiationService = workbenchInstantiationService();
-		const service: EditorService = <any>instantiationService.createInstance(EditorService);
+		const service = instantiationService.createInstance(EditorService);
 
 		// Cached Input (Files)
 		const fileResource1 = toResource.call(this, '/foo/bar/cache1.js');
@@ -290,7 +289,7 @@ suite('EditorService', () => {
 
 	test('createInput', async function () {
 		const instantiationService = workbenchInstantiationService();
-		const service: EditorService = <any>instantiationService.createInstance(EditorService);
+		const service = instantiationService.createInstance(EditorService);
 
 		const mode = 'create-input-test';
 		ModesRegistry.registerLanguage({
@@ -382,27 +381,19 @@ suite('EditorService', () => {
 		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
 		const inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource-delegate'), undefined);
-		const delegate = instantiationService.createInstance(DelegatingEditorService, (delegate, group, input) => {
+		const delegate = instantiationService.createInstance(DelegatingEditorService, async (delegate, group, input) => {
 			assert.strictEqual(input, inp);
 
 			done();
 
-			return Promise.resolve(ed);
+			return ed;
 		});
 
 		delegate.openEditor(inp);
 	});
 
 	test('close editor does not dispose when editor opened in other group', async () => {
-		const partInstantiator = workbenchInstantiationService();
-
-		const part = partInstantiator.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
-
-		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+		const [part, service, testInstantiationService] = createEditorService();
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-close1'));
 
@@ -431,15 +422,7 @@ suite('EditorService', () => {
 	});
 
 	test('open to the side', async () => {
-		const partInstantiator = workbenchInstantiationService();
-
-		const part = partInstantiator.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
-
-		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+		const [part, service, testInstantiationService] = createEditorService();
 
 		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
 		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openside'));
@@ -465,15 +448,7 @@ suite('EditorService', () => {
 	});
 
 	test('editor group activation', async () => {
-		const partInstantiator = workbenchInstantiationService();
-
-		const part = partInstantiator.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
-
-		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+		const [part, service, testInstantiationService] = createEditorService();
 
 		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
 		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openside'));
@@ -508,15 +483,7 @@ suite('EditorService', () => {
 	});
 
 	test('active editor change / visible editor change events', async function () {
-		const partInstantiator = workbenchInstantiationService();
-
-		const part = partInstantiator.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
-
-		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
+		const [part, service, testInstantiationService] = createEditorService();
 
 		let input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
 		let otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
@@ -735,16 +702,60 @@ suite('EditorService', () => {
 		part.dispose();
 	});
 
+	test('two active editor change events when opening editor to the side', async function () {
+		const [part, service, testInstantiationService] = createEditorService();
+
+		let input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+
+		let activeEditorChangeEvents = 0;
+		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
+			activeEditorChangeEvents++;
+		});
+
+		function assertActiveEditorChangedEvent(expected: number) {
+			assert.equal(activeEditorChangeEvents, expected, `Unexpected active editor change state (got ${activeEditorChangeEvents}, expected ${expected})`);
+			activeEditorChangeEvents = 0;
+		}
+
+		await part.whenRestored;
+
+		await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(1);
+
+		await service.openEditor(input, { pinned: true }, SIDE_GROUP);
+
+		// we expect 2 active editor change events: one for the fact that the
+		// active editor is now in the side group but also one for when the
+		// editor has finished loading. we used to ignore that second change
+		// event, however many listeners are interested on the active editor
+		// when it has fully loaded (e.g. a model is set). as such, we cannot
+		// simply ignore that second event from the editor service, even though
+		// the actual editor input is the same
+		assertActiveEditorChangedEvent(2);
+
+		// cleanup
+		activeEditorChangeListener.dispose();
+
+		part.dispose();
+	});
+
+	test('activeTextEditorWidget / activeTextEditorMode', async () => {
+		const [part, service] = createEditorService();
+
+		await part.whenRestored;
+
+		// Open untitled input
+		let editor = await service.openEditor({});
+
+		assert.equal(service.activeControl, editor);
+		assert.equal(service.activeTextEditorWidget, editor?.getControl());
+		assert.equal(service.activeTextEditorMode, 'plaintext');
+
+		part.dispose();
+	});
+
 	test('openEditor returns NULL when opening fails or is inactive', async function () {
-		const partInstantiator = workbenchInstantiationService();
-
-		const part = partInstantiator.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
-
-		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
+		const [part, service, testInstantiationService] = createEditorService();
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-inactive'));
@@ -766,15 +777,7 @@ suite('EditorService', () => {
 	});
 
 	test('save, saveAll, revertAll', async function () {
-		const partInstantiator = workbenchInstantiationService();
-
-		const part = partInstantiator.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
-
-		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+		const [part, service, testInstantiationService] = createEditorService();
 
 		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
 		input1.dirty = true;

@@ -908,7 +908,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return null;
 				}
 				try {
-					/* tslint:disable-next-line:no-unused-expression */
 					new RegExp(value);
 					return null;
 				} catch (e) {

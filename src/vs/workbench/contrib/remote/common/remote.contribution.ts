@@ -16,6 +16,7 @@ import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/s
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -83,3 +84,4 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);

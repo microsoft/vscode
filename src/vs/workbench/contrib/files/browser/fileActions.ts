@@ -202,9 +202,9 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 		let { message, detail } = getMoveToTrashMessage(distinctElements);
 		detail += detail ? '\n' : '';
 		if (isWindows) {
-			detail += nls.localize('undoBin', "You can restore from the Recycle Bin.");
+			detail += distinctElements.length > 1 ? nls.localize('undoBinFiles', "You can restore these files from the Recycle Bin.") : nls.localize('undoBin', "You can restore this file from the Recycle Bin.");
 		} else {
-			detail += nls.localize('undoTrash', "You can restore from the Trash.");
+			detail += distinctElements.length > 1 ? nls.localize('undoTrashFiles', "You can restore these files from the Trash.") : nls.localize('undoTrash', "You can restore this file from the Trash.");
 		}
 
 		confirmDeletePromise = dialogService.confirm({
@@ -1099,6 +1099,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	if (pasteShouldMove) {
 		// Cut is done. Make sure to clear cut state.
 		explorerService.setToCopy([], false);
+		pasteShouldMove = false;
 	}
 	if (stats.length >= 1) {
 		const stat = stats[0];

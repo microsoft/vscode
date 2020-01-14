@@ -28,19 +28,18 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 
 	private static readonly MEMOIZER = createMemoizer();
 
+	private readonly _onDidModelChangeEncoding = this._register(new Emitter<void>());
+	readonly onDidModelChangeEncoding = this._onDidModelChangeEncoding.event;
+
 	private cachedModel: UntitledTextEditorModel | null = null;
 	private modelResolve: Promise<UntitledTextEditorModel & IResolvedTextEditorModel> | null = null;
 
-	private readonly _onDidModelChangeContent = this._register(new Emitter<void>());
-	readonly onDidModelChangeContent = this._onDidModelChangeContent.event;
-
-	private readonly _onDidModelChangeEncoding = this._register(new Emitter<void>());
-	readonly onDidModelChangeEncoding = this._onDidModelChangeEncoding.event;
+	private preferredMode: string | undefined;
 
 	constructor(
 		resource: URI,
 		private readonly _hasAssociatedFilePath: boolean,
-		private preferredMode: string | undefined,
+		preferredMode: string | undefined,
 		private readonly initialValue: string | undefined,
 		private preferredEncoding: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -51,6 +50,10 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super(resource, editorService, editorGroupService, textFileService);
+
+		if (preferredMode) {
+			this.setMode(preferredMode);
+		}
 
 		this.registerListeners();
 	}
@@ -141,6 +144,8 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	isDirty(): boolean {
+
+		// Always trust the model first if existing
 		if (this.cachedModel) {
 			return this.cachedModel.isDirty();
 		}
@@ -150,7 +155,13 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 			return false;
 		}
 
-		// untitled files with an associated path or associated resource
+		// A input with initial value is always dirty
+		if (this.initialValue && this.initialValue.length > 0) {
+			return true;
+		}
+
+		// A input with associated path is always dirty because it is the intent
+		// of the user to create a new file at that location through saving
 		return this.hasAssociatedFilePath;
 	}
 
@@ -225,10 +236,20 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 	}
 
 	setMode(mode: string): void {
-		this.preferredMode = mode;
+		let actualMode: string | undefined = undefined;
+		if (mode === '${activeEditorLanguage}') {
+			// support the special '${activeEditorLanguage}' mode by
+			// looking up the language mode from the currently
+			// active text editor if any
+			actualMode = this.editorService.activeTextEditorMode;
+		} else {
+			actualMode = mode;
+		}
 
-		if (this.cachedModel) {
-			this.cachedModel.setMode(mode);
+		this.preferredMode = actualMode;
+
+		if (this.preferredMode && this.cachedModel) {
+			this.cachedModel.setMode(this.preferredMode);
 		}
 	}
 
@@ -258,7 +279,6 @@ export class UntitledTextEditorInput extends TextEditorInput implements IEncodin
 		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, this.preferredMode, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
 
 		// re-emit some events from the model
-		this._register(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
 		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this._register(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
 

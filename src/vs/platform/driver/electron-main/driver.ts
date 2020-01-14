@@ -18,7 +18,6 @@ import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
 import { IDriver, IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
-import { NativeImage } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 
@@ -67,7 +66,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 			throw new Error('Invalid window');
 		}
 		const webContents = window.win.webContents;
-		const image = await new Promise<NativeImage>(c => webContents.capturePage(c));
+		const image = await webContents.capturePage();
 		return image.toPNG().toString('base64');
 	}
 

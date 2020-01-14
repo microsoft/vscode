@@ -11,7 +11,6 @@ import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/file
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { UntitledTextEditorModel } from 'vs/workbench/common/editor/untitledTextEditorModel';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -19,7 +18,7 @@ import { basename } from 'vs/base/common/resources';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
-export interface IModelLoadOrCreateOptions {
+export interface IUntitledCreationOptions {
 	resource?: URI;
 	mode?: string;
 	initialValue?: string;
@@ -30,16 +29,6 @@ export interface IModelLoadOrCreateOptions {
 export interface IUntitledTextEditorService {
 
 	_serviceBrand: undefined;
-
-	/**
-	 * Events for when untitled text editors are created.
-	 */
-	readonly onDidCreate: Event<URI>;
-
-	/**
-	 * Events for when untitled text editors content changes (e.g. any keystroke).
-	 */
-	readonly onDidChangeContent: Event<URI>;
 
 	/**
 	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
@@ -88,16 +77,8 @@ export interface IUntitledTextEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string): UntitledTextEditorInput;
-
-	/**
-	 * Creates a new untitled model with the optional resource URI or returns an existing one
-	 * if the provided resource exists already as untitled model.
-	 *
-	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
-	 * The use case is to be able to create a new file with a specific path with VSCode.
-	 */
-	loadOrCreate(options: IModelLoadOrCreateOptions): Promise<UntitledTextEditorModel>;
+	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;
+	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -121,12 +102,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	private mapResourceToInput = new ResourceMap<UntitledTextEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
-
-	private readonly _onDidCreate = this._register(new Emitter<URI>());
-	readonly onDidCreate = this._onDidCreate.event;
-
-	private readonly _onDidChangeContent = this._register(new Emitter<URI>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<URI>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -201,11 +176,14 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 			.map(i => i.getResource());
 	}
 
-	loadOrCreate(options: IModelLoadOrCreateOptions = Object.create(null)): Promise<UntitledTextEditorModel> {
-		return this.createOrGet(options.resource, options.mode, options.initialValue, options.encoding, options.useResourcePath).resolve();
-	}
+	createOrGet(options?: IUntitledCreationOptions): UntitledTextEditorInput;
+	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath?: boolean): UntitledTextEditorInput;
+	createOrGet(resourceOrOptions?: URI | IUntitledCreationOptions, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
+		if (resourceOrOptions && !URI.isUri(resourceOrOptions)) {
+			return this.createOrGet(resourceOrOptions.resource, resourceOrOptions.mode, resourceOrOptions.initialValue, resourceOrOptions.encoding, resourceOrOptions.useResourcePath);
+		}
 
-	createOrGet(resource?: URI, mode?: string, initialValue?: string, encoding?: string, hasAssociatedFilePath: boolean = false): UntitledTextEditorInput {
+		let resource = resourceOrOptions;
 		if (resource) {
 
 			// Massage resource if it comes with known file based resource
@@ -252,7 +230,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 		const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledResource, !!hasAssociatedFilePath, mode, initialValue, encoding);
 
-		const contentListener = input.onDidModelChangeContent(() => this._onDidChangeContent.fire(untitledResource));
 		const dirtyListener = input.onDidChangeDirty(() => this._onDidChangeDirty.fire(untitledResource));
 		const encodingListener = input.onDidModelChangeEncoding(() => this._onDidChangeEncoding.fire(untitledResource));
 		const disposeListener = input.onDispose(() => this._onDidDisposeModel.fire(untitledResource));
@@ -262,7 +239,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		onceDispose(() => {
 			this.mapResourceToInput.delete(input.getResource());
 			this.mapResourceToAssociatedFilePath.delete(input.getResource());
-			contentListener.dispose();
 			dirtyListener.dispose();
 			encodingListener.dispose();
 			disposeListener.dispose();
@@ -270,9 +246,6 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 		// Add to cache
 		this.mapResourceToInput.set(untitledResource, input);
-
-		// Signal new untitled as event
-		this._onDidCreate.fire(untitledResource);
 
 		return input;
 	}

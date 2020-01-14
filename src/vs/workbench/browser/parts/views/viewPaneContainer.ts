@@ -316,7 +316,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	create(parent: HTMLElement): void {
-		// super.create(parent);
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
@@ -493,7 +492,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		return (this.instantiationService as any).createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.arguments || []), options) as ViewPane;
+		return (this.instantiationService as any).createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.staticArguments || []), options) as ViewPane;
 	}
 
 	getView(id: string): ViewPane | undefined {
