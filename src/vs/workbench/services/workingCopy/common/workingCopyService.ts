@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { TernarySearchTree, values } from 'vs/base/common/map';
-import { ISaveOptions } from 'vs/workbench/common/editor';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 
 export const enum WorkingCopyCapabilities {
 
@@ -47,6 +47,10 @@ export interface IWorkingCopy {
 	//#region Save / Backup
 
 	save(options?: ISaveOptions): Promise<boolean>;
+
+	revert(options?: IRevertOptions): Promise<boolean>;
+
+	hasBackup(): boolean;
 
 	backup(): Promise<void>;
 

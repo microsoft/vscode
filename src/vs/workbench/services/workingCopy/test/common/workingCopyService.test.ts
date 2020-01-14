@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TestWorkingCopyService } from 'vs/workbench/test/workbenchTestServices';
-import { ISaveOptions } from 'vs/workbench/common/editor';
+import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 
 suite('WorkingCopyService', () => {
 
@@ -53,7 +53,15 @@ suite('WorkingCopyService', () => {
 			return true;
 		}
 
+		async revert(options?: IRevertOptions): Promise<boolean> {
+			this.setDirty(false);
+
+			return true;
+		}
+
 		async backup(): Promise<void> { }
+
+		hasBackup(): boolean { return false; }
 
 		dispose(): void {
 			this._onDispose.fire();

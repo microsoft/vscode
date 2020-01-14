@@ -7,12 +7,10 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
-import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IFileService, FileOperationError, FileOperationResult, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -24,9 +22,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isEqualOrParent, isEqual, joinPath, dirname, extname, basename, toLocalResource } from 'vs/base/common/resources';
-import { IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService, ISaveDialogOptions, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { coalesce } from 'vs/base/common/arrays';
@@ -35,7 +32,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
@@ -61,16 +58,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	abstract get encoding(): IResourceEncodings;
 
 	constructor(
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IFileService protected readonly fileService: IFileService,
 		@IUntitledTextEditorService protected readonly untitledTextEditorService: IUntitledTextEditorService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleService protected readonly lifecycleService: ILifecycleService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IModeService private readonly modeService: IModeService,
 		@IModelService private readonly modelService: IModelService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -84,195 +78,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		this.registerListeners();
 	}
 
-	private registerListeners(): void {
+	protected registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
-
-	//#region shutdown / backup handling
-
-	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
-
-		// Dirty files need treatment on shutdown
-		const dirty = this.getDirty();
-		if (dirty.length) {
-
-			// If auto save is enabled, save all files and then check again for dirty files
-			// We DO NOT run any save participant if we are in the shutdown phase for performance reasons
-			if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				return this.saveAll(false /* files only */, { skipSaveParticipants: true }).then(() => {
-
-					// If we still have dirty files, we either have untitled ones or files that cannot be saved
-					const remainingDirty = this.getDirty();
-					if (remainingDirty.length) {
-						return this.handleDirtyBeforeShutdown(remainingDirty, reason);
-					}
-
-					return false;
-				});
-			}
-
-			// Auto save is not enabled
-			return this.handleDirtyBeforeShutdown(dirty, reason);
-		}
-
-		// No dirty files: no veto
-		return this.noVeto({ cleanUpBackups: true });
-	}
-
-	private handleDirtyBeforeShutdown(dirty: URI[], reason: ShutdownReason): boolean | Promise<boolean> {
-
-		// If hot exit is enabled, backup dirty files and allow to exit without confirmation
-		if (this.filesConfigurationService.isHotExitEnabled) {
-			return this.backupBeforeShutdown(dirty, reason).then(didBackup => {
-				if (didBackup) {
-					return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)
-				}
-
-				// since a backup did not happen, we have to confirm for the dirty files now
-				return this.confirmBeforeShutdown();
-			}, error => {
-				this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", error.message));
-
-				return true; // veto, the backups failed
-			});
-		}
-
-		// Otherwise just confirm from the user what to do with the dirty files
-		return this.confirmBeforeShutdown();
-	}
-
-	private async backupBeforeShutdown(dirtyToBackup: URI[], reason: ShutdownReason): Promise<boolean> {
-		// When quit is requested skip the confirm callback and attempt to backup all workspaces.
-		// When quit is not requested the confirm callback should be shown when the window being
-		// closed is the only VS Code window open, except for on Mac where hot exit is only
-		// ever activated when quit is requested.
-
-		let doBackup: boolean | undefined;
-		switch (reason) {
-			case ShutdownReason.CLOSE:
-				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-					doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-				} else if (await this.getWindowCount() > 1 || platform.isMacintosh) {
-					doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
-				} else {
-					doBackup = true; // backup if last window is closed on win/linux where the application quits right after
-				}
-				break;
-
-			case ShutdownReason.QUIT:
-				doBackup = true; // backup because next start we restore all backups
-				break;
-
-			case ShutdownReason.RELOAD:
-				doBackup = true; // backup because after window reload, backups restore
-				break;
-
-			case ShutdownReason.LOAD:
-				if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.filesConfigurationService.hotExitConfiguration === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-					doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
-				} else {
-					doBackup = false; // do not backup because we are switching contexts
-				}
-				break;
-		}
-
-		if (!doBackup) {
-			return false;
-		}
-
-		await this.backupAll(dirtyToBackup);
-
-		return true;
-	}
-
-	protected abstract getWindowCount(): Promise<number>;
-
-	private backupAll(dirtyToBackup: URI[]): Promise<void> {
-
-		// split up between files and untitled
-		const filesToBackup: ITextFileEditorModel[] = [];
-		const untitledToBackup: URI[] = [];
-		dirtyToBackup.forEach(dirty => {
-			if (this.fileService.canHandleResource(dirty)) {
-				const model = this.models.get(dirty);
-				if (model) {
-					filesToBackup.push(model);
-				}
-			} else if (dirty.scheme === Schemas.untitled) {
-				untitledToBackup.push(dirty);
-			}
-		});
-
-		return this.doBackupAll(filesToBackup, untitledToBackup);
-	}
-
-	private async doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): Promise<void> {
-
-		// Handle file resources first
-		await Promise.all(dirtyFileModels.map(model => model.backup()));
-
-		// Handle untitled resources
-		await Promise.all(untitledResources
-			.filter(untitled => this.untitledTextEditorService.exists(untitled))
-			.map(async untitled => (await this.untitledTextEditorService.createOrGet({ resource: untitled }).resolve()).backup()));
-	}
-
-	private async confirmBeforeShutdown(): Promise<boolean> {
-		const confirm = await this.fileDialogService.showSaveConfirm(this.getDirty());
-
-		// Save
-		if (confirm === ConfirmResult.SAVE) {
-			const result = await this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true });
-
-			if (result.results.some(r => r.error)) {
-				return true; // veto if some saves failed
-			}
-
-			return this.noVeto({ cleanUpBackups: true });
-		}
-
-		// Don't Save
-		else if (confirm === ConfirmResult.DONT_SAVE) {
-
-			// Make sure to revert untitled so that they do not restore
-			// see https://github.com/Microsoft/vscode/issues/29572
-			this.untitledTextEditorService.revertAll();
-
-			return this.noVeto({ cleanUpBackups: true });
-		}
-
-		// Cancel
-		else if (confirm === ConfirmResult.CANCEL) {
-			return true; // veto
-		}
-
-		return false;
-	}
-
-	private noVeto(options: { cleanUpBackups: boolean }): boolean | Promise<boolean> {
-		if (!options.cleanUpBackups) {
-			return false;
-		}
-
-		if (this.lifecycleService.phase < LifecyclePhase.Restored) {
-			return false; // if editors have not restored, we are not up to speed with backups and thus should not clean them
-		}
-
-		return this.cleanupBackupsBeforeShutdown().then(() => false, () => false);
-	}
-
-	protected async cleanupBackupsBeforeShutdown(): Promise<void> {
-		if (this.environmentService.isExtensionDevelopment) {
-			return;
-		}
-
-		await this.backupFileService.discardAllWorkspaceBackups();
-	}
-
-	//#endregion
 
 	//#region text file IO primitives (read, create, move, delete, update)
 
@@ -903,6 +713,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#endregion
 
+	//#region dirty
+
 	getDirty(resources?: URI[]): URI[] {
 
 		// Collect files
@@ -924,4 +736,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Check for dirty untitled
 		return this.untitledTextEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
 	}
+
+	//#endregion
 }

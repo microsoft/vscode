@@ -86,7 +86,6 @@ suite('BackupRestorer', () => {
 		dispose(disposables);
 		disposables = [];
 
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledTextEditorService.revertAll();
 

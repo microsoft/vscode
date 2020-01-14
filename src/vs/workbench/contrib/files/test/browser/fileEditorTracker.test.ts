@@ -79,7 +79,6 @@ suite('Files - FileEditorTracker', () => {
 		assert.equal(snapshotToString(model.createSnapshot()!), 'Hello Html');
 
 		tracker.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 	});
 
@@ -120,7 +119,6 @@ suite('Files - FileEditorTracker', () => {
 
 		part.dispose();
 		tracker.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 	});
 

@@ -170,6 +170,10 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this.updateContentChanged();
 	}
 
+	public hasBackup(): boolean {
+		return true; //TODO@matt forward to extension
+	}
+
 	public async backup(): Promise<void> {
 		//TODO@matt forward to extension
 	}

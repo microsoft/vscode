@@ -94,7 +94,6 @@ suite('Files - TextFileService i/o', () => {
 	});
 
 	teardown(async () => {
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		accessor.untitledTextEditorService.revertAll();
 
