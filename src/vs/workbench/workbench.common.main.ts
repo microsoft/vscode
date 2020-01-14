@@ -263,4 +263,7 @@ import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 // Code Actions
 import 'vs/workbench/contrib/codeActions/common/codeActions.contribution';
 
+// Editor Terminals
+import 'vs/workbench/contrib/editorTerminals/contribution';
+
 //#endregion

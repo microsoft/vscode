@@ -429,7 +429,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const wrapperElementStyle = getComputedStyle(this._wrapperElement);
 		const marginLeft = parseInt(wrapperElementStyle.marginLeft!.split('px')[0], 10);
 		const marginRight = parseInt(wrapperElementStyle.marginRight!.split('px')[0], 10);
-		const bottom = parseInt(wrapperElementStyle.bottom!.split('px')[0], 10);
+		let bottom = parseInt(wrapperElementStyle.bottom!.split('px')[0], 10);
+
+		// TODO this is a hack
+		if (isNaN(bottom)) {
+			bottom = 0;
+		}
 
 		const innerWidth = width - marginLeft - marginRight;
 		const innerHeight = height - bottom - 1;
