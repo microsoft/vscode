@@ -184,6 +184,8 @@ export interface ISynchroniser {
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 	readonly onDidChangeLocal: Event<void>;
+	pull(): Promise<void>;
+	push(): Promise<void>;
 	sync(_continue?: boolean): Promise<boolean>;
 	stop(): void;
 	hasPreviouslySynced(): Promise<boolean>

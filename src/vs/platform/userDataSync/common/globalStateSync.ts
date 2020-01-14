@@ -19,6 +19,12 @@ import { parse } from 'vs/base/common/json';
 
 const argvProperties: string[] = ['locale'];
 
+interface ISyncPreviewResult {
+	readonly local: IGlobalState | undefined;
+	readonly remote: IGlobalState | undefined;
+	readonly remoteUserData: IUserData | null;
+}
+
 export class GlobalStateSynchroniser extends Disposable implements ISynchroniser {
 
 	private static EXTERNAL_USER_DATA_GLOBAL_STATE_KEY: string = 'globalState';
@@ -53,6 +59,58 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 		}
 	}
 
+	async pull(): Promise<void> {
+		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
+			this.logService.info('UI State: Skipped pulling ui state as it is disabled.');
+			return;
+		}
+
+		this.stop();
+
+		try {
+			this.logService.info('UI State: Started pulling ui state...');
+			this.setStatus(SyncStatus.Syncing);
+
+			const remoteUserData = await this.getRemoteUserData();
+
+			if (remoteUserData.content !== null) {
+				const local: IGlobalState = JSON.parse(remoteUserData.content);
+				await this.apply({ local, remote: undefined, remoteUserData });
+			}
+
+			// No remote exists to pull
+			else {
+				this.logService.info('UI State: Remote UI state does not exist.');
+			}
+
+			this.logService.info('UI State: Finished pulling UI state.');
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+	}
+
+	async push(): Promise<void> {
+		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
+			this.logService.info('UI State: Skipped pushing UI State as it is disabled.');
+			return;
+		}
+
+		this.stop();
+
+		try {
+			this.logService.info('UI State: Started pushing UI State...');
+			this.setStatus(SyncStatus.Syncing);
+
+			const remote = await this.getLocalGlobalState();
+			await this.apply({ local: undefined, remote, remoteUserData: null });
+
+			this.logService.info('UI State: Finished pulling UI State.');
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+
+	}
+
 	async sync(): Promise<boolean> {
 		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
 			this.logService.trace('UI State: Skipping synchronizing UI state as it is disabled.');
@@ -68,9 +126,9 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 		this.setStatus(SyncStatus.Syncing);
 
 		try {
-			await this.doSync();
+			const result = await this.getPreview();
+			await this.apply(result);
 			this.logService.trace('UI State: Finised synchronizing ui state.');
-			this.setStatus(SyncStatus.Idle);
 			return true;
 		} catch (e) {
 			this.setStatus(SyncStatus.Idle);
@@ -80,6 +138,8 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 				return this.sync();
 			}
 			throw e;
+		} finally {
+			this.setStatus(SyncStatus.Idle);
 		}
 	}
 
@@ -91,21 +151,25 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 	}
 
 	async hasRemote(): Promise<boolean> {
-		const remoteUserData = await this.userDataSyncStoreService.read(GlobalStateSynchroniser.EXTERNAL_USER_DATA_GLOBAL_STATE_KEY, null);
+		const remoteUserData = await this.getRemoteUserData();
 		return remoteUserData.content !== null;
 	}
 
-	private async doSync(): Promise<void> {
+	private async getPreview(): Promise<ISyncPreviewResult> {
 		const lastSyncData = await this.getLastSyncUserData();
 		const lastSyncGlobalState = lastSyncData && lastSyncData.content ? JSON.parse(lastSyncData.content) : null;
 
-		let remoteData = await this.userDataSyncStoreService.read(GlobalStateSynchroniser.EXTERNAL_USER_DATA_GLOBAL_STATE_KEY, lastSyncData);
-		const remoteGlobalState: IGlobalState = remoteData.content ? JSON.parse(remoteData.content) : null;
+		const remoteUserData = await this.getRemoteUserData();
+		const remoteGlobalState: IGlobalState = remoteUserData.content ? JSON.parse(remoteUserData.content) : null;
 
 		const localGloablState = await this.getLocalGlobalState();
 
 		const { local, remote } = merge(localGloablState, remoteGlobalState, lastSyncGlobalState);
 
+		return { local, remote, remoteUserData };
+	}
+
+	private async apply({ local, remote, remoteUserData }: ISyncPreviewResult): Promise<void> {
 		if (local) {
 			// update local
 			this.logService.info('UI State: Updating local ui state...');
@@ -115,15 +179,13 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 		if (remote) {
 			// update remote
 			this.logService.info('UI State: Updating remote ui state...');
-			remoteData = await this.writeToRemote(remote, remoteData.ref);
+			remoteUserData = await this.writeToRemote(remote, remoteUserData ? remoteUserData.ref : null);
 		}
 
-		if (remoteData.content
-			&& (!lastSyncData || lastSyncData.ref !== remoteData.ref)
-		) {
+		if (remoteUserData?.content) {
 			// update last sync
 			this.logService.info('UI State: Updating last synchronised ui state...');
-			await this.updateLastSyncValue(remoteData);
+			await this.updateLastSyncValue(remoteUserData);
 		}
 	}
 
@@ -164,6 +226,10 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 
 	private async updateLastSyncValue(remoteUserData: IUserData): Promise<void> {
 		await this.fileService.writeFile(this.lastSyncGlobalStateResource, VSBuffer.fromString(JSON.stringify(remoteUserData)));
+	}
+
+	private getRemoteUserData(lastSyncData?: IUserData | null): Promise<IUserData> {
+		return this.userDataSyncStoreService.read(GlobalStateSynchroniser.EXTERNAL_USER_DATA_GLOBAL_STATE_KEY, lastSyncData || null);
 	}
 
 	private async writeToRemote(globalState: IGlobalState, ref: string | null): Promise<IUserData> {

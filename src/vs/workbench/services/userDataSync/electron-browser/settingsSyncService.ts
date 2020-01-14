@@ -45,6 +45,14 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		});
 	}
 
+	pull(): Promise<void> {
+		return this.channel.call('pull');
+	}
+
+	push(): Promise<void> {
+		return this.channel.call('push');
+	}
+
 	sync(_continue?: boolean): Promise<boolean> {
 		return this.channel.call('sync', [_continue]);
 	}

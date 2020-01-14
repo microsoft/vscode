@@ -56,6 +56,38 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.onDidChangeLocal = Event.any(...this.synchronisers.map(s => s.onDidChangeLocal));
 	}
 
+	async pull(): Promise<void> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			try {
+				await synchroniser.pull();
+			} catch (e) {
+				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+			}
+		}
+	}
+
+	async push(): Promise<void> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			try {
+				await synchroniser.push();
+			} catch (e) {
+				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+			}
+		}
+	}
+
 	async sync(_continue?: boolean): Promise<boolean> {
 		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
