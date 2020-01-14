@@ -70,6 +70,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostTheming } from 'vs/workbench/api/common/extHostTheming';
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -130,6 +131,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHostLabelService, new ExtHostLabelService(rpcProtocol));
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
+	const extHostAuthentication = rpcProtocol.set(ExtHostContext.ExtHostAuthentication, new ExtHostAuthentication(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -177,6 +179,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			};
 		})();
 
+		const authentication: typeof vscode.authentication = {
+			registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {
+				return extHostAuthentication.registerAuthenticationProvider(provider);
+			}
+		};
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
@@ -839,6 +846,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces
+			authentication,
 			commands,
 			debug,
 			env,

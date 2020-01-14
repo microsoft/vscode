@@ -1280,6 +1280,25 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
+/**
+ * @internal
+ */
+export interface Account {
+	id: string;
+	accessToken: string;
+	displayName: string;
+}
+
+/**
+ * @internal
+ */
+export interface AuthenticationProvider {
+	getAccount(): Promise<Account | undefined>;
+	onDidChangeAccount: Event<Account>;
+	login(): Promise<Account>;
+	logout(accountId: string): Promise<void>;
+}
+
 
 export interface Command {
 	id: string;
