@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,8 +20,10 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static readonly SELECTION_LENGTH_LIMIT = 65536;
@@ -81,30 +84,6 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 				setSelectionToClipboard.schedule();
 			}));
-
-			this._register(editor.onKeyDown((e: IKeyboardEvent) => {
-				if (!isEnabled) {
-					return;
-				}
-
-				if (!editor.hasModel()) {
-					return;
-				}
-
-				if (e.equals(KeyMod.Shift | KeyCode.Insert)) {
-					// prevent paste from 'clipboard' clipboard
-					e.preventDefault();
-
-					// trigger paste from 'primary' clipboard
-					clipboardService.readText('selection').then(text => {
-						editor.focus();
-						editor.trigger('keyboard', Handler.Paste, {
-							text: text,
-							pasteOnNewLine: false
-						});
-					});
-				}
-			}));
 		}
 	}
 
@@ -133,5 +112,39 @@ class SelectionClipboardPastePreventer implements IWorkbenchContribution {
 	}
 }
 
+class PasteSelectionClipboardAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.selectionClipboardPaste',
+			label: nls.localize('actions.pasteSelectionClipboard', "Paste Selection Clipboard"),
+			alias: 'Paste Selection Clipboard',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: ContextKeyExpr.and(
+					EditorContextKeys.editorTextFocus,
+					ContextKeyExpr.has('config.editor.selectionClipboard')
+				),
+				primary: KeyMod.Shift | KeyCode.Insert,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+
+		// read selection clipboard
+		const text = await clipboardService.readText('selection');
+
+		editor.trigger('keyboard', Handler.Paste, {
+			text: text,
+			pasteOnNewLine: false,
+			multicursorText: null
+		});
+	}
+}
+
 registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
+registerEditorAction(PasteSelectionClipboardAction);
