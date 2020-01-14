@@ -200,6 +200,15 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 	result = result.replace(/export default /g, 'export ');
 	result = result.replace(/export declare /g, 'export ');
 	result = result.replace(/declare /g, '');
+	let lines = result.split(/\r\n|\r|\n/);
+	for (let i = 0; i < lines.length; i++) {
+		if (/\s*\*/.test(lines[i])) {
+			// very likely a comment
+			continue;
+		}
+		lines[i] = lines[i].replace(/"/g, '\'');
+	}
+	result = lines.join('\n');
 
 	if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
 		result = result.replace(/const enum/, 'enum');
