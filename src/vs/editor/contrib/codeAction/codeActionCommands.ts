@@ -29,7 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerType } from './types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -97,7 +97,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 						await this._applyCodeAction(action);
 					} finally {
 						if (retrigger) {
-							this._trigger({ type: 'auto', filter: {} });
+							this._trigger({ type: CodeActionTriggerType.Auto, filter: {} });
 						}
 					}
 				}
@@ -124,7 +124,7 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		MessageController.get(this._editor).closeMessage();
 		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: 'manual', filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
+		this._trigger({ type: CodeActionTriggerType.Manual, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
@@ -176,7 +176,6 @@ export async function applyCodeAction(
 				typeof message === 'string'
 					? message
 					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
-
 		}
 	}
 }

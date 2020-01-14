@@ -16,7 +16,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { CodeActionsState } from './codeActionModel';
 import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
 import { LightBulbWidget } from './lightBulbWidget';
-import { CodeActionAutoApply, CodeActionTrigger } from './types';
+import { CodeActionAutoApply, CodeActionTrigger, CodeActionTriggerType } from './types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class CodeActionUi extends Disposable {
@@ -67,7 +67,7 @@ export class CodeActionUi extends Disposable {
 
 		this._lightBulbWidget.getValue().update(actions, newState.position);
 
-		if (newState.trigger.type === 'manual') {
+		if (newState.trigger.type === CodeActionTriggerType.Manual) {
 			if (newState.trigger.filter?.include) { // Triggered for specific scope
 				// Check to see if we want to auto apply.
 
