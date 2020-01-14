@@ -185,10 +185,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const viewContainer = this.getViewContainer(panel.id);
 			if (viewContainer?.hideIfEmpty) {
 				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				if (viewDescriptors) {
-					this.onDidChangeActiveViews(panel, viewDescriptors);
-					this.panelDisposables.set(panel.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors)));
-				}
+				this.onDidChangeActiveViews(panel, viewDescriptors);
+				this.panelDisposables.set(panel.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors)));
 			}
 		}
 	}
@@ -296,7 +294,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
 				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				if (viewDescriptors?.activeViewDescriptors.length === 0) {
+				if (viewDescriptors.activeViewDescriptors.length === 0) {
 					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
 				}
 			}

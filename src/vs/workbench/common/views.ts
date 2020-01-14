@@ -202,6 +202,7 @@ export interface IViewDescriptor {
 }
 
 export interface IViewDescriptorCollection extends IDisposable {
+	readonly onDidChangeViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly activeViewDescriptors: IViewDescriptor[];
 	readonly allViewDescriptors: IViewDescriptor[];
@@ -360,17 +361,11 @@ export interface IViewDescriptorService {
 
 	_serviceBrand: undefined;
 
-	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
-
-	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
-
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
 
 	moveViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	getViews(container: ViewContainer): IViewDescriptor[];
-
-	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection | null;
+	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 
 	getViewContainer(viewId: string): ViewContainer | null;
 }

@@ -190,7 +190,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			const viewContainer = this.getViewContainer(viewletDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
 				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				if (viewDescriptors?.activeViewDescriptors.length === 0) {
+				if (viewDescriptors.activeViewDescriptors.length === 0) {
 					this.hideComposite(viewletDescriptor.id); // Update the composite bar by hiding
 				}
 			}
@@ -411,10 +411,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			const viewContainer = this.getViewContainer(viewlet.id);
 			if (viewContainer?.hideIfEmpty) {
 				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				if (viewDescriptors) {
-					this.onDidChangeActiveViews(viewlet, viewDescriptors);
-					this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors)));
-				}
+				this.onDidChangeActiveViews(viewlet, viewDescriptors);
+				this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors)));
 			}
 		}
 	}
@@ -552,10 +550,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				const views: { when: string | undefined }[] = [];
 				if (viewContainer) {
 					const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-					if (viewDescriptors) {
-						for (const { when } of viewDescriptors.allViewDescriptors) {
-							views.push({ when: when ? when.serialize() : undefined });
-						}
+					for (const { when } of viewDescriptors.allViewDescriptors) {
+						views.push({ when: when ? when.serialize() : undefined });
 					}
 				}
 				state.push({ id: compositeItem.id, name: viewlet.name, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
