@@ -147,7 +147,7 @@ suite('HTML Semantic Tokens', () => {
 			/*3*/'  const f = 9;',
 			/*4*/'  class A { static readonly t = 9; static url: URL; }',
 			/*5*/'  const enum E { A = 9, B = A + 1 }',
-			/*6*/'  const x = f + A.t + A.url.origin;',
+			/*6*/'  console.log(f + A.t + A.url.origin);',
 			/*7*/'</script>',
 			/*8*/'</head>',
 			/*9*/'</html>',
@@ -156,7 +156,7 @@ suite('HTML Semantic Tokens', () => {
 			t(3, 8, 1, 'variable.declaration.readonly'),
 			t(4, 8, 1, 'class.declaration'), t(4, 28, 1, 'property.declaration.static.readonly'), t(4, 42, 3, 'property.declaration.static'), t(4, 47, 3, 'interface'),
 			t(5, 13, 1, 'enum.declaration'), t(5, 17, 1, 'property.declaration.readonly'), t(5, 24, 1, 'property.declaration.readonly'), t(5, 28, 1, 'property.readonly'),
-			t(6, 8, 1, 'variable.declaration.readonly'), t(6, 12, 1, 'variable.readonly'), t(6, 16, 1, 'class'), t(6, 18, 1, 'property.static.readonly'), t(6, 22, 1, 'class'), t(6, 24, 3, 'property.static'), t(6, 28, 6, 'property.readonly'),
+			t(6, 2, 7, 'variable'), t(6, 10, 3, 'member'), t(6, 14, 1, 'variable.readonly'), t(6, 18, 1, 'class'), t(6, 20, 1, 'property.static.readonly'), t(6, 24, 1, 'class'), t(6, 26, 3, 'property.static'), t(6, 30, 6, 'property.readonly'),
 		]);
 	});
 

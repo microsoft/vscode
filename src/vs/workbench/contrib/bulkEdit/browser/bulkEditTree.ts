@@ -20,6 +20,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import type { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import type { IAriaProvider } from 'vs/base/browser/ui/list/listView';
 
 // --- VIEW MODEL
 
@@ -118,38 +119,44 @@ export class BulkEditAccessibilityProvider implements IAccessibilityProvider<Bul
 			if (element.edit.textEdits.length > 0) {
 				if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
 					return localize(
-						'area.renameAndEdit', "Renaming {0} to {1}, also making text edits",
+						'aria.renameAndEdit', "Renaming {0} to {1}, also making text edits",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true }), this._labelService.getUriLabel(element.edit.newUri, { relative: true })
 					);
 
 				} else if (element.edit.type & BulkFileOperationType.Create) {
 					return localize(
-						'area.createAndEdit', "Creating {0}, also making text edits",
+						'aria.createAndEdit', "Creating {0}, also making text edits",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true })
 					);
 
 				} else if (element.edit.type & BulkFileOperationType.Delete) {
 					return localize(
-						'area.deleteAndEdit', "Deleting {0}, also making text edits",
+						'aria.deleteAndEdit', "Deleting {0}, also making text edits",
+						this._labelService.getUriLabel(element.edit.uri, { relative: true }),
+					);
+				} else {
+					return localize(
+						'aria.editOnly', "{0}, making text edits",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true }),
 					);
 				}
+
 			} else {
 				if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
 					return localize(
-						'area.rename', "Renaming {0} to {1}",
+						'aria.rename', "Renaming {0} to {1}",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true }), this._labelService.getUriLabel(element.edit.newUri, { relative: true })
 					);
 
 				} else if (element.edit.type & BulkFileOperationType.Create) {
 					return localize(
-						'area.create', "Creating {0}",
+						'aria.create', "Creating {0}",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true })
 					);
 
 				} else if (element.edit.type & BulkFileOperationType.Delete) {
 					return localize(
-						'area.delete', "Deleting {0}",
+						'aria.delete', "Deleting {0}",
 						this._labelService.getUriLabel(element.edit.uri, { relative: true }),
 					);
 				}
@@ -159,7 +166,7 @@ export class BulkEditAccessibilityProvider implements IAccessibilityProvider<Bul
 		if (element instanceof TextEditElement) {
 			if (element.selecting.length > 0 && element.inserting.length > 0) {
 				// edit: replace
-				return localize('aria.replace', "line {0}, replacing {1} with {0}", element.edit.edit.range.startLineNumber, element.selecting, element.inserting);
+				return localize('aria.replace', "line {0}, replacing {1} with {2}", element.edit.edit.range.startLineNumber, element.selecting, element.inserting);
 			} else if (element.selecting.length > 0 && element.inserting.length === 0) {
 				// edit: delete
 				return localize('aria.del', "line {0}, removing {1}", element.edit.edit.range.startLineNumber, element.selecting);
@@ -183,6 +190,21 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 		} else {
 			return element.parent.uri.toString() + JSON.stringify(element.edit.edit);
 		}
+	}
+}
+
+export class BulkEditAriaProvider implements IAriaProvider<BulkEditElement> {
+
+	getSetSize(_element: BulkEditElement, _index: number, listLength: number): number {
+		return listLength;
+	}
+
+	getPosInSet(_element: BulkEditElement, index: number): number {
+		return index;
+	}
+
+	getRole?(_element: BulkEditElement): string {
+		return 'checkbox';
 	}
 }
 
