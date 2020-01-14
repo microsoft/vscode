@@ -158,6 +158,8 @@ export class SearchEditor extends BaseEditor {
 				}
 			}
 		});
+
+		this._register(this.searchResultEditor.onDidChangeModel(() => this.hideHeader()));
 	}
 
 	private async runSearch(instant = false) {
@@ -225,12 +227,26 @@ export class SearchEditor extends BaseEditor {
 		(assertIsDefined(this._input) as SearchEditorInput).setConfig(config);
 
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, false);
+		const results = serializeSearchResultForEditor(searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, true);
 		const textModel = assertIsDefined(this.searchResultEditor.getModel());
 		textModel.setValue(results.text.join(lineDelimiter));
+		this.hideHeader();
 		textModel.deltaDecorations([], results.matchRanges.map(range => ({ range, options: { className: 'searchEditorFindMatch', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } })));
 
 		searchModel.dispose();
+	}
+
+	private hideHeader() {
+		const headerLines =
+			this.searchResultEditor
+				.getModel()
+				?.getValueInRange(new Range(1, 1, 6, 1))
+				.split('\n')
+				.filter(line => line.startsWith('#'))
+				.length
+			?? 0;
+
+		this.searchResultEditor.setHiddenAreas([new Range(1, 1, headerLines + 1, 1)]);
 	}
 
 	layout(dimension: DOM.Dimension) {
@@ -255,8 +271,7 @@ export class SearchEditor extends BaseEditor {
 		if (!(newInput instanceof SearchEditorInput)) { return; }
 		this.pauseSearching = true;
 		// TODO: Manage model lifecycle in SearchEditorInput
-		const model = this.modelService.getModel(newInput.getResource());
-
+		const model = this.modelService.getModel(newInput.resource);
 		this.searchResultEditor.setModel(model);
 		this.queryEditorWidget.setValue(newInput.config.query, true);
 		this.queryEditorWidget.searchInput.setCaseSensitive(newInput.config.caseSensitive);
