@@ -368,7 +368,7 @@ class HelpPanel extends ViewPane {
 		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 	}
 
 	protected renderBody(container: HTMLElement): void {

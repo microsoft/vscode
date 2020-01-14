@@ -5,13 +5,13 @@
 
 import 'vs/css!./media/views';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ContextAwareMenuEntryActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { ContextAwareMenuEntryActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeView, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeViewDescriptor, IViewsRegistry, ViewContainer, ITreeItemLabel, Extensions } from 'vs/workbench/common/views';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -54,8 +54,9 @@ export class CustomTreeViewPane extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
 		this.treeView = treeView;
 		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
@@ -81,11 +82,11 @@ export class CustomTreeViewPane extends ViewPane {
 	}
 
 	getActions(): IAction[] {
-		return [...this.treeView.getPrimaryActions()];
+		return [...super.getActions(), ...this.treeView.getPrimaryActions()];
 	}
 
 	getSecondaryActions(): IAction[] {
-		return [...this.treeView.getSecondaryActions()];
+		return [...super.getSecondaryActions(), ...this.treeView.getSecondaryActions()];
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -98,51 +99,6 @@ export class CustomTreeViewPane extends ViewPane {
 
 	private updateTreeVisibility(): void {
 		this.treeView.setVisibility(this.isBodyVisible());
-	}
-}
-
-class TitleMenus extends Disposable {
-
-	private titleActions: IAction[] = [];
-	private readonly titleActionsDisposable = this._register(new MutableDisposable());
-	private titleSecondaryActions: IAction[] = [];
-
-	private _onDidChangeTitle = this._register(new Emitter<void>());
-	readonly onDidChangeTitle: Event<void> = this._onDidChangeTitle.event;
-
-	constructor(
-		id: string,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
-	) {
-		super();
-
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
-		scopedContextKeyService.createKey('view', id);
-
-		const titleMenu = this._register(this.menuService.createMenu(MenuId.ViewTitle, scopedContextKeyService));
-		const updateActions = () => {
-			this.titleActions = [];
-			this.titleSecondaryActions = [];
-			this.titleActionsDisposable.value = createAndFillInActionBarActions(titleMenu, undefined, { primary: this.titleActions, secondary: this.titleSecondaryActions });
-			this._onDidChangeTitle.fire();
-		};
-
-		this._register(titleMenu.onDidChange(updateActions));
-		updateActions();
-
-		this._register(toDisposable(() => {
-			this.titleActions = [];
-			this.titleSecondaryActions = [];
-		}));
-	}
-
-	getTitleActions(): IAction[] {
-		return this.titleActions;
-	}
-
-	getTitleSecondaryActions(): IAction[] {
-		return this.titleSecondaryActions;
 	}
 }
 
@@ -175,7 +131,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
-	private menus: TitleMenus;
 
 	private readonly _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
@@ -211,8 +166,6 @@ export class CustomTreeView extends Disposable implements ITreeView {
 	) {
 		super();
 		this.root = new Root();
-		this.menus = this._register(instantiationService.createInstance(TitleMenus, this.id));
-		this._register(this.menus.onDidChangeTitle(() => this._onDidChangeActions.fire()));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -309,15 +262,14 @@ export class CustomTreeView extends Disposable implements ITreeView {
 
 	getPrimaryActions(): IAction[] {
 		if (this.showCollapseAllAction) {
-			const collapseAllAction = new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action codicon-collapse-all', true, () => this.tree ? new CollapseAllAction<ITreeItem, ITreeItem, FuzzyScore>(this.tree, true).run() : Promise.resolve());
-			return [...this.menus.getTitleActions(), collapseAllAction];
+			return [new Action('vs.tree.collapse', localize('collapseAll', "Collapse All"), 'monaco-tree-action codicon-collapse-all', true, () => this.tree ? new CollapseAllAction<ITreeItem, ITreeItem, FuzzyScore>(this.tree, true).run() : Promise.resolve())];
 		} else {
-			return this.menus.getTitleActions();
+			return [];
 		}
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.menus.getTitleSecondaryActions();
+		return [];
 	}
 
 	setVisibility(isVisible: boolean): void {

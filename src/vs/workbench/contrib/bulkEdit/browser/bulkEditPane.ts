@@ -10,7 +10,6 @@ import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElement
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { Action } from 'vs/base/common/actions';
 import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -42,9 +41,6 @@ export class BulkEditPane extends ViewPane {
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _message!: HTMLSpanElement;
 
-	private readonly _acceptAction = new Action('ok', localize('ok', "Apply Changes"), 'codicon-check', false, async () => this.accept());
-	private readonly _discardAction = new Action('discard', localize('discard', "Discard Changes"), 'codicon-clear-all', false, async () => this.discard());
-
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _sessionDisposables = new DisposableStore();
@@ -65,7 +61,7 @@ export class BulkEditPane extends ViewPane {
 	) {
 		super(
 			options,
-			keybindingService, contextMenuService, configurationService, contextKeyService
+			keybindingService, contextMenuService, configurationService, contextKeyService, _instaService
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
@@ -124,10 +120,6 @@ export class BulkEditPane extends ViewPane {
 		this._setState(State.Message);
 	}
 
-	getActions() {
-		return [this._acceptAction, this._discardAction];
-	}
-
 	protected layoutBody(height: number, width: number): void {
 		this._tree.layout(height, width);
 	}
@@ -151,9 +143,6 @@ export class BulkEditPane extends ViewPane {
 		this._sessionDisposables.add(input);
 
 		this._currentInput = input;
-
-		this._acceptAction.enabled = true;
-		this._discardAction.enabled = true;
 
 		return new Promise(async resolve => {
 
@@ -207,8 +196,6 @@ export class BulkEditPane extends ViewPane {
 	private _done(accept: boolean): void {
 		if (this._currentResolve) {
 			this._currentResolve(accept ? this._currentInput?.asWorkspaceEdit() : undefined);
-			this._acceptAction.enabled = false;
-			this._discardAction.enabled = false;
 			this._currentInput = undefined;
 		}
 		this._setState(State.Message);

@@ -23,6 +23,7 @@ import { equals } from 'vs/base/common/arrays';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 const $ = dom.$;
 
 export class StartView extends ViewPane {
@@ -47,9 +48,10 @@ export class StartView extends ViewPane {
 		@IDebugService private readonly debugService: IDebugService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IFileDialogService private readonly dialogService: IFileDialogService
+		@IFileDialogService private readonly dialogService: IFileDialogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 		this._register(editorService.onDidActiveEditorChange(() => this.updateView()));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(() => this.updateView()));
 	}

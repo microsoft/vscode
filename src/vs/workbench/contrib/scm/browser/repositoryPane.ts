@@ -618,7 +618,7 @@ export class RepositoryPane extends ViewPane {
 		@IMenuService protected menuService: IMenuService,
 		@IStorageService private storageService: IStorageService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);

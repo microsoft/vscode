@@ -23,6 +23,8 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { URI } from 'vs/base/common/uri';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
 	let view: ViewPane | undefined;
@@ -102,20 +104,51 @@ class BulkEditPreviewContribution {
 	}
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+// CMD: accept
+CommandsRegistry.registerCommand('refactorPreview.apply', accessor => {
+	const panelService = accessor.get(IPanelService);
+	const view = getBulkEditPane(panelService);
+	if (view) {
+		view.accept();
+	}
+});
+KeybindingsRegistry.registerKeybindingRule({
 	id: 'refactorPreview.apply',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: BulkEditPreviewContribution.ctxEnabled,
 	primary: KeyMod.Shift + KeyCode.Enter,
-	handler(accessor) {
-		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
-		if (view) {
-			view.accept();
-		}
-	}
+});
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	command: {
+		id: 'refactorPreview.apply',
+		title: { value: localize('apply', "Apply Changes"), original: 'Apply Changes' },
+		icon: { id: 'codicon/check' },
+		precondition: BulkEditPreviewContribution.ctxEnabled
+	},
+	when: ContextKeyExpr.equals('view', BulkEditPane.ID),
+	group: 'navigation'
 });
 
+// CMD: discard
+CommandsRegistry.registerCommand('refactorPreview.discard', accessor => {
+	const panelService = accessor.get(IPanelService);
+	const view = getBulkEditPane(panelService);
+	if (view) {
+		view.discard();
+	}
+});
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	command: {
+		id: 'refactorPreview.discard',
+		title: { value: localize('Discard', "Discard Changes"), original: 'Discard Changes' },
+		icon: { id: 'codicon/clear-all' },
+		precondition: BulkEditPreviewContribution.ctxEnabled
+	},
+	when: ContextKeyExpr.equals('view', BulkEditPane.ID),
+	group: 'navigation'
+});
+
+// CMD: toggle
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'refactorPreview.toggleCheckedState',
 	weight: KeybindingWeight.WorkbenchContrib,
