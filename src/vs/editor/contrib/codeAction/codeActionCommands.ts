@@ -16,21 +16,19 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId, organizeImportsCommandId, fixAllCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { codeActionCommandId, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionCommandArgs } from './types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './types';
 
 function contextKeyForSupportedActions(kind: CodeActionKind) {
 	return ContextKeyExpr.regex(
@@ -83,8 +81,6 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorProgressService progressService: IEditorProgressService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
