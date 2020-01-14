@@ -22,6 +22,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { URI } from 'vs/base/common/uri';
 
 function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
 	let view: ViewPane | undefined;
@@ -84,7 +85,15 @@ class BulkEditPreviewContribution {
 			// (3) close preview editors
 			for (let group of this._editorGroupsService.groups) {
 				for (let input of group.editors) {
-					if (input instanceof DiffEditorInput && input.modifiedInput.getResource()?.scheme === BulkEditPreviewProvider.Schema) {
+
+					let resource: URI | undefined;
+					if (input instanceof DiffEditorInput) {
+						resource = input.modifiedInput.getResource();
+					} else {
+						resource = input.getResource();
+					}
+
+					if (resource?.scheme === BulkEditPreviewProvider.Schema) {
 						group.closeEditor(input, { preserveFocus: true });
 					}
 				}

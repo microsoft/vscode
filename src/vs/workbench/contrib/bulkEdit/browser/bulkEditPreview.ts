@@ -49,15 +49,15 @@ export class BulkTextEdit extends CheckedObject {
 }
 
 export const enum BulkFileOperationType {
-	None = 0,
-	Create = 0b0001,
-	Delete = 0b0010,
-	Rename = 0b0100,
+	TextEdit = 1,
+	Create = 2,
+	Delete = 4,
+	Rename = 8,
 }
 
 export class BulkFileOperation extends CheckedObject {
 
-	type = BulkFileOperationType.None;
+	type: BulkFileOperationType = 0;
 	textEdits: BulkTextEdit[] = [];
 	originalEdits = new Map<number, ResourceTextEdit | ResourceFileEdit>();
 	newUri?: URI;
@@ -118,7 +118,7 @@ export class BulkFileOperations {
 			let type: BulkFileOperationType;
 
 			if (isResourceTextEdit(edit)) {
-				type = BulkFileOperationType.None;
+				type = BulkFileOperationType.TextEdit;
 				uri = edit.resource;
 
 			} else if (edit.newUri && edit.oldUri) {

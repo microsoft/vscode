@@ -15,7 +15,7 @@ import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistr
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider, BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkEditPreviewProvider, BulkFileOperations, BulkTextEdit, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
@@ -28,6 +28,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
+import { basename } from 'vs/base/common/resources';
 
 const enum State {
 	Data = 'data',
@@ -107,9 +108,9 @@ export class BulkEditPane extends ViewPane {
 		this._disposables.add(this._tree.onDidOpen(e => {
 			const [first] = e.elements;
 			if (first instanceof TextEditElement) {
-				this._previewTextEditElement(first);
+				this._openElementAsEditor(first.parent, first.edit);
 			} else if (first instanceof FileElement) {
-				this._previewFileElement();
+				this._openElementAsEditor(first);
 			}
 		}));
 
@@ -214,32 +215,54 @@ export class BulkEditPane extends ViewPane {
 		this._sessionDisposables.clear();
 	}
 
-	private async _previewTextEditElement(element: TextEditElement): Promise<void> {
+	private async _openElementAsEditor(fileElement: FileElement, textElement?: BulkTextEdit): Promise<void> {
 
-		let leftResource: URI;
-		try {
-			(await this._textModelService.createModelReference(element.parent.uri)).dispose();
-			leftResource = element.parent.uri;
-		} catch {
-			leftResource = BulkEditPreviewProvider.emptyPreview;
+		if (!textElement) {
+			textElement = fileElement.edit.textEdits[0];
 		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(element.parent.uri);
-
-		this._editorService.openEditor({
-			leftResource,
-			rightResource: previewUri,
-			label: localize('edt.title', "{0} (Refactor Preview)", this._labelService.getUriLabel(element.parent.uri)),
-			options: {
-				selection: element.edit.edit.range,
-				revealInCenterIfOutsideViewport: true,
-				preserveFocus: true
+		let leftResource: URI | undefined;
+		if (fileElement.edit.type & BulkFileOperationType.TextEdit) {
+			try {
+				(await this._textModelService.createModelReference(fileElement.uri)).dispose();
+				leftResource = fileElement.uri;
+			} catch {
+				leftResource = BulkEditPreviewProvider.emptyPreview;
 			}
-		});
-	}
+		}
 
-	private _previewFileElement(): void {
+		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.uri);
 
+		if (leftResource) {
+			// show diff editor
+			this._editorService.openEditor({
+				leftResource,
+				rightResource: previewUri,
+				label: localize('edt.title', "{0} (refactor preview)", basename(fileElement.uri)),
+				options: {
+					selection: textElement?.edit.range,
+					revealInCenterIfOutsideViewport: true,
+					preserveFocus: true
+				}
+			});
+		} else {
+			// show 'normal' editor
+
+			let typeLabel: string | undefined;
+			if (fileElement.edit.type & BulkFileOperationType.Rename) {
+				typeLabel = localize('rename', "rename");
+			} else if (fileElement.edit.type & BulkFileOperationType.Create) {
+				typeLabel = localize('create', "create");
+			} else if (fileElement.edit.type & BulkFileOperationType.Delete) {
+				typeLabel = localize('delete', "delete");
+			}
+
+			this._editorService.openEditor({
+				label: typeLabel && localize('edt.title2', "{0} ({1}, refactor preview)", basename(fileElement.uri), typeLabel),
+				resource: previewUri,
+				options: { preserveFocus: true }
+			});
+		}
 	}
 }
 
