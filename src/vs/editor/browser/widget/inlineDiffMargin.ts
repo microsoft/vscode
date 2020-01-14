@@ -57,7 +57,7 @@ export class InlineDiffMargin extends Disposable {
 		this._marginDomNode.style.zIndex = '10';
 
 		this._diffActions = document.createElement('div');
-		this._diffActions.className = 'lightbulb-glyph';
+		this._diffActions.className = 'codicon codicon-lightbulb lightbulb-glyph';
 		this._diffActions.style.position = 'absolute';
 		const lineHeight = editor.getOption(EditorOption.lineHeight);
 		const lineFeed = editor.getModel()!.getEOL();
