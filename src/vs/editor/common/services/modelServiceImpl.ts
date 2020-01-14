@@ -598,11 +598,12 @@ class SemanticColoringProviderStyling {
 		} else {
 			const tokenType = this._legend.tokenTypes[tokenTypeIndex];
 			const tokenModifiers: string[] = [];
-			for (let modifierIndex = 0; tokenModifierSet !== 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
-				if (tokenModifierSet & 1) {
+			let modifierSet = tokenModifierSet;
+			for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
+				if (modifierSet & 1) {
 					tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
 				}
-				tokenModifierSet = tokenModifierSet >> 1;
+				modifierSet = modifierSet >> 1;
 			}
 
 			metadata = this._themeService.getTheme().getTokenStyleMetadata(tokenType, tokenModifiers);
