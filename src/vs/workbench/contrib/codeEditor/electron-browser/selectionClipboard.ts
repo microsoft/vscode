@@ -147,4 +147,6 @@ class PasteSelectionClipboardAction extends EditorAction {
 
 registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
-registerEditorAction(PasteSelectionClipboardAction);
+if (platform.isLinux) {
+	registerEditorAction(PasteSelectionClipboardAction);
+}
