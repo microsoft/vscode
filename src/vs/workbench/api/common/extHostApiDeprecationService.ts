@@ -43,7 +43,7 @@ export class ExtHostApiDeprecationService implements IExtHostApiDeprecationServi
 		}
 
 		type DeprecationTelemetry = {
-			extensionId: string | undefined;
+			extensionId: string;
 			apiId: string;
 		};
 		type DeprecationTelemetryMeta = {
@@ -65,7 +65,7 @@ export class ExtHostApiDeprecationService implements IExtHostApiDeprecationServi
 export const NullApiDeprecationService = Object.freeze(new class implements IExtHostApiDeprecationService {
 	_serviceBrand: undefined;
 
-	public report(_apiId: string, _extension: IExtensionDescription | undefined, _warningMessage: string): void {
+	public report(_apiId: string, _extension: IExtensionDescription, _warningMessage: string): void {
 		// noop
 	}
 }());
