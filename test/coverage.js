@@ -22,7 +22,7 @@ exports.initialize = function (loaderConfig) {
 			return contents;
 		}
 		// Try to find a .map file
-		let map = null;
+		let map = undefined;
 		try {
 			map = JSON.parse(fs.readFileSync(`${source}.map`).toString());
 		} catch (err) {
@@ -35,32 +35,33 @@ exports.initialize = function (loaderConfig) {
 exports.createReport = function (isSingle) {
 	const mapStore = iLibSourceMaps.createSourceMapStore();
 	const coverageMap = iLibCoverage.createCoverageMap(global.__coverage__);
-	const transformed = mapStore.transformCoverage(coverageMap);
+	return mapStore.transformCoverage(coverageMap).then((transformed) => {
+		// Paths come out all broken
+		let newData = Object.create(null);
+		Object.keys(transformed.data).forEach((file) => {
+			const entry = transformed.data[file];
+			const fixedPath = fixPath(entry.path);
+			entry.data.path = fixedPath;
+			newData[fixedPath] = entry;
+		});
+		transformed.data = newData;
 
-	// Paths come out all broken
-	let newData = Object.create(null);
-	Object.keys(transformed.map.data).forEach((file) => {
-		const entry = transformed.map.data[file];
-		const fixedPath = fixPath(entry.path);
-		entry.data.path = fixedPath;
-		newData[fixedPath] = entry;
+		const context = iLibReport.createContext({
+			dir: path.join(__dirname, `../.build/coverage${isSingle ? '-single' : ''}`),
+			coverageMap: transformed
+		});
+		const tree = context.getTree('flat');
+
+		let reports = [];
+		if (isSingle) {
+			reports.push(iReports.create('lcovonly'));
+		} else {
+			reports.push(iReports.create('json'));
+			reports.push(iReports.create('lcov'));
+			reports.push(iReports.create('html'));
+		}
+		reports.forEach(report => tree.visit(report, context));
 	});
-	transformed.map.data = newData;
-
-	const tree = iLibReport.summarizers.flat(transformed.map);
-	const context = iLibReport.createContext({
-		dir: path.join(__dirname, `../.build/coverage${isSingle ? '-single' : ''}`)
-	});
-
-	let reports = [];
-	if (isSingle) {
-		reports.push(iReports.create('lcovonly'));
-	} else {
-		reports.push(iReports.create('json'));
-		reports.push(iReports.create('lcov'));
-		reports.push(iReports.create('html'));
-	}
-	reports.forEach(report => tree.visit(report, context));
 };
 
 function toUpperDriveLetter(str) {
