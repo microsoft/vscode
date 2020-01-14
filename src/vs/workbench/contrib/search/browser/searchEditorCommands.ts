@@ -5,7 +5,7 @@
 
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import * as network from 'vs/base/common/network';
-import { repeat, endsWith } from 'vs/base/common/strings';
+import { repeat } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
