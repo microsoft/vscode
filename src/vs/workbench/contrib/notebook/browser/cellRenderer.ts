@@ -400,6 +400,25 @@ class StatefullMarkdownCell extends Disposable {
 					}, {});
 					const model = viewCell.getTextModel();
 					this.editor.setModel(model);
+
+					let cellWidthResizeObserver = getResizesObserver(templateData.editingContainer!, {
+						width: width,
+						height: totalHeight
+					}, () => {
+						let newWidth = cellWidthResizeObserver.getWidth();
+						let height = templateData.editor!.getLayoutInfo().height;
+						this.editor!.layout(
+							{
+								width: newWidth,
+								height: height
+							}
+						);
+					});
+
+					cellWidthResizeObserver.startObserving();
+
+					// @TODO dispose?
+
 					templateData.cellContainer.innerHTML = viewCell.getHTML() || '';
 
 					model.onDidChangeContent(() => {
@@ -588,6 +607,22 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		);
 
+		let cellWidthResizeObserver = getResizesObserver(templateData.cellContainer, {
+			width: width,
+			height: totalHeight
+		}, () => {
+			let newWidth = cellWidthResizeObserver.getWidth();
+			let height = templateData.editor!.getLayoutInfo().height;
+			templateData.editor?.layout(
+				{
+					width: newWidth,
+					height: height
+				}
+			);
+		});
+
+		cellWidthResizeObserver.startObserving();
+
 		let listener = DOM.addStandardDisposableListener(templateData.menuContainer!, 'mousedown', e => {
 			let { top, height } = DOM.getDomNodePagePosition(templateData.menuContainer!);
 			e.preventDefault();
@@ -653,6 +688,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			dispose: () => {
 				listener.dispose();
 				rerenderOutput.dispose();
+				cellWidthResizeObserver.stopObserving();
+				cellWidthResizeObserver.dispose();
 			}
 		});
 
