@@ -33,6 +33,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { UserDataAutoSync } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSync';
 import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
 import { timeout } from 'vs/base/common/async';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 
 const CONTEXT_AUTH_TOKEN_STATE = new RawContextKey<string>('authTokenStatus', AuthTokenStatus.Initializing);
 const SYNC_PUSH_LIGHT_ICON_URI = URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/userDataSync/browser/media/check-light.svg`));
@@ -63,6 +65,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IOutputService private readonly outputService: IOutputService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -425,6 +428,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return null;
 	}
 
+	private showSyncLog(): Promise<void> {
+		return this.outputService.showChannel(Constants.userDataSyncLogChannelId);
+	}
+
 	private registerActions(): void {
 
 		const turnOnSyncCommandId = 'workbench.userData.actions.syncStart';
@@ -569,6 +576,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				title: localize('configure sync', "Sync: Configure")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), ContextKeyExpr.has(`config.${UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING}`)),
+		});
+
+		const showSyncLogCommandId = 'workbench.userData.actions.showSyncLog';
+		CommandsRegistry.registerCommand(showSyncLogCommandId, () => this.showSyncLog());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: showSyncLogCommandId,
+				title: localize('show sync log', "Sync: Show Sync Log")
+			},
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
 		});
 	}
 }
