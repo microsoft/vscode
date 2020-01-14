@@ -3099,6 +3099,17 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Configuration options for semantic highlighting
+	 */
+	export interface IEditorSemanticHighlightingOptions {
+		/**
+		 * Enable semantic highlighting.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+	}
+
+	/**
 	 * A description for the overview ruler position.
 	 */
 	export interface OverviewRulerPosition {

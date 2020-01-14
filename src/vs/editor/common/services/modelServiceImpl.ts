@@ -8,7 +8,7 @@ import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecyc
 import * as platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_MODEL_DEFAULTS, IEditorSemanticHighlightingOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
@@ -133,7 +133,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
 
-		this._register(new SemanticColoringFeature(this, themeService, logService));
+		this._register(new SemanticColoringFeature(this, themeService, configurationService, logService));
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -442,20 +442,57 @@ export interface ILineSequence {
 }
 
 class SemanticColoringFeature extends Disposable {
+
+	private static readonly SETTING_ID = 'editor.semanticHighlighting';
+
 	private _watchers: Record<string, ModelSemanticColoring>;
 	private _semanticStyling: SemanticStyling;
+	private _configurationService: IConfigurationService;
 
-	constructor(modelService: IModelService, themeService: IThemeService, logService: ILogService) {
+	constructor(modelService: IModelService, themeService: IThemeService, configurationService: IConfigurationService, logService: ILogService) {
 		super();
+		this._configurationService = configurationService;
 		this._watchers = Object.create(null);
 		this._semanticStyling = this._register(new SemanticStyling(themeService, logService));
-		this._register(modelService.onModelAdded((model) => {
+
+		const isSemanticColoringEnabled = (model: ITextModel) => {
+			const options = configurationService.getValue<IEditorSemanticHighlightingOptions>(SemanticColoringFeature.SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri });
+			return options && options.enabled;
+		};
+		const register = (model: ITextModel) => {
 			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, themeService, this._semanticStyling);
+		};
+		const deregister = (model: ITextModel, modelSemanticColoring: ModelSemanticColoring) => {
+			modelSemanticColoring.dispose();
+			delete this._watchers[model.uri.toString()];
+		};
+		this._register(modelService.onModelAdded((model) => {
+			if (isSemanticColoringEnabled(model)) {
+				register(model);
+			}
 		}));
 		this._register(modelService.onModelRemoved((model) => {
-			this._watchers[model.uri.toString()].dispose();
-			delete this._watchers[model.uri.toString()];
+			const curr = this._watchers[model.uri.toString()];
+			if (curr) {
+				deregister(model, curr);
+			}
 		}));
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SemanticColoringFeature.SETTING_ID)) {
+				for (let model of modelService.getModels()) {
+					const curr = this._watchers[model.uri.toString()];
+					if (isSemanticColoringEnabled(model)) {
+						if (!curr) {
+							register(model);
+						}
+					} else {
+						if (curr) {
+							deregister(model, curr);
+						}
+					}
+				}
+			}
+		});
 	}
 }
 
@@ -686,7 +723,6 @@ class ModelSemanticColoring extends Disposable {
 	}
 
 	public dispose(): void {
-		this._isDisposed = true;
 		if (this._currentResponse) {
 			this._currentResponse.dispose();
 			this._currentResponse = null;
@@ -695,6 +731,9 @@ class ModelSemanticColoring extends Disposable {
 			this._currentRequestCancellationTokenSource.cancel();
 			this._currentRequestCancellationTokenSource = null;
 		}
+		this._setSemanticTokens(null, null, null, []);
+		this._isDisposed = true;
+
 		super.dispose();
 	}
 
