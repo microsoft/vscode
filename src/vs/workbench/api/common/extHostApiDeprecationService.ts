@@ -50,7 +50,7 @@ export class ExtHostApiDeprecationService implements IExtHostApiDeprecationServi
 			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 			apiId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 		};
-		this._telemetryShape.$publicLog2<DeprecationTelemetry, DeprecationTelemetryMeta>('resolveCompletionItem/invalid', {
+		this._telemetryShape.$publicLog2<DeprecationTelemetry, DeprecationTelemetryMeta>('extHostDeprecatedApiUsage', {
 			extensionId: extension.identifier.value,
 			apiId: apiId,
 		});
