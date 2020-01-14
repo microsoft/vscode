@@ -36,6 +36,9 @@ export class CompletionItem {
 	readonly editInsertEnd: IPosition;
 	readonly editReplaceEnd: IPosition;
 
+	//
+	readonly textLabel: string;
+
 	// perf
 	readonly labelLow: string;
 	readonly sortTextLow?: string;
@@ -47,9 +50,6 @@ export class CompletionItem {
 	idx?: number;
 	word?: string;
 
-	// all details resolved, we can show them all
-	readonly isDetailsResolved: boolean;
-
 	constructor(
 		readonly position: IPosition,
 		readonly completion: modes.CompletionItem,
@@ -57,8 +57,13 @@ export class CompletionItem {
 		readonly provider: modes.CompletionItemProvider,
 		model: ITextModel
 	) {
+		this.textLabel = typeof completion.label === 'string'
+			? completion.label
+			: completion.label.label;
+
 		// ensure lower-variants (perf)
-		this.labelLow = completion.label.toLowerCase();
+		this.labelLow = this.textLabel.toLowerCase();
+
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
 
@@ -72,8 +77,6 @@ export class CompletionItem {
 			this.editInsertEnd = new Position(completion.range.insert.endLineNumber, completion.range.insert.endColumn);
 			this.editReplaceEnd = new Position(completion.range.replace.endLineNumber, completion.range.replace.endColumn);
 		}
-
-		this.isDetailsResolved = container.isDetailsResolved || typeof provider.resolveCompletionItem === 'undefined';
 
 		// create the suggestion resolver
 		const { resolveCompletionItem } = provider;
@@ -188,7 +191,7 @@ export function provideSuggestionItems(
 							}
 							// fill in default sortText when missing
 							if (!suggestion.sortText) {
-								suggestion.sortText = suggestion.label;
+								suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label;
 							}
 
 							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));

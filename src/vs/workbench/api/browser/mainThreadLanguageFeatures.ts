@@ -334,6 +334,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- suggest
 
 	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
+		const label = data[ISuggestDataDtoField.label];
+		const labelText = typeof label === 'string'
+			? label
+			: label.label;
 
 		return {
 			label: data[ISuggestDataDtoField.label],
@@ -344,7 +348,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			sortText: data[ISuggestDataDtoField.sortText],
 			filterText: data[ISuggestDataDtoField.filterText],
 			preselect: data[ISuggestDataDtoField.preselect],
-			insertText: typeof data.h === 'undefined' ? data[ISuggestDataDtoField.label] : data.h,
+			insertText: typeof data.h === 'undefined' ? labelText : data.h,
 			range: data[ISuggestDataDtoField.range] || defaultRange,
 			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
@@ -367,7 +371,6 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return {
 						suggestions: result.b.map(d => MainThreadLanguageFeatures._inflateSuggestDto(result.a, d)),
 						incomplete: result.c,
-						isDetailsResolved: result.d,
 						dispose: () => typeof result.x === 'number' && this._proxy.$releaseCompletionItems(handle, result.x)
 					};
 				});

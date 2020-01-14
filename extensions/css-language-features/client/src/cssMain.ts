@@ -60,12 +60,17 @@ export function activate(context: ExtensionContext) {
 						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
 
 						if (!Array.isArray(r)) {
-							r.isDetailsResolved = true;
 							r.items.forEach(i => {
 								if (i.kind === CompletionItemKind.Color) {
-									i.detail = i.documentation?.toString();
+									i.label = {
+										label: i.label as string,
+										details: i.documentation?.toString()
+									};
 								} else {
-									i.detail = i.label;
+									i.label = {
+										label: i.label as string,
+										details: i.label as string
+									};
 								}
 							});
 						}

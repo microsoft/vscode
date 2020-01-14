@@ -989,7 +989,7 @@ export const enum ISuggestDataDtoField {
 }
 
 export interface ISuggestDataDto {
-	[ISuggestDataDtoField.label]: string;
+	[ISuggestDataDtoField.label]: string | modes.CompletionItemLabel;
 	[ISuggestDataDtoField.kind]: modes.CompletionItemKind;
 	[ISuggestDataDtoField.detail]?: string;
 	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
@@ -1012,7 +1012,6 @@ export interface ISuggestResultDto {
 	a: { insert: IRange, replace: IRange; };
 	b: ISuggestDataDto[];
 	c?: boolean;
-	d?: boolean;
 }
 
 export interface ISignatureHelpDto {

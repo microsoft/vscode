@@ -67,8 +67,12 @@ export const editorSuggestWidgetHighlightForeground = registerColor('editorSugge
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 function extractColor(item: CompletionItem, out: string[]): boolean {
-	if (item.completion.label.match(colorRegExp)) {
-		out[0] = item.completion.label;
+	const label = typeof item.completion.label === 'string'
+		? item.completion.label
+		: item.completion.label.label;
+
+	if (label.match(colorRegExp)) {
+		out[0] = label;
 		return true;
 	}
 	if (typeof item.completion.documentation === 'string' && item.completion.documentation.match(colorRegExp)) {
@@ -163,6 +167,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 	renderElement(element: CompletionItem, _index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).completion;
+		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label;
 
 		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
@@ -183,7 +188,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			const labelClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FILE);
+			const labelClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: textLabel }), FileKind.FILE);
 			const detailClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FILE);
 			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
 
@@ -192,7 +197,7 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
 			labelOptions.extraClasses = flatten([
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.label }), FileKind.FOLDER),
+				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: textLabel }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: suggestion.detail }), FileKind.FOLDER)
 			]);
 		} else {
@@ -207,8 +212,12 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 			labelOptions.matches = [];
 		}
 
-		data.iconLabel.setLabel(suggestion.label, undefined, labelOptions);
-		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
+		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
+		if (typeof suggestion.label === 'string') {
+			data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
+		} else {
+			data.typeLabel.textContent = (suggestion.label.details || '').replace(/\n.*$/m, '');
+		}
 
 		if (canExpandCompletionItem(element)) {
 			show(data.readMore);
@@ -621,10 +630,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private _getSuggestionAriaAlertLabel(item: CompletionItem): string {
+		const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.label;
 		if (this.expandDocsSettingFromStorage()) {
-			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", item.completion.label, this.details.getAriaLabel());
+			return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", textLabel, this.details.getAriaLabel());
 		} else {
-			return item.completion.label;
+			return textLabel;
 		}
 	}
 

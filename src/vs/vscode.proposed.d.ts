@@ -1509,8 +1509,26 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/39441
 
-	export interface CompletionList {
-		isDetailsResolved?: boolean;
+	export interface CompletionItemLabel {
+
+		/**
+		 * The label of this completion item. By default
+		 * this is also the text that is inserted when selecting
+		 * this completion.
+		 */
+		label: string;
+
+		/**
+		 * A description of the completion item which is rendered
+		 * less prominent.
+		 */
+		// description?: string;
+
+		/**
+		 * Details of the completion item that is rendered less
+		 * prominent to the right.
+		 */
+		details?: string;
 	}
 
 	//#endregion

@@ -48,7 +48,10 @@ export abstract class WordDistance {
 				if (suggestion.kind === CompletionItemKind.Keyword) {
 					return 2 << 20;
 				}
-				let word = suggestion.label;
+				let word = typeof suggestion.label === 'string'
+					? suggestion.label
+					: suggestion.label.label;
+
 				let wordLines = wordRanges[word];
 				if (isFalsyOrEmpty(wordLines)) {
 					return 2 << 20;

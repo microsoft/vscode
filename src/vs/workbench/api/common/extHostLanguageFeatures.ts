@@ -787,8 +787,7 @@ class SuggestAdapter {
 				x: pid,
 				b: [],
 				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				c: list.isIncomplete || undefined,
-				d: list.isDetailsResolved || undefined
+				c: list.isIncomplete || undefined
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -858,7 +857,11 @@ class SuggestAdapter {
 	}
 
 	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, id: extHostProtocol.ChainedCacheId): extHostProtocol.ISuggestDataDto | undefined {
-		if (typeof item.label !== 'string' || item.label.length === 0) {
+		const label = typeof item.label === 'string'
+			? item.label
+			: item.label.label;
+
+		if (typeof label !== 'string' || label.length === 0) {
 			this._logService.warn('INVALID text edit -> must have at least a label');
 			return undefined;
 		}

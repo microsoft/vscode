@@ -4744,6 +4744,24 @@ declare namespace monaco.languages {
 		Snippet = 25
 	}
 
+	export interface CompletionItemLabel {
+		/**
+		 * The label of this completion item. By default
+		 * this is also the text that is inserted when selecting
+		 * this completion.
+		 */
+		label: string;
+		/**
+		 * A description of the completion item which is rendered
+		 * less prominent.
+		 */
+		/**
+		 * Details of the completion item that is rendered less
+		 * prominent to the right.
+		 */
+		details?: string;
+	}
+
 	export enum CompletionItemTag {
 		Deprecated = 1
 	}
@@ -4770,7 +4788,7 @@ declare namespace monaco.languages {
 		 * this is also the text that is inserted when selecting
 		 * this completion.
 		 */
-		label: string;
+		label: string | CompletionItemLabel;
 		/**
 		 * The kind of this completion item. Based on the kind
 		 * an icon is chosen by the editor.
@@ -4853,7 +4871,6 @@ declare namespace monaco.languages {
 	export interface CompletionList {
 		suggestions: CompletionItem[];
 		incomplete?: boolean;
-		isDetailsResolved?: boolean;
 		dispose?(): void;
 	}
 

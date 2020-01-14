@@ -1351,10 +1351,17 @@ export enum CompletionItemTag {
 	Deprecated = 1,
 }
 
+export interface CompletionItemLabel {
+	label: string;
+	// description?: string;
+	details?: string;
+}
+
+
 @es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
 
-	label: string;
+	label: string | CompletionItemLabel;
 	kind?: CompletionItemKind;
 	tags?: CompletionItemTag[];
 	detail?: string;
@@ -1371,7 +1378,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	additionalTextEdits?: TextEdit[];
 	command?: vscode.Command;
 
-	constructor(label: string, kind?: CompletionItemKind) {
+	constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind) {
 		this.label = label;
 		this.kind = kind;
 	}
@@ -1395,7 +1402,6 @@ export class CompletionItem implements vscode.CompletionItem {
 export class CompletionList {
 
 	isIncomplete?: boolean;
-	isDetailsResolved?: boolean;
 	items: vscode.CompletionItem[];
 
 	constructor(items: vscode.CompletionItem[] = [], isIncomplete: boolean = false) {

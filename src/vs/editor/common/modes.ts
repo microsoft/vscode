@@ -369,6 +369,28 @@ export let completionKindFromString: {
 	};
 })();
 
+export interface CompletionItemLabel {
+
+	/**
+	 * The label of this completion item. By default
+	 * this is also the text that is inserted when selecting
+	 * this completion.
+	 */
+	label: string;
+
+	/**
+	 * A description of the completion item which is rendered
+	 * less prominent.
+	 */
+	// description?: string;
+
+	/**
+	 * Details of the completion item that is rendered less
+	 * prominent to the right.
+	 */
+	details?: string;
+}
+
 export const enum CompletionItemTag {
 	Deprecated = 1
 }
@@ -396,7 +418,7 @@ export interface CompletionItem {
 	 * this is also the text that is inserted when selecting
 	 * this completion.
 	 */
-	label: string;
+	label: string | CompletionItemLabel;
 	/**
 	 * The kind of this completion item. Based on the kind
 	 * an icon is chosen by the editor.
@@ -481,7 +503,6 @@ export interface CompletionItem {
 export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
-	isDetailsResolved?: boolean;
 	dispose?(): void;
 }
 
