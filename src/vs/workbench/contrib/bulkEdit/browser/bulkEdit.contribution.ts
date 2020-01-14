@@ -25,6 +25,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { IEditorInput } from 'vs/workbench/common/editor';
 
 function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
 	let view: ViewPane | undefined;
@@ -86,6 +87,7 @@ class BulkEditPreviewContribution {
 
 			// (3) close preview editors
 			for (let group of this._editorGroupsService.groups) {
+				let previewEditors: IEditorInput[] = [];
 				for (let input of group.editors) {
 
 					let resource: URI | undefined;
@@ -96,8 +98,12 @@ class BulkEditPreviewContribution {
 					}
 
 					if (resource?.scheme === BulkEditPreviewProvider.Schema) {
-						group.closeEditor(input, { preserveFocus: true });
+						previewEditors.push(input);
 					}
+				}
+
+				if (previewEditors.length) {
+					group.closeEditors(previewEditors, { preserveFocus: true });
 				}
 			}
 		}
