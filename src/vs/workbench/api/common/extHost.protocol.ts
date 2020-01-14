@@ -147,6 +147,12 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
 
+export interface MainThreadAuthenticationShape extends IDisposable {
+	$registerAuthenticationProvider(handle: number, id: string): void;
+	$unregisterAuthenticationProvider(handle: number): void;
+	$onDidChangeAccounts(handle: number, accounts: ReadonlyArray<modes.Account>): void;
+}
+
 export interface MainThreadConfigurationShape extends IDisposable {
 	$updateConfigurationOption(target: ConfigurationTarget | null, key: string, value: any, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
 	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
@@ -891,6 +897,13 @@ export interface ExtHostLabelServiceShape {
 	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable;
 }
 
+export interface ExtHostAuthenticationShape {
+	$accounts(handle: number): Promise<ReadonlyArray<modes.Account>>;
+	$login(handle: number): Promise<modes.Account>;
+	$logout(handle: number, accountId: string): Promise<void>;
+	// TODO rmacfarlane
+}
+
 export interface ExtHostSearchShape {
 	$provideFileSearchResults(handle: number, session: number, query: search.IRawQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
@@ -1412,6 +1425,7 @@ export interface ExtHostTunnelServiceShape {
 // --- proxy identifiers
 
 export const MainContext = {
+	MainThreadAuthentication: createMainId<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadClipboard: createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
@@ -1487,5 +1501,6 @@ export const ExtHostContext = {
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHostLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
-	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService')
+	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
+	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication')
 };

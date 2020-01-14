@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncStore, getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncStoreErrorCode, UserDataSyncStoreError, IUserDataSyncStore, getUserDataSyncStore, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess } from 'vs/platform/request/common/request';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
-import { IAuthTokenService } from 'vs/platform/auth/common/auth';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
@@ -22,7 +21,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
+		@IUserDataAuthTokenService private readonly authTokenService: IUserDataAuthTokenService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -98,7 +97,6 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		const context = await this.requestService.request(options, token);
 
 		if (context.res.statusCode === 401) {
-			this.authTokenService.refreshToken();
 			// Throw Unauthorized Error
 			throw new UserDataSyncStoreError('Unauthorized', UserDataSyncStoreErrorCode.Unauthroized);
 		}

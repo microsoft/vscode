@@ -16,7 +16,28 @@
 
 declare module 'vscode' {
 
-	//#region Alex - resolvers, AlexR - ports
+	export interface Account {
+		readonly id: string;
+		readonly accessToken: string;
+		readonly displayName: string;
+	}
+
+	export interface AuthenticationProvider {
+		readonly id: string;
+		readonly displayName: string;
+
+		readonly accounts: ReadonlyArray<Account>;
+		readonly onDidChangeAccounts: Event<ReadonlyArray<Account>>;
+
+		login(): Promise<Account>;
+		logout(accountId: string): Promise<void>;
+	}
+
+	export namespace authentication {
+		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
+	}
+
+	//#region Alex - resolvers
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;

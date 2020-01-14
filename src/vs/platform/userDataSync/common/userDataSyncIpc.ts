@@ -5,7 +5,7 @@
 
 import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
@@ -62,6 +62,25 @@ export class SettingsSyncChannel implements IServerChannel {
 			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
 			case 'hasRemote': return this.service.hasRemote();
 			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
+		}
+		throw new Error('Invalid call');
+	}
+}
+
+export class UserDataAuthTokenServiceChannel implements IServerChannel {
+	constructor(private readonly service: IUserDataAuthTokenService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeToken': return this.service.onDidChangeToken;
+		}
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'setToken': return this.service.setToken(args);
+			case 'getToken': return this.service.getToken();
 		}
 		throw new Error('Invalid call');
 	}
