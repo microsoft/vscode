@@ -9,7 +9,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
@@ -47,7 +47,7 @@ export const enum Type {
 	ForceRemove = 2
 }
 
-export class LineCommentCommand implements editorCommon.ICommand {
+export class LineCommentCommand implements ICommand {
 
 	private readonly _selection: Selection;
 	private _selectionId: string | null;
@@ -187,7 +187,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given a successful analysis, execute either insert line comments, either remove line comments
 	 */
-	private _executeLineComments(model: ISimpleModel, builder: editorCommon.IEditOperationBuilder, data: IPreflightDataSupported, s: Selection): void {
+	private _executeLineComments(model: ISimpleModel, builder: IEditOperationBuilder, data: IPreflightDataSupported, s: Selection): void {
 
 		let ops: IIdentifiedSingleEditOperation[];
 
@@ -266,7 +266,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
-	private _executeBlockComment(model: ITextModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
+	private _executeBlockComment(model: ITextModel, builder: IEditOperationBuilder, s: Selection): void {
 		model.tokenizeIfCheap(s.startLineNumber);
 		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
@@ -307,7 +307,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 
 		let s = this._selection;
 		this._moveEndPositionDown = false;
@@ -325,7 +325,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		return this._executeBlockComment(model, builder, s);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let result = helper.getTrackedSelection(this._selectionId!);
 
 		if (this._moveEndPositionDown) {

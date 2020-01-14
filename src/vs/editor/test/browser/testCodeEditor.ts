@@ -9,7 +9,7 @@ import { View } from 'vs/editor/browser/view/viewImpl';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
@@ -29,7 +29,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.ICodeEditor {
 
 	//#region testing overrides
-	protected _createConfiguration(options: editorOptions.IEditorConstructionOptions): editorCommon.IConfiguration {
+	protected _createConfiguration(options: editorOptions.IEditorConstructionOptions): IConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected _createView(viewModel: ViewModel, cursor: Cursor): [View, boolean] {
@@ -42,7 +42,7 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	public getCursor(): Cursor | undefined {
 		return this._modelData ? this._modelData.cursor : undefined;
 	}
-	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(id: string, ctor: any): T {
+	public registerAndInstantiateContribution<T extends IEditorContribution>(id: string, ctor: any): T {
 		let r = <T>this._instantiationService.createInstance(ctor, this);
 		this._contributions[id] = r;
 		return r;

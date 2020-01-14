@@ -9,7 +9,7 @@ import { toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { CodeLensProviderRegistry, CodeLens } from 'vs/editor/common/modes';
 import { CodeLensModel, getCodeLensData, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
@@ -21,7 +21,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { hash } from 'vs/base/common/hash';
 
-export class CodeLensContribution implements editorCommon.IEditorContribution {
+export class CodeLensContribution implements IEditorContribution {
 
 	public static readonly ID: string = 'css.editor.codeLens';
 
