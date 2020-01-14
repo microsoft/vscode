@@ -16,8 +16,6 @@ export function register(selector: vscode.DocumentSelector, client: ITypeScriptS
 		const provider = new SemanticTokensProvider(client);
 		return vscode.languages.registerSemanticTokensProvider(selector, provider, provider.getLegend());
 	});
-	const provider = new SemanticTokensProvider(client);
-	return vscode.languages.registerSemanticTokensProvider(selector, provider, provider.getLegend());
 }
 
 /**
@@ -32,12 +30,12 @@ class SemanticTokensProvider implements vscode.SemanticTokensProvider {
 
 	getLegend(): vscode.SemanticTokensLegend {
 		const tokenTypes = [];
-		for (let i = 0; i < TokenType._sentinel; i++) {
-			tokenTypes.push(TokenType[i]);
+		for (let i = 0; i < VSCodeShPlugin.TokenType._sentinel; i++) {
+			tokenTypes.push(VSCodeShPlugin.TokenType[i]);
 		}
 		const tokenModifiers = [];
-		for (let i = 0; i < TokenModifier._sentinel; i++) {
-			tokenModifiers.push(TokenModifier[i]);
+		for (let i = 0; i < VSCodeShPlugin.TokenModifier._sentinel; i++) {
+			tokenModifiers.push(VSCodeShPlugin.TokenModifier[i]);
 		}
 		return new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
 	}
@@ -76,24 +74,24 @@ class SemanticTokensProvider implements vscode.SemanticTokensProvider {
 
 		const builder = new vscode.SemanticTokensBuilder();
 		for (const tokenSpan of allTokenSpans) {
-			for (let i = 0, len = Math.floor(tokenSpan.length / 3); i < len; i++) {
+			let i = 0;
+			while (i < tokenSpan.length) {
+				const offset = tokenSpan[i++];
+				const length = tokenSpan[i++];
+				const tsClassification = tokenSpan[i++];
 
-				const tsClassification = tokenSpan[3 * i + 2];
-				let tokenType = 0;
 				let tokenModifiers = 0;
-				if (tsClassification >= 0x100) {
-					// exendend classifications as returned by the typescript-vscode-sh-plugin
-					tokenType = (tsClassification >> 8) - 1;
-					tokenModifiers = tsClassification & 0xFF;
+				let tokenType = VSCodeShPlugin.getTokenTypeFromClassification(tsClassification);
+				if (tokenType !== undefined) {
+					// it's a classification as returned by the typescript-vscode-sh-plugin
+					tokenModifiers = VSCodeShPlugin.getTokenModifierFromClassification(tsClassification);
 				} else {
+					// typescript-vscode-sh-plugin is not present
 					tokenType = tokenTypeMap[tsClassification];
 					if (tokenType === undefined) {
 						continue;
 					}
 				}
-
-				const offset = tokenSpan[3 * i];
-				const length = tokenSpan[3 * i + 1];
 
 				// we can use the document's range conversion methods because the result is at the same version as the document
 				const startPos = document.positionAt(offset);
@@ -110,41 +108,61 @@ class SemanticTokensProvider implements vscode.SemanticTokensProvider {
 	}
 }
 
-// Don't change TokenType and TokenModifier enums without adopting typescript-vscode-sh-plugin
-enum TokenType {
-	'class',
-	'enum',
-	'interface',
-	'namespace',
-	'typeParameter',
-	'type',
-	'parameter',
-	'variable',
-	'property',
-	'constant',
-	'function',
-	'member',
-	_sentinel
-}
+namespace VSCodeShPlugin {
 
-enum TokenModifier {
-	'declaration',
-	'static',
-	'async',
-	'readonly',
-	_sentinel
+	// typescript-vscode-sh-plugin encodes type and modifiers in the classification:
+	// TSClassification = (TokenType + 1) << 8 + TokenModifier
+
+	const TokenTypeOffset = 8;
+	const TokenModifierMask = (1 << TokenTypeOffset) - 1; // 0xFF
+
+	export function getTokenTypeFromClassification(tsClassification: number): number | undefined {
+		if (tsClassification > TokenModifierMask) {
+			return (tsClassification >> TokenTypeOffset) - 1;
+		}
+		return undefined;
+	}
+
+	export function getTokenModifierFromClassification(tsClassification: number) {
+		return tsClassification & TokenModifierMask;
+	}
+
+	// Don't change TokenType and TokenModifier enums without adopting typescript-vscode-sh-plugin
+	export enum TokenType {
+		'class',
+		'enum',
+		'interface',
+		'namespace',
+		'typeParameter',
+		'type',
+		'parameter',
+		'variable',
+		'property',
+		'constant',
+		'function',
+		'member',
+		_sentinel
+	}
+
+	export enum TokenModifier {
+		'declaration',
+		'static',
+		'async',
+		'readonly',
+		_sentinel
+	}
 }
 
 // mapping for the original ExperimentalProtocol.ClassificationType from TypeScript (only used when plugin is not available)
 
 const tokenTypeMap: number[] = [];
-tokenTypeMap[ExperimentalProtocol.ClassificationType.className] = TokenType.class;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.enumName] = TokenType.enum;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.interfaceName] = TokenType.interface;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.moduleName] = TokenType.namespace;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.typeParameterName] = TokenType.typeParameter;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.typeAliasName] = TokenType.type;
-tokenTypeMap[ExperimentalProtocol.ClassificationType.parameterName] = TokenType.parameter;
+tokenTypeMap[ExperimentalProtocol.ClassificationType.className] = VSCodeShPlugin.TokenType.class;
+tokenTypeMap[ExperimentalProtocol.ClassificationType.enumName] = VSCodeShPlugin.TokenType.enum;
+tokenTypeMap[ExperimentalProtocol.ClassificationType.interfaceName] = VSCodeShPlugin.TokenType.interface;
+tokenTypeMap[ExperimentalProtocol.ClassificationType.moduleName] = VSCodeShPlugin.TokenType.namespace;
+tokenTypeMap[ExperimentalProtocol.ClassificationType.typeParameterName] = VSCodeShPlugin.TokenType.typeParameter;
+tokenTypeMap[ExperimentalProtocol.ClassificationType.typeAliasName] = VSCodeShPlugin.TokenType.type;
+tokenTypeMap[ExperimentalProtocol.ClassificationType.parameterName] = VSCodeShPlugin.TokenType.parameter;
 
 namespace ExperimentalProtocol {
 
