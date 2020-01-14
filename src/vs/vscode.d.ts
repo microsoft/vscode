@@ -1583,12 +1583,12 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in the same line.
 		 */
 		description?: string;
 
 		/**
-		 * A human-readable string which is rendered less prominent.
+		 * A human-readable string which is rendered less prominent in a separate line.
 		 */
 		detail?: string;
 
