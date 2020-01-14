@@ -54,7 +54,7 @@
 	white-space: initial;
 }
 
-.monaco-editor .parameter-hints-widget .docs .markdown-docs p code {
+.monaco-editor .parameter-hints-widget .docs .markdown-docs code {
 	font-family: var(--monaco-monospace-font);
 }
 
@@ -89,11 +89,6 @@
 
 .monaco-editor .parameter-hints-widget .button.previous {
 	bottom: 24px;
-	background-image: url('arrow-up.svg');
-}
-
-.monaco-editor .parameter-hints-widget .button.next {
-	background-image: url('arrow-down.svg');
 }
 
 .monaco-editor .parameter-hints-widget .overloads {
@@ -112,16 +107,4 @@
 .monaco-editor .parameter-hints-widget .documentation-parameter > .parameter {
 	font-weight: bold;
 	margin-right: 0.5em;
-}
-
-/*** VS Dark & High Contrast*/
-
-.monaco-editor.hc-black .parameter-hints-widget .button.previous,
-.monaco-editor.vs-dark .parameter-hints-widget .button.previous {
-	background-image: url('arrow-up-dark.svg');
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .button.next,
-.monaco-editor.vs-dark .parameter-hints-widget .button.next {
-	background-image: url('arrow-down-dark.svg');
 }

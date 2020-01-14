@@ -263,20 +263,20 @@ export interface IEditorOptions {
 	 */
 	wrappingIndent?: 'none' | 'same' | 'indent' | 'deepIndent';
 	/**
+	 * Controls the wrapping algorithm to use.
+	 * Defaults to 'monospace'.
+	 */
+	wrappingAlgorithm?: 'monospace' | 'dom';
+	/**
 	 * Configure word wrapping characters. A break will be introduced before these characters.
-	 * Defaults to '{([+'.
+	 * Defaults to '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'.
 	 */
 	wordWrapBreakBeforeCharacters?: string;
 	/**
 	 * Configure word wrapping characters. A break will be introduced after these characters.
-	 * Defaults to ' \t})]?|&,;'.
+	 * Defaults to ' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣'.
 	 */
 	wordWrapBreakAfterCharacters?: string;
-	/**
-	 * Configure word wrapping characters. A break will be introduced after these characters only if no `wordWrapBreakBeforeCharacters` or `wordWrapBreakAfterCharacters` were found.
-	 * Defaults to '.'.
-	 */
-	wordWrapBreakObtrusiveCharacters?: string;
 	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000.
@@ -465,7 +465,7 @@ export interface IEditorOptions {
 	 */
 	codeActionsOnSaveTimeout?: number;
 	/**
-	 * Enable code folding
+	 * Enable code folding.
 	 * Defaults to true.
 	 */
 	folding?: boolean;
@@ -474,6 +474,11 @@ export interface IEditorOptions {
 	 * Defaults to 'auto'.
 	 */
 	foldingStrategy?: 'auto' | 'indentation';
+	/**
+	 * Enable highlight for folded regions.
+	 * Defaults to true.
+	 */
+	foldingHighlight?: boolean;
 	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
@@ -537,6 +542,11 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+	/**
+	 * Controls whether to focus the inline editor in the peek widget by default.
+	 * Defaults to false.
+	 */
+	peekWidgetFocusInlineEditor?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -656,7 +666,7 @@ export interface IEnvironmentalOptions {
 export interface IEditorOption<K1 extends EditorOption, V> {
 	readonly id: K1;
 	readonly name: string;
-	readonly defaultValue: V;
+	defaultValue: V;
 	/**
 	 * @internal
 	 */
@@ -3083,6 +3093,7 @@ export const enum EditorOption {
 	fixedOverflowWidgets,
 	folding,
 	foldingStrategy,
+	foldingHighlight,
 	fontFamily,
 	fontInfo,
 	fontLigatures,
@@ -3115,6 +3126,7 @@ export const enum EditorOption {
 	overviewRulerBorder,
 	overviewRulerLanes,
 	parameterHints,
+	peekWidgetFocusInlineEditor,
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
@@ -3148,10 +3160,10 @@ export const enum EditorOption {
 	wordWrap,
 	wordWrapBreakAfterCharacters,
 	wordWrapBreakBeforeCharacters,
-	wordWrapBreakObtrusiveCharacters,
 	wordWrapColumn,
 	wordWrapMinified,
 	wrappingIndent,
+	wrappingAlgorithm,
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName,
@@ -3350,6 +3362,10 @@ export const EditorOptions = {
 		['auto', 'indentation'] as const,
 		{ markdownDescription: nls.localize('foldingStrategy', "Controls the strategy for computing folding ranges. `auto` uses a language specific folding strategy, if available. `indentation` uses the indentation based folding strategy.") }
 	)),
+	foldingHighlight: register(new EditorBooleanOption(
+		EditorOption.foldingHighlight, 'foldingHighlight', true,
+		{ description: nls.localize('foldingHighlight', "Controls whether the editor should highlight folded ranges.") }
+	)),
 	fontFamily: register(new EditorStringOption(
 		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
 		{ description: nls.localize('fontFamily', "Controls the font family.") }
@@ -3475,6 +3491,10 @@ export const EditorOptions = {
 		3, 0, 3
 	)),
 	parameterHints: register(new EditorParameterHints()),
+	peekWidgetFocusInlineEditor: register(new EditorBooleanOption(
+		EditorOption.peekWidgetFocusInlineEditor, 'peekWidgetFocusInlineEditor', false,
+		{ description: nls.localize('peekWidgetFocusInlineEditor', "Controls whether to focus the inline editor in the peek widget by default.") }
+	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(
 		EditorOption.quickSuggestionsDelay, 'quickSuggestionsDelay',
@@ -3671,15 +3691,11 @@ export const EditorOptions = {
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(
 		EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters',
-		' \t})]?|/&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
+		' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	)),
 	wordWrapBreakBeforeCharacters: register(new EditorStringOption(
 		EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters',
 		'([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'
-	)),
-	wordWrapBreakObtrusiveCharacters: register(new EditorStringOption(
-		EditorOption.wordWrapBreakObtrusiveCharacters, 'wordWrapBreakObtrusiveCharacters',
-		'.'
 	)),
 	wordWrapColumn: register(new EditorIntOption(
 		EditorOption.wordWrapColumn, 'wordWrapColumn',
@@ -3710,6 +3726,18 @@ export const EditorOptions = {
 				nls.localize('wrappingIndent.deepIndent', "Wrapped lines get +2 indentation toward the parent."),
 			],
 			description: nls.localize('wrappingIndent', "Controls the indentation of wrapped lines."),
+		}
+	)),
+	wrappingAlgorithm: register(new EditorStringEnumOption(
+		EditorOption.wrappingAlgorithm, 'wrappingAlgorithm',
+		'monospace' as 'monospace' | 'dom',
+		['monospace', 'dom'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('wrappingAlgorithm.monospace', "Assumes that all characters are of the same width. This is a fast algorithm."),
+				nls.localize('wrappingAlgorithm.dom', "Delegates wrapping points computation to the DOM. This is a slow algorithm, that might cause freezes for large files.")
+			],
+			description: nls.localize('wrappingAlgorithm', "Controls the algorithm that computes wrapping points.")
 		}
 	)),
 

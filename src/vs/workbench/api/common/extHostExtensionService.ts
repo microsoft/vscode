@@ -20,7 +20,7 @@ import { ExtensionActivationError } from 'vs/workbench/services/extensions/commo
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -662,7 +662,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 				value: {
 					authority,
 					options,
-					tunnelInformation: { environmentTunnels: result.environmentTunnels }
+					tunnelInformation: { environmentTunnels: result.environmentTunnels, hideCandidatePorts: result.hideCandidatePorts }
 				}
 			};
 		} catch (err) {

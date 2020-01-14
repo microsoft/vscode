@@ -54,6 +54,7 @@ import { WorkbenchAsyncDataTree, TreeResourceNavigator2 } from 'vs/platform/list
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -406,13 +407,13 @@ class HelpPanel extends ViewPane {
 class HelpPanelDescriptor implements IViewDescriptor {
 	readonly id = HelpPanel.ID;
 	readonly name = HelpPanel.TITLE;
-	readonly ctorDescriptor: { ctor: any, arguments?: any[] };
+	readonly ctorDescriptor: SyncDescriptor<HelpPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
 	readonly workspace = true;
 
 	constructor(viewModel: IViewModel) {
-		this.ctorDescriptor = { ctor: HelpPanel, arguments: [viewModel] };
+		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
 	}
 }
 
@@ -521,7 +522,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 	{
 		id: VIEWLET_ID,
 		name: nls.localize('remote.explorer', "Remote Explorer"),
-		ctorDescriptor: { ctor: RemoteViewPaneContainer },
+		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
 		hideIfEmpty: true,
 		viewOrderDelegate: {
 			getOrder: (group?: string) => {

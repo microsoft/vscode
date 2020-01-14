@@ -18,7 +18,7 @@ export default class TsConfigProvider {
 			return [];
 		}
 		const configs = new Map<string, TSConfig>();
-		for (const config of await vscode.workspace.findFiles('**/tsconfig*.json', '**/node_modules/**')) {
+		for (const config of await vscode.workspace.findFiles('**/tsconfig*.json', '**/{node_modules,.*}/**')) {
 			const root = vscode.workspace.getWorkspaceFolder(config);
 			if (root) {
 				configs.set(config.fsPath, {

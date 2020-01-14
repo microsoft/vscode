@@ -166,9 +166,14 @@ export class NoTabsTitleControl extends TitleControl {
 	updateEditorDirty(editor: IEditorInput): void {
 		this.ifEditorIsActive(editor, () => {
 			const titleContainer = assertIsDefined(this.titleContainer);
-			if (editor.isDirty()) {
+
+			// Signal dirty (unless saving)
+			if (editor.isDirty() && !editor.isSaving()) {
 				addClass(titleContainer, 'dirty');
-			} else {
+			}
+
+			// Otherwise, clear dirty
+			else {
 				removeClass(titleContainer, 'dirty');
 			}
 		});
@@ -275,9 +280,9 @@ export class NoTabsTitleControl extends TitleControl {
 
 			editorLabel.setResource({ name, description, resource }, { title: typeof title === 'string' ? title : undefined, italic: !isEditorPinned, extraClasses: ['no-tabs', 'title-label'] });
 			if (isGroupActive) {
-				editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND);
+				editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND) || '';
 			} else {
-				editorLabel.element.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND);
+				editorLabel.element.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND) || '';
 			}
 
 			// Update Editor Actions Toolbar

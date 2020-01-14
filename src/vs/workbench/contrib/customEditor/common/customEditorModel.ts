@@ -39,6 +39,9 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 	protected readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 
+	protected readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
 	//#endregion
 
 	protected readonly _onUndo = this._register(new Emitter<readonly CustomEditorEdit[]>());
@@ -62,10 +65,19 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this._currentEditIndex = this._edits.length - 1;
 		this.updateDirty();
 		this._onApplyEdit.fire([edit]);
+		this.updateContentChanged();
 	}
 
 	private updateDirty() {
+		// TODO@matt this should to be more fine grained and avoid
+		// emitting events if there was no change actually
 		this._onDidChangeDirty.fire();
+	}
+
+	private updateContentChanged() {
+		// TODO@matt revisit that this method is being called correctly
+		// on each case of content change within the custom editor
+		this._onDidChangeContent.fire();
 	}
 
 	public async save(_options?: ISaveOptions): Promise<boolean> {
@@ -125,6 +137,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this._currentEditIndex = this._savePoint;
 		this._edits.splice(this._currentEditIndex + 1, this._edits.length - this._currentEditIndex);
 		this.updateDirty();
+		this.updateContentChanged();
 		return true;
 	}
 
@@ -139,6 +152,7 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this._onUndo.fire([{ data: undoneEdit }]);
 
 		this.updateDirty();
+		this.updateContentChanged();
 	}
 
 	public redo() {
@@ -153,5 +167,10 @@ export class CustomEditorModel extends Disposable implements ICustomEditorModel 
 		this._onApplyEdit.fire([{ data: redoneEdit }]);
 
 		this.updateDirty();
+		this.updateContentChanged();
+	}
+
+	public async backup(): Promise<void> {
+		//TODO@matt forward to extension
 	}
 }

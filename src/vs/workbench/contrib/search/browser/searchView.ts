@@ -64,7 +64,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/multicursor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { createEditorFromSearchResult } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Color, RGBA } from 'vs/base/common/color';
 
@@ -879,7 +879,7 @@ export class SearchView extends ViewPane {
 				}
 				this.searchWidget.setValue(selectedText, true);
 				updatedText = true;
-				this.onQueryChanged(false);
+				if (this.searchConfig.searchOnType) { this.onQueryChanged(false); }
 			}
 		}
 
@@ -1515,13 +1515,13 @@ export class SearchView extends ViewPane {
 				event.stopPropagation();
 			}
 		}));
-	}
+	};
 
 	private onOpenSettings = (e: dom.EventLike): void => {
 		dom.EventHelper.stop(e, false);
 
 		this.openSettings('.exclude');
-	}
+	};
 
 	private openSettings(query: string): Promise<IEditor | undefined> {
 		const options: ISettingsEditorOptions = { query };
@@ -1534,7 +1534,7 @@ export class SearchView extends ViewPane {
 		dom.EventHelper.stop(e, false);
 
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=853977'));
-	}
+	};
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean): void {
 		const fileCount = this.viewModel.searchResult.fileCount();
@@ -1559,7 +1559,7 @@ export class SearchView extends ViewPane {
 
 				this.messageDisposables.push(dom.addDisposableListener(openInEditorLink, dom.EventType.CLICK, (e: MouseEvent) => {
 					dom.EventHelper.stop(e, false);
-					createEditorFromSearchResult(this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.labelService, this.editorService);
+					createEditorFromSearchResult(this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.labelService, this.editorService, this.instantiationService);
 				}));
 
 			} else {

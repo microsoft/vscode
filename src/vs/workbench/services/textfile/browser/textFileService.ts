@@ -8,8 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, AsyncEmitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason, IRevertOptions } from 'vs/workbench/common/editor';
+import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModelManager, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, FileOperationWillRunEvent, FileOperationDidRunEvent, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService, FileOperationError, FileOperationResult, HotExitConfiguration, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
@@ -37,6 +37,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -76,7 +77,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super();
 
@@ -92,17 +94,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Lifecycle
 		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
-
-		// Auto save changes
-		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
-	}
-
-	private onAutoSaveConfigurationChange(): void {
-
-		// save all dirty when enabling auto save
-		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
-			this.saveAll();
-		}
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -229,7 +220,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Handle untitled resources
 		await Promise.all(untitledResources
 			.filter(untitled => this.untitledTextEditorService.exists(untitled))
-			.map(async untitled => (await this.untitledTextEditorService.loadOrCreate({ resource: untitled })).backup()));
+			.map(async untitled => (await this.untitledTextEditorService.createOrGet({ resource: untitled }).resolve()).backup()));
 	}
 
 	private async confirmBeforeShutdown(): Promise<boolean> {
@@ -491,19 +482,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	//#region save/revert
 
 	async save(resource: URI, options?: ITextFileSaveOptions): Promise<boolean> {
-
-		// Run a forced save if we detect the file is not dirty so that save participants can still run
-		if (options?.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
-			const model = this._models.get(resource);
-			if (model) {
-				options.reason = SaveReason.EXPLICIT;
-
-				await model.save(options);
-
-				return !model.isDirty();
-			}
-		}
-
 		return !(await this.saveAll([resource], options)).results.some(result => result.error);
 	}
 
@@ -511,21 +489,29 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	saveAll(resources: URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult>;
 	saveAll(arg1?: boolean | URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult> {
 
-		// get all dirty
-		let toSave: URI[] = [];
+		// Extract the resources to save
+		let resourcesToSave: URI[] = [];
 		if (Array.isArray(arg1)) {
-			toSave = this.getDirty(arg1);
+			// if specific resources are given, we consider even
+			// non-dirty ones if options.force is provided
+			if (options?.force) {
+				resourcesToSave = arg1;
+			} else {
+				resourcesToSave = this.getDirty(arg1);
+			}
 		} else {
-			toSave = this.getDirty();
+			// if no resources are given, we only consider dirty
+			// resources even if options.force is provided
+			resourcesToSave = this.getDirty();
 		}
 
 		// split up between files and untitled
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
-		toSave.forEach(resourceToSave => {
+		resourcesToSave.forEach(resourceToSave => {
 			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && resourceToSave.scheme === Schemas.untitled) {
 				untitledToSave.push(resourceToSave);
-			} else {
+			} else if (this.fileService.canHandleResource(resourceToSave)) {
 				filesToSave.push(resourceToSave);
 			}
 		});
@@ -639,23 +625,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private async doSaveAllFiles(resources?: URI[], options: ITextFileSaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
-		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : undefined /* Save All */)
-			.filter(model => {
-				if ((model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
-					return false; // if model is in save conflict or error, do not save unless save reason is explicit or not provided at all
-				}
-
-				return true;
-			});
+		const fileModelsToSave = this.getFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
-		dirtyFileModels.forEach(dirtyModel => {
-			mapResourceToResult.set(dirtyModel.resource, {
-				source: dirtyModel.resource
-			});
-		});
+		for (const fileModelToSave of fileModelsToSave) {
+			mapResourceToResult.set(fileModelToSave.resource, { source: fileModelToSave.resource });
+		}
 
-		await Promise.all(dirtyFileModels.map(async model => {
+		// Save all in parallel
+		await Promise.all(fileModelsToSave.map(async model => {
+
+			// Save with options
 			await model.save(options);
 
 			// If model is still dirty, mark the resulting operation as error
@@ -687,68 +667,77 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return this.getFileModels(resources).filter(model => model.isDirty());
 	}
 
-	async saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
+	async saveAs(source: URI, target?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 
 		// Get to target resource
-		if (!targetResource) {
-			let dialogPath = resource;
-			if (resource.scheme === Schemas.untitled) {
-				dialogPath = this.suggestFileName(resource);
+		if (!target) {
+			let dialogPath = source;
+			if (source.scheme === Schemas.untitled) {
+				dialogPath = this.suggestFileName(source);
 			}
 
-			targetResource = await this.promptForPath(resource, dialogPath, options ? options.availableFileSystems : undefined);
+			target = await this.promptForPath(source, dialogPath, options ? options.availableFileSystems : undefined);
 		}
 
-		if (!targetResource) {
+		if (!target) {
 			return; // user canceled
 		}
 
 		// Just save if target is same as models own resource
-		if (resource.toString() === targetResource.toString()) {
-			await this.save(resource, options);
+		if (source.toString() === target.toString()) {
+			await this.save(source, options);
 
-			return resource;
+			return source;
 		}
 
 		// Do it
-		return this.doSaveAs(resource, targetResource, options);
+		return this.doSaveAs(source, target, options);
 	}
 
-	private async doSaveAs(resource: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI> {
+	private async doSaveAs(source: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI> {
+		let success = false;
 
-		// Retrieve text model from provided resource if any
-		let model: ITextFileEditorModel | UntitledTextEditorModel | undefined;
-		if (this.fileService.canHandleResource(resource)) {
-			model = this._models.get(resource);
-		} else if (resource.scheme === Schemas.untitled && this.untitledTextEditorService.exists(resource)) {
-			model = await this.untitledTextEditorService.loadOrCreate({ resource });
+		// If the source is an existing text file model, we can directly
+		// use that model to copy the contents to the target destination
+		const textFileModel = this._models.get(source);
+		if (textFileModel && textFileModel.isResolved()) {
+			success = await this.doSaveAsTextFile(textFileModel, source, target, options);
 		}
 
-		// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
-		let result: boolean;
-		if (model) {
-			result = await this.doSaveTextFileAs(model, resource, target, options);
+		// Otherwise if the source can be handled by the file service
+		// we can simply invoke the copy() function to save as
+		else if (this.fileService.canHandleResource(source)) {
+			await this.fileService.copy(source, target);
+
+			success = true;
 		}
 
-		// Otherwise we can only copy
-		else {
-			await this.fileService.copy(resource, target);
+		// Finally, if the source does not seem to be a file, we have to
+		// try to resolve a text model from the resource to get at the
+		// contents and additional meta data (e.g. encoding).
+		else if (this.textModelService.hasTextModelContentProvider(source.scheme)) {
+			const modelReference = await this.textModelService.createModelReference(source);
+			success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
 
-			result = true;
+			modelReference.dispose(); // free up our use of the reference
 		}
 
-		// Return early if the operation was not running
-		if (!result) {
-			return target;
+		// Revert the source if result is success
+		if (success) {
+			await this.revert(source);
 		}
-
-		// Revert the source
-		await this.revert(resource);
 
 		return target;
 	}
 
-	private async doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledTextEditorModel, resource: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+
+		// Find source encoding if any
+		let sourceModelEncoding: string | undefined = undefined;
+		const sourceModelWithEncodingSupport = (sourceModel as unknown as IEncodingSupport);
+		if (typeof sourceModelWithEncodingSupport.getEncoding === 'function') {
+			sourceModelEncoding = sourceModelWithEncodingSupport.getEncoding();
+		}
 
 		// Prefer an existing model if it is already loaded for the given target resource
 		let targetExists: boolean = false;
@@ -775,7 +764,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				}
 			}
 
-			targetModel = await this.models.loadOrCreate(target, { encoding: sourceModel.getEncoding(), mode });
+			targetModel = await this.models.loadOrCreate(target, { encoding: sourceModelEncoding, mode });
 		}
 
 		try {
@@ -796,7 +785,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			}
 
 			// take over model value, encoding and mode (only if more specific) from source model
-			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
+			targetModel.updatePreferredEncoding(sourceModelEncoding);
 			if (sourceModel.isResolved() && targetModel.isResolved()) {
 				this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
 
@@ -820,7 +809,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			) {
 				await this.fileService.del(target);
 
-				return this.doSaveTextFileAs(sourceModel, resource, target, options);
+				return this.doSaveAsTextFile(sourceModel, source, target, options);
 			}
 
 			throw error;

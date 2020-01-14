@@ -5,7 +5,7 @@
 
 import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IUserDataSyncService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncUtilService, ISettingsSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
@@ -29,6 +29,35 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'getConflictsSource': return Promise.resolve(this.service.conflictsSource);
 			case 'removeExtension': return this.service.removeExtension(args[0]);
 			case 'stop': this.service.stop(); return Promise.resolve();
+			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
+			case 'hasRemote': return this.service.hasRemote();
+		}
+		throw new Error('Invalid call');
+	}
+}
+
+export class SettingsSyncChannel implements IServerChannel {
+
+	constructor(private readonly service: ISettingsSyncService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
+			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
+			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
+		}
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'sync': return this.service.sync(args[0]);
+			case '_getInitialStatus': return Promise.resolve(this.service.status);
+			case '_getInitialConflicts': return Promise.resolve(this.service.conflicts);
+			case 'stop': this.service.stop(); return Promise.resolve();
+			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
+			case 'hasRemote': return this.service.hasRemote();
+			case 'resolveConflicts': return this.service.resolveConflicts(args[0]);
 		}
 		throw new Error('Invalid call');
 	}

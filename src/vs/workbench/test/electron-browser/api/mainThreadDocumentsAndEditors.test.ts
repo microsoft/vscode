@@ -49,9 +49,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 		textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
 			models = <any>{
-				onModelSaved: Event.None,
-				onModelReverted: Event.None,
-				onModelDirty: Event.None,
+				onDidSave: Event.None,
+				onDidRevert: Event.None,
+				onDidChangeDirty: Event.None
 			};
 		};
 		const workbenchEditorService = new TestEditorService();
@@ -61,7 +61,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			onAfterOperation = Event.None;
 		};
 
-		/* tslint:disable */
 		new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
@@ -86,7 +85,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			},
 			TestEnvironmentService
 		);
-		/* tslint:enable */
 	});
 
 

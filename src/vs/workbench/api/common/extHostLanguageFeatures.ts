@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -787,7 +787,8 @@ class SuggestAdapter {
 				x: pid,
 				b: [],
 				a: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				c: list.isIncomplete || undefined
+				c: list.isIncomplete || undefined,
+				d: list.isDetailsResolved || undefined
 			};
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -825,23 +826,27 @@ class SuggestAdapter {
 
 			type BlameExtension = {
 				extensionId: string;
-				kind: string
+				kind: string;
+				index: string;
 			};
 
 			type BlameExtensionMeta = {
 				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 				kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				index: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 			};
 
-			if (!this._didWarnMust && _mustNotChange !== SuggestAdapter._mustNotChangeHash(resolvedItem)) {
+			let _mustNotChangeIndex = !this._didWarnMust && SuggestAdapter._mustNotChangeDiff(_mustNotChange, resolvedItem);
+			if (typeof _mustNotChangeIndex === 'string') {
 				this._logService.warn(`[${this._extensionId.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'must' });
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'must', index: _mustNotChangeIndex });
 				this._didWarnMust = true;
 			}
 
-			if (!this._didWarnShould && _mayNotChange !== SuggestAdapter._mayNotChangeHash(resolvedItem)) {
+			let _mayNotChangeIndex = !this._didWarnShould && SuggestAdapter._mayNotChangeDiff(_mayNotChange, resolvedItem);
+			if (typeof _mayNotChangeIndex === 'string') {
 				this._logService.info(`[${this._extensionId.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'should' });
+				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('resolveCompletionItem/invalid', { extensionId: this._extensionId.value, kind: 'should', index: _mayNotChangeIndex });
 				this._didWarnShould = true;
 			}
 
@@ -940,13 +945,42 @@ class SuggestAdapter {
 	}
 
 	private static _mustNotChangeHash(item: vscode.CompletionItem) {
-		const args = [item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2];
-		const res = JSON.stringify(args);
+		const res = JSON.stringify([item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2]);
 		return res;
+	}
+
+	private static _mustNotChangeDiff(hash: string, item: vscode.CompletionItem): string | void {
+		const thisArr = [item.label, item.sortText, item.filterText, item.insertText, item.range, item.range2];
+		const thisHash = JSON.stringify(thisArr);
+		if (hash === thisHash) {
+			return;
+		}
+		const arr = JSON.parse(hash);
+		for (let i = 0; i < 6; i++) {
+			if (JSON.stringify(arr[i] !== JSON.stringify(thisArr[i]))) {
+				return i.toString();
+			}
+		}
+		return 'unknown';
 	}
 
 	private static _mayNotChangeHash(item: vscode.CompletionItem) {
 		return JSON.stringify([item.additionalTextEdits, item.command]);
+	}
+
+	private static _mayNotChangeDiff(hash: string, item: vscode.CompletionItem): string | void {
+		const thisArr = [item.additionalTextEdits, item.command];
+		const thisHash = JSON.stringify(thisArr);
+		if (hash === thisHash) {
+			return;
+		}
+		const arr = JSON.parse(hash);
+		for (let i = 0; i < 6; i++) {
+			if (JSON.stringify(arr[i] !== JSON.stringify(thisArr[i]))) {
+				return i.toString();
+			}
+		}
+		return 'unknown';
 	}
 }
 

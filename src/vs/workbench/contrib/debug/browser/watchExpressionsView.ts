@@ -33,6 +33,8 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
+let ignoreVariableSetEmitter = false;
+let useCachedEvaluation = false;
 
 export class WatchExpressionsView extends ViewPane {
 
@@ -67,7 +69,16 @@ export class WatchExpressionsView extends ViewPane {
 			ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression) => element.getId() },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e },
+			keyboardNavigationLabelProvider: {
+				getKeyboardNavigationLabel: (e: IExpression) => {
+					if (e === this.debugService.getViewModel().getSelectedExpression()) {
+						// Don't filter input box
+						return undefined;
+					}
+
+					return e;
+				}
+			},
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
@@ -90,7 +101,12 @@ export class WatchExpressionsView extends ViewPane {
 			if (!this.isBodyVisible()) {
 				this.needsRefresh = true;
 			} else {
+				if (we && !we.name) {
+					// We are adding a new input box, no need to re-evaluate watch expressions
+					useCachedEvaluation = true;
+				}
 				await this.tree.updateChildren();
+				useCachedEvaluation = false;
 				if (we instanceof Expression) {
 					this.tree.reveal(we);
 				}
@@ -106,7 +122,11 @@ export class WatchExpressionsView extends ViewPane {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
 		}));
-		this._register(variableSetEmitter.event(() => this.tree.updateChildren()));
+		this._register(variableSetEmitter.event(() => {
+			if (!ignoreVariableSetEmitter) {
+				this.tree.updateChildren();
+			}
+		}));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
@@ -192,7 +212,7 @@ export class WatchExpressionsView extends ViewPane {
 
 class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
 
-	getHeight(element: IExpression): number {
+	getHeight(_element: IExpression): number {
 		return 22;
 	}
 
@@ -221,7 +241,7 @@ class WatchExpressionsDataSource implements IAsyncDataSource<IDebugService, IExp
 			const debugService = element as IDebugService;
 			const watchExpressions = debugService.getModel().getWatchExpressions();
 			const viewModel = debugService.getViewModel();
-			return Promise.all(watchExpressions.map(we => !!we.name
+			return Promise.all(watchExpressions.map(we => !!we.name && !useCachedEvaluation
 				? we.evaluate(viewModel.focusedSession!, viewModel.focusedStackFrame!, 'watch').then(() => we)
 				: Promise.resolve(we)));
 		}
@@ -259,7 +279,9 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 			onFinish: (value: string, success: boolean) => {
 				if (success && value) {
 					this.debugService.renameWatchExpression(expression.getId(), value);
+					ignoreVariableSetEmitter = true;
 					variableSetEmitter.fire();
+					ignoreVariableSetEmitter = false;
 				} else if (!expression.name) {
 					this.debugService.removeWatchExpressions(expression.getId());
 				}

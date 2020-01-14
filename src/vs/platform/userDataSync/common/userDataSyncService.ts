@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, ISynchroniser, IUserDataSyncStoreService, SyncSource, ISettingsSyncService, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
@@ -12,6 +12,8 @@ import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensio
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IAuthTokenService, AuthTokenStatus } from 'vs/platform/auth/common/auth';
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
+import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -29,20 +31,22 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _conflictsSource: SyncSource | null = null;
 	get conflictsSource(): SyncSource | null { return this._conflictsSource; }
 
-	private readonly settingsSynchroniser: SettingsSynchroniser;
 	private readonly keybindingsSynchroniser: KeybindingsSynchroniser;
 	private readonly extensionsSynchroniser: ExtensionsSynchroniser;
+	private readonly globalStateSynchroniser: GlobalStateSynchroniser;
 
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAuthTokenService private readonly authTokenService: IAuthTokenService,
+		@ISettingsSyncService private readonly settingsSynchroniser: ISettingsSyncService,
+		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
-		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
 		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
+		this.globalStateSynchroniser = this._register(this.instantiationService.createInstance(GlobalStateSynchroniser));
 		this.extensionsSynchroniser = this._register(this.instantiationService.createInstance(ExtensionsSynchroniser));
-		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.extensionsSynchroniser];
+		this.synchronisers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.globalStateSynchroniser, this.extensionsSynchroniser];
 		this.updateStatus();
 
 		if (this.userDataSyncStoreService.userDataSyncStore) {
@@ -60,8 +64,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			throw new Error('Not Authenticated. Please sign in to start sync.');
 		}
 		for (const synchroniser of this.synchronisers) {
-			if (!await synchroniser.sync(_continue)) {
-				return false;
+			try {
+				if (!await synchroniser.sync(_continue)) {
+					return false;
+				}
+			} catch (e) {
+				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
 			}
 		}
 		return true;
@@ -74,6 +82,36 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		for (const synchroniser of this.synchronisers) {
 			synchroniser.stop();
 		}
+	}
+
+	async hasPreviouslySynced(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasPreviouslySynced()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	async hasRemote(): Promise<boolean> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (this.authTokenService.status === AuthTokenStatus.SignedOut) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.hasRemote()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
@@ -106,15 +144,20 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private computeConflictsSource(): SyncSource | null {
-		const source = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
-		if (source) {
-			if (source instanceof SettingsSynchroniser) {
-				return SyncSource.Settings;
-			}
-			if (source instanceof KeybindingsSynchroniser) {
-				return SyncSource.Keybindings;
-			}
+		const synchroniser = this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)[0];
+		return synchroniser ? this.getSyncSource(synchroniser) : null;
+	}
+
+	private getSyncSource(synchroniser: ISynchroniser): SyncSource {
+		if (synchroniser instanceof SettingsSynchroniser) {
+			return SyncSource.Settings;
 		}
-		return null;
+		if (synchroniser instanceof KeybindingsSynchroniser) {
+			return SyncSource.Keybindings;
+		}
+		if (synchroniser instanceof ExtensionsSynchroniser) {
+			return SyncSource.Extensions;
+		}
+		return SyncSource.UIState;
 	}
 }
