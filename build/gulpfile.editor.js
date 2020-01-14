@@ -353,6 +353,13 @@ gulp.task('editor-distro',
 	)
 );
 
+gulp.task('monacodts', task.define('monacodts', () => {
+	const result = monacoapi.execute();
+	fs.writeFileSync(result.filePath, result.content);
+	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+	return Promise.resolve(true);
+}));
+
 //#region monaco type checking
 
 function createTscCompileTask(watch) {
