@@ -9,7 +9,7 @@ import { repeat, endsWith } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
@@ -134,7 +134,7 @@ export class SearchEditorInput extends EditorInput {
 	private dirty: boolean = false;
 
 	constructor(
-		config: SearchConfiguration | undefined,
+		config: Partial<SearchConfiguration> | undefined,
 		initialContents: string | undefined,
 		resource: URI | undefined,
 		@IModelService private readonly modelService: IModelService,
@@ -150,12 +150,7 @@ export class SearchEditorInput extends EditorInput {
 	) {
 		super();
 		this.resource = resource ?? URI.from({ scheme: 'search-editor', fragment: `${searchEditorInputInstances++}` });
-
-		if (config === undefined) {
-			this._config = { query: '', includes: '', excludes: '', contextLines: 0, wholeWord: false, caseSensitive: false, regexp: false, useIgnores: true, showIncludesExcludes: false };
-		} else {
-			this._config = config;
-		}
+		this._config = { ...{ query: '', includes: '', excludes: '', contextLines: 0, wholeWord: false, caseSensitive: false, regexp: false, useIgnores: true, showIncludesExcludes: false }, ...config };
 
 		const searchResultMode = this.modeService.create('search-result');
 
@@ -540,7 +535,20 @@ export const refreshActiveEditorSearch =
 
 export const openNewSearchEditor =
 	async (editorService: IEditorService, instantiationService: IInstantiationService) => {
-		await editorService.openEditor(instantiationService.createInstance(SearchEditorInput, undefined, undefined, undefined), { pinned: true });
+		const activeEditor = editorService.activeTextEditorWidget;
+		let activeModel: ICodeEditor;
+		if (isDiffEditor(activeEditor)) {
+			if (activeEditor.getOriginalEditor().hasTextFocus()) {
+				activeModel = activeEditor.getOriginalEditor();
+			} else {
+				activeModel = activeEditor.getModifiedEditor();
+			}
+		} else {
+			activeModel = activeEditor as ICodeEditor;
+		}
+		const selection = activeModel?.getSelection();
+		let selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';
+		await editorService.openEditor(instantiationService.createInstance(SearchEditorInput, { query: selected }, undefined, undefined), { pinned: true });
 	};
 
 export const createEditorFromSearchResult =
