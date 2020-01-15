@@ -120,11 +120,13 @@ registerAction2(new class ApplyAction implements IAction2 {
 		category: localize('cat', "Refactor Preview"),
 		icon: { id: 'codicon/check' },
 		precondition: BulkEditPreviewContribution.ctxEnabled,
-		menu: {
+		menu: [{
 			id: MenuId.ViewTitle,
 			when: ContextKeyExpr.equals('view', BulkEditPane.ID),
 			group: 'navigation'
-		},
+		}, {
+			id: MenuId.BulkEditPaneContext,
+		}],
 		keybinding: {
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: BulkEditPreviewContribution.ctxEnabled,
@@ -150,11 +152,13 @@ registerAction2(new class DiscardAction implements IAction2 {
 		category: localize('cat', "Refactor Preview"),
 		icon: { id: 'codicon/clear-all' },
 		precondition: BulkEditPreviewContribution.ctxEnabled,
-		menu: {
+		menu: [{
 			id: MenuId.ViewTitle,
 			when: ContextKeyExpr.equals('view', BulkEditPane.ID),
 			group: 'navigation'
-		}
+		}, {
+			id: MenuId.BulkEditPaneContext
+		}]
 	};
 
 	run(accessor: ServicesAccessor): void | Promise<void> {
@@ -172,13 +176,18 @@ registerAction2(new class ToggleAction implements IAction2 {
 
 	readonly desc = {
 		id: 'refactorPreview.toggleCheckedState',
-		title: { value: localize('toogleSelection', "Check/Uncheck change"), original: 'Check/Uncheck change' },
+		title: { value: localize('toogleSelection', "Accept Change"), original: 'Accept Change' },
 		category: localize('cat', "Refactor Preview"),
 		precondition: BulkEditPreviewContribution.ctxEnabled,
+		toggled: BulkEditPane.ctxChangeChecked,
 		keybinding: {
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: WorkbenchListFocusContextKey,
 			primary: KeyCode.Space,
+		},
+		menu: {
+			id: MenuId.BulkEditPaneContext,
+			group: 'navigation'
 		}
 	};
 
