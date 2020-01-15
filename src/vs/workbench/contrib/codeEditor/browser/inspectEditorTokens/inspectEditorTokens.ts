@@ -292,7 +292,6 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		}
 		result += `</tbody></table>`;
 
-		result += `<h2 class="tiw-metadata-separator"/>`;
 		result += `<hr class="tiw-metadata-separator"/>`;
 		result += `<table class="tiw-metadata-table"><tbody>`;
 		result += this._formatMetadata(metadata, semanticMetadata);
