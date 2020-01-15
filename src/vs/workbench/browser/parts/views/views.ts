@@ -727,11 +727,6 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 }
 
-interface ICachedViewPosition {
-	viewId: string;
-	viewContainerId: string;
-}
-
 export class ViewDescriptorService extends Disposable implements IViewDescriptorService {
 
 	_serviceBrand: undefined;
@@ -754,10 +749,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly viewsRegistry: IViewsRegistry;
 	private readonly viewContainersRegistry: IViewContainersRegistry;
 
-	private cachedViewPositions: Map<string, string>;
-	private readonly viewsAwaitingContainerRegistration: Map<string, IViewDescriptor[]>;
+	private cachedViewToContainer: Map<string, string>;
 
-	private readonly registeredViewContainers: Set<ViewContainer>;
 
 	private _cachedViewPositionsValue: string | undefined;
 	private get cachedViewPositionsValue(): string {
@@ -784,12 +777,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.viewDescriptorCollections = new Map<ViewContainer, { viewDescriptorCollection: IViewDescriptorCollection, disposable: IDisposable; }>();
 		this.viewContainers = new Map<string, ViewContainer>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
-		this.registeredViewContainers = new Set<ViewContainer>();
 
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 
-		this.cachedViewPositions = this.getCachedViewPositions();
+		this.cachedViewToContainer = this.getCachedViewPositions();
 
 		const preRegisteredContainers = this.viewContainersRegistry.all;
 
@@ -805,12 +797,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				preRegisteredViews.set(viewContainer.id, []);
 			}
 
-			preRegisteredViews = this.regroupViews(viewContainer.id, this.viewsRegistry.getViews(viewContainer), preRegisteredViews);
+			preRegisteredViews = this.regroupViews(viewContainer.id, this.viewsRegistry.getViews(viewContainer).filter(viewDescriptor => !this.viewContainers.has(viewDescriptor.id)), preRegisteredViews);
 		});
 
 		// Register the view based on the cached containers
-		preRegisteredViews = this.registerGroupedViews(preRegisteredViews);
-		this.viewsAwaitingContainerRegistration = preRegisteredViews;
+		this.registerGroupedViews(preRegisteredViews);
 
 		this._register(this.viewsRegistry.onViewsRegistered(({ views, viewContainer }) => {
 			// When views are registered, we need to regroup them based on the cache
@@ -818,15 +809,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			// Once they are grouped, try registering them which occurs
 			// if the container has already been registered within this service
-			const remainingViews = this.registerGroupedViews(regroupedViews);
-
-			// The remaining views are still waiting on a container
-			// so they should be merged with the other pending views
-			for (const viewContainerId of remainingViews.keys()) {
-				const containerSet = this.viewsAwaitingContainerRegistration.get(viewContainerId) || [];
-				containerSet.push(...remainingViews.get(viewContainerId) || []);
-				this.viewsAwaitingContainerRegistration.set(viewContainerId, containerSet);
-			}
+			this.registerGroupedViews(regroupedViews);
 		}));
 
 		this._register(this.viewsRegistry.onViewsDeregistered(({ views, viewContainer }) => this.onDidDeregisterViews(viewContainer, views)));
@@ -842,30 +825,25 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this._register(this.storageService.onDidChangeStorage((e) => { this.onDidStorageChange(e); }));
 	}
 
-	private registerGroupedViews(groupedViews: Map<string, IViewDescriptor[]>): Map<string, IViewDescriptor[]> {
+	private registerGroupedViews(groupedViews: Map<string, IViewDescriptor[]>): void {
 		// Register views that have already been registered to their correct view containers
 		for (const viewContainerId of groupedViews.keys()) {
 			const viewContainer = this.getViewContainerById(viewContainerId);
 
 			// The container has not been registered yet
-			if (!viewContainer || !this.registeredViewContainers.has(viewContainer)) {
+			if (!viewContainer || !this.viewDescriptorCollections.has(viewContainer)) {
 				continue;
 			}
 
-			const views = groupedViews.get(viewContainerId);
-			groupedViews.delete(viewContainerId);
-
-			this.onDidRegisterViews(viewContainer, views!);
+			this.onDidRegisterViews(viewContainer, groupedViews.get(viewContainerId)!);
 		}
-
-		return groupedViews;
 	}
 
 	private regroupViews(containerId: string, views: IViewDescriptor[], seedMap?: Map<string, IViewDescriptor[]>): Map<string, IViewDescriptor[]> {
 		const ret = seedMap || new Map<string, IViewDescriptor[]>();
 
 		views.forEach(viewDescriptor => {
-			const cachedContainerId = this.cachedViewPositions.get(viewDescriptor.id);
+			const cachedContainerId = this.cachedViewToContainer.get(viewDescriptor.id);
 			const correctContainerId = cachedContainerId || containerId;
 
 			const containerViews = ret.get(correctContainerId) || [];
@@ -923,14 +901,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private getCachedViewPositions(): Map<string, string> {
-		const storedValue: ICachedViewPosition[] = JSON.parse(this.cachedViewPositionsValue);
-
-		const ret = new Map<string, string>();
-		storedValue.forEach(value => {
-			ret.set(value.viewId, value.viewContainerId);
-		});
-
-		return ret;
+		return new Map<string, string>(JSON.parse(this.cachedViewPositionsValue));
 	}
 
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
@@ -938,9 +909,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			&& this.cachedViewPositionsValue !== this.getStoredCachedViewPositionsValue() /* This checks if current window changed the value or not */) {
 			this._cachedViewPositionsValue = this.getStoredCachedViewPositionsValue();
 
-			this.cachedViewPositions = this.getCachedViewPositions();
+			this.cachedViewToContainer = this.getCachedViewPositions();
 
-			for (let [viewId, viewContainerId] of this.cachedViewPositions.entries()) {
+			for (let [viewId, viewContainerId] of this.cachedViewToContainer.entries()) {
 				const prevViewContainer = this.viewContainers.get(viewId);
 
 				// view has been moved in a separate window
@@ -966,24 +937,42 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private saveViewPositionsToCache(): void {
-		const state: ICachedViewPosition[] = [];
-		for (let [viewId, viewContainer] of this.viewContainers.entries()) {
-			state.push({
-				viewId,
-				viewContainerId: viewContainer.id
-			});
+		this.viewContainersRegistry.all.forEach(viewContainer => {
+			const viewDescriptorCollection = this.viewDescriptorCollections.get(viewContainer);
+			if (viewDescriptorCollection?.viewDescriptorCollection) {
+				viewDescriptorCollection?.viewDescriptorCollection.allViewDescriptors.forEach(viewDescriptor => {
+					this.cachedViewToContainer.set(viewDescriptor.id, viewContainer.id);
+				});
+			}
+		});
+
+		this.cachedViewPositionsValue = JSON.stringify([...this.cachedViewToContainer]);
+	}
+
+	private getViewsAwaitingContainerRegistration(viewContainer: ViewContainer): IViewDescriptor[] {
+		const result: IViewDescriptor[] = [];
+		for (const [viewId, containerId] of this.cachedViewToContainer.entries()) {
+			if (containerId !== viewContainer.id) {
+				continue;
+			}
+
+			if (this.viewContainers.has(viewId)) {
+				continue;
+			}
+
+			const viewDescriptor = this.viewsRegistry.getView(viewId);
+			if (viewDescriptor) {
+				result.push(viewDescriptor);
+			}
 		}
 
-		this.setStoredCachedViewPositionsValue(JSON.stringify(state));
+		return result;
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
-		// Indicate that this view container has been registered within the service
-		this.registeredViewContainers.add(viewContainer);
-
 		// Check if we have any views that were awaiting container registration due to a cached position
-		const viewsToRegister = this.viewsAwaitingContainerRegistration?.get(viewContainer.id);
-		if (viewsToRegister) {
+		const viewsToRegister = this.getViewsAwaitingContainerRegistration(viewContainer);
+		if (viewsToRegister.length) {
 			this.onDidRegisterViews(viewContainer, viewsToRegister);
 		}
 
@@ -991,7 +980,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const viewDescriptorCollection = disposables.add(new ViewDescriptorCollection(this.contextKeyService));
 
 		// Initialize the view descriptor collection with those pending views
-		if (viewsToRegister) {
+		if (viewsToRegister.length) {
 			viewDescriptorCollection.addViews(viewsToRegister);
 		}
 
@@ -1023,8 +1012,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			viewDescriptorCollectionItem.disposable.dispose();
 			this.viewDescriptorCollections.delete(viewContainer);
 		}
-
-		this.registeredViewContainers.delete(viewContainer);
 	}
 
 	private onDidChangeActiveViews({ added, removed }: { added: IViewDescriptor[], removed: IViewDescriptor[]; }): void {
