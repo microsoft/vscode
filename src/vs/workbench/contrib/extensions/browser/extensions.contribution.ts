@@ -232,26 +232,35 @@ CommandsRegistry.registerCommand({
 				schema: {
 					'type': ['object', 'string']
 				}
+			},
+			{
+				name: localize('workbench.extensions.installExtension.arg.throwOnFailure', "Indicates whether to re-throw any exception as well as log it"),
+				schema: {
+					'type': 'boolean'
+				}
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents) => {
+	handler: async (accessor, extensionId: string | UriComponents, throwOnFailure?: boolean) => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
-			if (typeof arg === 'string') {
-				const extension = await extensionGalleryService.getCompatibleExtension({ id: arg });
+			if (typeof extensionId === 'string') {
+				const extension = await extensionGalleryService.getCompatibleExtension({ id: extensionId });
 				if (extension) {
 					await extensionManagementService.installFromGallery(extension);
 				} else {
-					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
+					throw new Error(localize('notFound', "Extension '{0}' not found.", extensionId));
 				}
 			} else {
-				const vsix = URI.revive(arg);
+				const vsix = URI.revive(extensionId);
 				await extensionManagementService.install(vsix);
 			}
 		} catch (e) {
 			onUnexpectedError(e);
+			if (throwOnFailure) {
+				throw e;
+			}
 		}
 	}
 });
@@ -266,10 +275,16 @@ CommandsRegistry.registerCommand({
 				schema: {
 					'type': 'string'
 				}
+			},
+			{
+				name: localize('workbench.extensions.uninstallExtension.arg.throwOnFailure', "Indicates whether to re-throw any exception as well as log it"),
+				schema: {
+					'type': 'boolean'
+				}
 			}
 		]
 	},
-	handler: async (accessor, id: string) => {
+	handler: async (accessor, id: string, throwOnFailure?: boolean) => {
 		if (!id) {
 			throw new Error(localize('id required', "Extension id required."));
 		}
@@ -284,6 +299,9 @@ CommandsRegistry.registerCommand({
 			await extensionManagementService.uninstall(extensionToUninstall, true);
 		} catch (e) {
 			onUnexpectedError(e);
+			if (throwOnFailure) {
+				throw e;
+			}
 		}
 	}
 });
