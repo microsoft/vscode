@@ -944,10 +944,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return result;
 	}
 
-	// explorer container is registered
-	// lookup all explorer views
-	// register them
-
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
 		const disposables = new DisposableStore();
 		const viewDescriptorCollection = disposables.add(new ViewDescriptorCollection(this.contextKeyService));
