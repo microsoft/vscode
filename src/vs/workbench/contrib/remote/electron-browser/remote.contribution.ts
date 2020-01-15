@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
@@ -71,28 +71,28 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 
 		const category = nls.localize('remote.category', "Remote");
 
-		registerAction({
-			id: WINDOW_ACTIONS_COMMAND_ID,
-			category,
-			title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
-			menu: {
-				menuId: MenuId.CommandPalette
+		registerAction2({
+			desc: {
+				id: WINDOW_ACTIONS_COMMAND_ID,
+				category,
+				title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
+				f1: true,
 			},
-			handler: (_accessor) => this.showIndicatorActions(this.windowCommandMenu)
+			run: () => this.showIndicatorActions(this.windowCommandMenu)
 		});
 
 		this.remoteAuthority = environmentService.configuration.remoteAuthority;
 		Deprecated_RemoteAuthorityContext.bindTo(this.contextKeyService).set(this.remoteAuthority || '');
 
 		if (this.remoteAuthority) {
-			registerAction({
-				id: CLOSE_REMOTE_COMMAND_ID,
-				category,
-				title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
-				menu: {
-					menuId: MenuId.CommandPalette
+			registerAction2({
+				desc: {
+					id: CLOSE_REMOTE_COMMAND_ID,
+					category,
+					title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
+					f1: true
 				},
-				handler: (_accessor) => this.remoteAuthority && hostService.openWindow({ forceReuseWindow: true })
+				run: () => this.remoteAuthority && hostService.openWindow({ forceReuseWindow: true })
 			});
 
 			// Pending entry until extensions are ready

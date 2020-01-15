@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionsLabel, ExtensionsChannelId, PreferencesLabel, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServerService, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -341,10 +341,16 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 
 // Extension Context Menu
 
-registerAction({
-	id: 'workbench.extensions.action.copyExtension',
-	title: { value: localize('workbench.extensions.action.copyExtension', "Copy"), original: 'Copy' },
-	async handler(accessor, extensionId: string) {
+registerAction2({
+	desc: {
+		id: 'workbench.extensions.action.copyExtension',
+		title: { value: localize('workbench.extensions.action.copyExtension', "Copy"), original: 'Copy' },
+		menu: {
+			id: MenuId.ExtensionContext,
+			group: '1_copy'
+		}
+	},
+	async run(accessor, extensionId: string) {
 		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		let extension = extensionWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 			|| (await extensionWorkbenchService.queryGallery({ names: [extensionId], pageSize: 1 }, CancellationToken.None)).firstPage[0];
@@ -358,37 +364,36 @@ registerAction({
 			const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 			await accessor.get(IClipboardService).writeText(clipboardStr);
 		}
-	},
-	menu: {
-		menuId: MenuId.ExtensionContext,
-		group: '1_copy'
-	},
+	}
 });
 
-registerAction({
-	id: 'workbench.extensions.action.copyExtensionId',
-	title: { value: localize('workbench.extensions.action.copyExtensionId', "Copy Extension Id"), original: 'Copy Extension Id' },
-	async handler(accessor, id: string) {
+registerAction2({
+	desc: {
+		id: 'workbench.extensions.action.copyExtensionId',
+		title: { value: localize('workbench.extensions.action.copyExtensionId', "Copy Extension Id"), original: 'Copy Extension Id' },
+		menu: {
+			id: MenuId.ExtensionContext,
+			group: '1_copy'
+		}
+	},
+	async run(accessor, id: string) {
 		await accessor.get(IClipboardService).writeText(id);
 	},
-	menu: {
-		menuId: MenuId.ExtensionContext,
-		group: '1_copy'
-	},
 });
 
-registerAction({
-	id: 'workbench.extensions.action.configure',
-	title: { value: localize('workbench.extensions.action.configure', "Configure..."), original: 'Configure...' },
-	async handler(accessor, id: string) {
+registerAction2({
+	desc: {
+		id: 'workbench.extensions.action.configure',
+		title: { value: localize('workbench.extensions.action.configure', "Configure..."), original: 'Configure...' },
+		menu: {
+			id: MenuId.ExtensionContext,
+			group: '2_configure',
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasConfiguration'))
+		}
+	},
+	async run(accessor, id: string) {
 		await accessor.get(IPreferencesService).openSettings(false, `@ext:${id}`);
 	},
-	menu: {
-		menuId: MenuId.ExtensionContext,
-		group: '2_configure',
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasConfiguration'))
-	},
-
 });
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

@@ -8,7 +8,7 @@ import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation
 import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -343,67 +343,6 @@ export class SyncActionDescriptor {
 	}
 }
 
-
-export interface IActionDescriptor {
-	id: string;
-	handler: ICommandHandler;
-
-	// ICommandUI
-	title?: ILocalizedString;
-	category?: string;
-	f1?: boolean;
-
-	//
-	menu?: {
-		menuId: MenuId,
-		when?: ContextKeyExpr;
-		group?: string;
-	};
-
-	//
-	keybinding?: {
-		when?: ContextKeyExpr;
-		weight?: number;
-		keys: IKeybindings;
-	};
-}
-
-
-export function registerAction(desc: IActionDescriptor) {
-
-	const { id, handler, title, category, menu, keybinding } = desc;
-
-	// 1) register as command
-	CommandsRegistry.registerCommand(id, handler);
-
-	// 2) menus
-	if (menu && title) {
-		let command = { id, title, category };
-		let { menuId, when, group } = menu;
-		MenuRegistry.appendMenuItem(menuId, {
-			command,
-			when,
-			group
-		});
-	}
-
-	// 3) keybindings
-	if (keybinding) {
-		let { when, weight, keys } = keybinding;
-		KeybindingsRegistry.registerKeybindingRule({
-			id,
-			when,
-			weight: weight || 0,
-			primary: keys.primary,
-			secondary: keys.secondary,
-			linux: keys.linux,
-			mac: keys.mac,
-			win: keys.win
-		});
-	}
-}
-
-
 //#region --- IAction2
 
 export interface IAction2Description extends ICommandAction {
@@ -414,7 +353,7 @@ export interface IAction2Description extends ICommandAction {
 
 export interface IAction2 {
 	readonly desc: IAction2Description;
-	run(accessor: ServicesAccessor, args: any[]): any;
+	run(accessor: ServicesAccessor, ...args: any): any;
 }
 
 export function registerAction2(action: IAction2): IDisposable {
@@ -422,7 +361,7 @@ export function registerAction2(action: IAction2): IDisposable {
 
 	disposables.add(CommandsRegistry.registerCommand({
 		id: action.desc.id,
-		handler: (accessor, ...args) => action.run(accessor, args),
+		handler: (accessor, ...args) => action.run(accessor, ...args),
 		description: undefined,
 	}));
 
