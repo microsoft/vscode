@@ -46,7 +46,7 @@ export class BackupOnShutdown extends Disposable implements IWorkbenchContributi
 	private onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 
 		// Dirty working copies need treatment on shutdown
-		const dirtyWorkingCopies = this.workingCopyService.workingCopies.filter(workingCopy => workingCopy.isDirty());
+		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
 		if (dirtyWorkingCopies.length) {
 
 			// If auto save is enabled, save all working copies and then check again for dirty copies
@@ -55,7 +55,7 @@ export class BackupOnShutdown extends Disposable implements IWorkbenchContributi
 				return this.doSaveAll(dirtyWorkingCopies, false /* not untitled */, { skipSaveParticipants: true }).then(() => {
 
 					// If we still have dirty working copies, we either have untitled ones or working copies that cannot be saved
-					const remainingDirtyWorkingCopies = this.workingCopyService.workingCopies.filter(workingCopy => workingCopy.isDirty());
+					const remainingDirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
 					if (remainingDirtyWorkingCopies.length) {
 						return this.handleDirtyBeforeShutdown(remainingDirtyWorkingCopies, reason);
 					}
@@ -143,7 +143,7 @@ export class BackupOnShutdown extends Disposable implements IWorkbenchContributi
 	private async confirmBeforeShutdown(): Promise<boolean> {
 
 		// Show confirm dialog for all dirty working copies
-		const dirtyWorkingCopies = this.workingCopyService.workingCopies.filter(workingCopy => workingCopy.isDirty());
+		const dirtyWorkingCopies = this.workingCopyService.dirtyWorkingCopies;
 		const confirm = await this.fileDialogService.showSaveConfirm(dirtyWorkingCopies.map(w => w.resource));
 
 		// Save

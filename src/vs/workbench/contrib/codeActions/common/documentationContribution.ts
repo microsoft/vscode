@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction, CodeActionContext, CodeActionList, CodeActionProvider, CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/modes';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -16,7 +16,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { DocumentationExtensionPoint } from './documentationExtensionPoint';
 
 
-export class CodeActionDocumentationContribution extends Disposable implements IWorkbenchContribution, CodeActionProvider {
+export class CodeActionDocumentationContribution extends Disposable implements IWorkbenchContribution, modes.CodeActionProvider {
 
 	private contributions: {
 		title: string;
@@ -24,13 +24,18 @@ export class CodeActionDocumentationContribution extends Disposable implements I
 		command: string;
 	}[] = [];
 
+	private readonly emptyCodeActionsList = {
+		actions: [],
+		dispose: () => { }
+	};
+
 	constructor(
 		extensionPoint: IExtensionPoint<DocumentationExtensionPoint>,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
-		CodeActionProviderRegistry.register('*', this);
+		this._register(modes.CodeActionProviderRegistry.register('*', this));
 
 		extensionPoint.setHandler(points => {
 			this.contributions = [];
@@ -56,36 +61,24 @@ export class CodeActionDocumentationContribution extends Disposable implements I
 		});
 	}
 
-	async provideCodeActions(_model: ITextModel, _range: Range | Selection, context: CodeActionContext, _token: CancellationToken): Promise<CodeActionList> {
-		if (CodeActionKind.Refactor.value !== context.only) {
-			return {
-				actions: [],
-				dispose: () => { }
-			};
-		}
-
-		const actions: CodeAction[] = [];
-
-		for (const contribution of this.contributions) {
-			if (!this.contextKeyService.contextMatchesRules(contribution.when)) {
-				continue;
-			}
-
-			actions.push({
-				title: contribution.title,
-				kind: CodeActionKind.RefactorDocumentation.value,
-				command: {
-					id: contribution.command,
-					title: contribution.title
-				}
-			});
-		}
-
-		return {
-			actions,
-			dispose: () => { }
-		};
+	async provideCodeActions(_model: ITextModel, _range: Range | Selection, context: modes.CodeActionContext, _token: CancellationToken): Promise<modes.CodeActionList> {
+		return this.emptyCodeActionsList;
 	}
 
-	public readonly providedCodeActionKinds = [CodeActionKind.RefactorDocumentation.value] as const;
+	public _getAdditionalMenuItems(context: modes.CodeActionContext, actions: readonly modes.CodeAction[]): modes.Command[] {
+		if (context.only !== CodeActionKind.Refactor.value) {
+			if (!actions.some(action => action.kind && CodeActionKind.Refactor.contains(new CodeActionKind(action.kind)))) {
+				return [];
+			}
+		}
+
+		return this.contributions
+			.filter(contribution => this.contextKeyService.contextMatchesRules(contribution.when))
+			.map(contribution => {
+				return {
+					id: contribution.command,
+					title: contribution.title
+				};
+			});
+	}
 }

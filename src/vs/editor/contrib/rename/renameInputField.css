@@ -13,3 +13,7 @@
 	padding: 4px;
 	width: calc(100% - 8px);
 }
+
+.monaco-editor .rename-box .rename-label {
+	opacity: .8;
+}

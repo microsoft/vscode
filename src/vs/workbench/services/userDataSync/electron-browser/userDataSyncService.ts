@@ -38,8 +38,24 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		});
 	}
 
+	pull(): Promise<void> {
+		return this.channel.call('pull');
+	}
+
+	push(): Promise<void> {
+		return this.channel.call('push');
+	}
+
 	sync(_continue?: boolean): Promise<boolean> {
 		return this.channel.call('sync', [_continue]);
+	}
+
+	reset(): Promise<void> {
+		return this.channel.call('reset');
+	}
+
+	resetLocal(): Promise<void> {
+		return this.channel.call('resetLocal');
 	}
 
 	stop(): void {

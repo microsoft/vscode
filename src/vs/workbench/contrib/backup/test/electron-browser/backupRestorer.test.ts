@@ -87,7 +87,6 @@ suite('BackupRestorer', () => {
 		disposables = [];
 
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledTextEditorService.revertAll();
 
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
@@ -132,10 +131,12 @@ suite('BackupRestorer', () => {
 			if (isEqual(resource, untitledFile1)) {
 				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
 				assert.equal(model.textEditorModel.getValue(), 'untitled-1');
+				model.dispose();
 				counter++;
 			} else if (isEqual(resource, untitledFile2)) {
 				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
 				assert.equal(model.textEditorModel.getValue(), 'untitled-2');
+				model.dispose();
 				counter++;
 			} else if (isEqual(resource, fooFile)) {
 				const model = await accessor.textFileService.models.get(resource!)?.load();

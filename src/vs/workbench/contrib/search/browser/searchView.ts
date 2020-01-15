@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeResourceNavigator2, WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, VIEW_ID, VIEWLET_ID, SearchSortOrder, PANEL_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, listActiveSelectionForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -595,7 +595,7 @@ export class SearchView extends ViewPane {
 
 		let progressComplete: () => void;
 		let progressReporter: IProgress<IProgressStep>;
-		this.progressService.withProgress({ location: VIEWLET_ID, delay: 100, total: occurrences }, p => {
+		this.progressService.withProgress({ location: this.position === SearchViewPosition.SideBar ? VIEWLET_ID : PANEL_ID, delay: 100, total: occurrences }, p => {
 			progressReporter = p;
 
 			return new Promise(resolve => progressComplete = resolve);
@@ -1347,7 +1347,7 @@ export class SearchView extends ViewPane {
 
 	private doSearch(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
-		this.progressService.withProgress({ location: VIEWLET_ID, delay: triggeredOnType ? 300 : 0 }, _progress => {
+		this.progressService.withProgress({ location: this.position === SearchViewPosition.SideBar ? VIEWLET_ID : PANEL_ID, delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise(resolve => progressComplete = resolve);
 		});
 
@@ -1811,6 +1811,8 @@ export class SearchView extends ViewPane {
 		}
 
 		this.searchHistoryService.save(history);
+
+		this.memento.saveMemento();
 
 		super.saveState();
 	}

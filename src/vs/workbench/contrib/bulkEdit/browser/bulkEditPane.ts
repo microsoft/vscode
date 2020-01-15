@@ -28,6 +28,10 @@ import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/l
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { basename } from 'vs/base/common/resources';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import type { IAction } from 'vs/base/common/actions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import type { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 
 const enum State {
 	Data = 'data',
@@ -42,7 +46,6 @@ export class BulkEditPane extends ViewPane {
 	private _message!: HTMLSpanElement;
 
 	private readonly _disposables = new DisposableStore();
-
 	private readonly _sessionDisposables = new DisposableStore();
 	private _currentResolve?: (edit?: WorkspaceEdit) => void;
 	private _currentInput?: BulkFileOperations;
@@ -54,14 +57,16 @@ export class BulkEditPane extends ViewPane {
 		@ILabelService private readonly _labelService: ILabelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(
-			options,
-			keybindingService, contextMenuService, configurationService, contextKeyService, _instaService
+			{ ...options, titleMenuId: MenuId.BulkEditTitle },
+			keybindingService, contextMenuService, configurationService, _contextKeyService, _instaService
 		);
 
 		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
@@ -109,6 +114,8 @@ export class BulkEditPane extends ViewPane {
 				this._openElementAsEditor(first);
 			}
 		}));
+
+		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
 
 		// message
 		this._message = document.createElement('span');
@@ -250,6 +257,21 @@ export class BulkEditPane extends ViewPane {
 				options: { preserveFocus: true }
 			});
 		}
+	}
+
+	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
+		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
+		const actions: IAction[] = [];
+		const disposable = createAndFillInContextMenuActions(menu, undefined, actions, this._contextMenuService);
+
+		this._contextMenuService.showContextMenu({
+			getActions: () => actions,
+			getAnchor: () => e.anchor,
+			onHide: () => {
+				disposable.dispose();
+				menu.dispose();
+			}
+		});
 	}
 }
 

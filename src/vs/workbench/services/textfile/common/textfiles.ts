@@ -45,18 +45,9 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
 	 *
-	 * @param resource the resource to check for being dirty. If it is not specified, will check for
-	 * all dirty resources.
+	 * @param resource the resource to check for being dirty
 	 */
-	isDirty(resource?: URI): boolean;
-
-	/**
-	 * Returns all resources that are currently dirty matching the provided resources or all dirty resources.
-	 *
-	 * @param resources the resources to check for being dirty. If it is not specified, will check for
-	 * all dirty resources.
-	 */
-	getDirty(resources?: URI[]): URI[];
+	isDirty(resource: URI): boolean;
 
 	/**
 	 * Saves the resource.
@@ -78,26 +69,12 @@ export interface ITextFileService extends IDisposable {
 	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): Promise<URI | undefined>;
 
 	/**
-	 * Saves the set of resources and returns a promise with the operation result.
-	 *
-	 * @param resources can be null to save all.
-	 * @param includeUntitled to save all resources and optionally exclude untitled ones.
-	 */
-	saveAll(includeUntitled?: boolean, options?: ISaveOptions): Promise<ITextFileOperationResult>;
-	saveAll(resources: URI[], options?: ISaveOptions): Promise<ITextFileOperationResult>;
-
-	/**
 	 * Reverts the provided resource.
 	 *
 	 * @param resource the resource of the file to revert.
 	 * @param force to force revert even when the file is not dirty
 	 */
 	revert(resource: URI, options?: IRevertOptions): Promise<boolean>;
-
-	/**
-	 * Reverts all the provided resources and returns a promise with the operation result.
-	 */
-	revertAll(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult>;
 
 	/**
 	 * Create a file. If the file exists it will be overwritten with the contents if

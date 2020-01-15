@@ -5,9 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { LinesLayout, IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
@@ -16,13 +16,13 @@ const SMOOTH_SCROLLING_TIME = 125;
 
 export class ViewLayout extends Disposable implements IViewLayout {
 
-	private readonly _configuration: editorCommon.IConfiguration;
+	private readonly _configuration: IConfiguration;
 	private readonly _linesLayout: LinesLayout;
 
 	public readonly scrollable: Scrollable;
 	public readonly onDidScroll: Event<ScrollEvent>;
 
-	constructor(configuration: editorCommon.IConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(configuration: IConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this._configuration = configuration;
@@ -253,15 +253,15 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return currentScrollPosition.scrollTop;
 	}
 
-	public validateScrollPosition(scrollPosition: editorCommon.INewScrollPosition): IScrollPosition {
+	public validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition {
 		return this.scrollable.validateScrollPosition(scrollPosition);
 	}
 
-	public setScrollPositionNow(position: editorCommon.INewScrollPosition): void {
+	public setScrollPositionNow(position: INewScrollPosition): void {
 		this.scrollable.setScrollPositionNow(position);
 	}
 
-	public setScrollPositionSmooth(position: editorCommon.INewScrollPosition): void {
+	public setScrollPositionSmooth(position: INewScrollPosition): void {
 		this.scrollable.setScrollPositionSmooth(position);
 	}
 

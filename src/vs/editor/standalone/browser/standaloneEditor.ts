@@ -13,7 +13,7 @@ import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavi
 import { EditorOptions, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditor, EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
@@ -42,7 +42,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
+function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
 
 	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
@@ -375,7 +375,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>FindMatch,
 
 		// vars
-		EditorType: editorCommon.EditorType,
+		EditorType: EditorType,
 		EditorOptions: <any>EditorOptions
 
 	};

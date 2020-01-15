@@ -29,12 +29,13 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ITextSnapshot } from 'vs/editor/common/model';
+import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -176,7 +177,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		await this._onWillRunOperation.fireAsync({ operation: FileOperation.DELETE, target: resource }, CancellationToken.None);
 
 		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource));
-		await this.revertAll(dirtyFiles, { soft: true });
+		await this.doRevertAll(dirtyFiles, { soft: true });
 
 		await this.fileService.del(resource, options);
 
@@ -242,7 +243,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// in order to move and copy, we need to soft revert all dirty models,
 		// both from the source as well as the target if any
 		const dirtyModels = [...sourceModels, ...conflictingModels].filter(model => model.isDirty());
-		await this.revertAll(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
+		await this.doRevertAll(dirtyModels.map(dirtyModel => dirtyModel.resource), { soft: true });
 
 		// now we can rename the source to target via file operation
 		let stat: IFileStatWithMetadata;
@@ -289,85 +290,44 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	//#region save
 
 	async save(resource: URI, options?: ITextFileSaveOptions): Promise<boolean> {
-		return !(await this.saveAll([resource], options)).results.some(result => result.error);
-	}
 
-	saveAll(includeUntitled?: boolean, options?: ITextFileSaveOptions): Promise<ITextFileOperationResult>;
-	saveAll(resources: URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult>;
-	saveAll(arg1?: boolean | URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult> {
-
-		// Extract the resources to save
-		let resourcesToSave: URI[] = [];
-		if (Array.isArray(arg1)) {
-			// if specific resources are given, we consider even
-			// non-dirty ones if options.force is provided
-			if (options?.force) {
-				resourcesToSave = arg1;
-			} else {
-				resourcesToSave = this.getDirty(arg1);
-			}
-		} else {
-			// if no resources are given, we only consider dirty
-			// resources even if options.force is provided
-			resourcesToSave = this.getDirty();
-		}
-
-		// split up between files and untitled
-		const filesToSave: URI[] = [];
-		const untitledToSave: URI[] = [];
-		resourcesToSave.forEach(resourceToSave => {
-			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && resourceToSave.scheme === Schemas.untitled) {
-				untitledToSave.push(resourceToSave);
-			} else if (this.fileService.canHandleResource(resourceToSave)) {
-				filesToSave.push(resourceToSave);
-			}
-		});
-
-		return this.doSaveAll(filesToSave, untitledToSave, options);
-	}
-
-	private async doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ITextFileSaveOptions): Promise<ITextFileOperationResult> {
-
-		// Handle files first that can just be saved
-		const result = await this.doSaveAllFiles(fileResources, options);
-
-		// Preflight for untitled to handle cancellation from the dialog
-		const targetsForUntitled: URI[] = [];
-		for (const untitled of untitledResources) {
-			if (this.untitledTextEditorService.exists(untitled)) {
-				let targetUri: URI;
+		// Untitled
+		if (resource.scheme === Schemas.untitled) {
+			if (this.untitledTextEditorService.exists(resource)) {
+				let targetUri: URI | undefined;
 
 				// Untitled with associated file path don't need to prompt
-				if (this.untitledTextEditorService.hasAssociatedFilePath(untitled)) {
-					targetUri = toLocalResource(untitled, this.environmentService.configuration.remoteAuthority);
+				if (this.untitledTextEditorService.hasAssociatedFilePath(resource)) {
+					targetUri = toLocalResource(resource, this.environmentService.configuration.remoteAuthority);
 				}
 
 				// Otherwise ask user
 				else {
-					const targetPath = await this.promptForPath(untitled, this.suggestFileName(untitled));
-					if (!targetPath) {
-						return { results: [...fileResources, ...untitledResources].map(r => ({ source: r })) };
-					}
-
-					targetUri = targetPath;
+					targetUri = await this.promptForPath(resource, this.suggestFileName(resource));
 				}
 
-				targetsForUntitled.push(targetUri);
+				// Save as if target provided
+				if (targetUri) {
+					await this.saveAs(resource, targetUri, options);
+
+					return true;
+				}
 			}
 		}
 
-		// Handle untitled
-		await Promise.all(targetsForUntitled.map(async (target, index) => {
-			const uri = await this.saveAs(untitledResources[index], target);
+		// File
+		else {
+			const model = this.models.get(resource);
+			if (model) {
 
-			result.results.push({
-				source: untitledResources[index],
-				target: uri,
-				error: !uri // the operation was canceled or failed, so mark as error
-			});
-		}));
+				// Save with options
+				await model.save(options);
 
-		return result;
+				return !model.isDirty();
+			}
+		}
+
+		return false;
 	}
 
 	protected async promptForPath(resource: URI, defaultUri: URI, availableFileSystems?: readonly string[]): Promise<URI | undefined> {
@@ -429,32 +389,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		options.filters = filters;
 
 		return options;
-	}
-
-	private async doSaveAllFiles(resources?: URI[], options: ITextFileSaveOptions = Object.create(null)): Promise<ITextFileOperationResult> {
-		const fileModelsToSave = this.getFileModels(resources);
-
-		const mapResourceToResult = new ResourceMap<IResult>();
-		for (const fileModelToSave of fileModelsToSave) {
-			mapResourceToResult.set(fileModelToSave.resource, { source: fileModelToSave.resource });
-		}
-
-		// Save all in parallel
-		await Promise.all(fileModelsToSave.map(async model => {
-
-			// Save with options
-			await model.save(options);
-
-			// If model is still dirty, mark the resulting operation as error
-			if (model.isDirty()) {
-				const result = mapResourceToResult.get(model.resource);
-				if (result) {
-					result.error = true;
-				}
-			}
-		}));
-
-		return { results: mapResourceToResult.values() };
 	}
 
 	private getFileModels(arg1?: URI | URI[]): ITextFileEditorModel[] {
@@ -519,14 +453,23 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			success = true;
 		}
 
-		// Finally, if the source does not seem to be a file, we have to
-		// try to resolve a text model from the resource to get at the
+		// Next, if the source does not seem to be a file, we try to
+		// resolve a text model from the resource to get at the
 		// contents and additional meta data (e.g. encoding).
 		else if (this.textModelService.hasTextModelContentProvider(source.scheme)) {
 			const modelReference = await this.textModelService.createModelReference(source);
 			success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
 
 			modelReference.dispose(); // free up our use of the reference
+		}
+
+		// Finally we simply check if we can find a editor model that
+		// would give us access to the contents.
+		else {
+			const textModel = this.modelService.getModel(source);
+			if (textModel) {
+				success = await this.doSaveAsTextFile(textModel, source, target, options);
+			}
 		}
 
 		// Revert the source if result is success
@@ -537,7 +480,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return target;
 	}
 
-	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
 
 		// Find source encoding if any
 		let sourceModelEncoding: string | undefined = undefined;
@@ -591,15 +534,29 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				return false;
 			}
 
+			let sourceTextModel: ITextModel | undefined = undefined;
+			if (sourceModel instanceof BaseTextEditorModel) {
+				if (sourceModel.isResolved()) {
+					sourceTextModel = sourceModel.textEditorModel;
+				}
+			} else {
+				sourceTextModel = sourceModel as ITextModel;
+			}
+
+			let targetTextModel: ITextModel | undefined = undefined;
+			if (targetModel.isResolved()) {
+				targetTextModel = targetModel.textEditorModel;
+			}
+
 			// take over model value, encoding and mode (only if more specific) from source model
 			targetModel.updatePreferredEncoding(sourceModelEncoding);
-			if (sourceModel.isResolved() && targetModel.isResolved()) {
-				this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
+			if (sourceTextModel && targetTextModel) {
+				this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
 
-				const sourceMode = sourceModel.textEditorModel.getLanguageIdentifier();
-				const targetMode = targetModel.textEditorModel.getLanguageIdentifier();
+				const sourceMode = sourceTextModel.getLanguageIdentifier();
+				const targetMode = targetTextModel.getLanguageIdentifier();
 				if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
-					targetModel.textEditorModel.setMode(sourceMode); // only use if more specific than plain/text
+					targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
 				}
 			}
 
@@ -635,7 +592,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private suggestFileName(untitledResource: URI): URI {
-		const untitledFileName = this.untitledTextEditorService.suggestFileName(untitledResource);
+		const untitledFileName = this.untitledTextEditorService.exists(untitledResource) ? this.untitledTextEditorService.createOrGet(untitledResource).suggestFileName() : basename(untitledResource);
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 
@@ -658,22 +615,26 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	//#region revert
 
 	async revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
-		return !(await this.revertAll([resource], options)).results.some(result => result.error);
+		return !(await this.doRevertAll([resource], options)).results.some(result => result.error);
 	}
 
-	async revertAll(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+	private async doRevertAll(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
 
 		// Revert files first
-		const revertOperationResult = await this.doRevertAllFiles(resources, options);
+		const revertFileOperationResult = await this.doRevertAllFiles(resources, options);
 
 		// Revert untitled
-		const untitledReverted = this.untitledTextEditorService.revertAll(resources);
-		untitledReverted.forEach(untitled => revertOperationResult.results.push({ source: untitled }));
+		const revertUntitledOperationResult = await this.doRevertAllUntitled(resources, options);
 
-		return revertOperationResult;
+		return {
+			results: [
+				...revertFileOperationResult.results,
+				...revertUntitledOperationResult.results
+			]
+		};
 	}
 
-	private async doRevertAllFiles(resources?: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+	private async doRevertAllFiles(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
 		const fileModels = options?.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
 
 		const mapResourceToResult = new ResourceMap<IResult>();
@@ -711,22 +672,27 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return { results: mapResourceToResult.values() };
 	}
 
+	private async doRevertAllUntitled(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
+		const result: ITextFileOperationResult = { results: [] };
+
+		await Promise.all(resources.map(resource => {
+			if (this.untitledTextEditorService.exists(resource)) {
+				result.results.push({ source: resource });
+
+				return this.untitledTextEditorService.createOrGet(resource).revert(options);
+			}
+
+			return Promise.resolve(undefined);
+		}));
+
+		return result;
+	}
+
 	//#endregion
 
 	//#region dirty
 
-	getDirty(resources?: URI[]): URI[] {
-
-		// Collect files
-		const dirty = this.getDirtyFileModels(resources).map(dirtyFileModel => dirtyFileModel.resource);
-
-		// Add untitled ones
-		dirty.push(...this.untitledTextEditorService.getDirty(resources));
-
-		return dirty;
-	}
-
-	isDirty(resource?: URI): boolean {
+	isDirty(resource: URI): boolean {
 
 		// Check for dirty file
 		if (this.models.getAll(resource).some(model => model.isDirty())) {
@@ -735,6 +701,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Check for dirty untitled
 		return this.untitledTextEditorService.getDirty().some(dirty => !resource || dirty.toString() === resource.toString());
+	}
+
+	protected getDirty(resources?: URI[]): URI[] {
+
+		// Collect files
+		const dirty = this.getDirtyFileModels(resources).map(dirtyFileModel => dirtyFileModel.resource);
+
+		// Add untitled ones
+		dirty.push(...this.untitledTextEditorService.getDirty(resources));
+
+		return dirty;
 	}
 
 	//#endregion

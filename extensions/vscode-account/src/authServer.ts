@@ -7,12 +7,44 @@ import * as http from 'http';
 import * as url from 'url';
 import * as fs from 'fs';
 import * as net from 'net';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { assertIsDefined } from 'vs/base/common/types';
+import * as path from 'path';
 
 interface Deferred<T> {
 	resolve: (result: T | Promise<T>) => void;
 	reject: (reason: any) => void;
+}
+
+const _typeof = {
+	number: 'number',
+	string: 'string',
+	undefined: 'undefined',
+	object: 'object',
+	function: 'function'
+};
+
+/**
+ * @returns whether the provided parameter is undefined.
+ */
+export function isUndefined(obj: any): obj is undefined {
+	return typeof (obj) === _typeof.undefined;
+}
+
+/**
+ * @returns whether the provided parameter is undefined or null.
+ */
+export function isUndefinedOrNull(obj: any): obj is undefined | null {
+	return isUndefined(obj) || obj === null;
+}
+
+/**
+ * Asserts that the argument passed in is neither undefined nor null.
+ */
+export function assertIsDefined<T>(arg: T | null | undefined): T {
+	if (isUndefinedOrNull(arg)) {
+		throw new Error('Assertion Failed: argument is undefined or null');
+	}
+
+	return arg;
 }
 
 export function createTerminateServer(server: http.Server) {
@@ -140,10 +172,10 @@ export function createServer(nonce: string) {
 				}
 				break;
 			case '/':
-				sendFile(res, getPathFromAmdModule(require, '../common/auth.html'), 'text/html; charset=utf-8');
+				sendFile(res, path.join(__dirname, '../media/auth.html'), 'text/html; charset=utf-8');
 				break;
 			case '/auth.css':
-				sendFile(res, getPathFromAmdModule(require, '../common/auth.css'), 'text/css; charset=utf-8');
+				sendFile(res, path.join(__dirname, '../media/auth.css'), 'text/css; charset=utf-8');
 				break;
 			case '/callback':
 				deferredCode.resolve(callback(nonce, reqUrl)

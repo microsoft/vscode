@@ -11,7 +11,6 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { HotExitConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
@@ -22,19 +21,20 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { BackupOnShutdown } from 'vs/workbench/contrib/backup/electron-browser/backupOnShutdown';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 class ServiceAccessor {
 	constructor(
 		@ILifecycleService public lifecycleService: TestLifecycleService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService,
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
 		@IFileService public fileService: TestFileService,
 		@IElectronService public electronService: TestElectronService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
-		@IBackupFileService public backupFileService: TestBackupFileService
+		@IBackupFileService public backupFileService: TestBackupFileService,
+		@IWorkingCopyService public workingCopyService: IWorkingCopyService
 	) {
 	}
 }
@@ -67,7 +67,6 @@ suite('BackupOnShutdown', () => {
 			model.dispose();
 		}
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledTextEditorService.revertAll();
 		backupOnShutdown.dispose();
 	});
 
@@ -94,7 +93,7 @@ suite('BackupOnShutdown', () => {
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
-		assert.equal(accessor.textFileService.getDirty().length, 1);
+		assert.equal(accessor.workingCopyService.dirtyCount, 1);
 
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
@@ -110,7 +109,7 @@ suite('BackupOnShutdown', () => {
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
-		assert.equal(accessor.textFileService.getDirty().length, 1);
+		assert.equal(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
@@ -135,7 +134,7 @@ suite('BackupOnShutdown', () => {
 
 		await model.load();
 		model.textEditorModel!.setValue('foo');
-		assert.equal(accessor.textFileService.getDirty().length, 1);
+		assert.equal(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
 		accessor.lifecycleService.fireWillShutdown(event);
 
@@ -269,7 +268,7 @@ suite('BackupOnShutdown', () => {
 
 			await model.load();
 			model.textEditorModel!.setValue('foo');
-			assert.equal(accessor.textFileService.getDirty().length, 1);
+			assert.equal(accessor.workingCopyService.dirtyCount, 1);
 
 			const event = new BeforeShutdownEventImpl();
 			event.reason = shutdownReason;

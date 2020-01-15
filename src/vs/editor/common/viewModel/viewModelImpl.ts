@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration, IViewState } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
@@ -30,7 +30,7 @@ const USE_IDENTITY_LINES_COLLECTION = true;
 export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
 
 	private readonly editorId: number;
-	private readonly configuration: editorCommon.IConfiguration;
+	private readonly configuration: IConfiguration;
 	private readonly model: ITextModel;
 	private readonly _tokenizeViewportSoon: RunOnceScheduler;
 	private hasFocus: boolean;
@@ -44,7 +44,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	constructor(
 		editorId: number,
-		configuration: editorCommon.IConfiguration,
+		configuration: IConfiguration,
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
@@ -447,7 +447,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
-	public saveState(): editorCommon.IViewState {
+	public saveState(): IViewState {
 		const compatViewState = this.viewLayout.saveState();
 
 		const scrollTop = compatViewState.scrollTop;
@@ -462,7 +462,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		};
 	}
 
-	public reduceRestoreState(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+	public reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; } {
 		if (typeof state.firstPosition === 'undefined') {
 			// This is a view state serialized by an older version
 			return this._reduceRestoreStateCompatibility(state);
@@ -477,7 +477,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		};
 	}
 
-	private _reduceRestoreStateCompatibility(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+	private _reduceRestoreStateCompatibility(state: IViewState): { scrollLeft: number; scrollTop: number; } {
 		return {
 			scrollLeft: state.scrollLeft,
 			scrollTop: state.scrollTopWithoutViewZones!

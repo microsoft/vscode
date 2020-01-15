@@ -14,7 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
@@ -97,7 +97,7 @@ class LinkOccurrence {
 	}
 }
 
-class LinkDetector implements editorCommon.IEditorContribution {
+class LinkDetector implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.linkDetector';
 

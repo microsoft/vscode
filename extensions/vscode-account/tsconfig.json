@@ -1,0 +1,24 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "es6",
+		"outDir": "out",
+		"lib": [
+			"es6",
+			"es2016",
+			"dom"
+		],
+		"typeRoots": [
+			"node_modules/@types",
+			"src/typings"
+		],
+		"sourceMap": true,
+		"rootDir": "src",
+		"strict": true,
+		"noImplicitAny": true
+	},
+	"exclude": [
+		"node_modules",
+		".vscode-test"
+	]
+}

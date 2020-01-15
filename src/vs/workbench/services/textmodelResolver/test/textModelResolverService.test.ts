@@ -49,7 +49,6 @@ suite('Workbench - TextModelResolverService', () => {
 			model = (undefined)!;
 		}
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledTextEditorService.revertAll();
 	});
 
 	test('resolve resource', async () => {
@@ -120,6 +119,7 @@ suite('Workbench - TextModelResolverService', () => {
 		assert.ok(editorModel);
 		ref.dispose();
 		input.dispose();
+		model.dispose();
 	});
 
 	test('even loading documents should be refcounted', async () => {

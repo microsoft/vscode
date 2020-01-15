@@ -9,7 +9,7 @@ import { Action } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -150,8 +150,8 @@ export class InlineDiffMargin extends Disposable {
 
 		}));
 
-		this._register(editor.onMouseMove((e: editorBrowser.IEditorMouseEvent) => {
-			if (e.target.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE) {
+		this._register(editor.onMouseMove((e: IEditorMouseEvent) => {
+			if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE) {
 				const viewZoneId = e.target.detail.viewZoneId;
 
 				if (viewZoneId === this._viewZoneId) {
@@ -165,12 +165,12 @@ export class InlineDiffMargin extends Disposable {
 			}
 		}));
 
-		this._register(editor.onMouseDown((e: editorBrowser.IEditorMouseEvent) => {
+		this._register(editor.onMouseDown((e: IEditorMouseEvent) => {
 			if (!e.event.rightButton) {
 				return;
 			}
 
-			if (e.target.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE) {
+			if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE) {
 				const viewZoneId = e.target.detail.viewZoneId;
 
 				if (viewZoneId === this._viewZoneId) {

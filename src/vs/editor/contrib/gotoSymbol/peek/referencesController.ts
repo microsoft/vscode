@@ -11,7 +11,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IContextKey, IContextKeyService, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel, OneReference } from '../referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
@@ -29,7 +29,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
-export abstract class ReferencesController implements editorCommon.IEditorContribution {
+export abstract class ReferencesController implements IEditorContribution {
 
 	static readonly ID = 'editor.contrib.referencesController';
 

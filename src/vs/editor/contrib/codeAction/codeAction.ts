@@ -15,7 +15,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerType, filtersAction, mayIncludeActionsOfKind } from './types';
+import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const refactorCommandId = 'editor.action.refactor';
@@ -70,7 +70,7 @@ export function getCodeActions(
 
 	const codeActionContext: modes.CodeActionContext = {
 		only: filter.include?.value,
-		trigger: trigger.type === CodeActionTriggerType.Manual ? modes.CodeActionTrigger.Manual : modes.CodeActionTrigger.Automatic
+		trigger: trigger.type,
 	};
 
 	const cts = new TextModelCancellationTokenSource(model, token);
@@ -149,7 +149,7 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 	const codeActionSet = await getCodeActions(
 		model,
 		validatedRangeOrSelection,
-		{ type: CodeActionTriggerType.Manual, filter: { includeSourceActions: true, include: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
+		{ type: modes.CodeActionTriggerType.Manual, filter: { includeSourceActions: true, include: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
 		CancellationToken.None);
 
 	setTimeout(() => codeActionSet.dispose(), 100);
