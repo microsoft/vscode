@@ -3382,10 +3382,6 @@ declare namespace monaco.editor {
 		 */
 		maxVisibleSuggestions?: number;
 		/**
-		 * Always show inline details
-		 */
-		alwaysRevealInlineDetails?: boolean;
-		/**
 		 * Show method-suggestions.
 		 */
 		showMethods?: boolean;

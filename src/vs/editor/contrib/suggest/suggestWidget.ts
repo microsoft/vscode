@@ -526,9 +526,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this, this.editor, markdownRenderer, triggerKeybindingLabel);
 
 		const applyIconStyle = () => toggleClass(this.element, 'no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
-		const applyAlwaysRevealInlineDetailsStyle = () => toggleClass(this.element, 'always-reveal-inline-details', this.editor.getOption(EditorOption.suggest).alwaysRevealInlineDetails);
 		applyIconStyle();
-		applyAlwaysRevealInlineDetailsStyle();
 
 		let renderer = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
 
@@ -552,7 +550,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.toDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.suggest)) {
 				applyIconStyle();
-				applyAlwaysRevealInlineDetailsStyle();
 			}
 		}));
 
