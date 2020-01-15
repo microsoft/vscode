@@ -120,7 +120,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
-		if (!!(await this.userDataAuthTokenService.getToken())) {
+		if (!(await this.userDataAuthTokenService.getToken())) {
 			throw new Error('Not Authenticated. Please sign in to start sync.');
 		}
 		for (const synchroniser of this.synchronisers) {
@@ -135,7 +135,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (!this.userDataSyncStoreService.userDataSyncStore) {
 			throw new Error('Not enabled');
 		}
-		if (!!(await this.userDataAuthTokenService.getToken())) {
+		if (!(await this.userDataAuthTokenService.getToken())) {
 			throw new Error('Not Authenticated. Please sign in to start sync.');
 		}
 		for (const synchroniser of this.synchronisers) {
