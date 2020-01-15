@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as path from 'vs/base/common/path';
@@ -71,6 +71,7 @@ import { ExtHostTheming } from 'vs/workbench/api/common/extHostTheming';
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
+import { ExtHostTimeline } from 'vs/workbench/api/common/extHostTimeline';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -132,6 +133,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHostLabelService, new ExtHostLabelService(rpcProtocol));
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
 	const extHostAuthentication = rpcProtocol.set(ExtHostContext.ExtHostAuthentication, new ExtHostAuthentication(rpcProtocol));
+	const extHostTimelineService = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
@@ -761,6 +763,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidTunnelsChange: (listener, thisArg?, disposables?) => {
 				checkProposedApiEnabled(extension);
 				return extHostTunnelService.onDidTunnelsChange(listener, thisArg, disposables);
+
+			},
+			registerTimelineProvider: (scheme: string, provider: vscode.TimelineProvider) => {
+				checkProposedApiEnabled(extension);
+				return extHostTimelineService.registerTimelineProvider(extension.identifier, {
+					id: provider.id,
+					async provideTimeline(uri: URI, since: number, token: CancellationToken) {
+						const results = await provider.provideTimeline(uri, since, token);
+						return results ?? [];
+					}
+				});
 			}
 		};
 
@@ -984,7 +997,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			Decoration: extHostTypes.Decoration,
 			WebviewContentState: extHostTypes.WebviewContentState,
 			UIKind: UIKind,
-			ColorThemeKind: extHostTypes.ColorThemeKind
+			ColorThemeKind: extHostTypes.ColorThemeKind,
+			TimelineItem: extHostTypes.TimelineItem
 		};
 	};
 }
