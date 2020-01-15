@@ -35,7 +35,7 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IAuthenticationService, ChangeAccountEventData } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { Account } from 'vs/editor/common/modes';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 const enum MSAAuthStatus {
 	Initializing = 'Initializing',
@@ -415,26 +415,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const hasPreviouslySynced = await this.userDataSyncService.hasPreviouslySynced();
 
 		if (hasRemote && !hasPreviouslySynced) {
-			const result = await this.dialogService.show(
-				Severity.Info,
-				localize('firs time sync', "First time Sync"),
-				[
-					localize('continue', "Continue"),
-					localize('cancel', "Cancel"),
-					localize('download', "Download"),
-					localize('upload', "Upload"),
-				],
-				{
-					cancelId: 1,
-					detail: localize('first time sync detail', "Synchronising from this device for the first time. Would you like to \nDownload and replace with the data from cloud or \nUpload and replace with the data from this device?")
-				}
-			);
+			const result = await this.dialogService.confirm({
+				type: 'info',
+				message: localize('firs time sync', "First time Sync"),
+				primaryButton: localize('download', "Download"),
+				detail: localize('first time sync detail', "Would you like to download and replace with the data from cloud?"),
+			});
 
-			switch (result.choice) {
-				case 1: return Promise.reject(canceled());
-				case 2: return this.userDataSyncService.pull();
-				// case 3: return this.userDataSyncService.push();
-				case 3: return this.notificationService.info('Upload: Not yet supported');
+			if (result.confirmed) {
+				await this.userDataSyncService.pull();
 			}
 		}
 	}
