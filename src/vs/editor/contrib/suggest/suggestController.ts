@@ -165,7 +165,20 @@ export class SuggestController implements IEditorContribution {
 			}));
 			this._toDispose.add(toDisposable(() => makesTextEdit.reset()));
 
+			this._toDispose.add(widget.onDetailsKeyDown(e => {
+				// cmd + c on macOS, ctrl + c on Win / Linux
+				if (
+					e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
+					(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
+				) {
+					e.stopPropagation();
+					return;
+				}
 
+				if (!e.toKeybinding().isModifierKey()) {
+					this.editor.focus();
+				}
+			}));
 
 			return widget;
 		}));
@@ -195,21 +208,6 @@ export class SuggestController implements IEditorContribution {
 			if (!_sticky) {
 				this.model.cancel();
 				this.model.clear();
-			}
-		}));
-
-		this._toDispose.add(this.widget.getValue().onDetailsKeyDown(e => {
-			// cmd + c on macOS, ctrl + c on Win / Linux
-			if (
-				e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
-				(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
-			) {
-				e.stopPropagation();
-				return;
-			}
-
-			if (!e.toKeybinding().isModifierKey()) {
-				this.editor.focus();
 			}
 		}));
 

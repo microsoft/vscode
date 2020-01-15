@@ -114,7 +114,7 @@
 	overflow: hidden;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-description-container > .label-name {
+.scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
 	text-decoration: line-through;
 }
 

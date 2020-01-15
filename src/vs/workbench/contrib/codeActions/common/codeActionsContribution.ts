@@ -40,13 +40,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 export const editorConfiguration = Object.freeze<IConfigurationNode>({
 	...editorConfigurationBaseNode,
 	properties: {
-		'editor.codeActionsOnSave': codeActionsOnSaveSchema,
-		'editor.codeActionsOnSaveTimeout': {
-			type: 'number',
-			default: 750,
-			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled."),
-			scope: ConfigurationScope.RESOURCE_LANGUAGE,
-		},
+		'editor.codeActionsOnSave': codeActionsOnSaveSchema
 	}
 });
 

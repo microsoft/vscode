@@ -143,7 +143,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 }
 
-async function deleteFiles(textFileService: ITextFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
+async function deleteFiles(workingCopyService: IWorkingCopyService, textFileService: ITextFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
 		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
@@ -155,19 +155,19 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 
 	// Handle dirty
 	let confirmed = true;
-	const dirty = textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource)));
-	if (dirty.length) {
+	const dirtyWorkingCopies = workingCopyService.dirtyWorkingCopies.filter(workingCopy => distinctElements.some(e => resources.isEqualOrParent(workingCopy.resource, e.resource)));
+	if (dirtyWorkingCopies.length) {
 		let message: string;
 		if (distinctElements.length > 1) {
 			message = nls.localize('dirtyMessageFilesDelete', "You are deleting files with unsaved changes. Do you want to continue?");
 		} else if (distinctElements[0].isDirectory) {
-			if (dirty.length === 1) {
-				message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder with unsaved changes in 1 file. Do you want to continue?");
+			if (dirtyWorkingCopies.length === 1) {
+				message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder {0} with unsaved changes in 1 file. Do you want to continue?", distinctElements[0].name);
 			} else {
-				message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
+				message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder {0} with unsaved changes in {1} files. Do you want to continue?", distinctElements[0].name, dirtyWorkingCopies.length);
 			}
 		} else {
-			message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
+			message = nls.localize('dirtyMessageFileDelete', "You are deleting {0} with unsaved changes. Do you want to continue?", distinctElements[0].name);
 		}
 
 		const response = await dialogService.confirm({
@@ -181,7 +181,7 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 			confirmed = false;
 		} else {
 			skipConfirm = true;
-			await textFileService.revertAll(dirty);
+			await Promise.all(dirtyWorkingCopies.map(dirty => dirty.revert()));
 		}
 	}
 
@@ -190,11 +190,11 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 		return;
 	}
 
-	let confirmDeletePromise: Promise<IConfirmationResult>;
+	let confirmation: IConfirmationResult;
 
 	// Check if we need to ask for confirmation at all
 	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
-		confirmDeletePromise = Promise.resolve({ confirmed: true });
+		confirmation = { confirmed: true };
 	}
 
 	// Confirm for moving to trash
@@ -202,12 +202,12 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 		let { message, detail } = getMoveToTrashMessage(distinctElements);
 		detail += detail ? '\n' : '';
 		if (isWindows) {
-			detail += nls.localize('undoBin', "You can restore from the Recycle Bin.");
+			detail += distinctElements.length > 1 ? nls.localize('undoBinFiles', "You can restore these files from the Recycle Bin.") : nls.localize('undoBin', "You can restore this file from the Recycle Bin.");
 		} else {
-			detail += nls.localize('undoTrash', "You can restore from the Trash.");
+			detail += distinctElements.length > 1 ? nls.localize('undoTrashFiles', "You can restore these files from the Trash.") : nls.localize('undoTrash', "You can restore this file from the Trash.");
 		}
 
-		confirmDeletePromise = dialogService.confirm({
+		confirmation = await dialogService.confirm({
 			message,
 			detail,
 			primaryButton,
@@ -223,7 +223,7 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 		let { message, detail } = getDeleteMessage(distinctElements);
 		detail += detail ? '\n' : '';
 		detail += nls.localize('irreversible', "This action is irreversible!");
-		confirmDeletePromise = dialogService.confirm({
+		confirmation = await dialogService.confirm({
 			message,
 			detail,
 			primaryButton,
@@ -231,61 +231,54 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 		});
 	}
 
-	return confirmDeletePromise.then(confirmation => {
 
-		// Check for confirmation checkbox
-		let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
-		if (confirmation.confirmed && confirmation.checkboxChecked === true) {
-			updateConfirmSettingsPromise = configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
+
+	// Check for confirmation checkbox
+	if (confirmation.confirmed && confirmation.checkboxChecked === true) {
+		await configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
+	}
+
+
+	// Check for confirmation
+	if (!confirmation.confirmed) {
+		return;
+	}
+
+	// Call function
+	try {
+		await Promise.all(distinctElements.map(e => textFileService.delete(e.resource, { useTrash: useTrash, recursive: true })));
+	} catch (error) {
+
+		// Handle error to delete file(s) from a modal confirmation dialog
+		let errorMessage: string;
+		let detailMessage: string | undefined;
+		let primaryButton: string;
+		if (useTrash) {
+			errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
+			detailMessage = nls.localize('irreversible', "This action is irreversible!");
+			primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
+		} else {
+			errorMessage = toErrorMessage(error, false);
+			primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
 		}
 
-		return updateConfirmSettingsPromise.then(() => {
+		const res = await dialogService.confirm({
+			message: errorMessage,
+			detail: detailMessage,
+			type: 'warning',
+			primaryButton
+		});
 
-			// Check for confirmation
-			if (!confirmation.confirmed) {
-				return Promise.resolve(undefined);
+		if (res.confirmed) {
+			if (useTrash) {
+				useTrash = false; // Delete Permanently
 			}
 
-			// Call function
-			const servicePromise = Promise.all(distinctElements.map(e => textFileService.delete(e.resource, { useTrash: useTrash, recursive: true })))
-				.then(undefined, (error: any) => {
-					// Handle error to delete file(s) from a modal confirmation dialog
-					let errorMessage: string;
-					let detailMessage: string | undefined;
-					let primaryButton: string;
-					if (useTrash) {
-						errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
-						detailMessage = nls.localize('irreversible', "This action is irreversible!");
-						primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
-					} else {
-						errorMessage = toErrorMessage(error, false);
-						primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
-					}
+			skipConfirm = true;
 
-					return dialogService.confirm({
-						message: errorMessage,
-						detail: detailMessage,
-						type: 'warning',
-						primaryButton
-					}).then(res => {
-
-						if (res.confirmed) {
-							if (useTrash) {
-								useTrash = false; // Delete Permanently
-							}
-
-							skipConfirm = true;
-
-							return deleteFiles(textFileService, dialogService, configurationService, elements, useTrash, skipConfirm);
-						}
-
-						return Promise.resolve();
-					});
-				});
-
-			return servicePromise.then(undefined);
-		});
-	});
+			return deleteFiles(workingCopyService, textFileService, dialogService, configurationService, elements, useTrash, skipConfirm);
+		}
+	}
 }
 
 function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
@@ -648,7 +641,7 @@ export class ShowActiveFileInExplorer extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
@@ -656,7 +649,7 @@ export class ShowActiveFileInExplorer extends Action {
 			this.notificationService.info(nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
 
-		return Promise.resolve(true);
+		return true;
 	}
 }
 
@@ -726,7 +719,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
@@ -738,7 +731,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 			this.notificationService.info(nls.localize('openFileToShowInNewWindow.nofile', "Open a file first to open in new window"));
 		}
 
-		return Promise.resolve(true);
+		return true;
 	}
 }
 
@@ -822,7 +815,7 @@ export class CompareWithClipboardAction extends Action {
 		this.enabled = true;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
@@ -839,7 +832,7 @@ export class CompareWithClipboardAction extends Action {
 			});
 		}
 
-		return Promise.resolve(true);
+		return true;
 	}
 
 	dispose(): void {
@@ -902,15 +895,17 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 
 	folder.addChild(newStat);
 
-	const onSuccess = (value: string): Promise<void> => {
-		const createPromise = isFolder ? fileService.createFolder(resources.joinPath(folder.resource, value)) : textFileService.create(resources.joinPath(folder.resource, value));
-		return createPromise.then(created => {
+	const onSuccess = async (value: string): Promise<void> => {
+		try {
+			const created = isFolder ? await fileService.createFolder(resources.joinPath(folder.resource, value)) : await textFileService.create(resources.joinPath(folder.resource, value));
 			refreshIfSeparator(value, explorerService);
-			return isFolder ? explorerService.select(created.resource, true)
-				: editorService.openEditor({ resource: created.resource, options: { pinned: true } }).then(() => undefined);
-		}, error => {
+
+			isFolder ?
+				await explorerService.select(created.resource, true) :
+				await editorService.openEditor({ resource: created.resource, options: { pinned: true } });
+		} catch (error) {
 			onErrorWithRetry(notificationService, error, () => onSuccess(value));
-		});
+		}
 	};
 
 	explorerService.setEditable(newStat, {
@@ -974,7 +969,7 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 	if (stats.length) {
-		await deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
+		await deleteFiles(accessor.get(IWorkingCopyService), accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
 	}
 };
 
@@ -983,7 +978,7 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 
 	if (stats.length) {
-		await deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
+		await deleteFiles(accessor.get(IWorkingCopyService), accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
 	}
 };
 

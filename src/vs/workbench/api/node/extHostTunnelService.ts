@@ -5,7 +5,7 @@
 
 import { MainThreadTunnelServiceShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { URI } from 'vs/base/common/uri';
@@ -190,10 +190,19 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	private parseIpAddress(hex: string): string {
 		let result = '';
-		for (let i = hex.length - 2; (i >= 0); i -= 2) {
-			result += parseInt(hex.substr(i, 2), 16);
-			if (i !== 0) {
-				result += '.';
+		if (hex.length === 8) {
+			for (let i = hex.length - 2; i >= 0; i -= 2) {
+				result += parseInt(hex.substr(i, 2), 16);
+				if (i !== 0) {
+					result += '.';
+				}
+			}
+		} else {
+			for (let i = hex.length - 4; i >= 0; i -= 4) {
+				result += parseInt(hex.substr(i, 4), 16).toString(16);
+				if (i !== 0) {
+					result += ':';
+				}
 			}
 		}
 		return result;

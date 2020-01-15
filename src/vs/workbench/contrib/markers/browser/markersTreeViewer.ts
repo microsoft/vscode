@@ -39,11 +39,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { ITextModel } from 'vs/editor/common/model';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { CodeActionTriggerType } from 'vs/editor/common/modes';
 
 export type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -489,8 +488,6 @@ export class MarkerViewModel extends Disposable {
 		private readonly marker: Marker,
 		@IModelService private modelService: IModelService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
@@ -552,7 +549,9 @@ export class MarkerViewModel extends Disposable {
 				if (model) {
 					if (!this.codeActionsPromise) {
 						this.codeActionsPromise = createCancelablePromise(cancellationToken => {
-							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), { type: 'manual', filter: { include: CodeActionKind.QuickFix } }, cancellationToken).then(actions => {
+							return getCodeActions(model, new Range(this.marker.range.startLineNumber, this.marker.range.startColumn, this.marker.range.endLineNumber, this.marker.range.endColumn), {
+								type: CodeActionTriggerType.Manual, filter: { include: CodeActionKind.QuickFix }
+							}, cancellationToken).then(actions => {
 								return this._register(actions);
 							});
 						});
@@ -571,7 +570,7 @@ export class MarkerViewModel extends Disposable {
 			true,
 			() => {
 				return this.openFileAtMarker(this.marker)
-					.then(() => this.instantiationService.invokeFunction(applyCodeAction, codeAction, this.bulkEditService, this.commandService));
+					.then(() => this.instantiationService.invokeFunction(applyCodeAction, codeAction));
 			}));
 	}
 

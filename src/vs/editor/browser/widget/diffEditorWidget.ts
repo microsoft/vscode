@@ -1611,7 +1611,7 @@ const DECORATIONS = {
 	}),
 	lineInsertWithSign: ModelDecorationOptions.register({
 		className: 'line-insert',
-		linesDecorationsClassName: 'insert-sign',
+		linesDecorationsClassName: 'insert-sign codicon codicon-add',
 		marginClassName: 'line-insert',
 		isWholeLine: true
 	}),
@@ -1623,7 +1623,7 @@ const DECORATIONS = {
 	}),
 	lineDeleteWithSign: ModelDecorationOptions.register({
 		className: 'line-delete',
-		linesDecorationsClassName: 'delete-sign',
+		linesDecorationsClassName: 'delete-sign codicon codicon-remove',
 		marginClassName: 'line-delete',
 		isWholeLine: true
 
@@ -2082,7 +2082,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			if (this.renderIndicators) {
 				let index = lineNumber - lineChange.originalStartLineNumber;
 				marginHTML = marginHTML.concat([
-					`<div class="delete-sign" style="position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;"></div>`
+					`<div class="delete-sign codicon codicon-remove" style="position:absolute;top:${index * lineHeight}px;width:${lineDecorationsWidth}px;height:${lineHeight}px;right:0;"></div>`
 				]);
 			}
 		}
@@ -2144,6 +2144,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			lineTokens,
 			actualDecorations,
 			tabSize,
+			0,
 			fontInfo.spaceWidth,
 			options.get(EditorOption.stopRenderingLineAfter),
 			options.get(EditorOption.renderWhitespace),

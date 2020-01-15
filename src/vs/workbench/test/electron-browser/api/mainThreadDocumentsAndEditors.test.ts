@@ -49,9 +49,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 		textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
 			models = <any>{
-				onModelSaved: Event.None,
-				onModelReverted: Event.None,
-				onModelDirty: Event.None,
+				onDidSave: Event.None,
+				onDidRevert: Event.None,
+				onDidChangeDirty: Event.None
 			};
 		};
 		const workbenchEditorService = new TestEditorService();

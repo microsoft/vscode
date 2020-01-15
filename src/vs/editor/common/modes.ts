@@ -481,6 +481,7 @@ export interface CompletionItem {
 export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
+	isDetailsResolved?: boolean;
 	dispose?(): void;
 }
 
@@ -554,8 +555,8 @@ export interface CodeAction {
 /**
  * @internal
  */
-export const enum CodeActionTrigger {
-	Automatic = 1,
+export const enum CodeActionTriggerType {
+	Auto = 1,
 	Manual = 2,
 }
 
@@ -564,7 +565,7 @@ export const enum CodeActionTrigger {
  */
 export interface CodeActionContext {
 	only?: string;
-	trigger: CodeActionTrigger;
+	trigger: CodeActionTriggerType;
 }
 
 export interface CodeActionList extends IDisposable {
@@ -586,6 +587,11 @@ export interface CodeActionProvider {
 	 * Optional list of CodeActionKinds that this provider returns.
 	 */
 	providedCodeActionKinds?: ReadonlyArray<string>;
+
+	/**
+	 * @internal
+	 */
+	_getAdditionalMenuItems?(context: CodeActionContext, actions: readonly CodeAction[]): Command[];
 }
 
 /**
@@ -1272,6 +1278,25 @@ export interface RenameLocation {
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
+}
+
+/**
+ * @internal
+ */
+export interface Account {
+	id: string;
+	accessToken: string;
+	displayName: string;
+}
+
+/**
+ * @internal
+ */
+export interface AuthenticationProvider {
+	getAccount(): Promise<Account | undefined>;
+	onDidChangeAccount: Event<Account>;
+	login(): Promise<Account>;
+	logout(accountId: string): Promise<void>;
 }
 
 

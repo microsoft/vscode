@@ -46,7 +46,6 @@ export function pathEquals(path1: string, path2: string): boolean {
 
 export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
-
 }
 
 export function disposeAll(disposables: vscode.Disposable[]) {
