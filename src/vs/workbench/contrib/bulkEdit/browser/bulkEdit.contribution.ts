@@ -116,7 +116,7 @@ registerAction2(new class ApplyAction implements IAction2 {
 
 	readonly desc = {
 		id: 'refactorPreview.apply',
-		title: { value: localize('apply', "Apply Changes"), original: 'Apply Changes' },
+		title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
 		category: localize('cat', "Refactor Preview"),
 		icon: { id: 'codicon/check' },
 		precondition: BulkEditPreviewContribution.ctxEnabled,
@@ -126,6 +126,7 @@ registerAction2(new class ApplyAction implements IAction2 {
 			group: 'navigation'
 		}, {
 			id: MenuId.BulkEditPaneContext,
+			order: 1
 		}],
 		keybinding: {
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -148,7 +149,7 @@ registerAction2(new class DiscardAction implements IAction2 {
 
 	readonly desc = {
 		id: 'refactorPreview.discard',
-		title: { value: localize('Discard', "Discard Changes"), original: 'Discard Changes' },
+		title: { value: localize('Discard', "Discard Refactoring"), original: 'Discard Refactoring' },
 		category: localize('cat', "Refactor Preview"),
 		icon: { id: 'codicon/clear-all' },
 		precondition: BulkEditPreviewContribution.ctxEnabled,
@@ -157,7 +158,8 @@ registerAction2(new class DiscardAction implements IAction2 {
 			when: ContextKeyExpr.equals('view', BulkEditPane.ID),
 			group: 'navigation'
 		}, {
-			id: MenuId.BulkEditPaneContext
+			id: MenuId.BulkEditPaneContext,
+			order: 2
 		}]
 	};
 
