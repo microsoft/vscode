@@ -16,7 +16,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		id: 'MSA',
 		displayName: 'Microsoft Account', // TODO localize
 		onDidChangeAccounts: onDidChangeAccounts.event,
-		accounts: loginService.accounts,
+		getAccounts: () => Promise.resolve(loginService.accounts),
 		login: async () => {
 			try {
 				await loginService.login();

@@ -26,7 +26,7 @@ declare module 'vscode' {
 		readonly id: string;
 		readonly displayName: string;
 
-		readonly accounts: ReadonlyArray<Account>;
+		getAccounts(): Promise<ReadonlyArray<Account>>;
 		readonly onDidChangeAccounts: Event<ReadonlyArray<Account>>;
 
 		login(): Promise<Account>;

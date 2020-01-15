@@ -13,11 +13,11 @@ export class ExtHostAuthenticationProvider implements IDisposable {
 	constructor(private _provider: vscode.AuthenticationProvider,
 		private readonly _handle: number,
 		private _proxy: MainThreadAuthenticationShape) {
-		this._provider.onDidChangeAccounts(x => this._proxy.$onDidChangeAccounts(this._handle, this._provider.accounts));
+		this._provider.onDidChangeAccounts(x => this._proxy.$onDidChangeAccounts(this._handle, x));
 	}
 
-	get accounts(): ReadonlyArray<vscode.Account> {
-		return this._provider.accounts;
+	getAccounts(): Promise<ReadonlyArray<vscode.Account>> {
+		return this._provider.getAccounts();
 	}
 
 	login(): Promise<vscode.Account> {
@@ -57,7 +57,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	$accounts(handle: number): Promise<ReadonlyArray<modes.Account>> {
 		const authProvider = this._authenticationProviders.get(handle);
 		if (authProvider) {
-			return Promise.resolve(authProvider.accounts);
+			return Promise.resolve(authProvider.getAccounts());
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${handle}`);

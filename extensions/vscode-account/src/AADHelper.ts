@@ -34,6 +34,27 @@ export class AzureActiveDirectoryService {
 		if (existingRefreshToken) {
 			await this.refreshToken(existingRefreshToken);
 		}
+
+		this.pollForChange();
+	}
+
+	private pollForChange() {
+		setTimeout(async () => {
+			const refreshToken = await keychain.getToken();
+			// Another window has logged in, generate access token for this instance.
+			if (refreshToken && !this._token) {
+				await this.refreshToken(refreshToken);
+				onDidChangeAccounts.fire(this.accounts);
+			}
+
+			// Another window has logged out
+			if (!refreshToken && this._token) {
+				await this.logout();
+				onDidChangeAccounts.fire(this.accounts);
+			}
+
+			this.pollForChange();
+		}, 1000 * 30);
 	}
 
 	private tokenToAccount(token: IToken): vscode.Account {
@@ -123,8 +144,7 @@ export class AzureActiveDirectoryService {
 			try {
 				await this.refreshToken(token.refreshToken);
 			} catch (e) {
-				vscode.window.showErrorMessage(`You have been signed out.`);
-				this._token = undefined;
+				await this.logout();
 			} finally {
 				onDidChangeAccounts.fire(this.accounts);
 			}
@@ -209,7 +229,7 @@ export class AzureActiveDirectoryService {
 				result.on('data', (chunk: Buffer) => {
 					buffer.push(chunk);
 				});
-				result.on('end', () => {
+				result.on('end', async () => {
 					if (result.statusCode === 200) {
 						const json = JSON.parse(Buffer.concat(buffer).toString());
 						const token = {
@@ -220,8 +240,8 @@ export class AzureActiveDirectoryService {
 						this.setToken(token);
 						resolve(token);
 					} else {
-						vscode.window.showInformationMessage(`error`);
-						reject(new Error('Bad!'));
+						await this.logout();
+						reject(new Error('Refreshing token failed.'));
 					}
 				});
 			});
