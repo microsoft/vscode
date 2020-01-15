@@ -348,20 +348,20 @@ export class SyncActionDescriptor {
 
 type OneOrN<T> = T | T[];
 
-export interface IAction2Description extends ICommandAction {
+export interface IAction2Options extends ICommandAction {
 	f1?: boolean;
 	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
 	keybinding?: Omit<IKeybindingRule, 'id'>;
 }
 
-export interface IAction2 {
-	readonly desc: IAction2Description;
-	run(accessor: ServicesAccessor, ...args: any): any;
+export abstract class Action2 {
+	constructor(readonly desc: Readonly<IAction2Options>) { }
+	abstract run(accessor: ServicesAccessor, ...args: any[]): any;
 }
 
-export function registerAction2(action: IAction2): IDisposable {
+export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
-
+	const action = new ctor();
 	disposables.add(CommandsRegistry.registerCommand({
 		id: action.desc.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),

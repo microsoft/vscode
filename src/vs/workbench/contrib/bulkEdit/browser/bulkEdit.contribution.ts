@@ -23,7 +23,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { URI } from 'vs/base/common/uri';
-import { MenuId, registerAction2, IAction2 } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
@@ -112,28 +112,30 @@ class BulkEditPreviewContribution {
 
 
 // CMD: accept
-registerAction2(new class ApplyAction implements IAction2 {
+registerAction2(class ApplyAction extends Action2 {
 
-	readonly desc = {
-		id: 'refactorPreview.apply',
-		title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
-		category: localize('cat', "Refactor Preview"),
-		icon: { id: 'codicon/check' },
-		precondition: BulkEditPreviewContribution.ctxEnabled,
-		menu: [{
-			id: MenuId.ViewTitle,
-			when: ContextKeyExpr.equals('view', BulkEditPane.ID),
-			group: 'navigation'
-		}, {
-			id: MenuId.BulkEditPaneContext,
-			order: 1
-		}],
-		keybinding: {
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: BulkEditPreviewContribution.ctxEnabled,
-			primary: KeyMod.Shift + KeyCode.Enter,
-		}
-	};
+	constructor() {
+		super({
+			id: 'refactorPreview.apply',
+			title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
+			category: localize('cat', "Refactor Preview"),
+			icon: { id: 'codicon/check' },
+			precondition: BulkEditPreviewContribution.ctxEnabled,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', BulkEditPane.ID),
+				group: 'navigation'
+			}, {
+				id: MenuId.BulkEditPaneContext,
+				order: 1
+			}],
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: BulkEditPreviewContribution.ctxEnabled,
+				primary: KeyMod.Shift + KeyCode.Enter,
+			}
+		});
+	}
 
 	run(accessor: ServicesAccessor): any {
 		const panelService = accessor.get(IPanelService);
@@ -145,23 +147,25 @@ registerAction2(new class ApplyAction implements IAction2 {
 });
 
 // CMD: discard
-registerAction2(new class DiscardAction implements IAction2 {
+registerAction2(class DiscardAction extends Action2 {
 
-	readonly desc = {
-		id: 'refactorPreview.discard',
-		title: { value: localize('Discard', "Discard Refactoring"), original: 'Discard Refactoring' },
-		category: localize('cat', "Refactor Preview"),
-		icon: { id: 'codicon/clear-all' },
-		precondition: BulkEditPreviewContribution.ctxEnabled,
-		menu: [{
-			id: MenuId.ViewTitle,
-			when: ContextKeyExpr.equals('view', BulkEditPane.ID),
-			group: 'navigation'
-		}, {
-			id: MenuId.BulkEditPaneContext,
-			order: 2
-		}]
-	};
+	constructor() {
+		super({
+			id: 'refactorPreview.discard',
+			title: { value: localize('Discard', "Discard Refactoring"), original: 'Discard Refactoring' },
+			category: localize('cat', "Refactor Preview"),
+			icon: { id: 'codicon/clear-all' },
+			precondition: BulkEditPreviewContribution.ctxEnabled,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', BulkEditPane.ID),
+				group: 'navigation'
+			}, {
+				id: MenuId.BulkEditPaneContext,
+				order: 2
+			}]
+		});
+	}
 
 	run(accessor: ServicesAccessor): void | Promise<void> {
 		const panelService = accessor.get(IPanelService);
@@ -174,24 +178,26 @@ registerAction2(new class DiscardAction implements IAction2 {
 
 
 // CMD: toggle
-registerAction2(new class ToggleAction implements IAction2 {
+registerAction2(class ToggleAction extends Action2 {
 
-	readonly desc = {
-		id: 'refactorPreview.toggleCheckedState',
-		title: { value: localize('toogleSelection', "Accept Change"), original: 'Accept Change' },
-		category: localize('cat', "Refactor Preview"),
-		precondition: BulkEditPreviewContribution.ctxEnabled,
-		toggled: BulkEditPane.ctxChangeChecked,
-		keybinding: {
-			weight: KeybindingWeight.WorkbenchContrib,
-			when: WorkbenchListFocusContextKey,
-			primary: KeyCode.Space,
-		},
-		menu: {
-			id: MenuId.BulkEditPaneContext,
-			group: 'navigation'
-		}
-	};
+	constructor() {
+		super({
+			id: 'refactorPreview.toggleCheckedState',
+			title: { value: localize('toogleSelection', "Accept Change"), original: 'Accept Change' },
+			category: localize('cat', "Refactor Preview"),
+			precondition: BulkEditPreviewContribution.ctxEnabled,
+			toggled: BulkEditPane.ctxChangeChecked,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: WorkbenchListFocusContextKey,
+				primary: KeyCode.Space,
+			},
+			menu: {
+				id: MenuId.BulkEditPaneContext,
+				group: 'navigation'
+			}
+		});
+	}
 
 	run(accessor: ServicesAccessor): void | Promise<void> {
 		const panelService = accessor.get(IPanelService);
