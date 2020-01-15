@@ -218,8 +218,10 @@ class Renderer implements IListRenderer<CompletionItem, ISuggestionTemplateData>
 		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
 		if (typeof suggestion.label === 'string') {
 			data.detailsLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
+			removeClass(data.detailsLabel, 'always-show');
 		} else {
 			data.detailsLabel.textContent = (suggestion.label.details || '').replace(/\n.*$/m, '');
+			addClass(data.detailsLabel, 'always-show');
 		}
 
 		if (canExpandCompletionItem(element)) {

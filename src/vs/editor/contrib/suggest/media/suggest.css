@@ -143,17 +143,33 @@
 	display: inline;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore,
+/** Details: if using CompletionItem#details, show on focus **/
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .details-label,
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .details-label,
-.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .details-label {
 	display: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .details-label {
 	display: inline;
+}
+
+/** Details: if using CompletionItemLabel#details, always show **/
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .details-label.always-show,
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .details-label.always-show {
+	display: inline;
+}
+
+/** ReadMore: always layout, only shown on focus **/
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
+	display: inline;
+	visibility: hidden;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
+	visibility: visible;
 }
 
 /** Styles for each row in the list **/
