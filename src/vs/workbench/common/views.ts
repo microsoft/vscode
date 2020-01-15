@@ -206,9 +206,6 @@ export interface IViewDescriptorCollection extends IDisposable {
 	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 	readonly activeViewDescriptors: IViewDescriptor[];
 	readonly allViewDescriptors: IViewDescriptor[];
-
-	addViews(viewDescriptors: IViewDescriptor[]): void;
-	removeViews(viewDescriptors: IViewDescriptor[]): void;
 }
 
 export interface IViewsRegistry {
