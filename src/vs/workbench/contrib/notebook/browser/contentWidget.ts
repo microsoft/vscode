@@ -9,6 +9,9 @@ import * as DOM from 'vs/base/browser/dom';
 import * as UUID from 'vs/base/common/uuid';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { URI } from 'vs/base/common/uri';
+import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 
 
 export interface IDimentionMessage {
@@ -64,7 +67,7 @@ export class BackLayerWebView extends Disposable {
 	public mapping: Map<string, { cell: ViewCell, offset: number, top: number }> = new Map();
 	public outputMapping: Map<string, boolean> = new Map();
 
-	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: NotebookHandler) {
+	constructor(public webviewService: IWebviewService, public notebookService: INotebookService, public notebookHandler: NotebookHandler, public environmentSerice: IEnvironmentService) {
 		super();
 		this.element = document.createElement('div');
 
@@ -72,6 +75,8 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 		this.element.style.margin = '0px 0 0px 24px';
+
+		const loader = URI.parse(environmentSerice.appRoot + '/out/vs/loader.js').with({ scheme: WebviewResourceScheme });
 
 		let content = /* html */`
 		<html lang="en">
@@ -87,6 +92,10 @@ export class BackLayerWebView extends Disposable {
 				</style>
 			</head>
 			<body style="overflow: hidden;">
+				<script>
+					self.require = {};
+				</script>
+				<script src="${loader}"></script>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;"></div>
 <script>
 (function () {
@@ -243,7 +252,7 @@ export class BackLayerWebView extends Disposable {
 			enableFindWidget: false,
 		}, {
 			allowScripts: true,
-			localResourceRoots: this.notebookService.getNotebookProviderResourceRoots()
+			localResourceRoots: [...this.notebookService.getNotebookProviderResourceRoots(), URI.parse(this.environmentSerice.appRoot)]
 		});
 		webview.html = content;
 		return webview;

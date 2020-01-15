@@ -29,6 +29,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getZoomLevel } from 'vs/base/browser/browser';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -63,7 +64,8 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 		@IWebviewService private webviewService: IWebviewService,
 		@INotebookService private notebookService: INotebookService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentSerice: IEnvironmentService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
@@ -141,7 +143,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 			}
 		);
 
-		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this);
+		this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
 		this.list.view.rowsContainer.appendChild(this.webview.element);
 		this._register(this.list);
 	}
@@ -236,7 +238,7 @@ export class NotebookEditor extends BaseEditor implements NotebookHandler {
 				if (this.webview) {
 					this.webview?.clearContentWidgets();
 				} else {
-					this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this);
+					this.webview = new BackLayerWebView(this.webviewService, this.notebookService, this, this.environmentSerice);
 					this.list?.view.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
 				}
 
