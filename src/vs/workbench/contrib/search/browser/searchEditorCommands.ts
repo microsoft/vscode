@@ -536,7 +536,7 @@ export const refreshActiveEditorSearch =
 export const openNewSearchEditor =
 	async (editorService: IEditorService, instantiationService: IInstantiationService) => {
 		const activeEditor = editorService.activeTextEditorWidget;
-		let activeModel: ICodeEditor;
+		let activeModel: ICodeEditor | undefined;
 		if (isDiffEditor(activeEditor)) {
 			if (activeEditor.getOriginalEditor().hasTextFocus()) {
 				activeModel = activeEditor.getOriginalEditor();
@@ -544,7 +544,7 @@ export const openNewSearchEditor =
 				activeModel = activeEditor.getModifiedEditor();
 			}
 		} else {
-			activeModel = activeEditor as ICodeEditor;
+			activeModel = activeEditor as ICodeEditor | undefined;
 		}
 		const selection = activeModel?.getSelection();
 		let selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';
