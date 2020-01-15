@@ -899,8 +899,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const to = viewContainer;
 
 		if (from && to && from !== to) {
-			this.onDidDeregisterViews(from, views);
-			this.onDidRegisterViews(viewContainer, views);
+			for (const viewDescriptor of views) {
+				this.viewContainers.set(viewDescriptor.id, to);
+			}
+
 			this._onDidChangeContainer.fire({ views, from, to });
 		}
 
