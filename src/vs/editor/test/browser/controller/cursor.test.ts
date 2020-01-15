@@ -2279,6 +2279,30 @@ suite('Editor Controller - Regression tests', () => {
 
 		model.dispose();
 	});
+
+	test('issue #85712: Paste line moves cursor to start of current line rather than start of next line', () => {
+		let model = createTextModel(
+			[
+				'abc123',
+				''
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(2, 1, 2, 1)
+			]);
+			cursorCommand(cursor, H.Paste, { text: 'something\n', pasteOnNewLine: true });
+			assert.equal(model.getValue(), [
+				'abc123',
+				'something',
+				''
+			].join('\n'));
+			assertCursor(cursor, new Position(3, 1));
+		});
+
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
@@ -2636,7 +2660,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(4, 1));
+			assertCursor(cursor, new Position(5, 1));
 		});
 
 		model.dispose();
