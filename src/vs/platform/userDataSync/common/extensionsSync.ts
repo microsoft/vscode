@@ -122,7 +122,7 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 			const { added, removed, updated, remote } = merge(localExtensions, null, null, [], this.getIgnoredExtensions());
 			await this.apply({ added, removed, updated, remote, remoteUserData: null, skippedExtensions: [] });
 
-			this.logService.info('Extensions: Finished pulling extensions.');
+			this.logService.info('Extensions: Finished pushing extensions.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}

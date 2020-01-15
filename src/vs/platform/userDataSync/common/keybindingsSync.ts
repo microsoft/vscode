@@ -89,9 +89,10 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 			const remoteContent = remoteUserData.content !== null ? this.getKeybindingsContentFromSyncContent(remoteUserData.content) : null;
 
 			if (remoteContent !== null) {
-				await this.fileService.writeFile(this.environmentService.settingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+				await this.fileService.writeFile(this.environmentService.keybindingsSyncPreviewResource, VSBuffer.fromString(remoteContent));
+				const fileContent = await this.getLocalFileContent();
 				this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<ISyncPreviewResult>({
-					fileContent: null,
+					fileContent,
 					hasConflicts: false,
 					hasLocalChanged: true,
 					hasRemoteChanged: false,
@@ -104,6 +105,8 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 			else {
 				this.logService.info('Keybindings: Remote keybindings does not exist.');
 			}
+
+			this.logService.info('Keybindings: Finished pulling keybindings.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -140,6 +143,8 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 			else {
 				this.logService.info('Keybindings: Local keybindings does not exist.');
 			}
+
+			this.logService.info('Keybindings: Finished pushing keybindings.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -173,6 +178,7 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 				return false;
 			}
 			await this.apply();
+			this.logService.trace('Keybindings: Finished synchronizing keybindings...');
 			return true;
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
@@ -263,7 +269,6 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 			this.logService.trace('Keybindings: No changes found during synchronizing keybindings.');
 		}
 
-		this.logService.trace('Keybindings: Finised synchronizing keybindings.');
 		this.syncPreviewResultPromise = null;
 	}
 

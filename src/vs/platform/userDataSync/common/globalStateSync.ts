@@ -104,7 +104,7 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 			const remote = await this.getLocalGlobalState();
 			await this.apply({ local: undefined, remote, remoteUserData: null });
 
-			this.logService.info('UI State: Finished pulling UI State.');
+			this.logService.info('UI State: Finished pushing UI State.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}

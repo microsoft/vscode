@@ -122,6 +122,8 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			else {
 				this.logService.info('Settings: Remote settings does not exist.');
 			}
+
+			this.logService.info('Settings: Finished pulling settings.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -162,6 +164,8 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			else {
 				this.logService.info('Settings: Local settings does not exist.');
 			}
+
+			this.logService.info('Settings: Finished pushing settings.');
 		} finally {
 			this.setStatus(SyncStatus.Idle);
 		}
@@ -225,6 +229,7 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 				return false;
 			}
 			await this.apply();
+			this.logService.trace('Settings: Finished synchronizing settings.');
 			return true;
 		} catch (e) {
 			this.syncPreviewResultPromise = null;
@@ -293,7 +298,6 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 			this.logService.trace('Settings: No changes found during synchronizing settings.');
 		}
 
-		this.logService.trace('Settings: Finised synchronizing settings.');
 		this.syncPreviewResultPromise = null;
 	}
 
