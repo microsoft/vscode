@@ -192,6 +192,12 @@ export class ExtensionsSynchroniser extends Disposable implements ISynchroniser 
 		});
 	}
 
+	async resetLocal(): Promise<void> {
+		try {
+			await this.fileService.del(this.lastSyncExtensionsResource);
+		} catch (e) { /* ignore */ }
+	}
+
 	private async getPreview(): Promise<ISyncPreviewResult> {
 		const lastSyncData = await this.getLastSyncUserData();
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncData ? JSON.parse(lastSyncData.content!) : null;

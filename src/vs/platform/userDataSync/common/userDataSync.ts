@@ -153,6 +153,7 @@ export interface IUserDataSyncStoreService {
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 	read(key: string, oldValue: IUserData | null): Promise<IUserData>;
 	write(key: string, content: string, ref: string | null): Promise<string>;
+	clear(): Promise<void>;
 }
 
 export interface ISyncExtension {
@@ -190,18 +191,28 @@ export interface ISynchroniser {
 	stop(): void;
 	hasPreviouslySynced(): Promise<boolean>
 	hasRemote(): Promise<boolean>;
+	resetLocal(): Promise<void>;
 }
 
 export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
 export interface IUserDataSyncService extends ISynchroniser {
 	_serviceBrand: any;
 	readonly conflictsSource: SyncSource | null;
+	reset(): Promise<void>;
+	resetLocal(): Promise<void>;
 	removeExtension(identifier: IExtensionIdentifier): Promise<void>;
+}
+
+export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
+export interface IUserDataAutoSyncService {
+	_serviceBrand: any;
+	triggerAutoSync(): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
 export interface IUserDataSyncUtilService {
 	_serviceBrand: undefined;
+	updateConfigurationValue(key: string, value: any): Promise<void>;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
 }

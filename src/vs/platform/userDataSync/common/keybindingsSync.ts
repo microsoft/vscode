@@ -219,6 +219,12 @@ export class KeybindingsSynchroniser extends Disposable implements ISynchroniser
 		return remoteUserData.content !== null;
 	}
 
+	async resetLocal(): Promise<void> {
+		try {
+			await this.fileService.del(this.lastSyncKeybindingsResource);
+		} catch (e) { /* ignore */ }
+	}
+
 	private async continueSync(): Promise<boolean> {
 		if (this.status !== SyncStatus.HasConflicts) {
 			return false;

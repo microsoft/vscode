@@ -53,7 +53,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, ISettingsSyncService, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncChannel, UserDataSyncUtilServiceClient, SettingsSyncChannel, UserDataAuthTokenServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { UserDataSyncChannel, UserDataSyncUtilServiceClient, SettingsSyncChannel, UserDataAuthTokenServiceChannel, UserDataAutoSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
@@ -217,6 +217,10 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);
 			server.registerChannel('userDataSync', userDataSyncChannel);
 
+			const userDataAutoSync = instantiationService2.createInstance(UserDataAutoSync);
+			const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
+			server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
+
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
 			// update localizations cache
@@ -227,7 +231,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 				instantiationService2.createInstance(LanguagePackCachedDataCleaner),
 				instantiationService2.createInstance(StorageDataCleaner),
 				instantiationService2.createInstance(LogsDataCleaner),
-				instantiationService2.createInstance(UserDataAutoSync)
+				userDataAutoSync
 			));
 			disposables.add(extensionManagementService as ExtensionManagementService);
 		});

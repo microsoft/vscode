@@ -731,4 +731,6 @@ class MockUserDataSyncUtilService implements IUserDataSyncUtilService {
 	async resolveFormattingOptions(file?: URI): Promise<FormattingOptions> {
 		return { eol: '\n', insertSpaces: false, tabSize: 4 };
 	}
+
+	async updateConfigurationValue(key: string, value: any): Promise<void> { }
 }

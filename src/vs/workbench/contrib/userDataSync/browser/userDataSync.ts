@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, SyncSource, CONTEXT_SYNC_STATE, IUserDataSyncStore, registerConfiguration, getUserDataSyncStore, ISyncConfiguration, IUserDataAuthTokenService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { Disposable, MutableDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -76,6 +76,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IUserDataAuthTokenService private readonly userDataAuthTokenService: IUserDataAuthTokenService,
+		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(configurationService);
@@ -94,17 +95,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				if (isWeb) {
 					this._register(instantiationService.createInstance(UserDataAutoSync));
 				} else {
-					this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => this.triggerSync()));
+					this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(() => userDataAutoSyncService.triggerAutoSync()));
 				}
 			});
-		}
-	}
-
-	private triggerSync(): void {
-		if (this.configurationService.getValue<boolean>('sync.enable')
-			&& this.userDataSyncService.status !== SyncStatus.Uninitialized
-			&& this.authenticationState.get() === MSAAuthStatus.SignedIn) {
-			this.userDataSyncService.sync();
 		}
 	}
 
@@ -441,7 +434,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				case 1: return Promise.reject(canceled());
 				case 2: return this.userDataSyncService.pull();
 				// case 3: return this.userDataSyncService.push();
-				case 3: return this.notificationService.info('not yet supported');
+				case 3: return this.notificationService.info('Upload: Not yet supported');
 			}
 		}
 	}
@@ -451,10 +444,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			type: 'info',
 			message: localize('turn off sync confirmation', "Turn off Sync"),
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions and more will no longer be synced."),
-			primaryButton: localize('turn off', "Turn off")
+			primaryButton: localize('turn off', "Turn off"),
+			checkbox: {
+				label: localize('turn off sync everywhere', "Turn off sync in all your devices and clear the data from cloud.")
+			}
 		});
 		if (result.confirmed) {
 			await this.configurationService.updateValue(UserDataSyncWorkbenchContribution.ENABLEMENT_SETTING, false);
+			if (result.checkboxChecked) {
+				await this.userDataSyncService.reset();
+			}
 		}
 	}
 
@@ -686,6 +685,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			command: {
 				id: showSyncLogCommandId,
 				title: localize('show sync log', "Sync: Show Sync Log")
+			},
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
+		});
+
+		const resetLocalCommandId = 'workbench.userData.actions.resetLocal';
+		CommandsRegistry.registerCommand(resetLocalCommandId, () => this.userDataSyncService.resetLocal());
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: resetLocalCommandId,
+				title: localize('reset local', "Developer: Reset Local (Sync)")
 			},
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
 		});

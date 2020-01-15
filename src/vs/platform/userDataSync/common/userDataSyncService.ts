@@ -146,6 +146,43 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return false;
 	}
 
+	async reset(): Promise<void> {
+		await this.resetRemote();
+		await this.resetLocal();
+	}
+
+	private async resetRemote(): Promise<void> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		try {
+			await this.userDataSyncStoreService.clear();
+			this.logService.info('Completed clearing remote data');
+		} catch (e) {
+			this.logService.error(e);
+		}
+	}
+
+	async resetLocal(): Promise<void> {
+		if (!this.userDataSyncStoreService.userDataSyncStore) {
+			throw new Error('Not enabled');
+		}
+		if (!(await this.userDataAuthTokenService.getToken())) {
+			throw new Error('Not Authenticated. Please sign in to start sync.');
+		}
+		for (const synchroniser of this.synchronisers) {
+			try {
+				await synchroniser.resetLocal();
+			} catch (e) {
+				this.logService.error(`${this.getSyncSource(synchroniser)}: ${toErrorMessage(e)}`);
+			}
+		}
+		this.logService.info('Completed resetting local cache');
+	}
+
 	removeExtension(identifier: IExtensionIdentifier): Promise<void> {
 		return this.extensionsSynchroniser.removeExtension(identifier);
 	}

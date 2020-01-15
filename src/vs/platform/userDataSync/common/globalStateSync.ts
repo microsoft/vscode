@@ -155,6 +155,12 @@ export class GlobalStateSynchroniser extends Disposable implements ISynchroniser
 		return remoteUserData.content !== null;
 	}
 
+	async resetLocal(): Promise<void> {
+		try {
+			await this.fileService.del(this.lastSyncGlobalStateResource);
+		} catch (e) { /* ignore */ }
+	}
+
 	private async getPreview(): Promise<ISyncPreviewResult> {
 		const lastSyncData = await this.getLastSyncUserData();
 		const lastSyncGlobalState = lastSyncData && lastSyncData.content ? JSON.parse(lastSyncData.content) : null;

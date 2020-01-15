@@ -220,6 +220,12 @@ export class SettingsSynchroniser extends Disposable implements ISettingsSyncSer
 		}
 	}
 
+	async resetLocal(): Promise<void> {
+		try {
+			await this.fileService.del(this.lastSyncSettingsResource);
+		} catch (e) { /* ignore */ }
+	}
+
 	private async doSync(resolvedConflicts: { key: string, value: any | undefined }[]): Promise<boolean> {
 		try {
 			const result = await this.getPreview(resolvedConflicts);

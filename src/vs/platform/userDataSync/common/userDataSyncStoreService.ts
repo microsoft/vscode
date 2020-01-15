@@ -88,6 +88,21 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		return newRef;
 	}
 
+	async clear(): Promise<void> {
+		if (!this.userDataSyncStore) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(URI.parse(this.userDataSyncStore.url), 'resource').toString();
+		const headers: IHeaders = { 'Content-Type': 'text/plain' };
+
+		const context = await this.request({ type: 'DELETE', url, headers }, CancellationToken.None);
+
+		if (!isSuccess(context)) {
+			throw new Error('Server returned ' + context.res.statusCode);
+		}
+	}
+
 	private async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		const authToken = await this.authTokenService.getToken();
 		if (!authToken) {

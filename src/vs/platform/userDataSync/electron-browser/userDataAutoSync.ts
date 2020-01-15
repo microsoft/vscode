@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataSyncLogService, IUserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncLogService, IUserDataAuthTokenService, IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { UserDataAutoSync as BaseUserDataAutoSync } from 'vs/platform/userDataSync/common/userDataAutoSync';
@@ -17,15 +17,16 @@ export class UserDataAutoSync extends BaseUserDataAutoSync {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataAuthTokenService authTokenService: IUserDataAuthTokenService,
+		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 	) {
-		super(configurationService, userDataSyncService, logService, authTokenService);
+		super(configurationService, userDataSyncService, logService, authTokenService, userDataSyncUtilService);
 
 		// Sync immediately if there is a local change.
 		this._register(Event.debounce(Event.any<any>(
 			electronService.onWindowFocus,
 			electronService.onWindowOpen,
-			userDataSyncService.onDidChangeLocal
-		), () => undefined, 500)(() => this.sync(false)));
+			userDataSyncService.onDidChangeLocal,
+		), () => undefined, 500)(() => this.triggerAutoSync()));
 	}
 
 }
