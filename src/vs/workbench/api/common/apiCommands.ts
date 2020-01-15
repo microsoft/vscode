@@ -14,6 +14,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -236,4 +238,19 @@ CommandsRegistry.registerCommand({
 			}
 		}]
 	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: number) {
+	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IEnvironmentService);
+
+	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
+		logService.setLevel(level);
+	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.getLogLevel', function (accessor: ServicesAccessor) {
+	const logService = accessor.get(ILogService);
+
+	return logService.getLevel();
 });
