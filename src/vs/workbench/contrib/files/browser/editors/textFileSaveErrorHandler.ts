@@ -71,8 +71,8 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 	}
 
 	private registerListeners(): void {
-		this._register(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
-		this._register(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
+		this._register(this.textFileService.models.onDidSave(e => this.onFileSavedOrReverted(e.model.resource)));
+		this._register(this.textFileService.models.onDidRevert(m => this.onFileSavedOrReverted(m.resource)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 

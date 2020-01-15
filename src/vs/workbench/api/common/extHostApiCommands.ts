@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto } from 'vs/workbench/api/common/extHost.protocol';

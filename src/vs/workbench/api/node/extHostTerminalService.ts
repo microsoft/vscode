@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import product from 'vs/platform/product/common/product';
 import * as os from 'os';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -78,7 +78,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		);
 	}
 
-	private _getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
+	public getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
 		const fetchSetting = (key: string): { userValue: string | string[] | undefined, value: string | string[] | undefined, defaultValue: string | string[] | undefined } => {
 			const setting = configProvider
 				.getConfiguration(key.substr(0, key.lastIndexOf('.')))
@@ -137,7 +137,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		if (!shellLaunchConfig.executable) {
 			shellLaunchConfig.executable = this.getDefaultShell(false, configProvider);
-			shellLaunchConfig.args = this._getDefaultShellArgs(false, configProvider);
+			shellLaunchConfig.args = this.getDefaultShellArgs(false, configProvider);
 		} else {
 			if (this._variableResolver) {
 				shellLaunchConfig.executable = this._variableResolver.resolve(this._lastActiveWorkspace, shellLaunchConfig.executable);
@@ -208,7 +208,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		return Promise.resolve({
 			shell: this.getDefaultShell(useAutomationShell, configProvider),
-			args: this._getDefaultShellArgs(useAutomationShell, configProvider)
+			args: this.getDefaultShellArgs(useAutomationShell, configProvider)
 		});
 	}
 

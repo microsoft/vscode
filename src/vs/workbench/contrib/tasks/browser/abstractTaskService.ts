@@ -70,7 +70,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
@@ -256,7 +256,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
@@ -1316,7 +1316,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
-			this.remoteAgentService,
+			this.remotePathService,
 			(workspaceFolder: IWorkspaceFolder) => {
 				if (!workspaceFolder) {
 					return undefined;

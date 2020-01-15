@@ -540,12 +540,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	setModel(model: ITextModel | null): void;
 
 	/**
-	 * @internal
+	 * Gets all the editor computed options.
 	 */
 	getOptions(): IComputedEditorOptions;
 
 	/**
-	 * @internal
+	 * Gets a specific editor option.
 	 */
 	getOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 

@@ -5,7 +5,7 @@
 
 import { MainThreadTunnelServiceShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { URI } from 'vs/base/common/uri';

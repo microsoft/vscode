@@ -101,7 +101,6 @@ suite('EditorAutoSave', () => {
 
 		part.dispose();
 		editorAutoSave.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 	});
 

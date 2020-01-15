@@ -160,7 +160,6 @@ export class SearchWidget extends Widget {
 	private temporarilySkipSearchOnChange = false;
 	private showContextCheckbox!: Checkbox;
 	private contextLinesInput!: InputBox;
-	private _contextLineInputDelayer: Delayer<void>;
 
 	constructor(
 		container: HTMLElement,
@@ -179,7 +178,6 @@ export class SearchWidget extends Widget {
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
-		this._contextLineInputDelayer = new Delayer<void>(300);
 
 		this._searchDelayer = this._register(new Delayer<void>(this.searchConfiguration.searchOnTypeDebouncePeriod));
 		this.render(container, options);
@@ -386,7 +384,7 @@ export class SearchWidget extends Widget {
 				if (this.contextLinesInput.value.includes('-')) {
 					this.contextLinesInput.value = '0';
 				}
-				this._contextLineInputDelayer.trigger(() => this._onDidToggleContext.fire());
+				this._onDidToggleContext.fire();
 			}));
 			dom.append(searchInputContainer, this.showContextCheckbox.domNode);
 		}
@@ -400,6 +398,7 @@ export class SearchWidget extends Widget {
 			this.showContextCheckbox.checked = true;
 			this.contextLinesInput.value = '' + lines;
 		}
+		dom.toggleClass(this.domNode, 'show-context', this.showContextCheckbox.checked);
 	}
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -453,8 +452,8 @@ export class SearchWidget extends Widget {
 	}
 
 	setValue(value: string, skipSearchOnChange: boolean) {
-		this.searchInput.setValue(value);
 		this.temporarilySkipSearchOnChange = skipSearchOnChange || this.temporarilySkipSearchOnChange;
+		this.searchInput.setValue(value);
 	}
 
 	setReplaceAllActionState(enabled: boolean): void {
@@ -500,7 +499,31 @@ export class SearchWidget extends Widget {
 				this.temporarilySkipSearchOnChange = false;
 			} else {
 				this._onSearchCancel.fire({ focus: false });
-				this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
+				if (this.searchInput.getRegex()) {
+					try {
+						const regex = new RegExp(this.searchInput.getValue(), 'ug');
+						const matchienessHeuristic = `
+~!@#$%^&*()_+
+\`1234567890-=
+qwertyuiop[]\\
+QWERTYUIOP{}|
+asdfghjkl;'
+ASDFGHJKL:"
+zxcvbnm,./
+ZXCVBNM<>? 	`.match(regex)?.length ?? 0;
+
+						const delayMultiplier =
+							matchienessHeuristic < 50 ? 1 :
+								matchienessHeuristic < 100 ? 5 : // expressions like `.` or `\w`
+									10; // only things matching empty string
+
+						this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
+					} catch {
+						// pass
+					}
+				} else {
+					this._searchDelayer.trigger((() => this.submitSearch(true)), this.searchConfiguration.searchOnTypeDebouncePeriod);
+				}
 			}
 		}
 	}

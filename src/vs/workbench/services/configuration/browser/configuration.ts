@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
-import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
@@ -127,8 +127,7 @@ class FileServiceBasedConfigurationWithNames extends Disposable {
 				const content = await this.fileService.readFile(resource);
 				return content.value.toString();
 			} catch (error) {
-				const exists = await this.fileService.exists(resource);
-				if (exists) {
+				if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 					errors.onUnexpectedError(error);
 				}
 			}

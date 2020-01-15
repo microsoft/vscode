@@ -33,7 +33,7 @@ suite('MainThreadSaveParticipant', function () {
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
+		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
 		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 	});
 

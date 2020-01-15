@@ -32,6 +32,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		if (!super.matches(otherInput)) {
 			return false;
 		}
+
 		return otherInput instanceof DiffEditorInput && otherInput.forceOpenAsBinary === this.forceOpenAsBinary;
 	}
 

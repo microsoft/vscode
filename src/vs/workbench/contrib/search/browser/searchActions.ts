@@ -29,7 +29,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { SearchViewPaneContainer } from 'vs/workbench/contrib/search/browser/searchViewlet';
 import { SearchPanel } from 'vs/workbench/contrib/search/browser/searchPanel';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { createEditorFromSearchResult, refreshActiveEditorSearch, openNewSearchEditor } from 'vs/workbench/contrib/search/browser/searchEditor';
+import { createEditorFromSearchResult, refreshActiveEditorSearch, openNewSearchEditor } from 'vs/workbench/contrib/search/browser/searchEditorCommands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';

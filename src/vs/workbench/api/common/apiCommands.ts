@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -14,6 +14,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -132,6 +134,28 @@ export class OpenAPICommand {
 }
 CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
 
+export class OpenWithAPICommand {
+	public static readonly ID = 'vscode.openWith';
+	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions): Promise<any> {
+		let options: ITextEditorOptions | undefined;
+		let position: EditorViewColumn | undefined;
+
+		if (typeof columnOrOptions === 'number') {
+			position = typeConverters.ViewColumn.from(columnOrOptions);
+		} else if (typeof columnOrOptions !== 'undefined') {
+			options = typeConverters.TextEditorOptions.from(columnOrOptions);
+		}
+
+		return executor.executeCommand('_workbench.openWith', [
+			resource,
+			viewType,
+			options,
+			position
+		]);
+	}
+}
+CommandsRegistry.registerCommand(OpenWithAPICommand.ID, adjustHandler(OpenWithAPICommand.execute));
+
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
 	const workspacesService = accessor.get(IWorkspacesService);
 	return workspacesService.removeFromRecentlyOpened([uri]);
@@ -214,4 +238,19 @@ CommandsRegistry.registerCommand({
 			}
 		}]
 	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: number) {
+	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IEnvironmentService);
+
+	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
+		logService.setLevel(level);
+	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.getLogLevel', function (accessor: ServicesAccessor) {
+	const logService = accessor.get(ILogService);
+
+	return logService.getLevel();
 });

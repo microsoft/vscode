@@ -36,7 +36,7 @@ import { IAction } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, DEBUG_PANEL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { getExtensionHostDebugSession } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -45,6 +45,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { TaskRunResult, DebugTaskRunner } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IViewsService } from 'vs/workbench/common/views';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -80,6 +81,7 @@ export class DebugService implements IDebugService {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IPanelService private readonly panelService: IPanelService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -466,7 +468,7 @@ export class DebugService implements IDebugService {
 
 			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
 			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
-				this.panelService.openPanel(REPL_ID, false);
+				this.viewsService.openView(REPL_VIEW_ID, false);
 			}
 
 			this.viewModel.firstSessionStart = false;
@@ -492,7 +494,7 @@ export class DebugService implements IDebugService {
 
 			// Show the repl if some error got logged there #5870
 			if (session && session.getReplElements().length > 0) {
-				this.panelService.openPanel(REPL_ID, false);
+				this.viewsService.openView(REPL_VIEW_ID, false);
 			}
 
 			if (session.configuration && session.configuration.request === 'attach' && session.configuration.__autoAttach) {
@@ -577,7 +579,7 @@ export class DebugService implements IDebugService {
 				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
 				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
 
-				if (this.panelService.getLastActivePanelId() === REPL_ID && this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd) {
+				if (this.panelService.getLastActivePanelId() === DEBUG_PANEL_ID && this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd) {
 					this.panelService.hideActivePanel();
 				}
 			}

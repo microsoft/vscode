@@ -15,7 +15,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 

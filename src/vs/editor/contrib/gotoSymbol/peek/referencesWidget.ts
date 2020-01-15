@@ -17,7 +17,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
 import { Location } from 'vs/editor/common/modes';
@@ -247,7 +247,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	}
 
 	show(where: IRange) {
-		this.editor.revealRangeInCenterIfOutsideViewport(where, editorCommon.ScrollType.Smooth);
+		this.editor.revealRangeInCenterIfOutsideViewport(where, ScrollType.Smooth);
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
 
@@ -526,7 +526,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		// show in editor
 		const model = ref.object;
 		if (model) {
-			const scrollType = this._preview.getModel() === model.textEditorModel ? editorCommon.ScrollType.Smooth : editorCommon.ScrollType.Immediate;
+			const scrollType = this._preview.getModel() === model.textEditorModel ? ScrollType.Smooth : ScrollType.Immediate;
 			const sel = Range.lift(reference.range).collapseToStart();
 			this._previewModelReference = ref;
 			this._preview.setModel(model.textEditorModel);

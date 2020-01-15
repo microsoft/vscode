@@ -67,7 +67,7 @@ export class OpenEditorsView extends ViewPane {
 
 	constructor(
 		options: IViewletViewOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -83,7 +83,7 @@ export class OpenEditorsView extends ViewPane {
 		super({
 			...(options as IViewPaneOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService, contextKeyService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, instantiationService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {

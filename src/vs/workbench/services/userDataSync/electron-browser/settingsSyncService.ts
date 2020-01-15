@@ -45,12 +45,32 @@ export class SettingsSyncService extends Disposable implements ISettingsSyncServ
 		});
 	}
 
+	pull(): Promise<void> {
+		return this.channel.call('pull');
+	}
+
+	push(): Promise<void> {
+		return this.channel.call('push');
+	}
+
 	sync(_continue?: boolean): Promise<boolean> {
 		return this.channel.call('sync', [_continue]);
 	}
 
 	stop(): void {
 		this.channel.call('stop');
+	}
+
+	resetLocal(): Promise<void> {
+		return this.channel.call('resetLocal');
+	}
+
+	hasPreviouslySynced(): Promise<boolean> {
+		return this.channel.call('hasPreviouslySynced');
+	}
+
+	hasRemote(): Promise<boolean> {
+		return this.channel.call('hasRemote');
 	}
 
 	resolveConflicts(conflicts: { key: string, value: any | undefined }[]): Promise<void> {
